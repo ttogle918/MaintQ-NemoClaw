@@ -22,11 +22,13 @@
 // input
 {
   "model": "iG5A | S100",     // enum, required
-  "code": "OHt"                // required
+  "code": "OHt"                // required — 대소문자 무관 매칭 (D25: 내부는 대문자 canonical)
 }
 // output
 {
   "status": "ok",
+  "code": "OHT",               // 대문자 canonical (D25)
+  "display_code": "OHt",       // 키패드 원표기 보존 (D25)
   "error_name": "인버터 과열",
   "severity": "warning | fault | critical",
   "causes": ["냉각팬 고장", "주위 온도 초과", "..."],

@@ -1,5 +1,6 @@
 {
   "_설명": "매뉴얼 원본 관리 대장. 추출 파이프라인(extract_error_codes.py)이 시작 시 이 파일의 sha256과 실제 파일 해시를 비교해 버전 변경을 감지한다. sha256이 null이면 첫 실행 때 스크립트가 계산해 채운다.",
+  "citation_policy": "페이지 인용은 전부 PDF 물리 페이지 기준 (D26). 인쇄 페이지와 다른 문서는 각 항목의 print_page_offset 참조.",
   "manuals": [
     {
       "id": "ig5a-manual",
@@ -8,7 +9,7 @@
       "file": "iG5A_User_Manual_Standard_KR_210303.pdf",
       "version": "2021-03-03 (파일명 기준)",
       "source_url": "https://sol.ls-electric.com (LS ELECTRIC 솔루션스퀘어 > 자료실 > SV-iG5A)",
-      "sha256": null,
+      "sha256": "b45e5db83b06879c0e0ce7d5874fc1f4b3d776f7c0a009d6bb60a75f7e0607b0",
       "downloaded_at": "2026-07-18",
       "license_note": "저작권 LS ELECTRIC. 비상업적 학습·포트폴리오 목적. 원본 재배포 금지(git 제외)."
     },
@@ -19,7 +20,7 @@
       "file": "iG5A_Troubleshooting_Rev1.0_150415.pdf",
       "version": "Rev1.0 2015-04-15",
       "source_url": "https://sol.ls-electric.com (LS ELECTRIC 솔루션스퀘어 > 자료실 > SV-iG5A)",
-      "sha256": null,
+      "sha256": "6e149dabc5843c68129a0b5e4bedf729dc430f1272b8ce9adee6ee1b21ee49ec",
       "downloaded_at": "2026-07-18",
       "license_note": "동일. 에러코드 추출의 우선 원천 후보 — EDA에서 표준 매뉴얼과 커버리지 비교할 것."
     },
@@ -30,9 +31,11 @@
       "file": "S100_Manual_Korean_V4.2.pdf",
       "version": "V4.2",
       "source_url": "https://sol.ls-electric.com (LS ELECTRIC 솔루션스퀘어 > 자료실 > S100)",
-      "sha256": null,
+      "sha256": "35e492f584a3f8d192d35fe31784bf19997051cf344d638590eb7684601d3bec",
       "downloaded_at": "2026-07-18",
-      "license_note": "동일."
+      "license_note": "동일.",
+      "print_page_offset": 16,
+      "page_note": "물리 페이지 = 인쇄 페이지 + 16 (예: 물리 p.310 = 인쇄 p.294). 인용은 물리 기준 (D26)"
     }
   ],
   "update_policy": "매뉴얼 개정은 연 단위 이벤트. 자동 다운로드 워처는 백로그 P13. 신규 버전 반영 절차: 새 PDF를 raw/에 추가 → manifest에 항목 추가(구버전 유지) → 추출 파이프라인 재실행 → error_codes.json diff 확인 → testset 영향 검토."

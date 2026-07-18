@@ -1,0 +1,18 @@
+[project]
+name = "maintq"
+version = "0.1.0"
+description = "설비 진단부터 부품 발주까지 — B2B 제조 보전 AI 에이전트 (Q 시리즈 3번째)"
+requires-python = ">=3.11"
+dependencies = [
+    # M1 데이터 파이프라인 (SP1 EDA·extract_error_codes.py에서 사용)
+    "pdfplumber>=0.11",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

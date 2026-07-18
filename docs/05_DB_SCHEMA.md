@@ -30,13 +30,14 @@ parts ──< inventory
 ```sql
 CREATE TABLE error_codes (
   model        TEXT NOT NULL,          -- 'iG5A' | 'S100'
-  code         TEXT NOT NULL,          -- 'OHt', 'OCt' ...
+  code         TEXT NOT NULL,          -- 대문자 canonical: 'OHT', 'OCT' ... (D25, lookup은 case-insensitive)
+  display_code TEXT,                   -- 키패드 원표기 보존: 'oht', 'OHt' ... (D25)
   error_name   TEXT NOT NULL,
   severity     TEXT NOT NULL,          -- 'warning' | 'fault' | 'critical'
   causes       TEXT NOT NULL,          -- JSON array
   actions      TEXT NOT NULL,          -- JSON array
   related_parts TEXT,                  -- JSON array of part_no (부품 특정의 연결고리!)
-  manual_page  INTEGER NOT NULL,       -- 근거 인용 필수
+  manual_page  INTEGER NOT NULL,       -- 근거 인용 필수 — PDF 물리 페이지 기준 (D26)
   PRIMARY KEY (model, code)            -- ★ 복합키 = "같은 코드, 다른 의미" 구현
 );
 ```

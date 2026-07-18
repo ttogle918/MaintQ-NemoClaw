@@ -40,6 +40,24 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 - MCP 서버·백엔드 프로세스 분리 → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨
 - MCP 도구 총 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
 
+## 빠른 시작
+
+요구사항: Python 3.13+, [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14)
+
+```bash
+git clone https://github.com/<YOUR_ID>/MaintQ.git && cd MaintQ
+uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
+cp .env.example .env                 # ANTHROPIC_API_KEY 입력
+
+uv run python data/seed.py           # 목업 DB 생성 (시드 케이스 맵 7종)
+
+# 프로세스 2개를 각각 띄운다 (D15: MCP 서버·백엔드 분리)
+uv run python mcp_server/server.py                        # 터미널 1 — MCP 서버
+uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — FastAPI 백엔드
+```
+
+> 현재 M1(데이터 준비) 단계 — `seed.py`·`mcp_server`·`backend`는 M2에서 구현 예정이라 위 명령 중 일부는 아직 동작하지 않는다. 데이터 파이프라인은 지금도 실행 가능: `uv run python data/extract_error_codes.py`
+
 ## 시나리오 (도구 오케스트레이션 패턴 4종)
 
 | # | 시나리오 | 증명하는 패턴 |

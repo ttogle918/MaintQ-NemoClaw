@@ -13,6 +13,9 @@ import sys
 
 PROTECTED = ("data/raw/", "data\\raw\\")
 PROTECTED_FILES = ("eval/testset.json", "eval\\testset.json")
+# manifest.json은 원본이 아니라 관리 대장 — 파이프라인이 sha256을 채우고(D19),
+# 페이지 오프셋 등 메타데이터를 기록한다(D26). raw 보호에서 제외.
+ALLOWED_IN_PROTECTED = ("data/raw/manifest.json", "data\\raw\\manifest.json")
 
 try:
     payload = json.load(sys.stdin)
@@ -22,6 +25,9 @@ except Exception:
 tool_input = payload.get("tool_input", {}) or {}
 path = str(tool_input.get("file_path") or tool_input.get("path") or "")
 norm = path.replace("\\", "/").lower()
+
+if any(norm.endswith(a.replace("\\", "/")) for a in ALLOWED_IN_PROTECTED):
+    sys.exit(0)
 
 if any(p.replace("\\", "/") in norm for p in PROTECTED):
     print(
