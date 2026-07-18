@@ -340,8 +340,12 @@ def main() -> None:
     }
     EXTRACTED.mkdir(exist_ok=True)
     OUTPUT.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    n_visual = sum(1 for e in ig5a_entries if e.get("mapping_confidence") == "visual")
     print(f"[완료] {OUTPUT}")
-    print(f"  iG5A {len(ig5a_entries)}건 (검수 대기 high만) + S100 {len(s100_entries)}건")
+    print(
+        f"  iG5A {len(ig5a_entries)}건 (high {len(ig5a_entries) - n_visual} + "
+        f"visual·확인대기 {n_visual}) + S100 {len(s100_entries)}건"
+    )
     print(
         f"  보류(pending_review) {len(pending)}건, 파싱 미완(_unparsed) {len(out['_unparsed'])}건"
     )
