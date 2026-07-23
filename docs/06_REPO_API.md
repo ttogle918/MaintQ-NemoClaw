@@ -65,6 +65,10 @@ MaintQ/
 │
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
+├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
+│   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
+│   └── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
+│
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기
 │   ├── run_eval.py            # 자동 실행 → 정확률·인용률·안전경고 검사
@@ -81,7 +85,16 @@ MaintQ/
 
 인증은 목업 수준으로 단순화하되, 권한 검사 로직은 실제로 구현:
 - `X-Role: technician | manager` — 권한 검사 (403 규칙)
-- `X-User: 김OO` — 신원 (D23). `requested_by`/`decided_by`는 백엔드가 이 헤더에서 **서버 측 주입** — 도구 파라미터로 받지 않으므로 LLM이 신원을 위조할 경로가 없음
+- `X-User: tech-01` — 신원 (D23). `requested_by`/`decided_by`는 백엔드가 이 헤더에서 **서버 측 주입** — 도구 파라미터로 받지 않으므로 LLM이 신원을 위조할 경로가 없음
+
+> ⚠️ **`X-User`는 ASCII 사용자 ID다 (D36).** `X-User: 김OO` 처럼 한글 표시명을 넣으면
+> HTTP 헤더 값이 ASCII(latin-1) 범위라 httpx·브라우저 `fetch` 양쪽에서 거부된다 (SP3에서 확인).
+> DB에는 ID를 저장하고, 화면 표시명은 서버가 매핑한다.
+
+| 사용자 ID | 역할 | 표시명 |
+|---|---|---|
+| `tech-01` | technician | 정비사 김OO |
+| `mgr-01` | manager | 보전팀장 박OO |
 
 ### 2.1 대화
 

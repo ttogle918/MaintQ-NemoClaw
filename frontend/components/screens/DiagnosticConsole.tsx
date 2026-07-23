@@ -13,7 +13,7 @@ import { Avatar, Divider, Logo, SelectChip } from "@/components/ui/Chip";
 import { Mono } from "@/components/ui/Mono";
 import { CHAT_BY_SCENARIO, type Scenario } from "@/lib/mock/scenarios";
 import { TRACE_S1, TRACE_S3 } from "@/lib/mock/trace";
-import { ROLE_USER } from "@/lib/role";
+import { ROLE_USER_NAME } from "@/lib/role";
 import { sx } from "@/lib/sx";
 
 const TRACE_BY_SCENARIO = { s1: TRACE_S1, s3: TRACE_S3 };
@@ -42,7 +42,7 @@ export function DiagnosticConsole({
           </SelectChip>
           <Spacer />
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
-            정비사 {ROLE_USER.technician}
+            정비사 {ROLE_USER_NAME.technician}
           </span>
           <Avatar />
         </ConsoleHeader>

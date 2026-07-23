@@ -10,13 +10,16 @@
  *   → fetch + ReadableStream 으로 직접 파싱한다 (readSse 참조)
  */
 import type { Role } from "./role";
-import { ROLE_USER } from "./role";
+import { ROLE_USER_ID } from "./role";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
-/** 역할·신원 헤더. requested_by/decided_by 는 백엔드가 이 값에서 주입한다 (D23). */
+/**
+ * 역할·신원 헤더. requested_by/decided_by 는 백엔드가 이 값에서 주입한다 (D23).
+ * X-User 는 **ASCII 사용자 ID** — 한글 표시명을 넣으면 fetch 가 거부한다 (D36).
+ */
 export function authHeaders(role: Role): Record<string, string> {
-  return { "X-Role": role, "X-User": ROLE_USER[role] };
+  return { "X-Role": role, "X-User": ROLE_USER_ID[role] };
 }
 
 export async function apiFetch<T>(

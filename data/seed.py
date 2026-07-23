@@ -359,7 +359,11 @@ def seed_error_history(con: sqlite3.Connection, rng: random.Random, today: date)
 
 
 def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
-    """화면 B 승인 큐용. 에러코드 FK는 error_codes 적재 여부에 따라 채운다 (D33)."""
+    """화면 B 승인 큐용.
+
+    에러코드 FK는 error_codes 적재 여부에 따라 채운다 (D33).
+    requested_by/decided_by 는 표시명이 아니라 ASCII 사용자 ID (D36).
+    """
     evidence_0117 = {
         "symptoms": ["냉각팬 소음 증가", "3번 라인 2회 정지"],
         "basis": [
@@ -383,7 +387,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "iG5A OHt 과열 진단, 냉각팬 고장 유력 (매뉴얼 p.202). 재고 1/안전재고 3 미달",
             "urgent",
             "pending",
-            "김OO",
+            "tech-01",
             None,
             "S1",
         ),
@@ -399,7 +403,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "S100 제어보드 단종 — 호환 확정 후속 리비전(R2)으로 대체 발주",
             "normal",
             "pending",
-            "이OO",
+            "tech-02",
             None,
             "S2",
         ),
@@ -415,7 +419,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "2번 라인 정기 교체분 — 소모품 보충",
             "normal",
             "pending",
-            "김OO",
+            "tech-01",
             None,
             None,
         ),
@@ -431,8 +435,8 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "4번 포장라인 V벨트 마모 — 육안 점검에서 균열 확인",
             "normal",
             "approved",
-            "김OO",
-            "박OO",
+            "tech-01",
+            "mgr-01",
             None,
         ),
         (
@@ -447,8 +451,8 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "예비 인버터 확보 요청",
             "normal",
             "rejected",
-            "이OO",
-            "박OO",
+            "tech-02",
+            "mgr-01",
             None,
         ),
     ]

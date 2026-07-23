@@ -12,7 +12,7 @@ import { QueueList } from "@/components/queue/QueueList";
 import { StatusLegend } from "@/components/queue/StatusLegend";
 import { Avatar, Divider, Logo } from "@/components/ui/Chip";
 import { EVIDENCE_PO_0117, PENDING, QUOTES_PO_0117, RECENT } from "@/lib/mock/queue";
-import { ROLE_USER } from "@/lib/role";
+import { ROLE_USER_NAME } from "@/lib/role";
 import { sx } from "@/lib/sx";
 
 /**
@@ -35,7 +35,7 @@ export function ApprovalQueueScreen({ selectedPoId }: { selectedPoId?: string })
           </span>
           <Spacer />
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
-            팀장 {ROLE_USER.manager}
+            팀장 {ROLE_USER_NAME.manager}
           </span>
           <Avatar />
         </ConsoleHeader>

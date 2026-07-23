@@ -94,8 +94,12 @@ TOOL_TIMEOUT_SEC        = 10     # 개별 도구 타임아웃
 
 | # | 스파이크 | 검증 질문 | 예상 |
 |---|---|---|---|
-| SP1 | 매뉴얼 표 5페이지 pdfplumber 추출 | 셀 병합·줄바꿈에서 정확도 몇 %? 파서로 충분한가? | 반나절 |
-| SP2 | MCP 서버 ↔ 에이전트 hello-world 왕복 | 도구 등록·호출·status 반환 왕복 확인 | 1~2h |
-| SP3 | FastAPI SSE 이벤트 4종 스트리밍 (D22) | token/tool_call/tool_result/block이 프론트에서 구분 수신되고, block이 token 스트림 "중간"에 삽입 가능한가 | 1~2h |
+| SP1 | 매뉴얼 표 5페이지 pdfplumber 추출 | 셀 병합·줄바꿈에서 정확도 몇 %? 파서로 충분한가? | **완료 (D24)** — 텍스트 파싱으로 충분, 64건 추출 |
+| SP2 | MCP 서버 ↔ 에이전트 hello-world 왕복 | 도구 등록·호출·status 반환 왕복 확인 | **통과 (15건)** — `spikes/sp2_mcp_roundtrip.py` |
+| SP3 | FastAPI SSE 이벤트 4종 스트리밍 (D22) | token/tool_call/tool_result/block이 프론트에서 구분 수신되고, block이 token 스트림 "중간"에 삽입 가능한가 | **통과 (11건)** — `spikes/sp3_sse_events.py`. 진행 중 D23의 구현 불가 결함 발견 → **D36** |
 
 SP1 결과에 따라 M1 일정 확정. 셋 다 통과하면 M2에서 막힐 미지수 없음.
+
+**셋 다 통과 (2026-07-23).** 스파이크는 재실행 가능한 회귀 테스트로 `spikes/` 에 남긴다 —
+계약(이벤트 4종·status 반환·A1 순서·block 중간 삽입)이 깨지면 여기서 먼저 잡힌다.
+SP3 는 실제로 `X-User: 김OO` 가 HTTP 헤더로 전송 불가임을 잡아냈다 (→ D36).
