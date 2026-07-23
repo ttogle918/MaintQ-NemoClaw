@@ -1,6 +1,6 @@
 # Sprint 3 — M2 완주 (에이전트 루프 + trace 관통)
 
-**수립일**: 2026-07-23 · **상태**: **결정 승인 완료 (D40~D52), Stage 1 착수 가능**
+**수립일**: 2026-07-23 · **상태**: **Stage 1 완료** · Stage 2 착수 전 (선행 처리 5건)
 
 ## 목표
 
@@ -304,3 +304,46 @@ MQ-304, MQ-313  (독립)
 | 4 | `backend/agent/prompts.py`의 `SAFETY_BASELINE` 문구·페이지 검수 | ★★ |
 | 5 | `related_parts` 7건 검수 (평가 실적 인용의 전제) | ★ |
 | 6 | **`rag_sizing.md` 확인 후 임베딩 모델·가중치 결정 (D51)** — Stage 2 의 dense 활성화 전제 | ★★ |
+
+
+---
+
+## 7. 실행 기록
+
+### Stage 1 완료 (2026-07-23)
+**커밋**: `3b14c2b` — `[M2] Sprint 3 Stage 1 — 루프 기반 7종 (회귀 153건)`
+**reviewer**: PASS (블로커 0 · 경고 12)
+
+| TASK | 산출 | 스파이크 |
+|---|---|---|
+| MQ-301 | `backend/agent/{__init__,trace}.py` · `data/seed.py`(스키마 4건) · `backend/services/po.py`(users 이관) | `trace_persist.py` 14 |
+| MQ-302 | `backend/agent/mcp_client.py` · `backend/main.py`(lifespan) | `mcp_client_contract.py` 15 |
+| MQ-303 | `backend/agent/prompts.py` · `TODO_직접할일.md` | `prompt_rules.py` 16 |
+| MQ-304 | `mcp_server/tools/lookup_error_code.py` · `server.py`(6/7) | `lookup_contract.py` 12 |
+| MQ-305 | `data/chunk_manual.py` · `manual_chunks.jsonl`(1,035청크) · `rag_sizing.md` | 자가 검증(멱등·경계) |
+| MQ-312 | `backend/manifest.py` · `backend/sse.py`(`citation_for`) | `citation_render.py` 13 |
+| MQ-313 | `backend/db.py` · `mcp_server/db.py` · `.gitignore` | `db_concurrency.py` 13 |
+
+**회귀 153건 전건 통과** — seed 11 · trace 14 · mcp_client 15 · prompt 16 · lookup 12 · citation 13 · db_concurrency 13 · SP2 15 · write_tool 14 · api 19 · SP3 11
+
+### 구현 중 잡힌 실제 결함 (계획에 없던 것)
+
+| 태스크 | 결함 | 왜 안 잡혔을 뻔했나 |
+|---|---|---|
+| MQ-305 | `chunks[-2] += chunks.pop()` — `pop()` 이 리스트를 줄인 뒤 `-2` 가 재계산돼 **165개 페이지에서 두 청크가 동일**해지고 앞부분이 유실 | 부분 문자열 검사도 멱등성 검사도 통과한다 — **매번 똑같이 틀리기** 때문. "페이지 재구성 일치" assert 를 추가해 방어 |
+| MQ-302 | `_child_env` 역검증 | SDK 기본(`get_default_environment()`)으로 바꿔치기하니 실 DB 오염이 재현됨 — 스파이크가 실제로 이를 잡는다는 걸 확인 |
+| MQ-313 | `mode=ro` 커넥션에서 `journal_mode=WAL` → `attempt to write a readonly database` | 이미 WAL 인 DB 면 조용히 통과 → **특정 상태에서만 터지는** 종류. `_configure`/`_enable_wal` 분리로 방어 |
+
+### Stage 2 착수 전 처리 (reviewer 권고, 우선순위)
+
+1. **W-2** `TraceWriter.citation(manual, page, print_page, …)` 이 `print_page` 를 **인자로 받는다** — MQ-306 이 쓰면 D32 의 "변환은 1곳"이 두 갈래로 벌어진다. `citation(model, page, section)` 으로 바꾸거나 삭제하고 `emit(sse.citation_for(...))` 만 남길 것
+2. **W-10** rag `text` 400자 절단 — 평균 청크 548자의 27%, p90 778자의 절반을 자른다. 절차 문단이 중간에서 끊기면 환각 표면이 생긴다. 상한을 800자로 올리거나 `truncated: true` 를 실을 것. **04_MCP_TOOLS §2 계약 변경이라 D 필요** · MQ-314 착수 전
+3. **W-6** `reason` 키를 모든 error 반환의 필수로 승격 — 지금 12곳이 `message` 만 준다. 도구가 7종으로 늘기 전이 최저 비용
+4. **W-3·W-4** 문서 정정 — `TOOL_TIMEOUT_SEC` 위치(09_RUNTIME §2 를 코드에 맞춰 정정) · `MAINTQ_MCP_AUTOSTART` 를 06_REPO_API 환경변수 표에 기재
+5. **W-11** 안전 문구 근거 불일치 — `QUALIFIED_WORKER_NOTE` 의 S100 근거 p.3 이 문장 주장과 어긋난다(사람 검수 항목)
+
+### 아직 성립하지 않는 것 (정직하게)
+
+- **A5 가 런타임에서 아직 성립하지 않는다** — `chat.py` 의 유일한 SSE 경로가 `sse.*` 를 직접 호출해 traces 에 한 행도 안 남는다. MQ-308 이 배선한다
+- **`error_codes` 0행** — lookup 실데이터 관통은 사람 승인 후. 지금은 모든 코드가 `catalog_not_loaded` 로 정직하게 실패한다
+- **평가 지표 5종 산출 불가** — `eval/` 이 아직 없다. API 호출 0건, 비용 0
