@@ -143,4 +143,4 @@
 | 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D38) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
-| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P14) |
+| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P20) |
