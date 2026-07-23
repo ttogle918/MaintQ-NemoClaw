@@ -51,11 +51,25 @@ def display_name(user_id: str | None) -> str:
     return USER_NAMES.get(user_id or "", user_id or "")
 
 
+def iso_utc(ts: str | None) -> str | None:
+    """DB 의 naive 문자열 → 타임존이 명시된 ISO-8601.
+
+    SQLite 의 `CURRENT_TIMESTAMP` 는 **UTC** 인데 'YYYY-MM-DD HH:MM:SS' 로만 저장돼
+    타임존 표기가 없다. 그대로 내보내면 브라우저가 로컬 시각으로 해석해
+    KST 기준 9시간이 어긋난다 (실제로 "방금"이 "9시간 전"으로 보였다).
+    저장은 UTC, 전송은 UTC 명시, 표시는 클라이언트가 로컬로 — 경계를 여기서 긋는다.
+    """
+    if not ts:
+        return ts
+    return ts.replace(" ", "T") + ("" if ts.endswith("Z") or "+" in ts else "Z")
+
+
 def _row_to_po(r: sqlite3.Row) -> dict:
     d = dict(r)
     d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
     d["requested_by_name"] = display_name(d.get("requested_by"))
     d["decided_by_name"] = display_name(d.get("decided_by"))
+    d["created_at"] = iso_utc(d.get("created_at"))
     return d
 
 

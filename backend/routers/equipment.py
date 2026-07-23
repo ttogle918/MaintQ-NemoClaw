@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.db import connect
 from backend.deps import Caller, caller, require
+from backend.services.po import iso_utc
 
 router = APIRouter(prefix="/api/equipment", tags=["equipment"])
 
@@ -50,7 +51,10 @@ def history(equipment_id: str, days: int = 180, c: Caller = Depends(caller)) -> 
             " ORDER BY occurred_at DESC",
             (equipment_id, f"-{int(days)} day"),
         ).fetchall()
-    return {"equipment_id": equipment_id, "count": len(rows), "events": [dict(r) for r in rows]}
+    events = [dict(r) for r in rows]
+    for e in events:
+        e["occurred_at"] = iso_utc(e["occurred_at"])
+    return {"equipment_id": equipment_id, "count": len(rows), "events": events}
 
 
 @router.post("/{equipment_id}/errors", status_code=201)
@@ -67,7 +71,8 @@ def record_error(equipment_id: str, body: ErrorRecord, c: Caller = Depends(calle
     if not code.isascii() or not all(ch.isalnum() or ch == "_" for ch in code):
         raise HTTPException(400, f"코드 형식이 올바르지 않습니다: {body.code!r}")
 
-    occurred = body.occurred_at or datetime.now().isoformat(sep=" ", timespec="seconds")
+    # SQLite 의 datetime('now') 비교가 UTC 기준이라 저장도 UTC 여야 한다 (D39)
+    occurred = body.occurred_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     with connect() as con:
         if (
@@ -89,6 +94,6 @@ def record_error(equipment_id: str, body: ErrorRecord, c: Caller = Depends(calle
         "id": row_id,
         "equipment_id": equipment_id,
         "code": code,
-        "occurred_at": occurred,
+        "occurred_at": iso_utc(occurred),
         "recorded_by": c.user_id,
     }

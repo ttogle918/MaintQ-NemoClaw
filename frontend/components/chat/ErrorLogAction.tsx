@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Mono } from "@/components/ui/Mono";
+import { ApiError, recordError } from "@/lib/api";
 import { sx } from "@/lib/sx";
 
 /**
@@ -20,10 +21,28 @@ export function ErrorLogAction({
 }: {
   equipmentId: string;
   code: string;
-  /** 이미 기록된 건이면 기록 시각 */
   recordedAt?: string;
 }) {
   const [saved, setSaved] = useState<string | null>(recordedAt ?? null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function record() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await recordError(equipmentId, code, "리셋");
+      setSaved(r.occurred_at);
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? `기록 실패 (${e.status})`
+          : "백엔드에 연결하지 못했습니다 — 기록되지 않았습니다"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -44,17 +63,22 @@ export function ErrorLogAction({
             ✓
           </span>
           <span style={sx("font:12px/1.5 'Pretendard';color:var(--ink2)")}>
-            고장 이력에 기록됨 — <Mono size={11}>{equipmentId}</Mono> · <Mono size={11}>{code}</Mono>{" "}
-            <span style={sx("color:var(--dim2)")}>{saved}</span>
+            고장 이력에 기록됨 — <Mono size={11}>{equipmentId}</Mono> ·{" "}
+            <Mono size={11}>{code}</Mono> <span style={sx("color:var(--dim2)")}>{saved}</span>
           </span>
         </>
       ) : (
         <>
-          <Button size="sm" variant="outline" onClick={() => setSaved("방금")}>
-            🗓 이 고장 이력에 기록
+          <Button size="sm" variant="outline" onClick={() => void record()}>
+            {busy ? "기록 중…" : "🗓 이 고장 이력에 기록"}
           </Button>
-          <span style={sx("font:11px/1.5 'Pretendard';color:var(--dim2)")}>
-            기록해야 반복 고장 감지(30일 3회)에 반영됩니다 — 질문만으로는 집계되지 않습니다
+          <span
+            style={sx(
+              `font:11px/1.5 'Pretendard';color:${error ? "var(--orange-tx)" : "var(--dim2)"}`
+            )}
+          >
+            {error ??
+              "기록해야 반복 고장 감지(30일 3회)에 반영됩니다 — 질문만으로는 집계되지 않습니다"}
           </span>
         </>
       )}

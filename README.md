@@ -53,7 +53,8 @@ uv run python data/seed.py           # 목업 DB 생성 (시드 케이스 맵 7�
 
 # 프로세스 2개를 각각 띄운다 (D15: MCP 서버·백엔드 분리)
 uv run python mcp_server/server.py                        # 터미널 1 — MCP 서버
-uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — FastAPI 백엔드
+uv run uvicorn backend.main:app --reload --port 8003      # 터미널 2 — FastAPI 백엔드
+npm --prefix frontend run dev                             # 터미널 3 — 프론트 (localhost:3003)
 ```
 
 > 현재 M1(데이터 준비) 단계 — `seed.py`·`mcp_server`·`backend`는 M2에서 구현 예정이라 위 명령 중 일부는 아직 동작하지 않는다. 데이터 파이프라인은 지금도 실행 가능: `uv run python data/extract_error_codes.py`
@@ -92,7 +93,7 @@ uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — Fast
 | [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
 | [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D38과 이유 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D39과 이유 |
 
 ## 데이터 출처
 

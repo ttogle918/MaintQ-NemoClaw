@@ -18,7 +18,7 @@ export function ChatThread({
   onRequestApproval,
 }: {
   items: ChatItem[];
-  onRequestApproval?: () => void;
+  onRequestApproval?: (poId: string) => void;
 }) {
   return (
     <div style={sx("display:flex;flex-direction:column;gap:12px")}>

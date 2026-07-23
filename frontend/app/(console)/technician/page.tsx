@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Toast } from "@/components/layout/Toast";
 import { DiagnosticConsole } from "@/components/screens/DiagnosticConsole";
 import { Mono } from "@/components/ui/Mono";
+import { ApiError, submitPo } from "@/lib/api";
 import type { Scenario } from "@/lib/mock/scenarios";
 
 /**
@@ -16,23 +17,39 @@ export default function TechnicianPage({
 }: {
   searchParams?: { scenario?: string };
 }) {
-  const [toast, setToast] = useState(false);
+  const [toast, setToast] = useState<React.ReactNode>(null);
   const scenario: Scenario = searchParams?.scenario === "s3" ? "s3" : "s1";
 
-  function requestApproval() {
-    // M2: POST /api/po/{id}/submit (X-Role: technician) → draft→pending (A3)
-    setToast(true);
-    window.setTimeout(() => setToast(false), 2600);
+  function show(node: React.ReactNode) {
+    setToast(node);
+    window.setTimeout(() => setToast(null), 3200);
+  }
+
+  /** draft → pending (A3 — 에이전트 루프 밖의 REST 전이) */
+  async function requestApproval(poId: string) {
+    try {
+      const po = await submitPo(poId);
+      show(
+        <>
+          <Mono>#{po.po_id}</Mono> 발주 요청이 팀장 승인 큐로 전달되었습니다
+        </>
+      );
+    } catch (e) {
+      show(
+        e instanceof ApiError
+          ? `승인 요청 실패 (${e.status})`
+          : "백엔드에 연결하지 못했습니다 — 요청이 전달되지 않았습니다"
+      );
+    }
   }
 
   return (
     <>
-      <DiagnosticConsole scenario={scenario} onRequestApproval={requestApproval} />
-      {toast && (
-        <Toast>
-          <Mono>#PO-0117</Mono> 발주 요청이 팀장 승인 큐로 전달되었습니다
-        </Toast>
-      )}
+      <DiagnosticConsole
+        scenario={scenario}
+        onRequestApproval={(poId) => void requestApproval(poId)}
+      />
+      {toast && <Toast>{toast}</Toast>}
     </>
   );
 }

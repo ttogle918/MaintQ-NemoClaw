@@ -12,10 +12,15 @@ export function PoDetail({
   entry,
   evidence,
   quotes,
+  onApprove,
+  onReject,
 }: {
   entry: QueueEntry;
   evidence: EvidenceEntry[];
   quotes: SupplierQuote[];
+  /** 미지정이면 목업 모드 — 버튼이 아무것도 저장하지 않는다 */
+  onApprove?: () => void;
+  onReject?: (reason: string) => void;
 }) {
   const recommended = quotes.find((q) => q.recommended) ?? quotes[0];
 
@@ -35,7 +40,11 @@ export function PoDetail({
 
       <EvidenceCard entries={evidence} />
       <SupplierCompare quotes={quotes} />
-      <DecisionBar supplierName={recommended?.name ?? ""} />
+      <DecisionBar
+        supplierName={recommended?.name ?? ""}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
     </div>
   );
 }

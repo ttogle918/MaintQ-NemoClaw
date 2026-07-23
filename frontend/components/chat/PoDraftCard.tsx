@@ -18,7 +18,7 @@ export function PoDraftCard({
   onRequestApproval,
 }: {
   po: PoDraft;
-  onRequestApproval?: () => void;
+  onRequestApproval?: (poId: string) => void;
 }) {
   return (
     <CardShell>
@@ -54,7 +54,7 @@ export function PoDraftCard({
       </div>
 
       <CardFoot>
-        <Button onClick={onRequestApproval}>팀장 승인 요청</Button>
+        <Button onClick={() => onRequestApproval?.(po.poId)}>팀장 승인 요청</Button>
         <Button variant="outline">수정</Button>
       </CardFoot>
     </CardShell>

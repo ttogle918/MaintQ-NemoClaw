@@ -27,7 +27,7 @@ export function DiagnosticConsole({
   onRequestApproval,
 }: {
   scenario?: Scenario;
-  onRequestApproval?: () => void;
+  onRequestApproval?: (poId: string) => void;
 }) {
   return (
     <ScreenStack>

@@ -25,7 +25,7 @@ import random
 import shutil
 import sqlite3
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent  # data/
@@ -326,7 +326,11 @@ def seed_supplier_parts(con: sqlite3.Connection, rng: random.Random) -> None:
 
 
 def seed_error_history(con: sqlite3.Connection, rng: random.Random, today: date) -> None:
-    """6개월치 이력 ~200건. 대부분 단발, INV-L3-01의 OCT만 30일 내 3건 (S3 트리거)."""
+    """6개월치 이력 ~200건. 대부분 단발, INV-L3-01의 OCT만 30일 내 3건 (S3 트리거).
+
+    시각은 **UTC** 로 저장한다 — SQLite 의 datetime('now') 비교가 UTC 기준이라
+    로컬 시각을 섞으면 한 DB 안에 두 개의 시간 기준이 생긴다 (D39).
+    """
     rows: list[tuple] = []
 
     # ── S3 케이스: 실행일 기준 상대 날짜 (하드코딩 금지)
@@ -617,8 +621,8 @@ def main() -> None:
     ap.add_argument(
         "--today",
         type=date.fromisoformat,
-        default=date.today(),
-        help="이력 생성 기준일 (YYYY-MM-DD). 재현용",
+        default=datetime.now(timezone.utc).date(),
+        help="이력 생성 기준일 (YYYY-MM-DD, UTC). 재현용",
     )
     args = ap.parse_args()
 

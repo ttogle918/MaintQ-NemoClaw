@@ -14,7 +14,7 @@
 | [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P20 + 아이디어 주차장 + MVP 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
 | [09_RUNTIME](09_RUNTIME.md) | S1 시퀀스 다이어그램, 에이전트 루프 정책, 장애 모드, 스파이크 3종 | 에이전트 루프·SSE 구현 시, 개발 착수 직전 |
-| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D38 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
+| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D39 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
 
 **규칙:** 설계와 다른 구현을 하려면 10_DECISIONS에 결정을 먼저 추가하고 진행한다. 새 기능 아이디어는 07_BACKLOG로 보낸다.
 

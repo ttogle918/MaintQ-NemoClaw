@@ -23,7 +23,7 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
-PORT = 8077
+PORT = 8083
 BASE = f"http://127.0.0.1:{PORT}"
 
 results: list[tuple[str, bool, str]] = []

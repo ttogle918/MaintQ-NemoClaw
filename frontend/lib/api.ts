@@ -1,8 +1,7 @@
 /**
- * 백엔드 연동 골격 (docs/06_REPO_API.md).
+ * 백엔드 클라이언트 (docs/06_REPO_API.md).
  *
- * 아직 backend/ 가 없어 실제 호출은 M2 에서 연결한다. 여기서는
- * "헤더를 어디서 채우는가" 와 "SSE 를 어떻게 읽는가" 만 한 곳에 고정해 둔다.
+ * 발주·장비 API 는 연결됐고, `/api/chat` SSE 는 에이전트 루프가 나오면 붙인다.
  *
  * ⚠️ EventSource 를 쓸 수 없다.
  *   - /api/chat 은 POST 이고 EventSource 는 GET 전용이다
@@ -12,7 +11,7 @@
 import type { Role } from "./role";
 import { ROLE_USER_ID } from "./role";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8003";
 
 /**
  * 역할·신원 헤더. requested_by/decided_by 는 백엔드가 이 값에서 주입한다 (D23).
@@ -113,6 +112,80 @@ function safeJson(raw: string): unknown {
 
 /* -------------------------------------------------------------------------- */
 /* 엔드포인트 (M2 에서 본문 연결)                                              */
+
+/* -------------------------------------------------------------------------- */
+/* 발주 · 장비 API                                                             */
+
+/** 백엔드 `/api/po` 응답. 화면 B 가 필요한 걸 한 번에 준다. */
+export interface ApiPo {
+  po_id: string;
+  part_no: string;
+  part_name: string;
+  qty: number;
+  supplier_id: string;
+  supplier_name: string;
+  model: string | null;
+  error_code: string | null;
+  evidence: { symptoms?: string[]; basis?: ApiBasis[]; notes?: string } | null;
+  unit_price: number;
+  reason: string;
+  urgency: "urgent" | "normal";
+  state: "draft" | "pending" | "approved" | "rejected";
+  requested_by: string | null;
+  requested_by_name: string;
+  decided_by: string | null;
+  decided_by_name: string;
+  decision_note: string | null;
+  session_id: string | null;
+  created_at: string;
+  quotes?: { supplier_id: string; name: string; lead_days: number; unit_price: number; moq: number }[];
+  inventory?: { qty: number; safety_stock: number; location: string } | null;
+  trace_url?: string | null;
+}
+
+export interface ApiBasis {
+  tool?: string;
+  code?: string;
+  manual_page?: number;
+  [k: string]: unknown;
+}
+
+export const getPoQueue = (role: Role, state = "pending") =>
+  apiFetch<{ items: ApiPo[] }>(`/api/po?state=${state}`, role).then((r) => r.items);
+
+export const getPo = (role: Role, poId: string) => apiFetch<ApiPo>(`/api/po/${poId}`, role);
+
+/** draft → pending. 정비사만 — 팀장이 부르면 403 (D38). */
+export const submitPo = (poId: string) =>
+  apiFetch<ApiPo>(`/api/po/${poId}/submit`, "technician", { method: "POST" });
+
+/** pending → approved. 팀장만. */
+export const approvePo = (poId: string, note?: string) =>
+  apiFetch<ApiPo>(`/api/po/${poId}/approve`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ note: note ?? null }),
+  });
+
+/** pending → rejected. 사유 필수 (D38) — 없으면 백엔드가 422. */
+export const rejectPo = (poId: string, reason: string) =>
+  apiFetch<ApiPo>(`/api/po/${poId}/reject`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+export const getEquipment = () =>
+  apiFetch<{ items: { equipment_id: string; line_id: number; model: string; location: string }[] }>(
+    "/api/equipment",
+    "technician"
+  ).then((r) => r.items);
+
+/** 에러 발생 이력 기록 — 정비사의 명시적 액션만 (D29·A7). */
+export const recordError = (equipmentId: string, code: string, actionTaken?: string) =>
+  apiFetch<{ status: string; id: number; code: string; occurred_at: string }>(
+    `/api/equipment/${equipmentId}/errors`,
+    "technician",
+    { method: "POST", body: JSON.stringify({ code, action_taken: actionTaken ?? null }) }
+  );
 
 export const endpoints = {
   chat: "/api/chat",
