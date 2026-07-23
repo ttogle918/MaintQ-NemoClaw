@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 
 from backend import sse
@@ -315,16 +316,20 @@ async def run_turn(
 
             # A1 — 호출 "직전" 에 tool_call 을 먼저 흘린다
             yield trace.tool_call(tu.name, tu.input)
+            # elapsed 는 **여기서 잰다** (소유권 한 곳). 도구 payload 에서 `_elapsed` 를
+            # 꺼내 쓰던 이전 구현은 그 키를 넣는 생산자가 없어 **항상 0.0** 이었고,
+            # trace 패널이 "0.0s · N calls" 라는 거짓을 표시했다. 계약(06_REPO_API)이
+            # 필드로 명시한 값이 상시 거짓이면 감사 화면의 신뢰가 통째로 무너진다.
+            t0 = time.perf_counter()
             outcome = await client.call(tu.name, tu.input, timeout=TOOL_TIMEOUT_SEC)
+            elapsed = time.perf_counter() - t0
             payload = outcome if isinstance(outcome, dict) else {"status": "error"}
             status = str(payload.get("status", "error"))
 
             summary = summarize_result(tu.name, payload)
             if payload.get("reason") == "timeout":
                 summary = f"✗ timeout · {tu.name} 확인 실패"  # D44·D46 표시 규약
-            yield trace.tool_result(
-                tu.name, status, summary, float(payload.get("_elapsed", 0.0) or 0.0)
-            )
+            yield trace.tool_result(tu.name, status, summary, round(elapsed, 3))
 
             st.results[tu.name] = payload
             store.append(

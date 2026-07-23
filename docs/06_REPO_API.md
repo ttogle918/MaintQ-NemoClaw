@@ -122,6 +122,12 @@ POST /api/chat
      event: token       { text }                 # LLM 응답 토큰
      event: tool_call   { tool, input, ts }      # trace 패널용 (호출 시점)
      event: tool_result { tool, status, summary, elapsed }  # trace 패널용 (완료)
+                        # elapsed = **호출자(에이전트 루프) 관측 벽시계 초, 타임아웃 대기 포함**.
+                        #   도구 내부 실행시간이 아니다 — 화면이 합산해 "총 Ns"로 쓰므로
+                        #   사용자가 실제로 기다린 시간이어야 한다. 측정 지점은 loop.py 한 곳.
+                        # summary 의 `✗ timeout ·` 접두는 **백엔드가 붙인다** (D44·D46).
+                        #   traces 는 평가 판정 소스라(D21·D30) 저장값이 자기설명적이어야 하고,
+                        #   payload 에 reason 필드가 없어 프론트는 판별할 수단도 없다
      event: block       { type: "safety" | "po_card" | "citation", data }
                         # 구조화 블록 (D22) — 안전 경고·발주 카드·인용 칩을 전용 컴포넌트로 렌더.
                         # 스트리밍 "중간"에 삽입 가능 — 위험 절차 서술보다 경고가 먼저/함께 도착해야 함

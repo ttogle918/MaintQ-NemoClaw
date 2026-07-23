@@ -173,6 +173,39 @@ export const rejectPo = (poId: string, reason: string) =>
     body: JSON.stringify({ reason }),
   });
 
+/* -------------------------------------------------------------------------- */
+/* trace 조회 (D43)                                                            */
+
+/**
+ * `GET /api/chat/{session_id}/trace` 의 이벤트 한 건.
+ *
+ * `data` 는 SSE 로 나갔던 `data` 와 **바이트 동일**하다 (D30) — 즉 이벤트 종류별 모양이
+ * `backend/sse.py` 와 같다:
+ *   tool_call    `{tool, input, ts}`
+ *   tool_result  `{tool, status, summary, elapsed}`
+ *   block        `{type, data}`
+ * token 은 들어오지 않는다 — traces 에 저장하지 않기 때문이다 (D41).
+ * 모양을 여기서 좁게 못 박지 않고 `unknown` 값으로 두는 이유는, 백엔드가 키를 추가해도
+ * 매퍼(`lib/trace.ts`)만 고치면 되게 하기 위해서다.
+ */
+export interface ApiTraceEvent {
+  seq: number;
+  event: "tool_call" | "tool_result" | "block";
+  tool: string | null;
+  data: Record<string, unknown>;
+  ts: string;
+}
+
+/** 없는 세션도 404 가 아니라 200 + `count: 0` 이다 (D43). 빈 세션은 에러가 아니다. */
+export interface ApiTrace {
+  session_id: string;
+  count: number;
+  events: ApiTraceEvent[];
+}
+
+export const getTrace = (role: Role, sessionId: string) =>
+  apiFetch<ApiTrace>(`/api/chat/${encodeURIComponent(sessionId)}/trace`, role);
+
 export const getEquipment = () =>
   apiFetch<{ items: { equipment_id: string; line_id: number; model: string; location: string }[] }>(
     "/api/equipment",

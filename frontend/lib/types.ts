@@ -63,7 +63,15 @@ export interface SupplierQuote {
 /* -------------------------------------------------------------------------- */
 /* 실행 trace (docs/09_RUNTIME §1)                                            */
 
-export type TraceStatus = "ok" | "warn" | "pending" | "held";
+/**
+ * 스텝 상태 5종 (D44).
+ *
+ * `error` 는 **장애 전용**이다 — MCP 연결 실패·도구 예외·타임아웃 (09_RUNTIME §3).
+ * `warn` 은 분기(not_found · empty)를 뜻하며 장애가 아니다. 둘을 한 색으로 뭉개면
+ * "매뉴얼에 없는 코드"와 "도구 서버가 죽었다"를 화면에서 구분할 수 없다.
+ * 타임아웃은 타입을 늘리지 않고 `error` + summary `✗ timeout ·` 접두로 표기한다 (D46).
+ */
+export type TraceStatus = "ok" | "warn" | "pending" | "held" | "error";
 
 export interface TraceStepData {
   /** 도구명 — 모노스페이스로 렌더 */

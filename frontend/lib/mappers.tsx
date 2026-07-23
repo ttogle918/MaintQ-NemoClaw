@@ -86,11 +86,14 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
     rows.push({ label: "NOTES", value: po.evidence.notes });
   }
 
+  // session_id 가 없는 발주(사람이 직접 올린 소모품 보충 등)는 TRACE 행을 **만들지 않는다**.
+  // 없는 세션도 200 을 주므로(D43) 링크는 열리지만 `/manager/trace/null` 이라는 착지점은
+  // 존재하지 않는 세션을 가리키는 죽은 링크다 — 애초에 만들지 않는 게 맞다.
   if (po.session_id) {
     rows.push({
       label: "TRACE",
       value: "에이전트 실행 로그 전체 보기 →",
-      href: `/manager/trace/${po.session_id}`,
+      href: `/manager/trace/${encodeURIComponent(po.session_id)}`,
     });
   }
 
@@ -104,11 +107,26 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
   return rows;
 }
 
-/** basis 안의 manual_page 를 인용 칩으로. 오프셋은 백엔드가 이미 적용해 보낸다 (D32). */
+/**
+ * basis 안의 `manual_page` 를 인용 칩으로.
+ *
+ * **`printPage` 를 지정하지 않는다 (C-11 · D26 · D32).**
+ * `evidence.basis[].manual_page` 는 PDF **물리** 페이지다 (D26 — 저장·검증의 단일 기준).
+ * `GET /api/po/{id}` 응답에는 인쇄 페이지 필드가 **없고**, 오프셋 변환은 백엔드 렌더
+ * 한 곳(`backend.sse.citation_for` → `manifest.to_print_page`)에서만 한다 (D32).
+ * 그래서 프론트가 할 수 있는 정직한 표시는 "물리 페이지"뿐이다 —
+ * `citationLabel()` 이 `printPage ?? page` 로 물리 페이지를 보여준다.
+ *
+ * 이전 구현은 `printPage: page` 를 박았는데, 그러면 offset 이 0 이 아닌 S100(16)에서
+ * **물리 p.416 을 인쇄 p.416 인 양** 표시한다. 라벨이 `(PDF p.416)` 병기까지 생략해
+ * 틀렸다는 사실조차 화면에서 사라진다 — D32 가 막으려던 바로 그 문제다.
+ * 인쇄 페이지를 여기서 계산해 메우면 변환 지점이 두 곳이 되므로 그것도 답이 아니다.
+ * 필요해지면 `/api/po/{id}` 가 `print_page` 를 실어 보내는 **계약 변경**이 선행돼야 한다.
+ */
 function firstCitation(po: ApiPo): Citation | undefined {
   const page = po.evidence?.basis?.find((b) => typeof b.manual_page === "number")?.manual_page;
   if (typeof page !== "number") return undefined;
-  return { manual: `${po.model ?? ""} 매뉴얼`.trim(), page, printPage: page };
+  return { manual: `${po.model ?? ""} 매뉴얼`.trim(), page };
 }
 
 function relativeTime(iso: string): string {
