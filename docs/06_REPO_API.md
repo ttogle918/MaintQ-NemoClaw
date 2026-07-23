@@ -52,8 +52,10 @@ MaintQ/
 ├── backend/
 │   ├── main.py                # FastAPI 앱
 │   ├── sse.py                 # SSE 이벤트 4종 인코더 (D14·D22, citation 오프셋 변환 D32)
+│   ├── db.py                  # 백엔드 DB 커넥션 (mcp_server 와 코드 공유 안 함 — D15)
+│   ├── deps.py                # X-Role/X-User 파싱 + 403 강제
 │   ├── services/
-│   │   └── po.py              # 신원 stamp (D37) · 표시명 매핑 (D36)
+│   │   └── po.py              # 신원 stamp(D37) · 상태 전이 · 표시명 매핑(D36)
 │   ├── agent/
 │   │   ├── loop.py            # 에이전트 루프 (도구 호출 오케스트레이션)
 │   │   ├── prompts.py         # 시스템 프롬프트 (안전 가드레일 규칙 포함)
@@ -71,7 +73,8 @@ MaintQ/
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
-│   └── write_tool_contract.py # create_po_draft 경계 (D10·D23·D31·D33·D34·D37)
+│   ├── write_tool_contract.py # create_po_draft 경계 (D10·D23·D31·D33·D34·D37)
+│   └── api_contract.py        # 권한 403 · 전이 409 · D29 이력 기록
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기
@@ -138,10 +141,15 @@ GET  /api/po/{po_id}                 # 상세: reason(한 줄 요약) + evidence
                                      #     + model/error_code(D33) + trace 링크(session_id → /trace) + 공급사 비교
 POST /api/po/{po_id}/submit          # draft → pending   (technician만)
 POST /api/po/{po_id}/approve         # pending → approved (manager만)
-POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason})
+POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason} — 필수, D38)
 ```
 
 **403 규칙:** technician이 approve 호출 → 403. 이 테스트 케이스를 eval에 포함 (human-in-the-loop 증명).
+역할 분리는 **양방향**이다 — manager가 submit을 호출해도 403.
+
+**403 vs 409:** 권한이 없으면 403, 권한은 맞지만 현재 상태에서 할 수 없는 전이면 **409** (D38).
+둘을 섞으면 "권한 위반 차단 100%" 지표가 순서 오류까지 세게 된다.
+반려 사유 누락은 요청 본문 검증이라 422.
 
 ### 2.3 컨텍스트
 

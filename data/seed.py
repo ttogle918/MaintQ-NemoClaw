@@ -130,6 +130,7 @@ CREATE TABLE po_drafts (
   state        TEXT DEFAULT 'draft',
   requested_by TEXT,
   decided_by   TEXT,
+  decision_note TEXT,                   -- 반려 사유 / 승인 코멘트 (D38)
   session_id   TEXT,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
@@ -373,7 +374,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
         "notes": "야간조 정비사 육안 확인 — 팬 회전 불량",
     }
     # (po_id, part_no, qty, supplier_id, model, code, evidence, unit_price,
-    #  reason, urgency, state, requested_by, decided_by, session_id)
+    #  reason, urgency, state, requested_by, decided_by, decision_note, session_id)
     rows = [
         (
             "PO-0117",
@@ -388,6 +389,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "urgent",
             "pending",
             "tech-01",
+            None,
             None,
             "S1",
         ),
@@ -404,6 +406,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "normal",
             "pending",
             "tech-02",
+            None,
             None,
             "S2",
         ),
@@ -422,6 +425,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "tech-01",
             None,
             None,
+            None,
         ),
         (
             "PO-0114",
@@ -437,6 +441,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "approved",
             "tech-01",
             "mgr-01",
+            "긴급 라인 정지 예방 — 승인",
             None,
         ),
         (
@@ -453,6 +458,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "rejected",
             "tech-02",
             "mgr-01",
+            "예산 초과 — 차기 분기 재검토",
             None,
         ),
     ]
@@ -463,7 +469,7 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
     con.executemany(
         "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, model, error_code,"
         " evidence, unit_price, reason, urgency, state, requested_by, decided_by,"
-        " session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " decision_note, session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
 

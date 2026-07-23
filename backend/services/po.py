@@ -1,19 +1,25 @@
 # -*- coding: utf-8 -*-
-"""발주 관련 백엔드 서비스 — 신원 stamp 와 상태 전이.
+"""발주 서비스 — 신원 stamp 와 상태 전이.
 
 **신원이 도구 파라미터가 아닌 이유 (D23·D37).**
 MCP 도구 스키마에 `requested_by` 가 있으면 LLM 이 그 값을 채울 수 있다 = 위조 경로다.
-그래서 도구는 신원 없이 INSERT 하고, 백엔드가 같은 요청 안에서 X-User 헤더 값으로 stamp 한다.
-백엔드는 사람 쪽 코드라 UPDATE 권한이 있어도 되고(D10 은 MCP 도구만 제약), LLM 은
-이 경로에 개입할 수 없다.
+그래서 도구는 신원 없이 INSERT 하고, 백엔드가 같은 요청 안에서 X-User 값으로 stamp 한다.
+백엔드는 사람 쪽 코드라 UPDATE 권한이 있어도 되고(D10 은 MCP 도구만 제약),
+LLM 은 이 경로에 개입할 수 없다.
+
+**상태 전이 (docs/06_REPO_API.md §2.4)**
+    draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ approved
+                                 └──────reject(팀장)──▶ rejected
+전이의 주체(역할)는 라우터가, 전이의 순서(현재 상태)는 여기서 강제한다.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
-from mcp_server.db import DB_PATH
+from backend.db import connect
 
 # 표시명 매핑 — 헤더·DB 에는 ASCII ID 만 오간다 (D36)
 USER_NAMES: dict[str, str] = {
@@ -22,16 +28,35 @@ USER_NAMES: dict[str, str] = {
     "mgr-01": "박OO",
 }
 
+# 전이 규칙: 목표 상태 → 허용되는 현재 상태
+ALLOWED_FROM: dict[str, str] = {
+    "pending": "draft",
+    "approved": "pending",
+    "rejected": "pending",
+}
+
+
+class TransitionError(Exception):
+    """현재 상태에서 할 수 없는 전이."""
+
+    def __init__(self, po_id: str, current: str, target: str) -> None:
+        self.po_id, self.current, self.target = po_id, current, target
+        super().__init__(
+            f"{po_id} 는 지금 '{current}' 상태라 '{target}' 로 전이할 수 없습니다 "
+            f"('{ALLOWED_FROM[target]}' 에서만 가능)"
+        )
+
 
 def display_name(user_id: str | None) -> str:
     return USER_NAMES.get(user_id or "", user_id or "")
 
 
-def _connect(db_path: Path | None = None) -> sqlite3.Connection:
-    con = sqlite3.connect(db_path or DB_PATH)
-    con.execute("PRAGMA foreign_keys=ON")
-    con.row_factory = sqlite3.Row
-    return con
+def _row_to_po(r: sqlite3.Row) -> dict:
+    d = dict(r)
+    d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
+    d["requested_by_name"] = display_name(d.get("requested_by"))
+    d["decided_by_name"] = display_name(d.get("decided_by"))
+    return d
 
 
 def stamp_identity(
@@ -40,19 +65,95 @@ def stamp_identity(
     session_id: str | None = None,
     db_path: Path | None = None,
 ) -> bool:
-    """도구가 만든 draft 에 신원·세션을 새긴다.
+    """도구가 만든 draft 에 신원·세션을 새긴다 (D37).
 
-    draft 상태에서만, 그리고 아직 비어 있을 때만 채운다 —
-    이미 stamp 된 발주의 요청자를 나중에 바꿀 수 있으면 감사 추적이 무너진다.
+    draft 상태에서 아직 비어 있을 때만 1회 — 이미 stamp 된 발주의 요청자를
+    나중에 바꿀 수 있으면 감사 추적이 무너진다.
     """
-    con = _connect(db_path)
-    try:
+    with connect(db_path) as con:
         cur = con.execute(
             "UPDATE po_drafts SET requested_by = ?, session_id = ?"
             " WHERE po_id = ? AND state = 'draft' AND requested_by IS NULL",
             (requested_by, session_id, po_id),
         )
-        con.commit()
         return cur.rowcount == 1
-    finally:
-        con.close()
+
+
+def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict]:
+    sql = (
+        "SELECT p.*, pt.name AS part_name, s.name AS supplier_name"
+        " FROM po_drafts p"
+        " JOIN parts pt ON pt.part_no = p.part_no"
+        " JOIN suppliers s ON s.supplier_id = p.supplier_id"
+    )
+    args: list[object] = []
+    if state:
+        sql += " WHERE p.state = ?"
+        args.append(state)
+    sql += " ORDER BY p.urgency = 'urgent' DESC, p.created_at DESC, p.po_id DESC"
+    with connect(db_path) as con:
+        return [_row_to_po(r) for r in con.execute(sql, args).fetchall()]
+
+
+def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
+    """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
+    with connect(db_path) as con:
+        r = con.execute(
+            "SELECT p.*, pt.name AS part_name, s.name AS supplier_name"
+            " FROM po_drafts p"
+            " JOIN parts pt ON pt.part_no = p.part_no"
+            " JOIN suppliers s ON s.supplier_id = p.supplier_id"
+            " WHERE p.po_id = ?",
+            (po_id,),
+        ).fetchone()
+        if r is None:
+            return None
+        po = _row_to_po(r)
+
+        po["quotes"] = [
+            dict(q)
+            for q in con.execute(
+                "SELECT sp.supplier_id, s.name, sp.lead_days, sp.unit_price, sp.moq"
+                " FROM supplier_parts sp JOIN suppliers s ON s.supplier_id = sp.supplier_id"
+                " WHERE sp.part_no = ? ORDER BY sp.lead_days",
+                (po["part_no"],),
+            ).fetchall()
+        ]
+        po["inventory"] = (
+            dict(inv)
+            if (
+                inv := con.execute(
+                    "SELECT qty, safety_stock, location FROM inventory WHERE part_no = ?",
+                    (po["part_no"],),
+                ).fetchone()
+            )
+            else None
+        )
+        # 화면 B "실행 로그 전체 보기" 링크 (D21)
+        po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
+        return po
+
+
+def transition(
+    po_id: str,
+    target: str,
+    decided_by: str | None = None,
+    note: str | None = None,
+    db_path: Path | None = None,
+) -> dict:
+    """상태 전이. 현재 상태가 맞지 않으면 TransitionError."""
+    with connect(db_path) as con:
+        r = con.execute("SELECT state FROM po_drafts WHERE po_id = ?", (po_id,)).fetchone()
+        if r is None:
+            raise KeyError(po_id)
+        if r["state"] != ALLOWED_FROM[target]:
+            raise TransitionError(po_id, r["state"], target)
+
+        if target == "pending":
+            con.execute("UPDATE po_drafts SET state = ? WHERE po_id = ?", (target, po_id))
+        else:
+            con.execute(
+                "UPDATE po_drafts SET state = ?, decided_by = ?, decision_note = ? WHERE po_id = ?",
+                (target, decided_by, note, po_id),
+            )
+    return get_po(po_id, db_path) or {}

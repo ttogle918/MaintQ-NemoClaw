@@ -156,6 +156,8 @@ CREATE TABLE po_drafts (
   requested_by TEXT,                   -- 정비사 사용자 ID('tech-01') — X-User 헤더에서 백엔드가 주입
                                        --   (D23 도구 파라미터 아님 / D36 표시명 아닌 ASCII ID)
   decided_by   TEXT,                   -- 팀장 사용자 ID('mgr-01') — 승인/반려 시 X-User에서 주입
+  decision_note TEXT,                  -- 반려 사유 / 승인 코멘트 (D38). 반려는 필수 —
+                                       --   사유 없는 반려는 요청자가 뭘 고쳐야 할지 알 수 없음
   session_id   TEXT,                   -- 이 발주를 만든 대화 세션 (D21) — 화면 B "실행 로그 보기" 링크의 키
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
 

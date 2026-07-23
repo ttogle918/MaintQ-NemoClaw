@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import chat
+from backend.routers import chat, equipment, po
 
 app = FastAPI(title="MaintQ API", version="0.1.0")
 
@@ -23,6 +23,8 @@ app.add_middleware(
 )
 
 app.include_router(chat.router)
+app.include_router(po.router)
+app.include_router(equipment.router)
 
 
 @app.get("/health")
