@@ -1,6 +1,6 @@
 # Sprint 3 — M2 완주 (에이전트 루프 + trace 관통)
 
-**수립일**: 2026-07-23 · **상태**: **Stage 1 완료** · Stage 2 착수 전 (선행 처리 5건)
+**수립일**: 2026-07-23 · **상태**: **Stage 1·2 완료** · Stage 3 착수 전 (선행 2건)
 
 ## 목표
 
@@ -347,3 +347,37 @@ MQ-304, MQ-313  (독립)
 - **A5 가 런타임에서 아직 성립하지 않는다** — `chat.py` 의 유일한 SSE 경로가 `sse.*` 를 직접 호출해 traces 에 한 행도 안 남는다. MQ-308 이 배선한다
 - **`error_codes` 0행** — lookup 실데이터 관통은 사람 승인 후. 지금은 모든 코드가 `catalog_not_loaded` 로 정직하게 실패한다
 - **평가 지표 5종 산출 불가** — `eval/` 이 아직 없다. API 호출 0건, 비용 0
+
+
+### Stage 2 완료 (2026-07-23)
+**커밋**: `579e6ac` — `[M2] Sprint 3 Stage 2 — 에이전트 루프 · GET /trace · rag (도구 7/7, 회귀 190건)`
+**reviewer**: FAIL(블로커 2) → 수정 → **PASS** (블로커 0 · 경고 5)
+
+| TASK | 산출 | 스파이크 |
+|---|---|---|
+| MQ-306 | `backend/agent/{llm,loop}.py` · `.env.example` · `trace.py`(W-2 해소) | `agent_loop_contract.py` 21 |
+| MQ-307 | `backend/routers/chat.py` GET /trace | `api_contract.py` 19→23 |
+| MQ-314 | `mcp_server/rag.py` · `tools/rag_search_manual.py` · `server.py`(7/7) | `rag_contract.py` 12 |
+
+**회귀 190건** — Stage 1 대비 +37 (`rag` 12 · `agent_loop` 21 신규, `api` +4)
+
+> **tool-builder 3개가 세션 한도로 중단돼 메인이 직접 마무리했다.** MQ-307 은 거의 완성,
+> MQ-314 는 `rag.py` 만 있었고, MQ-306 은 미착수 상태였다.
+
+### 이 스테이지에서 잡힌 결함
+
+| # | 결함 | 왜 안 잡혔을 뻔했나 |
+|---|---|---|
+| 블로커1 | **안전 블록 인용이 엉뚱한 페이지** — `st.pages[0]`(rag p.204)를 붙였는데 안전 문구 근거는 `SAFETY_BASELINE["pages"]`(iG5A p.4) | 스파이크 ⑤⑥ 이 **문구와 순서만 보고 페이지를 안 봤다.** ⑥-b 추가로 방어 |
+| 블로커2 | 중첩 citation 이 `{page}` 뿐 → 프론트 `undefined p.204`, S100 은 물리를 인쇄로 표시 | 백엔드 스파이크가 payload **형태**를 안 봤다. ⑥-c·⑩-b 추가 |
+| N-1 | `window_days` 폴백이 **도구가 주지 않는 키**를 읽어 항상 30 | 방어 코드가 들어가 목표를 달성한 것처럼 보였다. 도구 **입력**의 `days` 를 쓰도록 수정 |
+| N-2 | label dedup 이 `(label,page)` 라 한 절이 두 페이지에 걸치면 중복 | **픽스처 청크가 1건이라 검사가 공회전.** 3청크(같은 절 2페이지 포함)로 교체 |
+| 별건 | SP3 간헐 실패 — `wait_ready` 폴링이 uvicorn 의 startup 전 바인딩 창에서 연결을 중단시켜 Windows Proactor accept 루프를 `WinError 64` 로 깨뜨림 | lifespan(MQ-302)이 startup 창을 늘리며 드러났다. 요청 적게·타임아웃 넉넉히 |
+
+### Stage 3 착수 전 (reviewer 권고)
+
+1. **N-4 잔여** — 안전 인용 회귀에 S100 케이스 추가 완료(⑩-c). 추가 조치 없음
+2. **C-11** `frontend/lib/mappers.tsx` 오프셋 — 주석은 "백엔드가 적용"이라는데 실제로는 물리 페이지에 `printPage: page` 를 붙인다. **MQ-309 범위에서 같이**
+3. **C-5** 실 Anthropic 경로 미검증 — **MQ-308 DoD 에 "실 클라이언트 1턴 스모크(수동 1회)" 를 넣을 것.** 이력에 assistant `tool_use` 를 안 남기고 도구 결과를 `role:"user"` 텍스트로 넣는 구조가 실 API 에서 견디는지가 관건. 여기서 문제가 나면 루프 구조 수정이라 늦게 발견되면 비싸다
+4. **C-6·C-7** — A1 스파이크 강도(`FakeMcp.on_call` 훅)·스트림 취소 회귀는 MQ-308 DoD 에 이미 있음
+5. 보류 가능: C-8(rag page 검증) · C-9(D51 가드) · W-11(사람 검수)
