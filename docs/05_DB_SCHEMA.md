@@ -5,7 +5,8 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 → 구현 정합화에서 **9개**로 확정: `traces`(실행 로그 영속화, D21) 추가.
 
 > **세는 단위 주의:** 위 숫자는 아래 **절(§) 개수**다. §7이 `suppliers`와 `supplier_parts`
-> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 **10개**다 (`data/seed.py` 기준).
+> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 **11개**다 — D41로 `users`가 추가됐다
+> (`data/seed.py` 기준).
 
 ---
 
@@ -52,6 +53,33 @@ CREATE TABLE error_codes (
 
 **설계 포인트:** `related_parts`가 진단→조달을 잇는 다리. 이 컬럼이 없으면 "부품 특정"을 LLM 추측에 맡기게 됨.
 
+## 1-B. users — 사용자 (D41·D52)
+
+> `X-User` 헤더 값의 원천이자 `requested_by`/`decided_by`/`recorded_by`의 FK 대상.
+> 표시명이 `backend/services/po.py`에 하드코딩돼 있던 것을 여기로 옮긴다 (D36→D41).
+
+```sql
+CREATE TABLE users (
+  user_id       TEXT PRIMARY KEY,      -- 'tech-01' — X-User 헤더 값. ASCII (D36)
+  email         TEXT UNIQUE,           -- 회사 이메일. 향후 IdP 매칭 키 (D52)
+  display_name  TEXT NOT NULL,         -- '김OO' — 화면 표시용. 헤더·DB엔 안 들어간다
+  role          TEXT NOT NULL,         -- 'technician' | 'manager'
+  auth_provider TEXT NOT NULL DEFAULT 'local',  -- 'local' | 'google'
+  external_id   TEXT,                  -- IdP의 sub/oid. 연동 전 NULL
+  active        BOOLEAN NOT NULL DEFAULT 1,     -- 퇴사·휴직 시 0
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CHECK (role IN ('technician','manager')),
+  CHECK (auth_provider IN ('local','google')),
+  CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
+);
+```
+
+**행을 지우지 않는다.** 퇴사자는 `active=0`으로 둔다 — 과거 발주의 `decided_by`가 끊기면 감사 추적(P5)이 무너진다.
+
+**`role`은 회사가 사전 부여한다 (D52).** Google 로그인은 "누구인지"만 확인하고 권한을 정하지 않는다. OAuth가 권한을 결정하면 D4(진단자/승인자 분리)가 무의미해진다.
+
+**개인 소셜 로그인은 넣지 않는다 (D52).** `auth_provider`가 `local`·`google` 2종뿐인 이유다. `google`은 **회사 Google Workspace**이며, `hd`(hosted domain) 클레임 + 이 테이블의 사전 등록 두 겹으로 개인 Gmail을 막는다. 실제 인증 플로우 구현은 백로그 **P21**.
+
 ## 2. equipment — 설비 마스터
 
 ```sql
@@ -71,10 +99,12 @@ CREATE TABLE error_history (
   id           INTEGER PRIMARY KEY,
   equipment_id TEXT NOT NULL REFERENCES equipment,
   code         TEXT NOT NULL,
-  occurred_at  DATETIME NOT NULL,
+  occurred_at  DATETIME NOT NULL,      -- UTC (D39)
   action_taken TEXT,                   -- '리셋', '냉각팬 청소' ...
   part_replaced TEXT,                  -- part_no or NULL
-  resolved     BOOLEAN DEFAULT 1
+  resolved     BOOLEAN DEFAULT 1,
+  recorded_by  TEXT REFERENCES users,  -- 기록한 정비사 (D41). 시드분은 NULL
+  FOREIGN KEY (recorded_by) REFERENCES users(user_id)
 );
 ```
 
@@ -153,9 +183,9 @@ CREATE TABLE po_drafts (
   reason       TEXT NOT NULL,          -- 진단 근거 (화면 B 근거 카드 소스)
   urgency      TEXT DEFAULT 'normal',
   state        TEXT DEFAULT 'draft',   -- 'draft'|'pending'|'approved'|'rejected'
-  requested_by TEXT,                   -- 정비사 사용자 ID('tech-01') — X-User 헤더에서 백엔드가 주입
-                                       --   (D23 도구 파라미터 아님 / D36 표시명 아닌 ASCII ID)
-  decided_by   TEXT,                   -- 팀장 사용자 ID('mgr-01') — 승인/반려 시 X-User에서 주입
+  requested_by TEXT REFERENCES users,  -- 정비사 사용자 ID('tech-01') — X-User 헤더에서 백엔드가 주입
+                                       --   (D23 도구 파라미터 아님 / D36 ASCII ID / D41 users FK)
+  decided_by   TEXT REFERENCES users,  -- 팀장 사용자 ID('mgr-01') — 승인/반려 시 X-User에서 주입
   decision_note TEXT,                  -- 반려 사유 / 승인 코멘트 (D38). 반려는 필수 —
                                        --   사유 없는 반려는 요청자가 뭘 고쳐야 할지 알 수 없음
   session_id   TEXT,                   -- 이 발주를 만든 대화 세션 (D21) — 화면 B "실행 로그 보기" 링크의 키
@@ -214,6 +244,9 @@ CREATE TABLE po_drafts (
 > SSE로 흘려보낸 trace 이벤트의 영속 사본. `GET /api/chat/{session_id}/trace`(SSE 끊김 폴백),
 > 화면 B의 "실행 로그 전체 보기"(po_drafts.session_id 조인), scenario-smoke의 시퀀스 판정이 이 테이블을 읽는다.
 > 도구 결과 **원문**도 여기 저장 (세션 이력에는 요약본만 — 09_RUNTIME 참조).
+> **`token`은 저장하지 않는다 (D41).** `CHECK`가 3종만 허용하며, 이는 버그가 아니라 설계다 —
+> 대화 전문을 DB에 쌓는 일이고 D18("팀장은 대화를 안 읽는다")과도 어긋난다.
+> A5의 "모든 이벤트"는 tool_call/tool_result/block 3종을 뜻한다.
 
 ```sql
 CREATE TABLE traces (
@@ -223,7 +256,10 @@ CREATE TABLE traces (
   event_type   TEXT NOT NULL,          -- 'tool_call' | 'tool_result' | 'block'
   tool         TEXT,                   -- 도구명 (block 이벤트는 NULL 가능)
   payload      TEXT NOT NULL,          -- JSON 원문 (입력/출력/elapsed 등)
-  ts           DATETIME DEFAULT CURRENT_TIMESTAMP
+  ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
+  -- 깨진 걸 아무도 모른다 (D41)
+  UNIQUE (session_id, seq)
 );
 CREATE INDEX idx_traces_session ON traces(session_id, seq);
 ```

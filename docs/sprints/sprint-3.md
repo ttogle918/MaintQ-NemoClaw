@@ -1,6 +1,6 @@
 # Sprint 3 — M2 완주 (에이전트 루프 + trace 관통)
 
-**수립일**: 2026-07-23 · **상태**: 계획 확정, 착수 전 (결정 11건 승인 대기)
+**수립일**: 2026-07-23 · **상태**: **결정 승인 완료 (D40~D52), Stage 1 착수 가능**
 
 ## 목표
 
@@ -51,23 +51,33 @@ D1이 정한 건 "정의=룩업 / 절차=검색"이라는 **경계**이지 검�
 
 ---
 
-## 2. 착수 전 확정해야 할 결정 (D40~D50)
+## 2. 확정된 결정 (D40~D52) — `10_DECISIONS.md` 반영 완료
 
-`docs/10_DECISIONS.md`에 추가돼야 한다. **승인 전 착수 불가.**
+사용자 검토에서 **3건이 바뀌었다**:
+
+| 원안 | 확정 |
+|---|---|
+| D47 키워드만으로 시작 | **키워드 + 임베딩 하이브리드** — 인터페이스를 먼저 고정하고 dense scorer 는 주입식. 임베딩 모델·가중치는 **D51**로 분리(`rag_sizing.md` 실측 후) |
+| D41 `traces` UNIQUE 만 | **스키마 보강 4건** — `traces` UNIQUE + **`users` 테이블 신설** + `po_drafts`/`error_history` FK + `error_history.recorded_by`. MQ-301 에 합침 |
+| (인증 미논의) | **D52** — 회사 IdP(Google Workspace) 1종만, **개인 소셜 로그인 제외**. 실제 인증 플로우는 백로그 **P21** |
+
+세부 문안은 `10_DECISIONS.md` D40~D52 참조.
 
 | # | 결정 | 대안 / 채택 이유 | 차단 |
 |---|---|---|---|
 | D40 | LLM 호출을 `LlmClient` 인터페이스로 분리, 회귀는 **스크립트 드라이버**. `get_client()`는 키 없으면 **조용히 폴백하지 않고 실패** | 실 API만 / VCR 녹화. 루프 정책·traces는 평가 판정 소스인데 API 키·과금에 묶이면 회귀가 상시로 못 돈다. 폴백 금지는 데모에서 가짜 응답을 진짜로 착각하는 사고 방지 | Stage 2 |
-| D41 | `traces`에 **`UNIQUE(session_id, seq)`** 추가. **`token`은 SSE만, 저장 안 함** — A5의 "모든 이벤트"는 3종을 뜻함 | seq 중복 허용. seq는 순서 판정·타임라인·향후 Last-Event-ID(P18)의 유일 순번인데 중복이 조용히 통과하면 판정이 무너진 걸 아무도 모른다. token 저장은 D18("팀장은 대화를 안 읽는다")과도 어긋남 | **Stage 1** |
+| D41 | **스키마 보강 4건** — `traces` `UNIQUE(session_id, seq)` + **`users` 테이블 신설** + `po_drafts`/`error_history` users FK + `error_history.recorded_by`. **`token`은 SSE만, 저장 안 함** | seq 중복 허용 / 표시명 하드코딩 유지. seq 중복이 조용히 통과하면 순서 판정이 깨진 걸 아무도 모른다. `users`는 `po.py`의 하드코딩 `USER_NAMES`를 대체하고 감사 추적(P5)의 FK 대상을 만든다 | **Stage 1** |
 | D42 | MCP 세션은 **백엔드 lifespan이 소유하는 단일 워커 태스크**가 열고 닫는다. 스트리밍 제너레이터는 세션을 열지 않고 큐로 위임. `env={**os.environ}` **명시 상속** | 턴/호출당 세션 생성. 실측 결함 2·3의 직접 대응. 성능도 같은 결론(spawn 0.9~1.2s vs 호출 0.01s → 8콜에 +8초) | **Stage 1** |
 | D43 | `GET /trace` 응답 스키마 고정 `{session_id, count, events:[{seq,event,tool,data,ts}]}`. **없는 세션은 404가 아니라 200+`count:0`**, 역할 제한 없음 | 404. 404면 `services/po.trace_url`이 항상 유효하다는 전제가 깨져 프론트 분기가 늘어난다 | Stage 2 |
 | D44 | 프론트 `TraceStatus`에 **`"error"` 추가**(4종→5종). **timeout은 타입 신설 없이** `error` + summary `✗ timeout` 표기 | warn 재사용 / timeout까지 타입 신설. 09_RUNTIME §3이 "✗ error"(붉은 점)를 요구하는데 warn(주황)으로 뭉개면 장애와 분기를 구분 못 한다 | Stage 3 |
 | D45 | `po_card(variant:"hold")` payload 고정: `{variant, reason, checklist:[{label, citation}], repeated:{count, window_days}}` | 없음. D35가 "같은 슬롯의 variant"까지만 정하고 페이로드를 비워 둔 구멍 | Stage 2 |
 | D46 | 도구 타임아웃은 **`status:"error"` + `reason:"timeout"`**. D9의 status 4종 유지, 세분화는 `reason`이 담당 | status 5종 확장. `create_po_draft`가 이미 `reason:"moq_not_met"`으로 같은 패턴을 쓴다. status를 늘리면 S2·S4 분기와 평가 판정이 전부 영향받음 | Stage 2 |
-| D47 | `rag_search_manual`의 MVP 검색은 **임베딩 없이 청크 JSONL 키워드 스코어링**. `search(model, query, top_k)` 인터페이스 고정, 임베딩 결정 시 **구현체만 교체** | 임베딩 결정까지 RAG 전체 보류. 보류하면 S1 시퀀스와 인용률 지표가 스프린트 내내 성립하지 않는다 | **Stage 1** |
+| D47 | **키워드 + 임베딩 하이브리드.** `search(model, query, top_k, dense=None)` 인터페이스를 먼저 고정하고 dense scorer는 **주입식**. 초기엔 키워드만 활성 | 키워드만 / 임베딩만 / 결정까지 보류. 이 도메인은 키워드가 강하지만(에러코드·품번) 정비사 발화는 자연어일 수 있어 dense가 필요하다. **가중치는 실측으로 정해야 하므로** 인터페이스만 먼저 고정 | **Stage 1** |
 | D48 | 검색 **구현체는 MCP 서버 쪽(`mcp_server/rag.py`)**. `backend/rag/`는 만들지 않고 ingest는 `data/chunk_manual.py`가 겸함 | 06 트리 원안 유지. 도구는 MCP 프로세스에서 실행되므로 `backend/rag/`를 import하면 **D15 프로세스 분리가 코드 공유로 깨진다** | **Stage 1** |
 | D49 | 인쇄 페이지 환산 결과가 **1 미만이면 오프셋 미적용**, 물리 페이지만 표시 | 음수 노출 / 케이스별 하드코딩. S100 안전 지침 물리 p.2 → 인쇄 p.-14. 표지·안전지침은 본문 쪽번호 체계 밖. D26·D32 유지하고 그 1곳에 경계 조건만 추가 | **Stage 1** |
-| D50 | `error_codes`가 **0행이면** `not_found`가 아니라 **`status:"error"`, `reason:"catalog_not_loaded"`** | 미적재도 not_found 처리. not_found를 주면 승인 전 상태에서 **모든 코드가 S4로 흘러 지표가 가짜 100%**가 된다. "매뉴얼에 없다"와 "카탈로그가 안 실렸다"는 사용자가 할 행동이 다르다 | **Stage 1** |
+| D50 | `error_codes`가 **0행이면** `not_found`가 아니라 **`status:"error"`, `reason:"catalog_not_loaded"`** | 미적재도 not_found 처리. **0행은 가정이 아니라 현재 상태다**(승인 게이트). not_found를 주면 모든 코드가 S4로 흘러 **지표가 가짜 100%**가 되고 스모크도 위양성으로 통과한다 | **Stage 1** |
+| D51 | 임베딩 모델·벡터스토어·**하이브리드 가중치**는 `rag_sizing.md`(MQ-305 산출) 실측을 보고 결정. 그 전까지 dense 비활성 | 지금 임의 선택. 청크 수·토큰량을 모르면 로컬/API 선택 근거가 없고, 가중치도 eval로 조정할 값이라 사전에 정하면 숫자를 지어내는 셈 | Stage 2 (dense 활성화만) |
+| D52 | 인증은 **회사 IdP(Google Workspace) 1종**만. **개인 소셜 제외**. `hd` 클레임 + `users` 사전 등록 **두 겹**, **`role`은 OAuth가 아니라 `users`가 부여**. 구현은 백로그 **P21** | 개인 소셜 다종 / 자체 비밀번호. 개인 계정이면 퇴사 후 `decided_by` 추적이 끊겨 감사 로그(P5)가 무너진다. role을 OAuth가 정하면 D4(역할 분리)가 무의미 | 스프린트 밖 (P21) |
 
 > 문서 반영: D41→`05_DB_SCHEMA`·`seed.py`, D43·D45→`06_REPO_API §2.1`, D46→`04_MCP_TOOLS`, D47·D48→`06_REPO_API §1`.
 > **문서 수정은 태스크 DoD에서 제외**하고 `/done`에서 일괄 반영한다 — 같은 문서를 여러 태스크가 고치면 그게 곧 충돌이다.
@@ -137,13 +147,25 @@ MQ-304, MQ-313  (독립)
 
 각 태스크의 전체 명세는 길어 요점만 남긴다. **tool-builder에 전달할 때는 아래 항목을 그대로 인용한다.**
 
-### MQ-301 traces 영속화
+### MQ-301 traces 영속화 + 스키마 보강 (D41 — 범위 확대)
+
+**스키마 변경 4건을 이 태스크가 전부 소유한다** (`data/seed.py` 를 만지는 Stage 1 태스크는 MQ-301뿐):
+1. `traces` 에 `UNIQUE(session_id, seq)`
+2. **`users` 테이블 신설** — DDL 은 `05_DB_SCHEMA §1-B` 그대로. 시드는 `tech-01`(김OO)·`tech-02`(이OO)·`mgr-01`(박OO) 3행, `auth_provider='local'`, 회사 이메일 형식 예시
+3. `po_drafts.requested_by`/`decided_by` → `users` FK
+4. `error_history.recorded_by` 추가 + FK (시드분은 NULL)
+
+**표시명 매핑 이관**: `backend/services/po.py` 의 하드코딩 `USER_NAMES` 를 제거하고 `display_name()` 을 `users` 조회로 바꾼다. **함수 시그니처는 유지** — MQ-306·307 이 호출한다.
+
+**주의**: FK 가 걸리므로 시드 순서가 `users` → `po_drafts`/`error_history` 여야 한다. `PRAGMA foreign_keys=ON` 상태에서 순서가 틀리면 즉시 실패한다.
+
 - `TraceWriter(session_id)` — `tool_call`/`tool_result`/`block`/`citation` 메서드가 **SSE 이벤트 생성 + traces INSERT를 한 몸으로** 수행(A5를 코드로 강제). `read_trace(session_id)` → D43 스키마
 - **token 메서드를 두지 않는다** (D41). docstring에 "CHECK가 3종만 허용하며 token INSERT는 즉시 실패 — 버그가 아니라 설계"를 근거와 함께 명시
 - seq는 `MAX(seq)+1`로 시작해 이어쓴다. UNIQUE 위반 시 **삼키지 말고** 1회 재시도 후 `persist_errors` + `logging.error`
 - INSERT 실패(DB 잠금 등)는 예외를 삼키고 `persist_errors += 1` — trace 저장 실패로 사용자 스트림이 끊기면 안 된다. 단 `logging.warning`
 - `payload`는 SSE `data`와 **바이트 동일** (평가가 두 소스를 대조 — D30). `ts`는 UTC `...Z` (D39)
-- **DoD**: `spikes/trace_persist.py` ≥10건 (token INSERT 거부 · seq 이어쓰기 · UNIQUE 위반 · 재시도 · payload 동일성 · 쓰기 실패 시 이벤트는 정상 반환). `data/seed.py` 8건 회귀 + 스키마 변경 후 `api_contract.py` 회귀. **임시 DB에서만 실행**
+- **DoD**: `spikes/trace_persist.py` ≥10건 (token INSERT 거부 · seq 이어쓰기 · UNIQUE 위반 · 재시도 · payload 동일성 · 쓰기 실패 시 이벤트는 정상 반환). **임시 DB에서만 실행**
+- **DoD 추가 (D41 확대분)**: `data/seed.py` 케이스 맵 8건 회귀 + **⑨ users 3행 적재** ⑩ `po_drafts.requested_by` 가 실재하지 않는 user_id 면 FK 거부 ⑪ `display_name('tech-01') == '김OO'` 이 DB 조회로 동작 ⑫ 하드코딩 `USER_NAMES` 가 코드에서 사라졌는지(grep). 스키마 변경 후 `api_contract.py`·`write_tool_contract.py` 회귀
 
 ### MQ-302 MCP 클라이언트 (lifespan 워커)
 - `start()`/`stop()`/`call()`/`list_tools()`/`ready`. 세션은 **워커 태스크 안에서 enter/call/exit** — 초안의 "run_turn이 `async with`로 감싼다"는 폐기 (D42)
@@ -238,8 +260,10 @@ MQ-304, MQ-313  (독립)
 - WAL 전환 실패해도 앱이 죽지 않아야 한다 → 예외 잡고 `logging.warning`
 - **DoD**: `spikes/db_concurrency.py` ≥5건. ③ 쓰기 트랜잭션 중 다른 커넥션 INSERT가 `database is locked` 없이 성공 · ④ `read_only()`가 WAL DB에서도 열리고 **쓰기는 여전히 거부**(D10 회귀) · ⑤ `draft_writer` UPDATE 차단 트리거 유지. `sp2` 전건 PASS
 
-### MQ-314 rag_search_manual (신규)
-- 04_MCP_TOOLS §2 계약 그대로. `mcp_server/rag.py`에 `search(model, query, top_k)` (D47·D48)
+### MQ-314 rag_search_manual (신규 — D47 하이브리드 반영)
+- 04_MCP_TOOLS §2 계약 그대로. `mcp_server/rag.py`에 `search(model, query, top_k, dense=None)` (D47·D48)
+- **하이브리드 구조로 짓되 dense 는 초기 비활성**: `search()` 가 keyword scorer 와 dense scorer 를 **둘 다 받고 가중 융합**하는 형태여야 한다. `dense=None` 이면 키워드 점수만 사용. 가중치 상수(`KEYWORD_WEIGHT`/`DENSE_WEIGHT`)를 모듈에 두되 **초기값을 실측인 양 적지 말고** "D51 에서 eval 로 조정" 주석을 남긴다
+- 임베딩 모델·벡터스토어·가중치는 **D51** — `rag_sizing.md` 수치를 보고 결정한다. 이 태스크에서 임베딩을 고르지 말 것
 - **model 필터 먼저** 적용 (04 §2 "model 필터 필수", D28과 같은 논리)
 - 스코어링: 토큰 포함 빈도 / 청크 길이 정규화. **동점은 `page` 오름차순** — 같은 질의는 항상 같은 결과여야 평가가 재현된다
 - `score`는 계약에 없으므로 **도구 레이어에서 제거**. `text`는 400자 절단. **`page`는 절대 가공하지 않는다** (D26)
@@ -258,7 +282,7 @@ MQ-304, MQ-313  (독립)
 | Stage 3 | MQ-308·309 | ✅ 2 | `POST /api/chat` 관통 + trace 페이지(깨진 링크 해소) |
 | Stage 4 | MQ-310·311 | ✅ 2 | 지표 판정(lookup+rag) + S4 스모크(위양성 방지) |
 
-**차단 조건**: Stage 1 → D41·D42·D47·D48·D49·D50 / Stage 2 → D40·D43·D45·D46 / Stage 3 → D44
+**차단 조건**: ~~결정 승인~~ **해소됨(D40~D52 확정)**. 남은 건 D51(임베딩)뿐이고, D47 이 인터페이스를 고정해 뒀으므로 **Stage 1~4 진행을 막지 않는다**
 
 **종료 시 상태**
 - MCP 도구 **7/7**, 에이전트 루프·trace 영속화·`GET /trace`·화면 B trace 페이지 완성
@@ -274,9 +298,9 @@ MQ-304, MQ-313  (독립)
 
 | # | 항목 | 급함 |
 |---|---|---|
-| 1 | **결정 11건(D40~D50) 승인** — D41·D42·D47·D48·D49·D50은 Stage 1 차단 | ★★★ |
+| 1 | ~~결정 승인~~ — **완료 (D40~D52)** | ✅ |
 | 2 | `error_codes` iG5A 매핑 승인 → `_status` 변경 → `seed.py --with-error-codes` | ★★ |
 | 3 | `ANTHROPIC_API_KEY` + `MAINTQ_LLM_MODEL` (`.env`) | ★★ |
 | 4 | `backend/agent/prompts.py`의 `SAFETY_BASELINE` 문구·페이지 검수 | ★★ |
 | 5 | `related_parts` 7건 검수 (평가 실적 인용의 전제) | ★ |
-| 6 | `rag_sizing.md` 확인 후 벡터 전환 필요 여부 판단 | ★ |
+| 6 | **`rag_sizing.md` 확인 후 임베딩 모델·가중치 결정 (D51)** — Stage 2 의 dense 활성화 전제 | ★★ |

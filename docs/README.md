@@ -9,12 +9,12 @@
 | [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
 | [03_WIREFRAME](03_WIREFRAME.html) | 화면 A(진단 콘솔)·A-2(S3 변형)·B(승인 큐) + 주석 10개. **구조 참조 — 실제 화면은 frontend/ 구현이 기준** | UI 작업 전, 디자인 검수 |
 | [04_MCP_TOOLS](04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력 계약, 설계 원칙 4개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
-| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 9절(CREATE TABLE 10개) + 시드 케이스 맵 7종 | DB·시드 작업 시 |
+| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 10절(CREATE TABLE 11개) + 시드 케이스 맵 7종 | DB·시드 작업 시 |
 | [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), 상태 전이, testset 스키마, 매뉴얼 EDA 체크리스트 | 폴더·엔드포인트 만들 때, M1 첫날 |
-| [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P20 + 아이디어 주차장 + MVP 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
+| [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + 아이디어 주차장 + MVP 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
 | [09_RUNTIME](09_RUNTIME.md) | S1 시퀀스 다이어그램, 에이전트 루프 정책, 장애 모드, 스파이크 3종 | 에이전트 루프·SSE 구현 시, 개발 착수 직전 |
-| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D39 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
+| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D52 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
 
 **규칙:** 설계와 다른 구현을 하려면 10_DECISIONS에 결정을 먼저 추가하고 진행한다. 새 기능 아이디어는 07_BACKLOG로 보낸다.
 
