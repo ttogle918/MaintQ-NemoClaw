@@ -3,6 +3,7 @@
 import { sx } from "@/lib/sx";
 import type { ChatItem } from "@/lib/types";
 import { AgentBubble, UserBubble } from "./Bubble";
+import { ErrorLogAction } from "./ErrorLogAction";
 import { PoDraftCard } from "./PoDraftCard";
 import { PoHoldCard } from "./PoHoldCard";
 import { RepeatFaultBanner } from "./RepeatFaultBanner";
@@ -49,6 +50,15 @@ export function ChatThread({
             );
           case "po_hold":
             return <PoHoldCard key={item.id} hold={item.hold} />;
+          case "error_log":
+            return (
+              <ErrorLogAction
+                key={item.id}
+                equipmentId={item.equipmentId}
+                code={item.code}
+                recordedAt={item.recordedAt}
+              />
+            );
         }
       })}
     </div>

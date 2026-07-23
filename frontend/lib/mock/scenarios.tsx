@@ -55,6 +55,12 @@ export const CHAT_S1: ChatItem[] = [
     ),
   },
   {
+    kind: "error_log",
+    id: "s1-log",
+    equipmentId: "INV-L1-01",
+    code: "OHt",
+  },
+  {
     kind: "po_draft",
     id: "s1-po",
     po: {
@@ -106,6 +112,13 @@ export const CHAT_S3: ChatItem[] = [
         (07-01·07-11·07-19)
       </>
     ),
+  },
+  {
+    kind: "error_log",
+    id: "s3-log",
+    equipmentId: "INV-L3-01",
+    code: "OCt",
+    recordedAt: "2026-07-19 14:20",
   },
   {
     kind: "safety",

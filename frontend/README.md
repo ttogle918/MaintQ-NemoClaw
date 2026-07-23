@@ -58,9 +58,10 @@ frontend/
 │   │   ├── Bubble.tsx          #   UserBubble · AgentBubble
 │   │   ├── SafetyBlock.tsx     #   block(type: safety) 전용
 │   │   ├── CardShell.tsx       #   발주 카드/보류 블록 공통 껍데기
-│   │   ├── PoDraftCard.tsx     #   block(type: po_card) — "확정" 버튼 없음
-│   │   ├── PoHoldCard.tsx      #   S3 발주 보류 (발주 카드 아님)
+│   │   ├── PoDraftCard.tsx     #   block(po_card, variant:draft) — "확정" 버튼 없음
+│   │   ├── PoHoldCard.tsx      #   block(po_card, variant:hold) — S3 발주 보류 (D35)
 │   │   ├── RepeatFaultBanner.tsx
+│   │   ├── ErrorLogAction.tsx  #   이력 기록 액션 (D29) — block 아님, 사용자 액션
 │   │   ├── ChatComposer.tsx
 │   │   └── VoiceBar.tsx
 │   │
@@ -109,7 +110,9 @@ UI 를 고칠 때 깨면 안 되는 것들:
   변환은 백엔드 렌더 1곳에서만 하고 프론트는 `citationLabel()` 로 표시만 한다
 - **안전 경고** — 말풍선 텍스트에 섞지 않고 `SafetyBlock` 전용 컴포넌트로, 매뉴얼 근거 필수 (D22)
 - **발주 카드에 "확정" 버튼 금지** — 정비사는 승인 *요청*만, 확정은 화면 B (D10·D18)
-- **S3 는 발주 카드가 아니라 발주 보류 블록** (02_SCENARIOS S3)
+- **S3 는 발주 카드가 아니라 발주 보류 블록** — `po_card` block 의 `variant: "hold"` (D35).
+  별도 이벤트 타입을 만들지 않는다 (이벤트 4종 고정, D14·D22)
+- **이력 기록은 명시적 액션** — 채팅 진입만으로 기록하면 `repeated` 판정이 질문 횟수로 오염된다 (D29·A7)
 - **오렌지는 안전·긴급 전용** — 장식으로 새면 경고가 무감각해진다
 
 ## 백엔드 연동 TODO (M2, docs/06_REPO_API.md)
@@ -122,4 +125,4 @@ UI 를 고칠 때 깨면 안 되는 것들:
 - 발주 카드 "팀장 승인 요청" → `POST /api/po/{id}/submit`
 - `DecisionBar` → `POST /api/po/{id}/approve` · `/reject`
 - 헤더 라인/장비 선택기 ← `GET /api/equipment`
-- 이력 기록 액션 → `POST /api/equipment/{id}/errors` (D29) — **아직 UI 자리가 없다**
+- `ErrorLogAction` → `POST /api/equipment/{id}/errors` (D29) — UI 는 있고 호출만 남았다

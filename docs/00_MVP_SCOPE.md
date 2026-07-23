@@ -58,6 +58,7 @@
 
 - `get_error_history` — 동일 에러 **30일 내 3회** 감지 (`REPEAT_WINDOW_DAYS` / `REPEAT_THRESHOLD`)
 - `repeated=true`면 단순 조치 대신 **근본원인 점검 모드**로 전환, **발주는 원인 확정까지 보류**
+  — 발주 카드 자리에 `po_card` block 의 **variant: `hold`** 가 온다 (D35). 발주 카드가 아니다
 - 이력 적재는 `POST /api/equipment/{id}/errors` — **정비사의 명시적 액션만**. 채팅 진입으로 자동 기록하지 않는다
 
 > 자동 기록하면 `count`가 실제 고장 횟수가 아니라 **질문 횟수**가 되어, 같은 에러를 세 번 물어본 것만으로 근본원인 모드가 잘못 켜진다.

@@ -97,4 +97,6 @@ export type ChatItem =
   | { kind: "safety"; id: string; title: string; body: ReactNode; citation: Citation }
   | { kind: "repeat_banner"; id: string; badge: string; content: ReactNode }
   | { kind: "po_draft"; id: string; po: PoDraft }
-  | { kind: "po_hold"; id: string; hold: PoHold };
+  | { kind: "po_hold"; id: string; hold: PoHold }
+  /** block 이 아니라 사용자 액션 — POST /api/equipment/{id}/errors (D29·A7) */
+  | { kind: "error_log"; id: string; equipmentId: string; code: string; recordedAt?: string };

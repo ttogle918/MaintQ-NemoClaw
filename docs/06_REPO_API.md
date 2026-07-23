@@ -95,6 +95,11 @@ POST /api/chat
      event: block       { type: "safety" | "po_card" | "citation", data }
                         # 구조화 블록 (D22) — 안전 경고·발주 카드·인용 칩을 전용 컴포넌트로 렌더.
                         # 스트리밍 "중간"에 삽입 가능 — 위험 절차 서술보다 경고가 먼저/함께 도착해야 함
+                        # po_card의 data = { variant: "draft" | "hold", ... } (D35)
+                        #   draft : 발주서 초안 카드 — 정비사는 "승인 요청"만 (D10·D18)
+                        #   hold  : S3 발주 보류 블록 — 원인 확정 전 발주 금지. 발주 카드가 아님
+                        #   같은 슬롯에 오는 같은 성격의 블록이라 타입을 늘리지 않고 variant로 구분
+                        #   (이벤트 4종 고정 유지 — D14·D22)
                         # citation의 data = { page, print_page, label } (D32)
                         #   page       : PDF 물리 페이지 — 저장·평가 검증의 단일 기준 (D26 불변)
                         #   print_page : manifest.print_page_offset 적용값 (iG5A 0, S100 16)

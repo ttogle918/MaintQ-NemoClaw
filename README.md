@@ -85,14 +85,14 @@ uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — Fast
 | [00 MVP_SCOPE](docs/00_MVP_SCOPE.md) | 반드시 구현할 기능 6종 + 인프라 + 완료 기준 |
 | [01 OVERVIEW](docs/01_OVERVIEW.md) | 문제정의·페르소나·As-Is·KPI·Out of Scope·리스크·마일스톤 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
-| [03 WIREFRAME](docs/03_WIREFRAME.html) | 화면 A(진단 콘솔)·B(승인 큐) + 주석 |
+| [03 WIREFRAME](docs/03_WIREFRAME.html) | 화면 A·A-2(S3)·B 구조 참조 + 주석 10개 (실제 화면은 `frontend/`) |
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력·설계 원칙 |
 | [05 DB_SCHEMA](docs/05_DB_SCHEMA.md) | 테이블 9종 + 시드 케이스 맵 |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계 |
 | [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
 | [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D34과 이유 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D35과 이유 |
 
 ## 데이터 출처
 

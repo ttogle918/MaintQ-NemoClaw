@@ -49,7 +49,7 @@ sequenceDiagram
     B->>D: UPDATE state draft→pending
 ```
 
-**구현 시 헷갈리는 지점 3개, 여기서 확정:**
+**구현 시 헷갈리는 지점, 여기서 확정 (A1~A8):**
 
 | 결정 | 내용 |
 |---|---|
@@ -60,6 +60,7 @@ sequenceDiagram
 | A5 | 모든 tool_call/tool_result/block은 SSE 발행과 동시에 `traces` 테이블에 저장 (D21) — SSE 끊김 폴백·화면 B 링크·평가 판정의 단일 소스 |
 | A6 | MOQ 미달 발주는 도구가 `status:"error"`(`reason:"moq_not_met"`)로 거부 (D31) — 에이전트는 수량을 임의로 올리지 말고 사용자에게 재확인. 견적 제시 턴에서 미리 고지하는 게 1차 방어 |
 | A7 | 에러 이력 기록(`POST /api/equipment/{id}/errors`)은 **에이전트 루프 밖**의 사용자 액션 (D29) — A3(draft→pending)과 같은 성격. 루프가 자동 호출하면 `repeated` 판정이 질문 횟수로 오염됨 |
+| A8 | S3 발주 보류는 `po_card` block 의 **variant: `hold`** 로 전달 (D35) — 새 이벤트 타입을 만들지 않고, token 텍스트로도 흘리지 않는다 |
 
 ## 2. 에이전트 루프 정책
 

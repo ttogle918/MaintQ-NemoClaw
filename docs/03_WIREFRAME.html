@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>설비보전 AI 에이전트 — 와이어프레임 v0.2</title>
+  <title>설비보전 AI 에이전트 — 와이어프레임 v0.3</title>
   <style>
     :root {
       --ink: #2b2f33;
@@ -260,6 +260,74 @@
       border-top: 1.5px dashed var(--line);
       display: flex;
       gap: 8px;
+    }
+
+    /* 발주 보류 — po_card block 의 variant:"hold" (D35). 발주 카드가 아니다 */
+    .pocard.hold {
+      border-left: 5px solid var(--accent);
+    }
+
+    .pocard .holdbody {
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #555;
+      line-height: 1.7;
+    }
+
+    .pocard .holdbody .chk {
+      display: block;
+      margin-top: 3px;
+    }
+
+    .pocard .holdbody .chk:before {
+      content: "☐ ";
+      color: var(--ink);
+    }
+
+    /* 반복 고장 감지 배너 — get_error_history(repeated=true) 파생 UI */
+    .banner {
+      align-self: flex-start;
+      max-width: 82%;
+      border: 1.5px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      padding: 7px 11px;
+      font-size: 11px;
+    }
+
+    /* 이력 기록 액션 — block 이 아니라 사용자 액션 (D29·A7) */
+    .logrow {
+      align-self: flex-start;
+      max-width: 82%;
+      border: 1.5px dashed var(--line);
+      border-radius: 7px;
+      padding: 7px 11px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 역할 전환 = 라우트 이동 (/technician · /manager) */
+    .roletabs {
+      display: flex;
+      gap: 4px;
+      border: 1.5px solid var(--line);
+      border-radius: 7px;
+      padding: 3px;
+    }
+
+    .roletab {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 5px;
+      color: #777;
+    }
+
+    .roletab.on {
+      background: var(--ink);
+      color: #fff;
     }
 
     .btn {
@@ -556,8 +624,13 @@
 
 <body>
 
-  <h1>설비보전 AI 에이전트 — 와이어프레임 v0.2</h1>
+  <h1>설비보전 AI 에이전트 — 와이어프레임 v0.3</h1>
   <p class="sub">B2B 사내 도구 · 페르소나 2 (정비사 / 보전팀장) · 데스크톱 우선, 태블릿 대응</p>
+  <p class="sub" style="border-left:3px solid var(--accent);padding-left:9px;">
+    <b>이 문서는 구조 참조다.</b> 실제 화면은 <code>frontend/</code> 의 Next.js 구현이 기준이며(하이파이가 먼저 나왔다),
+    여기는 <b>레이아웃·구성요소·주석</b>만 담는다. 색·간격·타이포는 구현을 보라.
+    현재 구현과 정합 확인: 2026-07-23.
+  </p>
 
   <!-- ─────────────── 화면 A ─────────────── -->
   <h2><span class="tag">SCREEN A</span> 진단 콘솔</h2>
@@ -568,6 +641,11 @@
 
     <div class="apphead">
       <div class="logo"></div>
+      <div class="roletabs" style="position:relative;">
+        <span class="roletab on">🔧 정비사 · 진단 콘솔</span>
+        <span class="roletab">🗂 보전팀장 · 승인 큐 <b style="color:var(--accent);">3</b></span>
+        <span class="note" style="right:-4px;top:-12px;">5</span>
+      </div>
       <span class="chip">라인: 1번 조립 ▾</span>
       <span class="chip">장비: LS iG5A ▾</span>
       <div class="note" style="position:static;">1</div>
@@ -587,6 +665,12 @@
                 style="right:-30px;top:-4px;">3</span></span></div>
           <!-- 안전 문구 확정값: "10분 이상 + 테스터 확인" (매뉴얼 명시값, 사람 승인 2026-07-18). 근거: iG5A 표준본 p.4, 트러블슈팅 p.6, S100 p.2 — PDF 물리 페이지 (D26) -->
 
+          <div class="logrow" style="position:relative;">
+            <span class="btn">🗓 이 고장 이력에 기록</span>
+            <span class="label">기록해야 반복 고장 감지(30일 3회)에 반영됨 — 질문만으로는 집계 안 됨</span>
+            <span class="note" style="right:-28px;top:-4px;">6</span>
+          </div>
+
           <div class="pocard">
             <div class="pchead"><span>발주서 초안 #PO-0117</span><span class="label">draft</span></div>
             <div class="pcbody">
@@ -601,6 +685,7 @@
           </div>
         </div>
         <div class="inputrow">
+          <span class="btn">🎤</span>
           <div class="solid field"></div>
           <span class="btn">📷</span>
           <span class="btn primary">전송</span>
@@ -645,7 +730,7 @@
             <div>
               <div class="fn">get_supplier_quotes</div>
               <div class="io">in: {part:"FAN-IG5-01", qty:2}</div>
-              <div class="status">✓ 0.3s — A사 3일 vs B사 14일</div>
+              <div class="status">✓ 0.3s — A사 3일 vs B사 14일(MOQ 10)</div>
             </div>
           </div>
           <div class="step">
@@ -669,8 +754,120 @@
     <div class="li"><span class="n">3</span><span><b>안전 경고 블록</b> — 일반 말풍선과 다른 전용 컴포넌트(주황 테두리). 매뉴얼 근거 페이지 필수 첨부. 스크롤
         시에도 눈에 걸리는 게 목적.</span></div>
     <div class="li"><span class="n">4</span><span><b>발주 카드엔 "승인 요청"만</b> — 정비사 화면에서 발주 확정 불가. 요청을 누르면 화면 B의 승인 큐로 전달. 역할
-        분리를 UI로 강제. <b>S3(반복 고장)에서는 이 자리에 발주 카드 대신 "발주 보류 — 원인 확정 후 진행" 상태 블록이 표시된다</b> (원인 확정 전 발주 금지, 02_SCENARIOS
-        S3).</span></div>
+        분리를 UI로 강제. S3에서는 이 자리에 발주 카드 대신 <b>발주 보류 블록</b>이 온다 (아래 A-2).</span></div>
+    <div class="li"><span class="n">5</span><span><b>역할 전환 = 라우트 이동</b> — <code>/technician</code> ·
+        <code>/manager</code>. 클라이언트 상태 토글이 아니다. 라우트가 역할을 정해야 <code>X-Role</code>이 고정되고 "정비사 approve → 403"(완료 기준의 권한
+        위반 차단 100%)을 시연할 수 있다.</span></div>
+    <div class="li"><span class="n">6</span><span><b>이력 기록은 명시적 액션</b> — <code>POST
+          /api/equipment/{id}/errors</code> (D29). 채팅 진입만으로 자동 기록하면 <code>count</code>가 실제 고장 횟수가 아니라 <b>질문 횟수</b>가 되어,
+        같은 에러를 세 번 물어본 것만으로 근본원인 모드가 잘못 켜진다.</span></div>
+  </div>
+
+  <!-- ─────────────── 화면 A-2 (S3 변형) ─────────────── -->
+  <h2><span class="tag">SCREEN A-2</span> 진단 콘솔 — S3 반복 고장 변형</h2>
+  <p class="persona">같은 화면, 발주 카드 자리만 바뀐다. 반복 고장에서는 원인 확정 전 발주를 만들지 않는다</p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i></div>
+
+    <div class="apphead">
+      <div class="logo"></div>
+      <div class="roletabs">
+        <span class="roletab on">🔧 정비사 · 진단 콘솔</span>
+        <span class="roletab">🗂 보전팀장 · 승인 큐 <b style="color:var(--accent);">3</b></span>
+      </div>
+      <span class="chip">라인: 3번 조립 ▾</span>
+      <span class="chip">장비: LS iG5A ▾</span>
+      <div class="spacer"></div>
+      <span class="chip">정비사 김OO</span>
+    </div>
+
+    <div class="layoutA">
+      <div class="chatcol">
+        <div class="chatlog">
+          <div class="msg user">3번 라인 인버터 <b>또</b> OCt 떴어</div>
+          <div class="msg ai"><b>OCt — 인버터 과전류</b>입니다. 다만 이 설비는 <b>30일 내 3회 반복 발생</b>(매번 리셋만 수행)으로, 단순 조치 대신 <b>근본원인
+              점검 모드</b>로 전환합니다 <span class="cite">iG5A 매뉴얼 p.204 · 12.2 고장 대책</span></div>
+
+          <div class="banner"><b>3× 반복 고장 감지</b> — 3번 라인 INV-L3-01 · 최근 30일 OCt 3회 (07-01·07-11·07-19)</div>
+
+          <div class="safety"><b>⚠ SAFETY</b>절연저항 측정 전 전원 차단 후 <b>10분 이상</b> 대기, 테스터로 직류 전압 방전 확인. 활선 상태 절연 측정 금지.
+            <span class="cite">iG5A 트러블슈팅 p.6</span></div>
+
+          <div class="logrow"><span class="label">✓ 고장 이력에 기록됨 — INV-L3-01 · OCt · 2026-07-19 14:20</span></div>
+
+          <div class="pocard hold" style="position:relative;">
+            <span class="note" style="right:-10px;top:-10px;">7</span>
+            <div class="pchead"><span>⏸ 발주 보류 — 원인 확정 후 진행</span><span class="label">hold</span></div>
+            <div class="holdbody">
+              반복 고장은 부품 교체만으로 재발할 수 있어, <b>근본원인이 확정되기 전에는 발주서를 생성하지 않습니다.</b>
+              <span class="chk">출력측 지락(단락) 점검 · p.204</span>
+              <span class="chk">모터 절연저항 측정 (권선 절연 저하) · p.205</span>
+              <span class="chk">부하 이상·가감속 시간 과다 확인 · p.206</span>
+            </div>
+            <div class="pcfoot">
+              <span class="btn primary">점검 결과 입력</span>
+              <span class="label">원인 확정 시 발주서 초안 생성이 재개됩니다</span>
+            </div>
+          </div>
+        </div>
+        <div class="inputrow">
+          <span class="btn">🎤</span>
+          <div class="solid field"></div>
+          <span class="btn">📷</span>
+          <span class="btn primary">전송</span>
+        </div>
+      </div>
+
+      <div class="tracecol">
+        <div class="tabs">
+          <div class="tab on">실행 로그</div>
+          <div class="tab">근거 문서</div>
+          <div class="tab" style="border-right:none;">발주 이력</div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="dot done"></div>
+            <div>
+              <div class="fn">lookup_error_code</div>
+              <div class="io">in: {model:"iG5A", code:"OCt"}</div>
+              <div class="status">✓ 0.4s — 과전류 · related: 모터·케이블</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot warn"></div>
+            <div>
+              <div class="fn">get_error_history</div>
+              <div class="io">in: {equipment_id:"INV-L3-01", days:30}</div>
+              <div class="status w">⚠ count 3, repeated=true → 근본원인 모드</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot done"></div>
+            <div>
+              <div class="fn">rag_search_manual</div>
+              <div class="io">in: {model:"iG5A", query:"OCt 근본원인 점검 절차"}</div>
+              <div class="status">✓ 1.1s — p.204 인용 3건 · ⚠ 안전 경고 삽입</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot"></div>
+            <div>
+              <div class="fn"><s>create_po_draft</s></div>
+              <div class="io">차단: 원인 확정 전 발주 금지</div>
+              <div class="status w">⏸ held — 발주 보류</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><span class="n">7</span><span><b>발주 보류 블록</b> — 발주 카드가 아니다. SSE 계약상 <code>block</code>(type:
+        <code>po_card</code>)의 <b>variant: <code>hold</code></b> 로 도착한다 (D35). 별도 이벤트 타입을 만들면 "이벤트 4종 고정"(D14·D22)이
+        깨지고, token 텍스트로 흘리면 D22가 안전 경고에서 막았던 문제가 재발한다. trace에서도 <code>create_po_draft</code>가 취소선 + held로 표시돼 "왜 발주가
+        없는지"가 보인다.</span></div>
   </div>
 
   <!-- ─────────────── 화면 B ─────────────── -->
@@ -694,26 +891,28 @@
             · 2시간 전</span></div>
         <div class="qitem"><span class="badge">일반</span><br><b>#PO-0115</b> 퓨즈 ×10<br><span class="label">2번 라인 · 김OO ·
             어제</span></div>
-        <div class="note" style="position:static;align-self:flex-end;">5</div>
+        <div class="note" style="position:static;align-self:flex-end;">8</div>
       </div>
 
       <div class="detail">
         <div class="evidence" style="position:relative;">
-          <span class="note" style="right:-10px;top:-10px;">6</span>
+          <span class="note" style="right:-10px;top:-10px;">9</span>
           <div class="row"><span class="k">ERROR</span><span>iG5A · OHt (과열) — 1번 라인 INV-L1-01</span></div>
+          <div class="row"><span class="k">SYMPTOMS</span><span>냉각팬 소음 증가 · 3번 라인 2회 정지</span></div>
           <div class="row"><span class="k">DIAGNOSIS</span><span>냉각팬 고장 유력 <span class="cite"
                 style="font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;">매뉴얼
                 p.202</span></span></div>
           <div class="row"><span class="k">INVENTORY</span><span>재고 1 / 안전재고 3 — 부족분 2</span></div>
+          <div class="row"><span class="k">NOTES</span><span>야간조 정비사 육안 확인 — 팬 회전 불량</span></div>
           <div class="row"><span class="k">TRACE</span><span style="text-decoration:underline;">에이전트 실행 로그 전체 보기
               →</span></div>
         </div>
 
         <div class="compare" style="position:relative;">
-          <span class="note" style="right:-10px;top:-10px;">7</span>
+          <span class="note" style="right:-10px;top:-10px;">10</span>
           <div class="supbox" style="border-color:var(--ink);border-width:2px;"><b>A사 — 추천</b>리드타임 3일 · ₩38,000<br><span
               class="label">긴급도 高 → 최단 납기 우선</span></div>
-          <div class="supbox"><b>B사</b>리드타임 14일 · ₩29,000<br><span class="label">단가 최저</span></div>
+          <div class="supbox"><b>B사</b>리드타임 14일 · ₩29,000<br><span class="label">단가 최저 · MOQ 10 — 수량 2로는 발주 불가 (D31)</span></div>
         </div>
 
         <div class="actions">
@@ -725,12 +924,14 @@
   </div>
 
   <div class="legend">
-    <div class="li"><span class="n">5</span><span><b>승인 큐</b> — 긴급/일반 뱃지로 정렬. urgency는 발주 초안 생성 시 지정 — 안전재고 소진·설비 정지 건은
+    <div class="li"><span class="n">8</span><span><b>승인 큐</b> — 긴급/일반 뱃지로 정렬. urgency는 발주 초안 생성 시 지정 — 안전재고 소진·설비 정지 건은
         '긴급'(#PO-0117은 재고 1/안전재고 3 미달 사유). 팀장은 여기만 봐도 됨.</span></div>
-    <div class="li"><span class="n">6</span><span><b>근거 요약 카드</b> — 에러→진단→재고를 4줄로 압축, 인용 페이지 포함. 대화 전체를 안 읽고 결재 가능하게.
-        trace 링크로 검증 경로 확보.</span></div>
-    <div class="li"><span class="n">7</span><span><b>공급사 비교</b> — AI가 추천하되 선택은 사람이. 백로그의 '긴급도 기반 추천'이 들어올 자리 미리
-        확보.</span></div>
+    <div class="li"><span class="n">9</span><span><b>근거 요약 카드</b> — 6줄로 압축, 인용 페이지 포함. 대화 전체를 안 읽고 결재 가능하게. 데이터 소스는
+        <code>po_drafts</code>의 <code>reason</code>(헤드라인) + <code>evidence</code> JSON(D34):
+        <code>symptoms</code>→SYMPTOMS(<b>어떤 현상을 보고 고장으로 판단했는가</b>), <code>basis</code>→DIAGNOSIS 인용,
+        <code>notes</code>→NOTES(현장 비고). trace 링크로 검증 경로 확보.</span></div>
+    <div class="li"><span class="n">10</span><span><b>공급사 비교</b> — AI가 추천하되 선택은 사람이. MOQ 미달은 카드에 먼저 고지하고, 그래도 미달 수량으로
+        발주하면 도구가 거부한다 (D31 — 자동 상향 금지). 백로그 P2 '긴급도 기반 추천'이 들어올 자리 미리 확보.</span></div>
   </div>
 
   <div class="memo">
