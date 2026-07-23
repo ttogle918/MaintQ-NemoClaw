@@ -140,7 +140,7 @@
 
 ## 7. create_po_draft — 발주서 초안 생성 ⚠️ 유일한 쓰기 도구
 
-**description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 요약해 남길 것. 단가는 파라미터가 아니다 — 도구가 서버에서 조회해 채운다. 수량이 해당 공급사 MOQ에 미달하면 거부되므로, 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
+**description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 **한 줄로** 요약하고, evidence에는 **어떤 현상을 보고 고장으로 판단했는지**(symptoms)와 근거가 된 도구 결과(basis), 기타 비고(notes)를 구조화해 남길 것. 에러코드로부터 시작된 진단이면 model·error_code를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다. 단가는 파라미터가 아니다(서버가 조회해 채움). 수량이 공급사 MOQ에 미달하면 거부되므로 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 
 ```json
 // input
@@ -148,8 +148,21 @@
   "part_no": "FAN-IG5-01",
   "qty": 2,
   "supplier_id": "SUP-A",
-  "reason": "iG5A OHt 3회 반복, 냉각팬 고장 진단 (매뉴얼 p.202)",  // required
-  "urgency": "urgent | normal"
+  "reason": "iG5A OHt 3회 반복, 냉각팬 고장 진단 (매뉴얼 p.202)",  // required — 한 줄 요약
+  "urgency": "urgent | normal",
+
+  "model": "iG5A",        // error_code와 항상 짝. 둘 다 optional (D33)
+  "error_code": "OHT",    // 대문자 canonical 2~4자. 실재하지 않는 코드는 FK가 거부
+                          //   S2처럼 진단 없이 부품만 교체하는 발주는 둘 다 생략
+
+  "evidence": {           // optional — 판단 근거 구조화 (D34). 화면 B 근거 카드의 상세 소스
+    "symptoms": ["냉각팬 소음 증가", "3번 라인 2회 정지"],   // 어떤 현상을 보고 판단했는지
+    "basis": [                                              // 판단을 뒷받침한 도구 결과
+      { "tool": "lookup_error_code", "code": "OHT", "manual_page": 202 },
+      { "tool": "get_error_history", "count": 3, "window_days": 30, "repeated": true }
+    ],
+    "notes": "야간조 정비사 육안 확인 — 팬 회전 불량"        // 자유 비고·기타 상황
+  }
 }
 // output
 { "status": "ok", "po_id": "PO-0117", "state": "draft",
@@ -159,6 +172,11 @@
 //   → 도구 스키마에 신원 필드가 없으므로 LLM이 신원을 위조할 경로 자체가 차단됨
 // unit_price도 같은 논리로 파라미터가 아님 — 도구가 supplier_parts에서 조회해 스냅샷 (D31)
 //   → LLM이 가격을 지어내 발주서에 적을 경로가 없음
+
+// 매뉴얼에 없는 error_code로 호출 시 (D33) — FK가 거부
+{ "status": "error", "reason": "unknown_error_code",
+  "message": "iG5A 매뉴얼에서 확인되지 않는 코드입니다 (XY9). 코드 없이 발주하거나 표시부를 재확인하세요." }
+// → LLM이 지어낸 코드가 발주 이력에 남을 경로가 없음. S4의 환각 방지가 발주 단계까지 이어짐
 
 // MOQ 미달 시 (D31) — 자동으로 수량을 올리지 않는다
 { "status": "error",
@@ -184,6 +202,8 @@
 | 8 | `search_inventory`에 model optional 필터 | part_name 자연어 조회(S2 진입)에서 기종 교차 오염 차단 (D28) |
 | 9 | 단가도 도구 파라미터가 아닌 서버 조회 스냅샷 | 7과 같은 논리 — LLM이 가격을 지어낼 경로 차단 (D31) |
 | 10 | MOQ 미달은 자동 상향이 아니라 거부 | 사람 승인 없이 발주 금액을 키우지 않음 (D31) |
+| 11 | `(model, error_code)`를 발주서에 기록, FK로 실재 검증 | 발주↔에러코드 추적 + 지어낸 코드 차단 (D33) |
+| 12 | `evidence` JSON — 관찰 현상·근거·비고 | 승인자가 대화를 안 읽고 "왜 지금 이 부품인가"를 판단 (D34) |
 
 ## 도구 ↔ 시나리오 매핑
 

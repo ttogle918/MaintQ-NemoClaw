@@ -38,7 +38,12 @@ CREATE TABLE error_codes (
   actions      TEXT NOT NULL,          -- JSON array
   related_parts TEXT,                  -- JSON array of part_no (부품 특정의 연결고리!)
   manual_page  INTEGER NOT NULL,       -- 근거 인용 필수 — PDF 물리 페이지 기준 (D26)
-  PRIMARY KEY (model, code)            -- ★ 복합키 = "같은 코드, 다른 의미" 구현
+  PRIMARY KEY (model, code),           -- ★ 복합키 = "같은 코드, 다른 의미" 구현
+  -- code 형식 제약 (D33): 대문자·숫자·언더스코어 2~4자.
+  -- 실측 64건 전부 이 범위 (3자 51 / 4자 12 / 2자 1, 최장 'FLTL'·'RERR' 등 4자)
+  CHECK (length(code) BETWEEN 2 AND 4
+         AND code = upper(code)
+         AND code NOT GLOB '*[^A-Z0-9_]*')
 );
 ```
 
@@ -136,6 +141,9 @@ CREATE TABLE po_drafts (
   part_no      TEXT NOT NULL REFERENCES parts,
   qty          INTEGER NOT NULL,
   supplier_id  TEXT NOT NULL REFERENCES suppliers,
+  model        TEXT,                   -- 'iG5A' | 'S100' — error_code와 항상 짝 (D33)
+  error_code   TEXT,                   -- 이 발주를 유발한 에러코드. 대문자 canonical 2~4자 (D33)
+  evidence     TEXT,                   -- JSON. 관찰 현상·판단 근거·비고 (D34)
   unit_price   INTEGER NOT NULL,       -- 발주 시점 단가 스냅샷. create_po_draft가 supplier_parts를 SELECT해 채움 —
                                        --   도구 파라미터가 아니므로 LLM이 가격을 지어낼 경로가 없음 (D31).
                                        --   이후 가격 변동과 무관하게 승인 시점 근거가 보존됨
@@ -145,9 +153,53 @@ CREATE TABLE po_drafts (
   requested_by TEXT,                   -- 정비사 — X-User 헤더에서 백엔드가 주입 (D23, 도구 파라미터 아님)
   decided_by   TEXT,                   -- 팀장 (승인/반려 시) — X-User에서 주입
   session_id   TEXT,                   -- 이 발주를 만든 대화 세션 (D21) — 화면 B "실행 로그 보기" 링크의 키
-  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+  -- (model, error_code)는 error_codes 복합키를 참조 — code 단독으로는 "같은 코드, 다른 의미"가
+  -- 발주 이력에서 무너짐 (D13). 존재하지 않는 코드는 FK가 튕겨내므로 LLM이 지어낸 코드로
+  -- 발주서를 만들 수 없다 (D23·D31과 같은 논리)
+  FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
+
+  -- code 형식: 대문자 canonical, 2~4자 (실측 64건 전부 이 범위 — 3자 51 / 4자 12 / 2자 1)
+  CHECK (error_code IS NULL OR (
+           length(error_code) BETWEEN 2 AND 4
+           AND error_code = upper(error_code)
+           AND error_code NOT GLOB '*[^A-Z0-9_]*')),
+  -- 둘 다 있거나 둘 다 없거나 (model만 있고 code가 없는 상태를 막음)
+  CHECK ((model IS NULL) = (error_code IS NULL)),
+  CHECK (evidence IS NULL OR json_valid(evidence))
 );
 ```
+
+> ⚠️ **`PRAGMA foreign_keys=ON`을 커넥션마다 실행할 것.** SQLite는 FK 검증이 **기본 OFF**다. 이걸 안 켜면 위 복합 FK가 조용히 무시되어 매뉴얼에 없는 코드로도 발주서가 만들어진다 — D33의 보증이 통째로 사라진다. `mcp_server/db.py`의 커넥션 팩토리에서 강제한다.
+
+**검증 완료 (2026-07-23):** 위 DDL을 SQLite에서 실제로 실행해 9개 케이스를 확인했다 — 정상 발주·코드 없는 발주(S2)는 통과, 지어낸 코드(FK)·소문자·5자·특수문자·model만 있는 상태·깨진 JSON·**기종 오배정(S100 코드를 iG5A로)**은 전부 거부.
+
+**`error_code`가 NULL 허용인 이유 (D33):** S2는 **진단 없이 중간 진입**한다("S100 인버터 제어보드 교체해야 해"). 에러코드 없는 발주가 예외가 아니라 정상 케이스이므로 NOT NULL로 잠그면 S2가 막힌다. 대신 값이 있으면 FK로 실재하는 코드임을 강제한다.
+
+### `evidence` JSON 구조 (D34)
+
+`reason`(한 줄 요약)과 역할이 다르다. **`reason`은 승인자가 3초 안에 읽는 헤드라인**(D5, 화면 B 근거 카드의 제목), **`evidence`는 펼쳐서 확인하는 뒷받침**이다.
+
+```json
+{
+  "symptoms": ["냉각팬 소음 증가", "3번 라인 2회 정지"],
+  "basis": [
+    { "tool": "lookup_error_code",  "code": "OHT", "manual_page": 202 },
+    { "tool": "get_error_history",  "count": 3, "window_days": 30, "repeated": true },
+    { "tool": "search_inventory",   "part_no": "FAN-IG5-01", "qty": 1, "safety_stock": 3 }
+  ],
+  "notes": "야간조 정비사 육안 확인 — 팬 회전 불량"
+}
+```
+
+| 키 | 내용 | 출처 |
+|---|---|---|
+| `symptoms` | **어떤 현상을 보고 고장으로 판단했는지** — 관찰된 증상 | 사용자 발화에서 에이전트가 추출 |
+| `basis` | 판단을 뒷받침한 도구 결과 (코드 정의·이력·재고) | 도구 출력 — `traces`와 대조 가능 |
+| `notes` | 자유 비고·기타 상황 (구두 보고, 현장 특이사항 등) | 사용자 발화 / 정비사 입력 |
+
+세 키 모두 optional. 승인자가 "왜 이 부품을 지금 사야 하는가"를 대화를 안 읽고 판단할 수 있게 하는 게 목적이다.
 
 **권한 규칙(코드 레벨 강제):** MCP 도구는 `state='draft'`로 INSERT만 가능. `draft→pending`은 정비사 UI("승인 요청"), `pending→approved/rejected`는 팀장 UI만. 도구에 UPDATE 권한 자체를 안 줌.
 

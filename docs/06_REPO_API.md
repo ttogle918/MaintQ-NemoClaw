@@ -27,7 +27,7 @@ MaintQ/
 ├── .gitignore                 # data/raw/*(manifest.json 제외)·*.db·.env·.venv
 ├── .claude/                   # 스킬 5종(eda-manual·seed-db·run-eval·scenario-smoke·safety-guardrail) + 에이전트 4종
 ├── docs/
-│   ├── README.md, 01_OVERVIEW ~ 10_DECISIONS.md   # 문서 지도는 README 참조
+│   ├── README.md, 00_MVP_SCOPE.md, 01_OVERVIEW ~ 10_DECISIONS.md   # 문서 지도는 README 참조
 │   └── (평가 결과 문서는 M4에서 eval/results/ 기반으로 추가)
 │
 ├── data/
@@ -112,7 +112,8 @@ GET /api/chat/{session_id}/trace     # trace 전체 조회 — traces 테이블 
 
 ```
 GET  /api/po?state=pending           # 승인 큐 (manager)
-GET  /api/po/{po_id}                 # 상세: reason + trace 링크(po_drafts.session_id → /trace) + 공급사 비교
+GET  /api/po/{po_id}                 # 상세: reason(한 줄 요약) + evidence(관찰 현상·근거·비고, D34)
+                                     #     + model/error_code(D33) + trace 링크(session_id → /trace) + 공급사 비교
 POST /api/po/{po_id}/submit          # draft → pending   (technician만)
 POST /api/po/{po_id}/approve         # pending → approved (manager만)
 POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason})

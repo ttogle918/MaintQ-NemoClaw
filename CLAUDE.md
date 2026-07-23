@@ -8,7 +8,8 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 작업 전 관련 문서를 확인할 것. 설계와 다른 구현을 하려면 먼저 `docs/10_DECISIONS.md`에 결정을 추가하고 진행:
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
-- `docs/10_DECISIONS.md` — 설계 결정 D1~D32. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
+- `docs/10_DECISIONS.md` — 설계 결정 D1~D34. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약. 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 9종 + 시드 케이스 맵
