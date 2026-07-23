@@ -139,13 +139,17 @@ async def run() -> None:
         f"safety={i_safety}, 위험 서술 시작={i_danger}",
     )
 
-    # 실시간성 — 마지막 프레임만 몰려 오면(버퍼링) 스트리밍이 아니다
+    # 실시간성 — 버퍼링되면 전 프레임이 스트림 끝에 "한꺼번에" 도착한다.
+    # 접속 지연(ts[0])은 머신 부하에 따라 흔들리므로 판정에 쓰지 않는다.
+    # 대신 프레임들이 시간축에 흩어져 있는지를 직접 본다.
     ts = [t for t, _, _ in events]
     span = ts[-1] - ts[0]
+    gaps = [b - a for a, b in zip(ts, ts[1:])]
+    spread = sum(1 for g in gaps if g > 0.005)  # 유의미한 간격을 둔 프레임 수
     check(
         "⑧ 점진 전송 (버퍼링 아님)",
-        span > 0.15 and ts[0] < span * 0.5,
-        f"첫 프레임 {ts[0]:.2f}s, 전체 {span:.2f}s",
+        span > 0.15 and spread >= len(gaps) // 3,
+        f"프레임 분산 {span:.2f}s, 간격>5ms {spread}/{len(gaps)}",
     )
 
     # D22 block 타입 3종 + D35 variant

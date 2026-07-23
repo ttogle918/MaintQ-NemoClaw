@@ -170,6 +170,9 @@
 // state는 draft 고정. approved/rejected 전환은 승인 큐 API(사람)만 가능
 // requested_by·session_id는 도구 파라미터가 아님 — 백엔드가 X-User 헤더·세션에서 서버 측 주입 (D23)
 //   → 도구 스키마에 신원 필드가 없으므로 LLM이 신원을 위조할 경로 자체가 차단됨
+//   → 주입 방법(D37): 도구는 신원 없이 INSERT하고, 백엔드가 같은 요청 안에서 stamp한다.
+//     stamp는 requested_by가 NULL이고 state='draft'일 때만 1회 — 나중에 요청자를 바꿀 수
+//     있으면 감사 추적이 무너지므로 덮어쓰기를 막는다 (backend/services/po.py)
 // unit_price도 같은 논리로 파라미터가 아님 — 도구가 supplier_parts에서 조회해 스냅샷 (D31)
 //   → LLM이 가격을 지어내 발주서에 적을 경로가 없음
 

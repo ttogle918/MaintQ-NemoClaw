@@ -51,6 +51,9 @@ MaintQ/
 │
 ├── backend/
 │   ├── main.py                # FastAPI 앱
+│   ├── sse.py                 # SSE 이벤트 4종 인코더 (D14·D22, citation 오프셋 변환 D32)
+│   ├── services/
+│   │   └── po.py              # 신원 stamp (D37) · 표시명 매핑 (D36)
 │   ├── agent/
 │   │   ├── loop.py            # 에이전트 루프 (도구 호출 오케스트레이션)
 │   │   ├── prompts.py         # 시스템 프롬프트 (안전 가드레일 규칙 포함)
@@ -67,7 +70,8 @@ MaintQ/
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
-│   └── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
+│   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
+│   └── write_tool_contract.py # create_po_draft 경계 (D10·D23·D31·D33·D34·D37)
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기

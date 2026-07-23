@@ -8,12 +8,16 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
-from contextlib import contextmanager
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "maintq.db"
+_DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "maintq.db"
+
+# 계약 테스트가 실제 DB를 오염시키지 않도록 경로를 갈아끼울 수 있게 한다
+DB_PATH = Path(os.environ.get("MAINTQ_DB") or _DEFAULT_DB)
 
 
 def _configure(con: sqlite3.Connection) -> sqlite3.Connection:

@@ -25,6 +25,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 
+from mcp_server.tools.create_po_draft import (  # noqa: E402
+    DESCRIPTION as PO_DESC,
+    create_po_draft as _create_po_draft,
+)
 from mcp_server.tools.find_alternative_parts import (  # noqa: E402
     DESCRIPTION as ALT_DESC,
     find_alternative_parts as _find_alternative_parts,
@@ -72,6 +76,31 @@ def get_error_history(
     days: int = 30,
 ) -> dict:
     return _get_error_history(equipment_id=equipment_id, line_id=line_id, code=code, days=days)
+
+
+@mcp.tool(description=PO_DESC)
+def create_po_draft(
+    part_no: str,
+    qty: int,
+    supplier_id: str,
+    reason: str,
+    urgency: str = "normal",
+    model: str | None = None,
+    error_code: str | None = None,
+    evidence: dict | None = None,
+) -> dict:
+    """⚠️ 유일한 쓰기 도구. 신원(requested_by)·session_id 는 **파라미터에 없다** —
+    스키마에 없으므로 LLM 이 위조할 수 없고, 백엔드가 INSERT 직후 stamp 한다 (D23·D37)."""
+    return _create_po_draft(
+        part_no=part_no,
+        qty=qty,
+        supplier_id=supplier_id,
+        reason=reason,
+        urgency=urgency,
+        model=model,
+        error_code=error_code,
+        evidence=evidence,
+    )
 
 
 if __name__ == "__main__":
