@@ -33,6 +33,19 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
 
+## 작업 워크플로우 (커맨드)
+
+| 커맨드 | 하는 일 |
+|---|---|
+| `/sprint N` | 계획만 수립 (PM 배치 → tool-builder 현실성 평가) → `docs/sprints/sprint-N.md`. **코드 안 짬** |
+| `/stage M` | 스테이지 실행: tool-builder 병렬 → eval-runner 회귀 → reviewer 게이트 → 커밋 → 수동 체크리스트 |
+| `/checkpoint` | 중단 시점 저장 (`sprint-N-wip.md`) |
+| `/done` | 세션 마무리 — 로그(`docs/sessions/`) + **D 범위 표기 정합성 점검** |
+
+회귀 스위트(고정): `data/seed.py` 8건 · `spikes/sp2_mcp_roundtrip.py` 15건 ·
+`spikes/write_tool_contract.py` 14건 · `spikes/api_contract.py` 19건 · `spikes/sp3_sse_events.py` 11건.
+계약이 깨지면 여기서 먼저 잡힌다.
+
 ## 현재 상태
 
 설계 완료. M1(데이터 준비) 진행 중 — 매뉴얼 EDA → error_codes 추출 → 시드.

@@ -25,9 +25,15 @@ MaintQ/
 ├── uv.lock                    # 재현 가능한 의존성 잠금 (D27)
 ├── .python-version            # Python 버전 고정 (D27)
 ├── .gitignore                 # data/raw/*(manifest.json 제외)·*.db·.env·.venv
-├── .claude/                   # 스킬 5종(eda-manual·seed-db·run-eval·scenario-smoke·safety-guardrail) + 에이전트 4종
+├── .claude/
+│   ├── commands/              # /sprint · /stage · /done · /checkpoint
+│   ├── skills/                # 도메인 5종 + 워크플로우 3종(sprint·stage·done)
+│   ├── agents/                # pm · tool-builder · reviewer · eval-runner · data-extractor
+│   └── hooks/                 # 쓰기 가드 · ruff 포맷
 ├── docs/
 │   ├── README.md, 00_MVP_SCOPE.md, 01_OVERVIEW ~ 10_DECISIONS.md   # 문서 지도는 README 참조
+│   ├── sprints/               # /sprint·/stage 산출물 (실행 기록)
+│   ├── sessions/              # /done 세션 로그 (결정의 맥락)
 │   └── (평가 결과 문서는 M4에서 eval/results/ 기반으로 추가)
 │
 ├── data/
