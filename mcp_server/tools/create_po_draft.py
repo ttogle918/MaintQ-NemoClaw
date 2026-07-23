@@ -50,7 +50,11 @@ def create_po_draft(
 ) -> dict:
     # ── 입력 검증 (실패는 전부 status 로, D9)
     if not part_no or not supplier_id:
-        return {"status": "error", "message": "part_no·supplier_id 는 필수입니다"}
+        return {
+            "status": "error",
+            "reason": "invalid_input",
+            "message": "part_no·supplier_id 는 필수입니다",
+        }
     if not reason or not reason.strip():
         return {
             "status": "error",
@@ -58,10 +62,15 @@ def create_po_draft(
             "message": "reason 은 필수입니다 — 승인자가 판단 근거를 추적할 수 있어야 합니다 (D5)",
         }
     if qty < 1:
-        return {"status": "error", "message": f"qty 는 1 이상이어야 합니다: {qty}"}
+        return {
+            "status": "error",
+            "reason": "invalid_input",
+            "message": f"qty 는 1 이상이어야 합니다: {qty}",
+        }
     if urgency not in ("urgent", "normal"):
         return {
             "status": "error",
+            "reason": "invalid_input",
             "message": f"urgency 는 urgent|normal 이어야 합니다: {urgency!r}",
         }
     if (model is None) != (error_code is None):
@@ -71,7 +80,11 @@ def create_po_draft(
             "message": "model 과 error_code 는 둘 다 있거나 둘 다 없어야 합니다 (D33)",
         }
     if model is not None and model not in VALID_MODELS:
-        return {"status": "error", "message": f"model 은 iG5A|S100 이어야 합니다: {model!r}"}
+        return {
+            "status": "error",
+            "reason": "invalid_model",
+            "message": f"model 은 iG5A|S100 이어야 합니다: {model!r}",
+        }
 
     code = error_code.upper() if error_code else None  # 저장은 대문자 canonical (D25)
 
@@ -142,7 +155,7 @@ def create_po_draft(
         # FK·CHECK 위반은 계약 위반이므로 그대로 드러낸다 (조용히 넘기지 않는다)
         return {"status": "error", "reason": "integrity", "message": str(e)}
     except Exception as e:  # noqa: BLE001
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "reason": "db_error", "message": str(e)}
 
     return {
         "status": "ok",

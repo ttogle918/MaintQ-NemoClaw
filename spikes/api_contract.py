@@ -11,8 +11,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -29,6 +31,42 @@ def check(name: str, ok: bool, detail: str) -> None:
 
 TECH = {"X-Role": "technician", "X-User": "tech-01"}
 MGR = {"X-Role": "manager", "X-User": "mgr-01"}
+
+
+#: seq 를 **일부러 뒤섞어** INSERT 한다 — 저장 순서가 아니라 `ORDER BY seq` 가
+#: 응답 순서를 정하는지 봐야 화면 B 타임라인(MQ-309)이 믿을 수 있다.
+TRACE_FIXTURE_SESSION = "S-TRACE-FIX"
+TRACE_FIXTURE_ROWS = [
+    (3, "tool_result", "lookup_error_code", {"tool": "lookup_error_code", "status": "ok"}),
+    (1, "tool_call", "lookup_error_code", {"tool": "lookup_error_code", "input": {"code": "OHt"}}),
+    (5, "block", None, {"type": "citation", "data": {"page": 202}}),
+    (2, "block", None, {"type": "safety", "data": {"text": "10분 이상 대기"}}),
+    (4, "tool_call", "search_inventory", {"tool": "search_inventory", "input": {"qty": 2}}),
+]
+
+
+def seed_trace_fixture(db: Path) -> None:
+    """traces 5행을 무작위 seq 순서로 직접 INSERT (백엔드 코드를 거치지 않는다)."""
+    con = sqlite3.connect(db)
+    try:
+        con.executemany(
+            "INSERT INTO traces (session_id, seq, event_type, tool, payload, ts)"
+            " VALUES (?,?,?,?,?,?)",
+            [
+                (
+                    TRACE_FIXTURE_SESSION,
+                    seq,
+                    event_type,
+                    tool,
+                    json.dumps(payload, ensure_ascii=False),
+                    "2026-07-23 04:05:06.000",
+                )
+                for seq, event_type, tool, payload in TRACE_FIXTURE_ROWS
+            ],
+        )
+        con.commit()
+    finally:
+        con.close()
 
 
 def run(client) -> None:
@@ -142,6 +180,44 @@ def run(client) -> None:
     r = client.get("/api/equipment", headers={"X-Role": "technician", "X-User": "tech-01"})
     check("⑲ ASCII 사용자 ID 는 통과", r.status_code == 200, f"{r.status_code}")
 
+    # ── GET /trace (D43) — 화면 B 링크이자 SSE 끊김 폴백
+    # trace_url 은 서버가 만든 링크다. 문자열을 다시 조립하지 않고 **그대로** 따라가야
+    # "링크가 항상 유효하다"는 D43 의 전제가 실제로 검증된다.
+    trace_url = client.get("/api/po/PO-0117", headers=MGR).json()["trace_url"]
+    r = client.get(trace_url, headers=MGR)
+    body = r.json()
+    check(
+        "⑳ trace_url 을 그대로 GET → 200 + D43 스키마",
+        r.status_code == 200 and set(body) == {"session_id", "count", "events"},
+        f"{r.status_code} {trace_url} keys={sorted(body)}",
+    )
+
+    r = client.get("/api/chat/NO-SUCH-SESSION/trace", headers=MGR)
+    body = r.json()
+    check(
+        "㉑ 없는 세션 → 404 가 아니라 200 + count 0 (D43)",
+        r.status_code == 200 and body["count"] == 0 and body["events"] == [],
+        f"{r.status_code}, count={body.get('count')}",
+    )
+
+    body = client.get(f"/api/chat/{TRACE_FIXTURE_SESSION}/trace", headers=MGR).json()
+    seqs = [e["seq"] for e in body["events"]]
+    check(
+        "㉒ 무작위 순서 INSERT → seq 오름차순 · data 는 dict · ts 는 ...Z (D39)",
+        body["count"] == 5
+        and seqs == sorted(seqs)
+        and all(isinstance(e["data"], dict) for e in body["events"])
+        and all(e["ts"].endswith("Z") for e in body["events"]),
+        f"seq={seqs}, ts={body['events'][0]['ts']}",
+    )
+
+    r = client.get(f"/api/chat/{TRACE_FIXTURE_SESSION}/trace", headers=TECH)
+    check(
+        "㉓ 역할 제한 없음 — technician 헤더로도 200 (D43)",
+        r.status_code == 200 and r.json()["count"] == 5,
+        f"{r.status_code}, count={r.json().get('count')}",
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
@@ -156,6 +232,7 @@ def main() -> None:
         db = Path(td) / "api.db"
         shutil.copy2(SOURCE_DB, db)
         os.environ["MAINTQ_DB"] = str(db)
+        seed_trace_fixture(db)
 
         sys.path.insert(0, str(ROOT))
         from fastapi.testclient import TestClient  # noqa: PLC0415
@@ -174,7 +251,7 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — 권한 403·전이 409·D29 기록 확인")
+    print(f"\n통과 ({len(results)}건) — 권한 403·전이 409·D29 기록·GET /trace(D43) 확인")
 
 
 if __name__ == "__main__":

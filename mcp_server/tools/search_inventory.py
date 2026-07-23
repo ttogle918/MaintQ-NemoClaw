@@ -23,9 +23,17 @@ def search_inventory(
     model: str | None = None,
 ) -> dict:
     if not part_no and not part_name:
-        return {"status": "error", "message": "part_no 또는 part_name 중 하나는 필요합니다"}
+        return {
+            "status": "error",
+            "reason": "invalid_input",
+            "message": "part_no 또는 part_name 중 하나는 필요합니다",
+        }
     if model is not None and model not in ("iG5A", "S100"):
-        return {"status": "error", "message": f"model은 iG5A|S100 이어야 합니다: {model!r}"}
+        return {
+            "status": "error",
+            "reason": "invalid_model",
+            "message": f"model은 iG5A|S100 이어야 합니다: {model!r}",
+        }
 
     sql = [
         "SELECT p.part_no, p.name, p.compatible_models, p.discontinued,",
@@ -45,7 +53,7 @@ def search_inventory(
         with read_only() as con:
             rows = con.execute(" ".join(sql), args).fetchall()
     except Exception as e:  # noqa: BLE001 — 예외를 status로 바꿔 반환 (D9)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "reason": "db_error", "message": str(e)}
 
     items = []
     for r in rows:

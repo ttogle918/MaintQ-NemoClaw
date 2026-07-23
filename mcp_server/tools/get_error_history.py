@@ -29,6 +29,7 @@ def get_error_history(
     if equipment_id is None and line_id is None and code is None:
         return {
             "status": "error",
+            "reason": "invalid_input",
             "message": "equipment_id · line_id · code 중 최소 하나는 필요합니다",
         }
 
@@ -55,7 +56,7 @@ def get_error_history(
         with read_only() as con:
             rows = con.execute(" ".join(sql), args).fetchall()
     except Exception as e:  # noqa: BLE001
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "reason": "db_error", "message": str(e)}
 
     events = [
         {

@@ -6,6 +6,9 @@ SP3 단계라 에이전트 루프 대신 **S1 시나리오를 고정 재생**한
   - 이벤트 4종이 구분 수신되는가 (D14·D22)
   - tool_call 이 도구 호출 "직전"에 오는가 (A1)
   - block 이 token 스트림 **중간**에 삽입되는가 (D22) ← SP3 의 핵심 질문
+
+`GET /chat/{session_id}/trace` (MQ-307) 는 이 재생 경로와 독립이다 — `traces` 테이블만
+읽으며, 재생이 traces 에 쓰도록 배선하는 건 MQ-308 의 몫이다.
 """
 
 from __future__ import annotations
@@ -14,11 +17,13 @@ import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend import sse
+from backend.agent.trace import read_trace
+from backend.deps import Caller, caller
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -142,3 +147,24 @@ async def chat(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/chat/{session_id}/trace")
+def get_trace(session_id: str, c: Caller = Depends(caller)) -> dict:
+    """세션 trace 전체 조회 (D21·D43) — 화면 B '실행 로그 보기' · SSE 끊김 폴백.
+
+    **응답 스키마를 여기서 다시 만들지 않는다.** D43(`{session_id, count, events:[...]}`)의
+    단일 구현체는 `backend.agent.trace.read_trace` 이고 이 핸들러는 그 반환을 그대로 흘린다 —
+    같은 스키마를 두 곳에서 조립하면 화면 B(MQ-309)와 평가 판정이 서로 다른 모양을 보게 된다.
+    `ts` 의 `...Z` 표기(D39)도 `read_trace` 가 `iso_utc` 로 붙인다.
+
+    **없는 세션은 404 가 아니라 200 + `count:0`** (D43). 아직 도구를 한 번도 부르지 않은
+    세션은 정상 상태이고, `services/po.trace_url` 이 항상 유효해야 프론트 분기가 늘지 않는다.
+
+    **역할 제한 없음** (D43) — `Depends(caller)` 는 헤더 검증(D36 ASCII·역할 enum)만 한다.
+    팀장의 링크이자 정비사의 SSE 폴백 경로라 어느 한쪽으로 좁히면 다른 쪽이 막힌다.
+
+    read_trace 는 동기 SQLite 호출이라 `def` 로 둔다 — `async def` 로 두면 이벤트 루프를
+    막아 같은 워커의 SSE 스트림이 함께 멈춘다.
+    """
+    return read_trace(session_id)

@@ -14,9 +14,13 @@ DESCRIPTION = (
 
 def get_supplier_quotes(part_no: str, qty: int = 1) -> dict:
     if not part_no:
-        return {"status": "error", "message": "part_no는 필수입니다"}
+        return {"status": "error", "reason": "invalid_input", "message": "part_no는 필수입니다"}
     if qty < 1:
-        return {"status": "error", "message": f"qty는 1 이상이어야 합니다: {qty}"}
+        return {
+            "status": "error",
+            "reason": "invalid_input",
+            "message": f"qty는 1 이상이어야 합니다: {qty}",
+        }
 
     try:
         with read_only() as con:
@@ -28,7 +32,7 @@ def get_supplier_quotes(part_no: str, qty: int = 1) -> dict:
                 (part_no,),
             ).fetchall()
     except Exception as e:  # noqa: BLE001
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "reason": "db_error", "message": str(e)}
 
     if not rows:
         return {"status": "empty", "suppliers": []}

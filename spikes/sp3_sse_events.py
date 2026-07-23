@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import time
@@ -34,16 +35,25 @@ def check(name: str, ok: bool, detail: str) -> None:
 
 
 async def wait_ready(timeout: float = 30.0) -> bool:
+    """서버 준비 대기.
+
+    **짧은 타임아웃으로 빠르게 폴링하지 않는다.** uvicorn 은 앱 startup 이 끝나기 전에
+    이미 소켓을 바인딩하므로, 그 창에 연결을 만들었다가 중단하면 Windows Proactor 의
+    accept 루프가 `OSError [WinError 64]` 로 깨지고 서버가 영영 응답하지 않는다
+    (lifespan 이 추가돼 startup 창이 길어지면서 실제로 재현됐다).
+    요청은 **적게, 타임아웃은 넉넉히** — startup 이 끝날 때까지 uvicorn 이 요청을 큐에 물고 있는다.
+    """
     deadline = time.monotonic() + timeout
-    async with httpx.AsyncClient() as c:
-        while time.monotonic() < deadline:
-            try:
-                r = await c.get(f"{BASE}/health", timeout=1.0)
+    attempt = 0
+    while time.monotonic() < deadline:
+        attempt += 1
+        try:
+            async with httpx.AsyncClient(timeout=timeout / 3) as c:
+                r = await c.get(f"{BASE}/health")
                 if r.status_code == 200:
                     return True
-            except Exception:  # noqa: BLE001, S110
-                pass
-            await asyncio.sleep(0.3)
+        except Exception:  # noqa: BLE001 — 아직 바인딩 전이면 연결 자체가 거부된다
+            await asyncio.sleep(min(1.0 * attempt, 3.0))
     return False
 
 
@@ -186,6 +196,10 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("SP3 — FastAPI SSE 이벤트 4종 + block 중간 삽입 (실제 uvicorn 프로세스)\n")
+    # SP3 는 replay 경로만 쓴다 — MCP 를 띄울 이유가 없다.
+    # lifespan 이 매번 stdio 서버를 스폰하면 기동이 느려지고, 연속 실행 시
+    # 포트·자식 프로세스가 물려 간헐 실패한다 (실제로 한 번 겪었다).
+    env = {**os.environ, "MAINTQ_MCP_AUTOSTART": "0"}
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -198,6 +212,7 @@ def main() -> None:
             "warning",
         ],
         cwd=ROOT,
+        env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
     )

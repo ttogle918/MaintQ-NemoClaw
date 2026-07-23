@@ -54,6 +54,35 @@ def block(block_type: BlockType, data: dict) -> SseEvent:
     return SseEvent("block", {"type": block_type, "data": data})
 
 
+def citation_data(manual: str, page: int, print_page: int, section: str | None = None) -> dict:
+    """인용 payload `{page, print_page, label}` — **인용 형태의 단일 출처** (D32·D45).
+
+    citation 블록만 인용을 담는 게 아니다. 안전 블록의 근거, 발주 보류 체크리스트의
+    항목도 **같은 형태**여야 프론트가 하나의 `CitationChip` 으로 렌더한다.
+    `{page}` 만 담아 보내면 라벨이 `undefined p.204` 로 뜨고, S100 은 물리 페이지를
+    인쇄 페이지인 양 표시해 D32 가 막으려던 문제가 그대로 재발한다.
+    """
+    label = f"{manual} p.{print_page}"
+    if print_page != page:
+        label += f" (PDF p.{page})"
+    if section:
+        label += f" · {section}"
+    return {"page": page, "print_page": print_page, "label": label}
+
+
+def citation_payload(model: str, page: int, section: str | None = None) -> dict:
+    """model + PDF 물리 페이지 → 인용 payload. **중첩 인용은 전부 이걸 거친다.**
+
+    오프셋 변환은 여전히 `manifest.to_print_page` 한 곳이다 (D32).
+    """
+    return citation_data(
+        manifest.manual_label(model),
+        page=page,
+        print_page=manifest.to_print_page(model, page),
+        section=section,
+    )
+
+
 def citation_block(manual: str, page: int, print_page: int, section: str | None = None) -> SseEvent:
     """인용 블록 (D32).
 
@@ -61,12 +90,7 @@ def citation_block(manual: str, page: int, print_page: int, section: str | None 
     `print_page` 는 manifest.print_page_offset 을 적용한 값이고, 오프셋 변환은
     **여기 한 곳에서만** 한다. 평가 코드는 계속 `page` 만 본다.
     """
-    label = f"{manual} p.{print_page}"
-    if print_page != page:
-        label += f" (PDF p.{page})"
-    if section:
-        label += f" · {section}"
-    return block("citation", {"page": page, "print_page": print_page, "label": label})
+    return block("citation", citation_data(manual, page, print_page, section))
 
 
 def citation_for(model: str, page: int, section: str | None = None) -> SseEvent:

@@ -99,11 +99,14 @@ class TraceWriter:
         """구조화 블록 — safety / po_card / citation (D22). `tool` 컬럼은 NULL."""
         return self._write(sse.block(block_type, data), None)
 
-    def citation(
-        self, manual: str, page: int, print_page: int, section: str | None = None
-    ) -> sse.SseEvent:
-        """인용 블록. `page` 는 물리 페이지 그대로, 오프셋 변환은 `sse` 쪽 1곳 (D26·D32)."""
-        return self._write(sse.citation_block(manual, page, print_page, section), None)
+    def citation(self, model: str, page: int, section: str | None = None) -> sse.SseEvent:
+        """인용 블록 — **model + PDF 물리 페이지**만 받는다 (D26·D32·D49).
+
+        `print_page` 를 인자로 받지 않는 것이 핵심이다. 받으면 호출자가 환산값을
+        만들게 되어 D32 의 "오프셋 변환은 렌더 1곳"이 두 갈래로 벌어진다.
+        환산은 `sse.citation_for()` → `backend.manifest.to_print_page()` 한 경로뿐이다.
+        """
+        return self._write(sse.citation_for(model, page, section), None)
 
     def emit(self, event: sse.SseEvent, tool: str | None = None) -> sse.SseEvent:
         """이미 만들어진 SSE 이벤트를 **저장하며** 발행한다.

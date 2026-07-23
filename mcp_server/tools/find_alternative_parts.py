@@ -13,7 +13,7 @@ DESCRIPTION = (
 
 def find_alternative_parts(part_no: str) -> dict:
     if not part_no:
-        return {"status": "error", "message": "part_no는 필수입니다"}
+        return {"status": "error", "reason": "invalid_input", "message": "part_no는 필수입니다"}
 
     try:
         with read_only() as con:
@@ -25,7 +25,7 @@ def find_alternative_parts(part_no: str) -> dict:
                 (part_no,),
             ).fetchall()
     except Exception as e:  # noqa: BLE001
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "reason": "db_error", "message": str(e)}
 
     if not rows:
         # S2 서브 분기 — 긴급 견적 + 에스컬레이션

@@ -3,15 +3,14 @@
 
 목업 DB를 실제 ERP로 갈아끼울 때 이 서버만 교체하면 되는 구조가 핵심이다.
 
-현재 등록된 도구 (M2 진행 중 — 6/7):
+현재 등록된 도구 (**7/7 완성**):
   - lookup_error_code         에러코드 정의·원인·조치 (exact match)
+  - rag_search_manual         매뉴얼 본문 서술형 검색 (하이브리드, D47)
   - search_inventory          재고·안전재고·단종
   - find_alternative_parts    호환 대체품
   - get_supplier_quotes       리드타임·단가·MOQ
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
-
-아직 없음: rag_search_manual (MQ-314)
 
 주의: `error_codes` 는 사람 승인 전이라 아직 0행이다. 그래서 lookup_error_code 는
 실데이터에서 `status:"error"` + `reason:"catalog_not_loaded"` 를 돌려준다 (D50) —
@@ -50,6 +49,10 @@ from mcp_server.tools.lookup_error_code import (  # noqa: E402
     DESCRIPTION as LOOKUP_DESC,
     lookup_error_code as _lookup_error_code,
 )
+from mcp_server.tools.rag_search_manual import (  # noqa: E402
+    DESCRIPTION as RAG_DESC,
+    rag_search_manual as _rag_search_manual,
+)
 from mcp_server.tools.search_inventory import (  # noqa: E402
     DESCRIPTION as INV_DESC,
     search_inventory as _search_inventory,
@@ -63,6 +66,13 @@ def lookup_error_code(model: str, code: str) -> dict:
     """model 은 enum('iG5A','S100') 강제 (D6·D13). 표에 없으면 not_found —
     유사 코드를 추측해 돌려주지 않는다. 0행이면 not_found 가 아니라 error/catalog_not_loaded (D50)."""
     return _lookup_error_code(model=model, code=code)
+
+
+@mcp.tool(description=RAG_DESC)
+def rag_search_manual(model: str, query: str, top_k: int = 3) -> dict:
+    """절차·배경 등 서술형 정보만. 에러코드 정의는 lookup_error_code 다 (D1).
+    결과가 없으면 empty — 이때 절차를 지어내지 않는다."""
+    return _rag_search_manual(model=model, query=query, top_k=top_k)
 
 
 @mcp.tool(description=INV_DESC)

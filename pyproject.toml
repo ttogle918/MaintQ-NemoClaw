@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "설비 진단부터 부품 발주까지 — B2B 제조 보전 AI 에이전트 (Q 시리즈 3번째)"
 requires-python = ">=3.11"
 dependencies = [
+    "anthropic>=0.118.0",
     "fastapi>=0.139.2",
     "httpx>=0.28.1",
     "mcp>=1.28.1",

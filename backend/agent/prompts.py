@@ -41,6 +41,9 @@ MODELS: tuple[str, ...] = ("iG5A", "S100")
 # 그 판단도 여기가 아니라 렌더 1곳에서 한다.
 # ─────────────────────────────────────────────────────────────────────────────
 SAFETY_BASELINE: dict[str, object] = {
+    # 블록 헤더 라벨. **매뉴얼 문구가 아니라 UI 라벨**이라 검수 대상이 아니다
+    # (frontend SafetyBlock 의 title prop · SP3 replay 와 같은 값을 쓴다).
+    "title": "SAFETY · 감전 위험",
     # 안전 블록(block type=safety)에 그대로 실리는 확정 문구. LLM 생성 금지.
     "text": (
         "매뉴얼 기준 안전 조치입니다. "
