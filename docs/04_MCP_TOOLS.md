@@ -1,5 +1,6 @@
 # MCP 도구 스키마 v0.2
-설비보전 AI 에이전트 · **읽기 도구 6종 + 쓰기 도구 1종 = 총 7종** (get_lead_time을 get_supplier_quotes로 흡수 — D8)
+설비보전 AI 에이전트 · **읽기 도구 6종 + 쓰기 도구 1종 = 총 7종**
+(읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 총계는 7종)
 
 ---
 
@@ -34,7 +35,7 @@
   "causes": ["냉각팬 고장", "주위 온도 초과", "..."],
   "actions": ["냉각팬 점검", "..."],
   "related_parts": ["FAN-IG5-01"],   // ★ 진단→부품 특정의 다리 (D12·D20). 이 값으로 search_inventory 호출
-  "manual_page": 208
+  "manual_page": 202                 // PDF 물리 페이지 (D26). iG5A 보호기능 표 = p.202~204
 }
 // status: "not_found" → S4 분기 트리거 (A/S 안내 + 문의 초안)
 ```
@@ -52,7 +53,7 @@
 {
   "status": "ok",
   "chunks": [
-    { "text": "...", "page": 212, "section": "6.3 보호기능" }
+    { "text": "...", "page": 204, "section": "12.2 고장 대책" }
   ]
 }
 ```
@@ -62,11 +63,13 @@
 ```json
 // input (전부 optional, 최소 1개)
 { "equipment_id": "INV-L3-01", "line_id": 3, "code": "OCt", "days": 30 }
+// days 미지정 시 기본값 30 (상수 REPEAT_WINDOW_DAYS)
+// line_id는 error_history에 없는 컬럼 — equipment 조인으로 해석
 // output
 {
   "status": "ok",
   "count": 3,
-  "repeated": true,            // count >= threshold(3) 이면 true
+  "repeated": true,            // count >= REPEAT_THRESHOLD(3) 이면 true. 두 상수는 도구 모듈에 고정
   "events": [
     { "date": "2026-07-01", "code": "OCt", "action_taken": "리셋", "part_replaced": null }
   ]
@@ -76,9 +79,13 @@
 
 ## 4. search_inventory — 재고 조회
 
+**description 초안:** "부품의 재고·안전재고·단종 여부를 조회한다. part_no를 알면 part_no로, 사용자가 부품을 이름으로만 말했으면 part_name으로 조회할 것. **part_name으로 조회할 때는 model을 반드시 함께 지정**할 것 — 지정하지 않으면 다른 기종 부품이 섞여 나온다."
+
 ```json
-// input (둘 중 하나)
-{ "part_no": "FAN-IG5-01", "part_name": "냉각팬" }
+// input (part_no·part_name 중 최소 1개 + model optional 필터 — D28)
+{ "model": "iG5A | S100", "part_no": "FAN-IG5-01", "part_name": "냉각팬" }
+// model 지정 시 parts.compatible_models에 해당 기종이 없는 부품은 결과에서 제외 (D28)
+// part_no로 조회할 때는 part_no가 유일키이므로 model 생략 가능 (S1 경로)
 // output
 {
   "status": "ok",
@@ -113,6 +120,8 @@
 
 ## 6. get_supplier_quotes — 공급사 견적 조회 (리드타임+단가+MOQ 통합)
 
+**description 초안:** "부품의 공급사별 리드타임·단가·MOQ를 조회한다. 2개 이상이면 비교해 제시하고 사용자가 고르게 할 것(단독 결정 금지). **요청 수량이 어떤 공급사의 moq에 미달하면 그 사실을 견적 제시 단계에서 먼저 알릴 것** — MOQ 미달 상태로 발주 초안을 만들면 도구가 거부한다 (D31)."
+
 ```json
 // input
 { "part_no": "FAN-IG5-01", "qty": 2 }
@@ -131,7 +140,7 @@
 
 ## 7. create_po_draft — 발주서 초안 생성 ⚠️ 유일한 쓰기 도구
 
-**description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 요약해 남길 것."
+**description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 요약해 남길 것. 단가는 파라미터가 아니다 — 도구가 서버에서 조회해 채운다. 수량이 해당 공급사 MOQ에 미달하면 거부되므로, 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 
 ```json
 // input
@@ -139,14 +148,24 @@
   "part_no": "FAN-IG5-01",
   "qty": 2,
   "supplier_id": "SUP-A",
-  "reason": "iG5A OHt 3회 반복, 냉각팬 고장 진단 (매뉴얼 p.208)",  // required
+  "reason": "iG5A OHt 3회 반복, 냉각팬 고장 진단 (매뉴얼 p.202)",  // required
   "urgency": "urgent | normal"
 }
 // output
-{ "status": "ok", "po_id": "PO-0117", "state": "draft" }
+{ "status": "ok", "po_id": "PO-0117", "state": "draft",
+  "unit_price": 38000, "total": 76000 }   // 단가는 supplier_parts SELECT 스냅샷 (D31)
 // state는 draft 고정. approved/rejected 전환은 승인 큐 API(사람)만 가능
 // requested_by·session_id는 도구 파라미터가 아님 — 백엔드가 X-User 헤더·세션에서 서버 측 주입 (D23)
 //   → 도구 스키마에 신원 필드가 없으므로 LLM이 신원을 위조할 경로 자체가 차단됨
+// unit_price도 같은 논리로 파라미터가 아님 — 도구가 supplier_parts에서 조회해 스냅샷 (D31)
+//   → LLM이 가격을 지어내 발주서에 적을 경로가 없음
+
+// MOQ 미달 시 (D31) — 자동으로 수량을 올리지 않는다
+{ "status": "error",
+  "reason": "moq_not_met",
+  "message": "SUP-B의 최소 발주 수량은 10개입니다 (요청 2개). 수량을 조정하거나 다른 공급사를 선택하세요.",
+  "moq": 10, "requested_qty": 2 }
+// → 에이전트는 사용자에게 재확인. 임의 상향은 사람 승인 없이 발주 금액을 키우는 것이라 금지
 ```
 
 ---
@@ -162,6 +181,9 @@
 | 5 | reason 파라미터 필수화 | 발주서마다 진단 근거가 남아 승인자가 추적 가능 (화면 B 근거 카드의 데이터 소스) |
 | 6 | lookup 출력에 related_parts, inventory 출력에 discontinued 포함 | 진단→부품 특정을 데이터 기반으로, 단종 분기를 계약 수준에서 지원 (D20) |
 | 7 | 신원(requested_by)은 도구 파라미터가 아닌 서버 주입 | LLM 신원 위조 경로 차단 (D23) |
+| 8 | `search_inventory`에 model optional 필터 | part_name 자연어 조회(S2 진입)에서 기종 교차 오염 차단 (D28) |
+| 9 | 단가도 도구 파라미터가 아닌 서버 조회 스냅샷 | 7과 같은 논리 — LLM이 가격을 지어낼 경로 차단 (D31) |
+| 10 | MOQ 미달은 자동 상향이 아니라 거부 | 사람 승인 없이 발주 금액을 키우지 않음 (D31) |
 
 ## 도구 ↔ 시나리오 매핑
 

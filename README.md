@@ -42,7 +42,7 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 
 ## 빠른 시작
 
-요구사항: Python 3.13+, [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14)
+요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14)
 
 ```bash
 git clone https://github.com/<YOUR_ID>/MaintQ.git && cd MaintQ
@@ -81,7 +81,7 @@ uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — Fast
 
 | | |
 |---|---|
-| [00 INDEX](docs/00_INDEX.md) | 문서 지도 + 3줄 요약 |
+| [README](docs/README.md) | 문서 지도 + 3줄 요약 |
 | [01 OVERVIEW](docs/01_OVERVIEW.md) | 문제정의·페르소나·As-Is·KPI·Out of Scope·리스크·마일스톤 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
 | [03 WIREFRAME](docs/03_WIREFRAME.html) | 화면 A(진단 콘솔)·B(승인 큐) + 주석 |
@@ -91,7 +91,7 @@ uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — Fast
 | [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
 | [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D23과 이유 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D32과 이유 |
 
 ## 데이터 출처
 

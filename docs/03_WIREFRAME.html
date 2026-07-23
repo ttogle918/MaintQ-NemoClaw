@@ -1,252 +1,743 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>설비보전 AI 에이전트 — 와이어프레임 v0.2</title>
-<style>
-  :root{
-    --ink:#2b2f33;
-    --line:#9aa0a6;
-    --fill:#ececec;
-    --fill2:#f7f7f7;
-    --accent:#e8590c;      /* 주석·안전 = 산업 안전 오렌지 */
-    --trace:#1c5d99;       /* trace 패널 포인트 */
-    --mono:'SF Mono','Consolas',monospace;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;color:var(--ink);background:#fafafa;padding:32px 16px 80px;max-width:1080px;margin:0 auto;}
-  h1{font-size:22px;letter-spacing:-.02em;}
-  .sub{color:#6b7075;font-size:13px;margin:6px 0 40px;}
-  h2{font-size:15px;margin:56px 0 6px;display:flex;align-items:center;gap:8px;}
-  h2 .tag{font-family:var(--mono);font-size:11px;background:var(--ink);color:#fff;padding:2px 8px;border-radius:3px;}
-  .persona{font-size:12px;color:#6b7075;margin-bottom:14px;}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>설비보전 AI 에이전트 — 와이어프레임 v0.2</title>
+  <style>
+    :root {
+      --ink: #2b2f33;
+      --line: #9aa0a6;
+      --fill: #ececec;
+      --fill2: #f7f7f7;
+      --accent: #e8590c;
+      /* 주석·안전 = 산업 안전 오렌지 */
+      --trace: #1c5d99;
+      /* trace 패널 포인트 */
+      --mono: 'SF Mono', 'Consolas', monospace;
+    }
 
-  /* 브라우저 프레임 */
-  .frame{border:2px solid var(--ink);border-radius:8px;background:#fff;overflow:hidden;position:relative;}
-  .chrome{height:26px;border-bottom:1.5px solid var(--ink);display:flex;align-items:center;gap:5px;padding:0 10px;background:var(--fill2);}
-  .chrome i{width:8px;height:8px;border:1.5px solid var(--ink);border-radius:50%;display:block;}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  /* 공통 와이어 요소 */
-  .box{border:1.5px dashed var(--line);background:var(--fill2);border-radius:4px;}
-  .solid{border:1.5px solid var(--line);background:#fff;border-radius:4px;}
-  .label{font-size:11px;color:#6b7075;font-family:var(--mono);}
-  .bar{height:9px;background:var(--fill);border-radius:4px;}
-  .bar.w40{width:40%;} .bar.w60{width:60%;} .bar.w80{width:80%;}
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+      color: var(--ink);
+      background: #fafafa;
+      padding: 32px 16px 80px;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
 
-  /* 헤더 */
-  .apphead{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1.5px solid var(--line);}
-  .apphead .logo{width:22px;height:22px;border:1.5px solid var(--ink);border-radius:4px;}
-  .chip{border:1.5px solid var(--line);border-radius:14px;padding:3px 10px;font-size:11px;background:#fff;}
-  .spacer{flex:1;}
+    h1 {
+      font-size: 22px;
+      letter-spacing: -.02em;
+    }
 
-  /* 화면 A 레이아웃 */
-  .layoutA{display:grid;grid-template-columns:1.3fr 1fr;min-height:520px;}
-  .chatcol{border-right:1.5px solid var(--line);display:flex;flex-direction:column;}
-  .chatlog{flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;}
-  .msg{max-width:82%;padding:9px 12px;border-radius:8px;font-size:12px;line-height:1.5;}
-  .msg.user{align-self:flex-end;border:1.5px solid var(--ink);background:#fff;}
-  .msg.ai{align-self:flex-start;border:1.5px dashed var(--line);background:var(--fill2);}
-  .msg .cite{display:inline-block;font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;margin-left:4px;}
-  .safety{align-self:flex-start;max-width:82%;border:2px solid var(--accent);border-radius:8px;padding:9px 12px;font-size:12px;background:#fff;}
-  .safety b{color:var(--accent);font-size:11px;font-family:var(--mono);display:block;margin-bottom:4px;}
-  .pocard{align-self:flex-start;width:82%;border:1.5px solid var(--ink);border-radius:8px;background:#fff;}
-  .pocard .pchead{padding:8px 12px;border-bottom:1.5px solid var(--line);font-size:12px;font-weight:700;display:flex;justify-content:space-between;}
-  .pocard .pcbody{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:11px;color:#555;}
-  .pocard .pcfoot{padding:8px 12px;border-top:1.5px dashed var(--line);display:flex;gap:8px;}
-  .btn{border:1.5px solid var(--ink);border-radius:5px;padding:5px 12px;font-size:11px;background:#fff;font-weight:600;}
-  .btn.primary{background:var(--ink);color:#fff;}
-  .inputrow{border-top:1.5px solid var(--line);padding:10px 14px;display:flex;gap:8px;align-items:center;}
-  .inputrow .field{flex:1;height:34px;}
+    .sub {
+      color: #6b7075;
+      font-size: 13px;
+      margin: 6px 0 40px;
+    }
 
-  /* trace 패널 */
-  .tracecol{display:flex;flex-direction:column;background:#fcfdff;}
-  .tabs{display:flex;border-bottom:1.5px solid var(--line);}
-  .tab{padding:9px 14px;font-size:12px;border-right:1.5px solid var(--line);}
-  .tab.on{font-weight:700;border-bottom:2.5px solid var(--trace);}
-  .steps{padding:14px;display:flex;flex-direction:column;gap:0;flex:1;}
-  .step{display:flex;gap:10px;position:relative;padding-bottom:14px;}
-  .step:not(:last-child):before{content:"";position:absolute;left:7px;top:18px;bottom:0;width:1.5px;background:var(--line);}
-  .dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--trace);background:#fff;flex-shrink:0;margin-top:1px;}
-  .dot.done{background:var(--trace);}
-  .dot.warn{border-color:var(--accent);background:var(--accent);}
-  .step .fn{font-family:var(--mono);font-size:11px;font-weight:700;}
-  .step .io{font-size:10.5px;color:#6b7075;font-family:var(--mono);margin-top:2px;}
-  .step .status{font-size:10px;font-family:var(--mono);color:var(--trace);}
-  .step .status.w{color:var(--accent);}
+    h2 {
+      font-size: 15px;
+      margin: 56px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-  /* 화면 B */
-  .layoutB{display:grid;grid-template-columns:220px 1fr;min-height:460px;}
-  .queue{border-right:1.5px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px;}
-  .qitem{border:1.5px solid var(--line);border-radius:6px;padding:9px 10px;font-size:11px;background:#fff;}
-  .qitem.on{border-color:var(--ink);border-width:2px;}
-  .qitem .badge{font-family:var(--mono);font-size:9.5px;border-radius:3px;padding:1px 5px;background:var(--fill);display:inline-block;margin-bottom:4px;}
-  .qitem .badge.hot{background:var(--accent);color:#fff;}
-  .detail{padding:16px;display:flex;flex-direction:column;gap:12px;}
-  .evidence{border:1.5px dashed var(--line);border-radius:6px;padding:12px;background:var(--fill2);}
-  .evidence .row{display:flex;gap:8px;align-items:center;font-size:11.5px;margin-bottom:7px;}
-  .evidence .row:last-child{margin-bottom:0;}
-  .evidence .k{font-family:var(--mono);font-size:10px;width:86px;color:#6b7075;flex-shrink:0;}
-  .compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .supbox{border:1.5px solid var(--line);border-radius:6px;padding:10px;font-size:11px;background:#fff;}
-  .supbox b{display:block;font-size:12px;margin-bottom:4px;}
-  .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:auto;padding-top:8px;border-top:1.5px dashed var(--line);}
-  .btn.reject{border-color:var(--accent);color:var(--accent);}
+    h2 .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--ink);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
 
-  /* 주석 */
-  .note{position:absolute;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:5;font-family:var(--mono);}
-  .legend{margin-top:14px;display:flex;flex-direction:column;gap:6px;}
-  .legend .li{display:flex;gap:9px;font-size:12.5px;line-height:1.55;}
-  .legend .n{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-family:var(--mono);}
+    .persona {
+      font-size: 12px;
+      color: #6b7075;
+      margin-bottom: 14px;
+    }
 
-  .memo{margin-top:56px;border-left:3px solid var(--ink);padding:4px 0 4px 14px;font-size:13px;line-height:1.7;color:#40444a;}
-  .memo b{display:block;margin-bottom:2px;color:var(--ink);}
-</style>
+    /* 브라우저 프레임 */
+    .frame {
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .chrome {
+      height: 26px;
+      border-bottom: 1.5px solid var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 10px;
+      background: var(--fill2);
+    }
+
+    .chrome i {
+      width: 8px;
+      height: 8px;
+      border: 1.5px solid var(--ink);
+      border-radius: 50%;
+      display: block;
+    }
+
+    /* 공통 와이어 요소 */
+    .box {
+      border: 1.5px dashed var(--line);
+      background: var(--fill2);
+      border-radius: 4px;
+    }
+
+    .solid {
+      border: 1.5px solid var(--line);
+      background: #fff;
+      border-radius: 4px;
+    }
+
+    .label {
+      font-size: 11px;
+      color: #6b7075;
+      font-family: var(--mono);
+    }
+
+    .bar {
+      height: 9px;
+      background: var(--fill);
+      border-radius: 4px;
+    }
+
+    .bar.w40 {
+      width: 40%;
+    }
+
+    .bar.w60 {
+      width: 60%;
+    }
+
+    .bar.w80 {
+      width: 80%;
+    }
+
+    /* 헤더 */
+    .apphead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1.5px solid var(--line);
+    }
+
+    .apphead .logo {
+      width: 22px;
+      height: 22px;
+      border: 1.5px solid var(--ink);
+      border-radius: 4px;
+    }
+
+    .chip {
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
+      padding: 3px 10px;
+      font-size: 11px;
+      background: #fff;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    /* 화면 A 레이아웃 */
+    .layoutA {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      min-height: 520px;
+    }
+
+    .chatcol {
+      border-right: 1.5px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chatlog {
+      flex: 1;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      border: 1.5px solid var(--ink);
+      background: #fff;
+    }
+
+    .msg.ai {
+      align-self: flex-start;
+      border: 1.5px dashed var(--line);
+      background: var(--fill2);
+    }
+
+    .msg .cite {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 0 4px;
+      background: #fff;
+      margin-left: 4px;
+    }
+
+    .safety {
+      align-self: flex-start;
+      max-width: 82%;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 12px;
+      background: #fff;
+    }
+
+    .safety b {
+      color: var(--accent);
+      font-size: 11px;
+      font-family: var(--mono);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .pocard {
+      align-self: flex-start;
+      width: 82%;
+      border: 1.5px solid var(--ink);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .pocard .pchead {
+      padding: 8px 12px;
+      border-bottom: 1.5px solid var(--line);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .pocard .pcbody {
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .pocard .pcfoot {
+      padding: 8px 12px;
+      border-top: 1.5px dashed var(--line);
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      border: 1.5px solid var(--ink);
+      border-radius: 5px;
+      padding: 5px 12px;
+      font-size: 11px;
+      background: #fff;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .inputrow {
+      border-top: 1.5px solid var(--line);
+      padding: 10px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .inputrow .field {
+      flex: 1;
+      height: 34px;
+    }
+
+    /* trace 패널 */
+    .tracecol {
+      display: flex;
+      flex-direction: column;
+      background: #fcfdff;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1.5px solid var(--line);
+    }
+
+    .tab {
+      padding: 9px 14px;
+      font-size: 12px;
+      border-right: 1.5px solid var(--line);
+    }
+
+    .tab.on {
+      font-weight: 700;
+      border-bottom: 2.5px solid var(--trace);
+    }
+
+    .steps {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      flex: 1;
+    }
+
+    .step {
+      display: flex;
+      gap: 10px;
+      position: relative;
+      padding-bottom: 14px;
+    }
+
+    .step:not(:last-child):before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 18px;
+      bottom: 0;
+      width: 1.5px;
+      background: var(--line);
+    }
+
+    .dot {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid var(--trace);
+      background: #fff;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .dot.done {
+      background: var(--trace);
+    }
+
+    .dot.warn {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .step .fn {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .step .io {
+      font-size: 10.5px;
+      color: #6b7075;
+      font-family: var(--mono);
+      margin-top: 2px;
+    }
+
+    .step .status {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--trace);
+    }
+
+    .step .status.w {
+      color: var(--accent);
+    }
+
+    /* 화면 B */
+    .layoutB {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 460px;
+    }
+
+    .queue {
+      border-right: 1.5px solid var(--line);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .qitem {
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      font-size: 11px;
+      background: #fff;
+    }
+
+    .qitem.on {
+      border-color: var(--ink);
+      border-width: 2px;
+    }
+
+    .qitem .badge {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      border-radius: 3px;
+      padding: 1px 5px;
+      background: var(--fill);
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .qitem .badge.hot {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .detail {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .evidence {
+      border: 1.5px dashed var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      background: var(--fill2);
+    }
+
+    .evidence .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 11.5px;
+      margin-bottom: 7px;
+    }
+
+    .evidence .row:last-child {
+      margin-bottom: 0;
+    }
+
+    .evidence .k {
+      font-family: var(--mono);
+      font-size: 10px;
+      width: 86px;
+      color: #6b7075;
+      flex-shrink: 0;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .supbox {
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 11px;
+      background: #fff;
+    }
+
+    .supbox b {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1.5px dashed var(--line);
+    }
+
+    .btn.reject {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* 주석 */
+    .note {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      font-family: var(--mono);
+    }
+
+    .legend {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .legend .li {
+      display: flex;
+      gap: 9px;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    .legend .n {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+      font-family: var(--mono);
+    }
+
+    .memo {
+      margin-top: 56px;
+      border-left: 3px solid var(--ink);
+      padding: 4px 0 4px 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #40444a;
+    }
+
+    .memo b {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--ink);
+    }
+  </style>
 </head>
+
 <body>
 
-<h1>설비보전 AI 에이전트 — 와이어프레임 v0.2</h1>
-<p class="sub">B2B 사내 도구 · 페르소나 2 (정비사 / 보전팀장) · 데스크톱 우선, 태블릿 대응</p>
+  <h1>설비보전 AI 에이전트 — 와이어프레임 v0.2</h1>
+  <p class="sub">B2B 사내 도구 · 페르소나 2 (정비사 / 보전팀장) · 데스크톱 우선, 태블릿 대응</p>
 
-<!-- ─────────────── 화면 A ─────────────── -->
-<h2><span class="tag">SCREEN A</span> 진단 콘솔</h2>
-<p class="persona">사용자: 정비사 — 에러 입력 → 진단 → 부품·재고 확인 → 발주 요청까지</p>
+  <!-- ─────────────── 화면 A ─────────────── -->
+  <h2><span class="tag">SCREEN A</span> 진단 콘솔</h2>
+  <p class="persona">사용자: 정비사 — 에러 입력 → 진단 → 부품·재고 확인 → 발주 요청까지</p>
 
-<div class="frame">
-  <div class="chrome"><i></i><i></i><i></i></div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i></div>
 
-  <div class="apphead">
-    <div class="logo"></div>
-    <span class="chip">라인: 1번 조립 ▾</span>
-    <span class="chip">장비: LS iG5A ▾</span>
-    <div class="note" style="position:static;">1</div>
-    <div class="spacer"></div>
-    <span class="chip">정비사 김OO</span>
-  </div>
+    <div class="apphead">
+      <div class="logo"></div>
+      <span class="chip">라인: 1번 조립 ▾</span>
+      <span class="chip">장비: LS iG5A ▾</span>
+      <div class="note" style="position:static;">1</div>
+      <div class="spacer"></div>
+      <span class="chip">정비사 김OO</span>
+    </div>
 
-  <div class="layoutA">
-    <!-- 채팅 컬럼 -->
-    <div class="chatcol">
-      <div class="chatlog">
-        <div class="msg user">iG5A 인버터에 OHt 에러 떴어</div>
-        <div class="msg ai"><b>OHt — 인버터 과열</b>입니다. 유력 원인: 냉각팬 고장, 주위 온도 초과. 냉각팬 상태 점검을 권장합니다 <span class="cite">iG5A 매뉴얼 p.208</span></div>
-        <div class="safety"><b>⚠ SAFETY</b>커버 개방 전 전원 차단 후 <b>10분 이상</b> 대기, 테스터로 직류 전압 방전 확인. 활선 상태 접촉·측정 금지. <span class="cite">iG5A 매뉴얼 p.4</span><span style="position:relative;"><span class="note" style="right:-30px;top:-4px;">3</span></span></div>
-        <!-- 안전 문구 확정값: "10분 이상 + 테스터 확인" (매뉴얼 명시값, 사람 승인 2026-07-18). 근거: iG5A 표준본 p.4, 트러블슈팅 p.6, S100 p.2 — PDF 물리 페이지 (D26) -->
+    <div class="layoutA">
+      <!-- 채팅 컬럼 -->
+      <div class="chatcol">
+        <div class="chatlog">
+          <div class="msg user">iG5A 인버터에 OHt 에러 떴어</div>
+          <div class="msg ai"><b>OHt — 인버터 과열</b>입니다. 유력 원인: 냉각팬 고장, 주위 온도 초과. 냉각팬 상태 점검을 권장합니다 <span class="cite">iG5A
+              매뉴얼 p.202</span></div>
+          <div class="safety"><b>⚠ SAFETY</b>커버 개방 전 전원 차단 후 <b>10분 이상</b> 대기, 테스터로 직류 전압 방전 확인. 활선 상태 접촉·측정 금지. <span
+              class="cite">iG5A 매뉴얼 p.4</span><span style="position:relative;"><span class="note"
+                style="right:-30px;top:-4px;">3</span></span></div>
+          <!-- 안전 문구 확정값: "10분 이상 + 테스터 확인" (매뉴얼 명시값, 사람 승인 2026-07-18). 근거: iG5A 표준본 p.4, 트러블슈팅 p.6, S100 p.2 — PDF 물리 페이지 (D26) -->
 
-        <div class="pocard">
-          <div class="pchead"><span>발주서 초안 #PO-0117</span><span class="label">draft</span></div>
-          <div class="pcbody">
-            <span>품목: 냉각팬 FAN-IG5-01</span><span>수량: 2</span>
-            <span>공급사: A사 (3일)</span><span>단가: ₩38,000</span>
+          <div class="pocard">
+            <div class="pchead"><span>발주서 초안 #PO-0117</span><span class="label">draft</span></div>
+            <div class="pcbody">
+              <span>품목: 냉각팬 FAN-IG5-01</span><span>수량: 2</span>
+              <span>공급사: A사 (3일)</span><span>단가: ₩38,000</span>
+            </div>
+            <div class="pcfoot">
+              <span class="btn primary">팀장 승인 요청</span>
+              <span class="btn">수정</span>
+              <span style="position:relative;"><span class="note" style="right:-28px;top:0;">4</span></span>
+            </div>
           </div>
-          <div class="pcfoot">
-            <span class="btn primary">팀장 승인 요청</span>
-            <span class="btn">수정</span>
-            <span style="position:relative;"><span class="note" style="right:-28px;top:0;">4</span></span>
+        </div>
+        <div class="inputrow">
+          <div class="solid field"></div>
+          <span class="btn">📷</span>
+          <span class="btn primary">전송</span>
+        </div>
+      </div>
+
+      <!-- trace 컬럼 -->
+      <div class="tracecol">
+        <div class="tabs">
+          <div class="tab on">실행 로그</div>
+          <div class="tab">근거 문서</div>
+          <div class="tab" style="border-right:none;position:relative;">발주 이력<span class="note"
+              style="right:-4px;top:-10px;">2</span></div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="dot done"></div>
+            <div>
+              <div class="fn">lookup_error_code</div>
+              <div class="io">in: {model:"iG5A", code:"OHt"}</div>
+              <div class="status">✓ 0.4s — 과열 · related: FAN-IG5-01</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot done"></div>
+            <div>
+              <div class="fn">rag_search_manual</div>
+              <div class="io">in: {model:"iG5A", query:"OHt 점검 절차"}</div>
+              <div class="status">✓ 1.2s — p.202 인용 2건</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot warn"></div>
+            <div>
+              <div class="fn">search_inventory</div>
+              <div class="io">in: {part:"FAN-IG5-01"}</div>
+              <div class="status w">⚠ 재고 1 &lt; 안전재고 3 → 부족분 2 포함 제안</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot done"></div>
+            <div>
+              <div class="fn">get_supplier_quotes</div>
+              <div class="io">in: {part:"FAN-IG5-01", qty:2}</div>
+              <div class="status">✓ 0.3s — A사 3일 vs B사 14일</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="dot"></div>
+            <div>
+              <div class="fn">create_po_draft</div>
+              <div class="io">대기: 사용자 공급사 선택 필요</div>
+              <div class="status">pending</div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="inputrow">
-        <div class="solid field"></div>
-        <span class="btn">📷</span>
-        <span class="btn primary">전송</span>
-      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><span class="n">1</span><span><b>장비 컨텍스트 선택</b> — 라인·모델을 헤더에서 고정. "같은 코드, 다른 의미" 문제를 대화 전에 차단하고,
+        메타데이터 필터의 UI 대응물.</span></div>
+    <div class="li"><span class="n">2</span><span><b>trace 패널 = 시그니처 화면</b> — 도구 호출이 타임라인으로 실시간 표시. 입력/출력/소요시간까지. 파란
+        점=완료, 주황 점=분기 발생. 오케스트레이션을 증명하는 핵심.</span></div>
+    <div class="li"><span class="n">3</span><span><b>안전 경고 블록</b> — 일반 말풍선과 다른 전용 컴포넌트(주황 테두리). 매뉴얼 근거 페이지 필수 첨부. 스크롤
+        시에도 눈에 걸리는 게 목적.</span></div>
+    <div class="li"><span class="n">4</span><span><b>발주 카드엔 "승인 요청"만</b> — 정비사 화면에서 발주 확정 불가. 요청을 누르면 화면 B의 승인 큐로 전달. 역할
+        분리를 UI로 강제. <b>S3(반복 고장)에서는 이 자리에 발주 카드 대신 "발주 보류 — 원인 확정 후 진행" 상태 블록이 표시된다</b> (원인 확정 전 발주 금지, 02_SCENARIOS
+        S3).</span></div>
+  </div>
+
+  <!-- ─────────────── 화면 B ─────────────── -->
+  <h2><span class="tag">SCREEN B</span> 승인 큐</h2>
+  <p class="persona">사용자: 보전팀장 — 근거를 보고 승인/반려. 세부 대화는 안 읽어도 판단 가능해야 함</p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i></div>
+    <div class="apphead">
+      <div class="logo"></div>
+      <span style="font-size:13px;font-weight:700;">승인 대기 (3)</span>
+      <div class="spacer"></div>
+      <span class="chip">팀장 박OO</span>
     </div>
 
-    <!-- trace 컬럼 -->
-    <div class="tracecol">
-      <div class="tabs">
-        <div class="tab on">실행 로그</div>
-        <div class="tab">근거 문서</div>
-        <div class="tab" style="border-right:none;position:relative;">발주 이력<span class="note" style="right:-4px;top:-10px;">2</span></div>
+    <div class="layoutB">
+      <div class="queue">
+        <div class="qitem on"><span class="badge hot">긴급</span><br><b>#PO-0117</b> 냉각팬 ×2<br><span class="label">1번 라인 ·
+            김OO · 10분 전</span></div>
+        <div class="qitem"><span class="badge">일반</span><br><b>#PO-0116</b> 제어보드(대체품)<br><span class="label">1번 라인 · 이OO
+            · 2시간 전</span></div>
+        <div class="qitem"><span class="badge">일반</span><br><b>#PO-0115</b> 퓨즈 ×10<br><span class="label">2번 라인 · 김OO ·
+            어제</span></div>
+        <div class="note" style="position:static;align-self:flex-end;">5</div>
       </div>
-      <div class="steps">
-        <div class="step">
-          <div class="dot done"></div>
-          <div><div class="fn">lookup_error_code</div><div class="io">in: {model:"iG5A", code:"OHt"}</div><div class="status">✓ 0.4s — 과열 · related: FAN-IG5-01</div></div>
+
+      <div class="detail">
+        <div class="evidence" style="position:relative;">
+          <span class="note" style="right:-10px;top:-10px;">6</span>
+          <div class="row"><span class="k">ERROR</span><span>iG5A · OHt (과열) — 1번 라인 INV-L1-01</span></div>
+          <div class="row"><span class="k">DIAGNOSIS</span><span>냉각팬 고장 유력 <span class="cite"
+                style="font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;">매뉴얼
+                p.202</span></span></div>
+          <div class="row"><span class="k">INVENTORY</span><span>재고 1 / 안전재고 3 — 부족분 2</span></div>
+          <div class="row"><span class="k">TRACE</span><span style="text-decoration:underline;">에이전트 실행 로그 전체 보기
+              →</span></div>
         </div>
-        <div class="step">
-          <div class="dot done"></div>
-          <div><div class="fn">rag_search_manual</div><div class="io">in: {model:"iG5A", query:"OHt 점검 절차"}</div><div class="status">✓ 1.2s — p.208 인용 2건</div></div>
+
+        <div class="compare" style="position:relative;">
+          <span class="note" style="right:-10px;top:-10px;">7</span>
+          <div class="supbox" style="border-color:var(--ink);border-width:2px;"><b>A사 — 추천</b>리드타임 3일 · ₩38,000<br><span
+              class="label">긴급도 高 → 최단 납기 우선</span></div>
+          <div class="supbox"><b>B사</b>리드타임 14일 · ₩29,000<br><span class="label">단가 최저</span></div>
         </div>
-        <div class="step">
-          <div class="dot warn"></div>
-          <div><div class="fn">search_inventory</div><div class="io">in: {part:"FAN-IG5-01"}</div><div class="status w">⚠ 재고 1 &lt; 안전재고 3 → 부족분 2 포함 제안</div></div>
-        </div>
-        <div class="step">
-          <div class="dot done"></div>
-          <div><div class="fn">get_supplier_quotes</div><div class="io">in: {part:"FAN-IG5-01", qty:2}</div><div class="status">✓ 0.3s — A사 3일 vs B사 14일</div></div>
-        </div>
-        <div class="step">
-          <div class="dot"></div>
-          <div><div class="fn">create_po_draft</div><div class="io">대기: 사용자 공급사 선택 필요</div><div class="status">pending</div></div>
+
+        <div class="actions">
+          <span class="btn reject">반려 (사유 입력)</span>
+          <span class="btn primary">승인 — 발주서 확정</span>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="legend">
-  <div class="li"><span class="n">1</span><span><b>장비 컨텍스트 선택</b> — 라인·모델을 헤더에서 고정. "같은 코드, 다른 의미" 문제를 대화 전에 차단하고, 메타데이터 필터의 UI 대응물.</span></div>
-  <div class="li"><span class="n">2</span><span><b>trace 패널 = 시그니처 화면</b> — 도구 호출이 타임라인으로 실시간 표시. 입력/출력/소요시간까지. 파란 점=완료, 주황 점=분기 발생. 데모·면접에서 오케스트레이션을 증명하는 핵심.</span></div>
-  <div class="li"><span class="n">3</span><span><b>안전 경고 블록</b> — 일반 말풍선과 다른 전용 컴포넌트(주황 테두리). 매뉴얼 근거 페이지 필수 첨부. 스크롤 시에도 눈에 걸리는 게 목적.</span></div>
-  <div class="li"><span class="n">4</span><span><b>발주 카드엔 "승인 요청"만</b> — 정비사 화면에서 발주 확정 불가. 요청을 누르면 화면 B의 승인 큐로 전달. 역할 분리를 UI로 강제. <b>S3(반복 고장)에서는 이 자리에 발주 카드 대신 "발주 보류 — 원인 확정 후 진행" 상태 블록이 표시된다</b> (원인 확정 전 발주 금지, 02_SCENARIOS S3).</span></div>
-</div>
-
-<!-- ─────────────── 화면 B ─────────────── -->
-<h2><span class="tag">SCREEN B</span> 승인 큐</h2>
-<p class="persona">사용자: 보전팀장 — 근거를 보고 승인/반려. 세부 대화는 안 읽어도 판단 가능해야 함</p>
-
-<div class="frame">
-  <div class="chrome"><i></i><i></i><i></i></div>
-  <div class="apphead">
-    <div class="logo"></div>
-    <span style="font-size:13px;font-weight:700;">승인 대기 (3)</span>
-    <div class="spacer"></div>
-    <span class="chip">팀장 박OO</span>
+  <div class="legend">
+    <div class="li"><span class="n">5</span><span><b>승인 큐</b> — 긴급/일반 뱃지로 정렬. urgency는 발주 초안 생성 시 지정 — 안전재고 소진·설비 정지 건은
+        '긴급'(#PO-0117은 재고 1/안전재고 3 미달 사유). 팀장은 여기만 봐도 됨.</span></div>
+    <div class="li"><span class="n">6</span><span><b>근거 요약 카드</b> — 에러→진단→재고를 4줄로 압축, 인용 페이지 포함. 대화 전체를 안 읽고 결재 가능하게.
+        trace 링크로 검증 경로 확보.</span></div>
+    <div class="li"><span class="n">7</span><span><b>공급사 비교</b> — AI가 추천하되 선택은 사람이. 백로그의 '긴급도 기반 추천'이 들어올 자리 미리
+        확보.</span></div>
   </div>
 
-  <div class="layoutB">
-    <div class="queue">
-      <div class="qitem on"><span class="badge hot">긴급</span><br><b>#PO-0117</b> 냉각팬 ×2<br><span class="label">1번 라인 · 김OO · 10분 전</span></div>
-      <div class="qitem"><span class="badge">일반</span><br><b>#PO-0116</b> 제어보드(대체품)<br><span class="label">1번 라인 · 이OO · 2시간 전</span></div>
-      <div class="qitem"><span class="badge">일반</span><br><b>#PO-0115</b> 퓨즈 ×10<br><span class="label">2번 라인 · 김OO · 어제</span></div>
-      <div class="note" style="position:static;align-self:flex-end;">5</div>
-    </div>
-
-    <div class="detail">
-      <div class="evidence" style="position:relative;">
-        <span class="note" style="right:-10px;top:-10px;">6</span>
-        <div class="row"><span class="k">ERROR</span><span>iG5A · OHt (과열) — 1번 라인 INV-L1-01</span></div>
-        <div class="row"><span class="k">DIAGNOSIS</span><span>냉각팬 고장 유력 <span class="cite" style="font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;">매뉴얼 p.208</span></span></div>
-        <div class="row"><span class="k">INVENTORY</span><span>재고 1 / 안전재고 3 — 부족분 2</span></div>
-        <div class="row"><span class="k">TRACE</span><span style="text-decoration:underline;">에이전트 실행 로그 전체 보기 →</span></div>
-      </div>
-
-      <div class="compare" style="position:relative;">
-        <span class="note" style="right:-10px;top:-10px;">7</span>
-        <div class="supbox" style="border-color:var(--ink);border-width:2px;"><b>A사 — 추천</b>리드타임 3일 · ₩38,000<br><span class="label">긴급도 高 → 최단 납기 우선</span></div>
-        <div class="supbox"><b>B사</b>리드타임 14일 · ₩29,000<br><span class="label">단가 최저</span></div>
-      </div>
-
-      <div class="actions">
-        <span class="btn reject">반려 (사유 입력)</span>
-        <span class="btn primary">승인 — 발주서 확정</span>
-      </div>
-    </div>
+  <div class="memo">
+    <b>반응형 메모</b>
+    정비사는 현장에서 태블릿 사용 가정 → 화면 A는 태블릿에서 trace 패널이 하단 접이식 시트로 전환. 팀장 화면 B는 모바일에서 승인 큐 리스트 우선. (MVP는 데스크톱만, 반응형은 M3 범위)
   </div>
-</div>
-
-<div class="legend">
-  <div class="li"><span class="n">5</span><span><b>승인 큐</b> — 긴급/일반 뱃지로 정렬. urgency는 발주 초안 생성 시 지정 — 안전재고 소진·설비 정지 건은 '긴급'(#PO-0117은 재고 1/안전재고 3 미달 사유). 팀장은 여기만 봐도 됨.</span></div>
-  <div class="li"><span class="n">6</span><span><b>근거 요약 카드</b> — 에러→진단→재고를 4줄로 압축, 인용 페이지 포함. 대화 전체를 안 읽고 결재 가능하게. trace 링크로 검증 경로 확보.</span></div>
-  <div class="li"><span class="n">7</span><span><b>공급사 비교</b> — AI가 추천하되 선택은 사람이. 백로그의 '긴급도 기반 추천'이 들어올 자리 미리 확보.</span></div>
-</div>
-
-<div class="memo">
-  <b>반응형 메모</b>
-  정비사는 현장에서 태블릿 사용 가정 → 화면 A는 태블릿에서 trace 패널이 하단 접이식 시트로 전환. 팀장 화면 B는 모바일에서 승인 큐 리스트 우선. (MVP는 데스크톱만, 반응형은 M3 범위)
-</div>
 
 </body>
+
 </html>

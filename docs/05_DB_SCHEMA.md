@@ -72,6 +72,8 @@ CREATE TABLE error_history (
 
 **시드 전략:** AI허브 「기계시설물 고장 예지 센서」의 고장 유형 4종 분포를 참고해 6개월치 이력 생성. 대부분 단발, **INV-L3-01의 OCt만 30일 내 3건** 심어 S3 트리거.
 
+**쓰기 경로 (D29):** 이 테이블에 INSERT하는 곳은 `POST /api/equipment/{id}/errors` **하나뿐**이며, 정비사가 화면 A에서 명시적으로 기록 액션을 눌렀을 때만 호출된다. MCP 도구에는 쓰기 권한이 없고(D10), 채팅 진입만으로 자동 기록하지 않는다 — 자동 기록하면 `count`가 질문 횟수가 되어 `repeated` 판정이 오염된다.
+
 ## 4. parts — 부품 마스터
 
 ```sql
@@ -134,7 +136,9 @@ CREATE TABLE po_drafts (
   part_no      TEXT NOT NULL REFERENCES parts,
   qty          INTEGER NOT NULL,
   supplier_id  TEXT NOT NULL REFERENCES suppliers,
-  unit_price   INTEGER NOT NULL,       -- 발주 시점 단가 스냅샷 (supplier_parts에서 복사 — 이후 가격 변동과 무관하게 승인 시점 근거 보존)
+  unit_price   INTEGER NOT NULL,       -- 발주 시점 단가 스냅샷. create_po_draft가 supplier_parts를 SELECT해 채움 —
+                                       --   도구 파라미터가 아니므로 LLM이 가격을 지어낼 경로가 없음 (D31).
+                                       --   이후 가격 변동과 무관하게 승인 시점 근거가 보존됨
   reason       TEXT NOT NULL,          -- 진단 근거 (화면 B 근거 카드 소스)
   urgency      TEXT DEFAULT 'normal',
   state        TEXT DEFAULT 'draft',   -- 'draft'|'pending'|'approved'|'rejected'

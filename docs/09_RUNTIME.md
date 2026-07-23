@@ -58,6 +58,8 @@ sequenceDiagram
 | A3 | draft→pending 전이는 채팅 밖 REST(`/submit`) — 에이전트 루프는 이 전이에 관여하지 않음 |
 | A4 | 안전 경고·발주 카드·인용은 `block` 이벤트(D22)로 전달, **스트리밍 중간 삽입 가능** — 안전 경고는 해당 절차 서술 시작 전/과 함께 도착해야 함. token에 섞어 텍스트로 흘리지 않음 |
 | A5 | 모든 tool_call/tool_result/block은 SSE 발행과 동시에 `traces` 테이블에 저장 (D21) — SSE 끊김 폴백·화면 B 링크·평가 판정의 단일 소스 |
+| A6 | MOQ 미달 발주는 도구가 `status:"error"`(`reason:"moq_not_met"`)로 거부 (D31) — 에이전트는 수량을 임의로 올리지 말고 사용자에게 재확인. 견적 제시 턴에서 미리 고지하는 게 1차 방어 |
+| A7 | 에러 이력 기록(`POST /api/equipment/{id}/errors`)은 **에이전트 루프 밖**의 사용자 액션 (D29) — A3(draft→pending)과 같은 성격. 루프가 자동 호출하면 `repeated` 판정이 질문 횟수로 오염됨 |
 
 ## 2. 에이전트 루프 정책
 

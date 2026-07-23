@@ -1,6 +1,6 @@
 # 의사결정록 (Decision Log)
 
-설계 과정에서 내린 주요 결정과 이유. 면접에서 "왜 이렇게 했나요?"에 대한 답변 원본.
+설계 과정에서 내린 주요 결정과 이유. 
 
 | # | 결정 | 대안 | 채택 이유 |
 |---|------|------|----------|
@@ -31,3 +31,8 @@
 | D25 | 코드 정규화: 저장은 **대문자 canonical**(`code`), `display_code`에 키패드 원표기 보존, lookup은 **case-insensitive** 매칭 | 원표기 그대로 저장 | 같은 코드가 소스별 표기 상이 — S100 키패드는 소문자(oct), iG5A 비트명은 대문자(OCT), 사용자 입력은 혼재(OHt). 통일 없으면 정상 코드가 not_found로 새어 S4 오탐 |
 | D26 | 페이지 인용은 **PDF 물리 페이지** 기준 통일, S100 인쇄 페이지 오프셋(+16)은 manifest에 기록 | 인쇄 페이지 기준 | 평가(인용률 100%)의 자동 검증이 pdfplumber 페이지 인덱스와 직접 대조 가능해야 함. 인쇄 페이지 기준이면 문서마다 오프셋 계산이 검증 코드에 스며듦 |
 | D27 | 환경 관리: **uv + venv** (pyproject.toml + uv.lock + .python-version), Docker는 MVP 제외 | Docker 컨테이너 | SQLite 파일 DB + 시스템 의존성 없음 → 컨테이너가 줄여줄 환경 편차가 애초에 없음. uv.lock으로 재현성 충분. docker-compose(backend+mcp 2서비스)는 D15 실전 연동 어필용으로 백로그 P14 |
+| D28 | `search_inventory` 입력에 **`model` optional 파라미터** 추가, 지정 시 `compatible_models`로 필터 | 계약 유지 / model required | S2 진입이 "S100 제어보드"처럼 **자연어 part_name 검색**이라 model 필터 없이는 기종 교차 오염이 그대로 발생. 설계원칙 4를 부품 조회에도 적용. required가 아닌 이유: S1은 `related_parts`가 준 part_no(유일키)로 조회하므로 model이 불필요 — required면 불필요한 제약이 됨 |
+| D29 | 에러 이력 적재는 **명시적 기록 API** `POST /api/equipment/{id}/errors` (정비사 UI 액션), 채팅 자동 기록 안 함 | 진단 시 자동 기록 / 시드 전용(OoS) | 기존 설계에 `error_history` **쓰기 경로가 아예 없어** 반복 감지가 시드에만 존재했음. 자동 기록을 택하면 `count`가 실제 고장 횟수가 아니라 **질문 횟수**가 되어 같은 에러를 3번 물어보면 `repeated=true`가 오작동. MCP 도구가 아닌 백엔드 쓰기라 D10 불변. P10(예지보전 연계)의 데이터 전제도 확보 |
+| D30 | 인용률 100%의 **분모 = 진단 응답 생성 문항(S4형 2건 제외, 18문항)**, 판정에 `citation.page == traces의 lookup/rag 결과 page` 일치 검사 추가 | 분모 20문항 / block 존재 여부만 검사 | S4는 citation이 **없는 게 정답**이라 분모에 넣으면 100%가 구조적으로 불가능. 또 block 존재만 보면 "블록은 있고 페이지 숫자는 지어낸" 경우를 통과시킴 — 인용의 목적이 근거 추적이므로 값 일치까지 봐야 지표가 의미를 가짐 |
+| D31 | `create_po_draft`: `unit_price`는 **입력 아닌 `supplier_parts` SELECT 스냅샷**, MOQ 미달 수량은 **`status:"error"`로 거부** + 견적 제시 단계에서 사전 고지(이중 안내) | 자동 qty 상향 / 그대로 생성 후 승인 화면 경고 | 가격을 도구 입력으로 받으면 LLM이 지어낼 경로가 생김 — D23과 같은 논리로 차단. 자동 상향은 **사람 승인 없이 발주 금액을 배수로 키우는 것**이라 human-in-the-loop(D10·D18)과 충돌. 승인 화면 경고만 두면 정비사 단계에서 되돌릴 기회를 잃음 |
+| D32 | 인용 **표시**는 인쇄 페이지 우선 + PDF 병기(`S100 매뉴얼 p.400 (PDF p.416)`), citation block payload를 `{page, print_page, label}`로 확장. **저장·검증은 물리 페이지 유지(D26 불변)** | 물리만 표시 / 인쇄만 저장 | D26은 검증 단순화가 목적이었는데 그 값을 UI에 그대로 노출하면 S100은 실제 인쇄면과 16쪽 차이라 정비사가 못 찾음. 오프셋 적용을 **백엔드 렌더 1곳**으로 격리하면 평가 코드는 계속 물리 페이지만 보므로 D26의 목적이 그대로 유지됨. 오프셋 원천은 `manifest.json`의 `print_page_offset`(iG5A 0, S100 16) |
