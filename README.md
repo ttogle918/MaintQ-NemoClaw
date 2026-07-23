@@ -87,7 +87,7 @@ uv run uvicorn backend.main:app --reload --port 8000      # 터미널 2 — Fast
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
 | [03 WIREFRAME](docs/03_WIREFRAME.html) | 화면 A·A-2(S3)·B 구조 참조 + 주석 10개 (실제 화면은 `frontend/`) |
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력·설계 원칙 |
-| [05 DB_SCHEMA](docs/05_DB_SCHEMA.md) | 테이블 9종 + 시드 케이스 맵 |
+| [05 DB_SCHEMA](docs/05_DB_SCHEMA.md) | 테이블 9절(실제 10개) + 시드 케이스 맵 |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계 |
 | [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
 | [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |

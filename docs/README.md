@@ -9,7 +9,7 @@
 | [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
 | [03_WIREFRAME](03_WIREFRAME.html) | 화면 A(진단 콘솔)·A-2(S3 변형)·B(승인 큐) + 주석 10개. **구조 참조 — 실제 화면은 frontend/ 구현이 기준** | UI 작업 전, 디자인 검수 |
 | [04_MCP_TOOLS](04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력 계약, 설계 원칙 4개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
-| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 9종 DDL + 시드 케이스 맵 7종 | DB·시드 작업 시 |
+| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 9절(CREATE TABLE 10개) + 시드 케이스 맵 7종 | DB·시드 작업 시 |
 | [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), 상태 전이, testset 스키마, 매뉴얼 EDA 체크리스트 | 폴더·엔드포인트 만들 때, M1 첫날 |
 | [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P14 + 아이디어 주차장 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
@@ -20,4 +20,5 @@
 
 **진행 상태:** 설계 검토·정합화 완료(2026-07-18, D20~D23) → M1(데이터 준비) 진행 중. 문서 정합성 2차 점검(2026-07-23)에서 계약 구멍 5건 보완 → **D28~D32**, MVP 범위 문서화 + 발주서 추적 필드 → **D33·D34**, 프론트 구현에서 발견한 block 계약 누락 → **D35**.
 매뉴얼 3종 확보 + 스파이크 SP1(표 추출) 완료 → D24~D27. `error_codes` 추출 v1 = **64건**(iG5A 23 / S100 41), 두 기종 공통 표기 코드 12종 확보(D6 "같은 코드, 다른 의미" 실증 자료 충족).
-다음 액션: ① iG5A 매핑 사람 승인(`data/analysis/ig5a_code_mapping.md`) ② `related_parts` 수작업 매핑 — **현재 64건 전부 비어 있음, 부품 특정 정확률의 뿌리(D12)라 M1 크리티컬 패스** ③ 시드 = `/seed-db`. 사람 할 일은 [../TODO_직접할일.md](../TODO_직접할일.md).
+시드 `data/seed.py` 완성 — 케이스 맵 7종 자가 검증 통과. 단 `error_codes` 는 **사람 승인 게이트**에 막혀 의도적으로 비어 있다.
+다음 액션: ① iG5A 매핑 사람 승인(`data/analysis/ig5a_code_mapping.md`) → `error_codes.json` 의 `_status` 를 승인으로 바꾸고 `uv run python data/seed.py --with-error-codes` ② `related_parts` 검수 — 임시 매핑 7건만 있음(`data/related_parts.seed.json`), 부품 특정 정확률의 뿌리(D12)라 M1 크리티컬 패스. 사람 할 일은 [../TODO_직접할일.md](../TODO_직접할일.md).

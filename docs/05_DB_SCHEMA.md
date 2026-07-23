@@ -4,6 +4,9 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 도구가 읽는 테이블 — 설계하며 6개 → 8개(`error_codes`·`equipment` 추가, D11)
 → 구현 정합화에서 **9개**로 확정: `traces`(실행 로그 영속화, D21) 추가.
 
+> **세는 단위 주의:** 위 숫자는 아래 **절(§) 개수**다. §7이 `suppliers`와 `supplier_parts`
+> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 **10개**다 (`data/seed.py` 기준).
+
 ---
 
 ## ERD 개요

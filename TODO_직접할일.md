@@ -19,7 +19,10 @@ Claude가 대신 못 하는 것들. 순서대로.
 - [x] ~~안전 문구 정정 승인: "5분" → "10분 이상"~~ — 승인·전파 완료 (2026-07-18): 02_SCENARIOS·03_WIREFRAME·safety-guardrail 스킬·06 testset 기준에 매뉴얼 근거 페이지와 함께 반영
 - [x] ~~추출 전략 승인~~ — D24로 확정 (pdfplumber 텍스트 규칙 파싱)
 - [ ] **iG5A 매핑 최종 확인** — 검수표: `data/analysis/ig5a_code_mapping.md`. 낮음 6건 중 5건은 Claude가 키패드 이미지 비전 판독으로 해소(②절, COL=입력결상 등) → **사람은 ② 4건 확인 + ③ 결정 2건**(주파수 지령 상실 `__L` 표기, canonical=키패드 표기 정책)만 하면 됨. 승인 전 error_codes DB 적재 금지
-- [ ] 매뉴얼 EDA 후 **`related_parts` 수작업 매핑 검수** (에러코드→관련 부품 연결은 사람이 최종 확인해야 함, 부품 특정 정확률의 뿌리)
+  - 승인이 끝나면: `data/extracted/error_codes.json`의 `_status`를 승인 표기로 바꾸고
+    `uv run python data/seed.py --with-error-codes` 실행
+  - `seed.py`가 `_status`에 "초안"/"승인 전"이 있으면 **적재를 거부**하므로, 승인 전에는 실수로 들어갈 수 없음
+- [ ] **`related_parts` 수작업 매핑 검수** — 파일: `data/related_parts.seed.json`. 지금은 S1/S3를 돌려보기 위한 **임시 7건**만 있고 전부 `reviewed: false`. 각 코드의 원인/조치를 매뉴얼에서 읽고 교체 대상 부품이 맞는지 확인 → 맞으면 `reviewed: true`. **검수 전 평가(run_eval) 결과를 실적으로 인용하지 말 것** (부품 특정 정확률의 뿌리, D12)
 - [ ] 두 기종 간 동일 표기 코드 목록 확인 (OL, OC 계열) — "같은 코드, 다른 의미" 실증 자료
 - [ ] 시드 데이터의 부품명/가격이 현실적인지 감수 (냉각팬 3만원대 등)
 

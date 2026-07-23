@@ -1,0 +1,62 @@
+{
+  "_status": "임시 — 사람 검수 전. 최종 확정은 TODO_직접할일.md의 'related_parts 수작업 매핑 검수' 항목",
+  "_설명": [
+    "에러코드 → 관련 부품 매핑 (D12). error_codes.related_parts 컬럼의 원천.",
+    "추출 파이프라인은 이 값을 만들어낼 수 없다 — 매뉴얼 표에 부품 품번이 없기 때문.",
+    "부품 특정 정확률(≥90%)의 뿌리라 사람이 최종 확인해야 한다.",
+    "여기 있는 값은 S1/S3 파이프라인을 돌려보기 위한 임시값이며, 검수 전에는",
+    "평가(run_eval) 결과를 실적으로 인용하지 말 것."
+  ],
+  "_검수_방법": "각 코드의 원인/조치를 매뉴얼에서 읽고, 교체 대상 부품이 맞는지 확인 → 맞으면 이 파일에서 해당 항목의 reviewed를 true로",
+  "mappings": [
+    {
+      "model": "iG5A",
+      "code": "OHT",
+      "parts": ["FAN-IG5-01"],
+      "basis": "과열 — 냉각팬 고장/주위온도 초과가 주원인",
+      "reviewed": false
+    },
+    {
+      "model": "iG5A",
+      "code": "OCT",
+      "parts": ["MTR-CBL-IG5", "MTR-3P-2K2"],
+      "basis": "과전류 — 출력측 지락·모터 절연 저하. 반복 시 케이블·모터 점검 대상",
+      "reviewed": false
+    },
+    {
+      "model": "iG5A",
+      "code": "FAN",
+      "parts": ["FAN-IG5-01"],
+      "basis": "냉각팬 이상 경보",
+      "reviewed": false
+    },
+    {
+      "model": "iG5A",
+      "code": "GFT",
+      "parts": ["MTR-CBL-IG5"],
+      "basis": "지락 — 출력 케이블 절연 파괴",
+      "reviewed": false
+    },
+    {
+      "model": "S100",
+      "code": "OHT",
+      "parts": ["FAN-S100-01"],
+      "basis": "과열 — 냉각팬 계열",
+      "reviewed": false
+    },
+    {
+      "model": "S100",
+      "code": "FAN",
+      "parts": ["FAN-S100-01"],
+      "basis": "냉각팬 이상",
+      "reviewed": false
+    },
+    {
+      "model": "S100",
+      "code": "OCT",
+      "parts": ["MTR-CBL-S100"],
+      "basis": "과전류 — 출력측 점검 대상",
+      "reviewed": false
+    }
+  ]
+}

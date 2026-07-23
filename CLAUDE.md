@@ -12,7 +12,7 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 - `docs/10_DECISIONS.md` — 설계 결정 D1~D35. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약. 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 9종 + 시드 케이스 맵
+- `docs/05_DB_SCHEMA.md` — 테이블 9절(실제 10개) + 시드 케이스 맵
 - `docs/06_REPO_API.md` — 폴더 구조·API·SSE 이벤트 규격
 - `docs/09_RUNTIME.md` — 시퀀스·루프 상한·장애 모드
 
