@@ -381,3 +381,55 @@ MQ-304, MQ-313  (독립)
 3. **C-5** 실 Anthropic 경로 미검증 — **MQ-308 DoD 에 "실 클라이언트 1턴 스모크(수동 1회)" 를 넣을 것.** 이력에 assistant `tool_use` 를 안 남기고 도구 결과를 `role:"user"` 텍스트로 넣는 구조가 실 API 에서 견디는지가 관건. 여기서 문제가 나면 루프 구조 수정이라 늦게 발견되면 비싸다
 4. **C-6·C-7** — A1 스파이크 강도(`FakeMcp.on_call` 훅)·스트림 취소 회귀는 MQ-308 DoD 에 이미 있음
 5. 보류 가능: C-8(rag page 검증) · C-9(D51 가드) · W-11(사람 검수)
+
+### Stage 3 완료 (2026-07-23)
+**커밋**: `704a8aa` — `[M2] Sprint 3 Stage 3 — POST /chat 루프 관통 배선 · 화면 B trace 페이지`
+**reviewer**: FAIL(블로커 1) → 수정 → **PASS** (블로커 0 · 경고 2 · 노트 3)
+
+| TASK | 산출 | 스파이크 |
+|---|---|---|
+| MQ-308 | `backend/routers/chat.py` 전면 재작성 (`_replay_s1` → `SseEvent`, `Depends(caller)`, `app.state.mcp` 주입) | `sp3_sse_events.py` 11→21 |
+| MQ-309 | `app/(console)/manager/trace/[sessionId]/page.tsx` · `lib/trace.ts` 신규 · `lib/{api,mappers,types}` · `components/trace/TraceStep.tsx` | `tsc --noEmit` · `next build` |
+
+**회귀 200건** — Stage 2 대비 +10 (SP3 +10). ruff · tsc · next build 통과.
+
+#### 이 스테이지가 해소한 것
+
+- **A5(발행=저장)가 런타임에서 성립한다.** 그전까지 `chat.py` 의 유일한 SSE 경로가
+  `sse.*` 를 직접 불러 `traces` 가 0행이었다. 이제 `?replay=s1` 도 `TraceWriter` 를 거치고,
+  SP3 ⑬ 이 저장 payload 와 SSE `data` 를 **바이트 단위로 대조**한다
+- **화면 B 근거 카드의 깨진 TRACE 링크 해소** — `/manager/trace/{session_id}` 착지점 신설
+- **C-11** — `mappers.tsx` 가 물리 페이지에 `printPage` 를 박아 S100(offset 16)에서
+  물리를 인쇄로 표시하던 문제. `/api/po/{id}` 에 인쇄 페이지가 없으므로 **채우지 않는 것**이 정답
+  (프론트 변환은 D32 위반)
+
+#### 이 스테이지에서 잡힌 결함
+
+| # | 결함 | 왜 안 잡혔을 뻔했나 |
+|---|---|---|
+| 블로커 | **MCP 가드가 `mcp is None` 만 봤다.** lifespan 은 기동 실패해도 객체를 남기므로(승인 큐는 살아야 함) 실제 다운 상태는 `ready=False` 다. 그대로 진입하면 도구 0건으로 LLM 이 근거 없이 진단을 서술한다 — **절대규칙 6 위반 경로** | 주석은 "09_RUNTIME §3 — 공백을 지식으로 메우지 않는다"라고 적혀 있었다. **가드는 있는데 조건이 실제 상태와 어긋난** 유형. SP3 가 replay 만 돌아 `_agent_stream` 을 한 번도 실행하지 않았다 |
+| W-1 | `elapsed` 가 **생산자 없는 `_elapsed` 키**를 읽어 상시 0.0 → 방금 만든 trace 패널이 "0.0s · 5 calls"라는 거짓을 표시 | Stage 2 의 N-1(`window_days`)과 **같은 유형의 재발**. 계약 필드가 상시 거짓이면 감사 화면의 신뢰가 통째로 무너진다 |
+| W-2 | `✗ timeout ·` 접두의 소유권이 **양쪽에 반대로** 적혀 있었다 — `mcp_client` docstring 은 "프론트가 붙인다", 실제로는 `loop.py` 가 붙임. 프론트 분기는 `reason` 필드가 payload 에 없어 **도달 불가 死코드** | 양쪽 다 대응하게 짜여 겉으로 깨지는 게 없었다. 판정: **백엔드 소유** — traces 는 평가 판정 소스라 저장값이 자기설명적이어야 한다 |
+| W-3 | SP3 ⑰⑱ 이 "D42 회귀"를 자칭하지만 replay 전용이라 `_agent_stream` 에 `stdio_client` 를 부활시켜도 **통과한다** | 검사 이름이 사정거리를 과장. 이름을 낮추고 실제 D42 회귀는 `agent_loop_contract` 소관임을 명시 |
+| W-4 | 안전 블록 **인용 페이지**에 회귀가 없었다 — Stage 2 블로커 1 이 `chat.py` 재생본에서 재발해도 전 검사 통과 | ⑦(순서)·⑨(타입)·⑪(독립 citation 키)만 보고 safety 블록 **안**의 citation 을 안 봤다. ⑦-b 추가 |
+
+> **음성 검증** — 가드를 `mcp is None` 으로 되돌리자 ⑲ 가 실제로 FAIL 했다
+> (첫 토큰이 LLM 키 안내로 바뀜). ⑳ 은 키가 없으면 공허 통과라는 점을 주석에 명시했다.
+
+#### Stage 4 착수 전 남긴 것
+
+1. **W-5 (먼저 결정할 것)** — replay 가 `traces` 에 **실 도구 결과와 구분 불가능한 합성 행**을
+   쓴다. `po_card` 가 실재하는 PO-0117 을 `state:"draft"` 로 주장하는데 DB 는 `pending` 이다.
+   **`eval/score.py`(MQ-310)가 traces 를 읽기 시작하기 전에** 결론을 내야 한다 — 지금 상태로
+   지표를 돌리면 재생 데이터가 실적에 섞인다
+2. **W-7 / C-5 이월** — 실 Anthropic 1턴 스모크는 이번에도 미수행(키 없음).
+   `loop.py` 가 assistant `tool_use` 를 이력에 안 남기고 도구 결과를 `role:"user"` 텍스트로
+   넣는 구조가 실 API 에서 견디는지 미지수. 실패 시 수정 대상은 `loop.py`·`llm.py`
+3. **W-A** 가드는 진입 1회 — 턴 **도중** MCP 가 죽으면 비위험 서술의 환각 방지가 프롬프트뿐.
+   후속: 루프에 "이 턴 `status=="ok"` 도구 0건이면 진단 대신 실패 고지" 게이트 + 중도 하강 회귀
+4. **W-8** `_encode` 의 broad except 가 루프 버그를 "생성 실패"로 위장할 여지
+5. **N-b** replay 의 `elapsed` 는 하드코딩(0.4/1.2/…)인데 실 경로는 실측 — 같은 필드에 두 의미
+6. **N-c** `error` 글리프 `✗` + summary 접두 `✗ timeout ·` 이중 표기
+7. **N-3** DoD 의 "5스텝"은 목업 기준. replay 는 도구 4쌍이라 **4스텝**이 맞다
+8. **W-6** S100 근거 카드 라벨을 `"PDF p.416"` 으로 명시하면 더 정직 (계약 변경 없이 가능)
+9. `CLAUDE.md` 의 "회귀 스위트(고정)" 목록이 낡았다 (5스위트 → 실제 13스위트)
