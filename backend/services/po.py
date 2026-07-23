@@ -21,13 +21,6 @@ from pathlib import Path
 
 from backend.db import connect
 
-# 표시명 매핑 — 헤더·DB 에는 ASCII ID 만 오간다 (D36)
-USER_NAMES: dict[str, str] = {
-    "tech-01": "김OO",
-    "tech-02": "이OO",
-    "mgr-01": "박OO",
-}
-
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
 ALLOWED_FROM: dict[str, str] = {
     "pending": "draft",
@@ -47,8 +40,20 @@ class TransitionError(Exception):
         )
 
 
-def display_name(user_id: str | None) -> str:
-    return USER_NAMES.get(user_id or "", user_id or "")
+def display_name(user_id: str | None, db_path: Path | None = None) -> str:
+    """ASCII 사용자 ID → 화면 표시명 (D36 매핑을 D41 로 `users` 테이블 이관).
+
+    하드코딩 딕셔너리였던 것을 DB 조회로 바꿨다 — 표시명이 코드에 박혀 있으면 사용자가
+    늘 때마다 배포가 필요하고, `requested_by`/`decided_by` 의 FK 대상도 생기지 않는다.
+
+    **미등록 ID 는 예외가 아니라 ID 를 그대로 돌려준다.** 표시명이 없다고 화면이 비면
+    승인 큐에서 "누가 요청했는지"가 사라진다 — 삭제된 계정이어도 감사 추적은 남아야 한다.
+    """
+    if not user_id:
+        return user_id or ""
+    with connect(db_path) as con:
+        r = con.execute("SELECT display_name FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    return r["display_name"] if r else user_id
 
 
 def iso_utc(ts: str | None) -> str | None:
@@ -64,11 +69,25 @@ def iso_utc(ts: str | None) -> str | None:
     return ts.replace(" ", "T") + ("" if ts.endswith("Z") or "+" in ts else "Z")
 
 
+# 표시명은 users 조인으로 붙인다 (D41) — 행마다 display_name() 을 부르면 N+1 이 된다.
+# LEFT JOIN 인 이유: requested_by 는 stamp 전 NULL 이고, 미등록 ID 여도 행이 사라지면 안 된다
+_PO_SELECT = (
+    "SELECT p.*, pt.name AS part_name, s.name AS supplier_name,"
+    " ru.display_name AS requested_by_name, du.display_name AS decided_by_name"
+    " FROM po_drafts p"
+    " JOIN parts pt ON pt.part_no = p.part_no"
+    " JOIN suppliers s ON s.supplier_id = p.supplier_id"
+    " LEFT JOIN users ru ON ru.user_id = p.requested_by"
+    " LEFT JOIN users du ON du.user_id = p.decided_by"
+)
+
+
 def _row_to_po(r: sqlite3.Row) -> dict:
     d = dict(r)
     d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
-    d["requested_by_name"] = display_name(d.get("requested_by"))
-    d["decided_by_name"] = display_name(d.get("decided_by"))
+    # 미등록·NULL 이면 ID 를 그대로 (display_name() 과 같은 규칙)
+    d["requested_by_name"] = d.get("requested_by_name") or d.get("requested_by") or ""
+    d["decided_by_name"] = d.get("decided_by_name") or d.get("decided_by") or ""
     d["created_at"] = iso_utc(d.get("created_at"))
     return d
 
@@ -94,12 +113,7 @@ def stamp_identity(
 
 
 def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict]:
-    sql = (
-        "SELECT p.*, pt.name AS part_name, s.name AS supplier_name"
-        " FROM po_drafts p"
-        " JOIN parts pt ON pt.part_no = p.part_no"
-        " JOIN suppliers s ON s.supplier_id = p.supplier_id"
-    )
+    sql = _PO_SELECT
     args: list[object] = []
     if state:
         sql += " WHERE p.state = ?"
@@ -112,14 +126,7 @@ def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict
 def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
-        r = con.execute(
-            "SELECT p.*, pt.name AS part_name, s.name AS supplier_name"
-            " FROM po_drafts p"
-            " JOIN parts pt ON pt.part_no = p.part_no"
-            " JOIN suppliers s ON s.supplier_id = p.supplier_id"
-            " WHERE p.po_id = ?",
-            (po_id,),
-        ).fetchone()
+        r = con.execute(_PO_SELECT + " WHERE p.po_id = ?", (po_id,)).fetchone()
         if r is None:
             return None
         po = _row_to_po(r)

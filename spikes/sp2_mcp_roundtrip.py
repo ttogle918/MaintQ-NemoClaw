@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVER = ROOT / "mcp_server" / "server.py"
 
 EXPECTED_TOOLS = {
+    "lookup_error_code",
     "search_inventory",
     "find_alternative_parts",
     "get_supplier_quotes",

@@ -16,6 +16,8 @@ import json
 from dataclasses import dataclass
 from typing import Literal
 
+from backend import manifest
+
 EventType = Literal["token", "tool_call", "tool_result", "block"]
 BlockType = Literal["safety", "po_card", "citation"]
 
@@ -65,3 +67,25 @@ def citation_block(manual: str, page: int, print_page: int, section: str | None 
     if section:
         label += f" · {section}"
     return block("citation", {"page": page, "print_page": print_page, "label": label})
+
+
+def citation_for(model: str, page: int, section: str | None = None) -> SseEvent:
+    """model + PDF 물리 페이지로 인용 블록을 만든다 — **오프셋 변환의 유일한 지점** (D32).
+
+    호출자(에이전트 루프·라우터)는 도구 결과의 물리 페이지를 그대로 넘기면 된다.
+    manifest 조회와 인쇄 페이지 환산은 전부 여기 안에서 끝난다. 다른 곳에서
+    `print_page` 를 직접 계산하면 D32 의 "변환은 1곳"이 깨진다.
+
+    payload 의 `page` 는 **항상 PDF 물리 원본**이다 (D26) — 인용률 판정이 이 값을
+    traces 의 lookup/rag 결과와 대조한다. `print_page` 는 표시용이고, 1 미만이 되는
+    구간(표지·안전지침)에서는 환산하지 않고 물리 페이지를 그대로 쓴다 (D49).
+
+    `model` 이 enum 밖이면 ValueError (D6 · D13). manifest 가 없거나 모델이
+    목록에 없으면 offset 0 폴백 — `backend.manifest` 가 경고를 남긴다.
+    """
+    return citation_block(
+        manifest.manual_label(model),
+        page=page,
+        print_page=manifest.to_print_page(model, page),
+        section=section,
+    )

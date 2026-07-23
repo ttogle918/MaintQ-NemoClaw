@@ -5,6 +5,9 @@ data/raw/*
 # 목업 DB
 *.db
 *.sqlite3
+# WAL 사이드카 (MQ-313) — 커넥션이 열려 있는 동안만 존재하는 런타임 파일
+*.db-wal
+*.db-shm
 
 # 환경·시크릿
 .env

@@ -2,10 +2,12 @@
 """목업 DB 시드 (M1) — docs/05_DB_SCHEMA.md의 스키마와 시드 케이스 맵 7종을 구현한다.
 
 출력 : data/maintq.db (기존 파일은 .bak 으로 백업 후 재생성)
-검증 : 실행 끝에 케이스 맵 7종을 SQL로 자가 검증하고 통과/실패 표를 출력
+검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪)을 SQL로 자가 검증하고
+       통과/실패 표를 출력
 
 원칙
   - `PRAGMA foreign_keys=ON` 필수 (기본 OFF, 안 켜면 D33의 FK 보증이 조용히 사라짐)
+  - 적재 순서는 `users` → `po_drafts`/`error_history` (D41 FK). 순서가 틀리면 즉시 실패한다
   - 반복 고장 날짜는 실행일 기준 **상대 날짜** — 데모 날짜가 밀려도 S3가 트리거돼야 함
   - `error_codes`는 시드가 아니라 `data/extracted/error_codes.json`에서 적재.
     단 **사람 승인 전에는 적재하지 않는다** (TODO_직접할일.md / JSON의 _status).
@@ -58,6 +60,23 @@ CREATE TABLE error_codes (
          AND code NOT GLOB '*[^A-Z0-9_]*')
 );
 
+-- 사용자 (D41·D52) — X-User 헤더 값의 원천이자 표시명 매핑 소스.
+-- 표시명이 backend/services/po.py 에 하드코딩돼 있던 것을 여기로 옮겼다 (D36→D41).
+-- 행을 지우지 않는다: 퇴사자는 active=0. decided_by 가 끊기면 감사 추적(P5)이 무너진다.
+CREATE TABLE users (
+  user_id       TEXT PRIMARY KEY,         -- 'tech-01' — 헤더로 오가는 ASCII ID (D36)
+  email         TEXT UNIQUE,              -- 회사 이메일. 향후 IdP 매칭 키 (D52)
+  display_name  TEXT NOT NULL,            -- '김OO' — 화면 표시용
+  role          TEXT NOT NULL,            -- 회사가 사전 부여. OAuth 가 정하지 않는다 (D52)
+  auth_provider TEXT NOT NULL DEFAULT 'local',
+  external_id   TEXT,                     -- IdP 의 sub/oid. 연동 전 NULL
+  active        BOOLEAN NOT NULL DEFAULT 1,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CHECK (role IN ('technician','manager')),
+  CHECK (auth_provider IN ('local','google')),
+  CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
+);
+
 CREATE TABLE equipment (
   equipment_id TEXT PRIMARY KEY,
   line_id      INTEGER NOT NULL,
@@ -74,7 +93,8 @@ CREATE TABLE error_history (
   occurred_at  DATETIME NOT NULL,
   action_taken TEXT,
   part_replaced TEXT,
-  resolved     BOOLEAN DEFAULT 1
+  resolved     BOOLEAN DEFAULT 1,
+  recorded_by  TEXT REFERENCES users      -- 기록한 정비사 (D41). 시드분은 NULL
 );
 CREATE INDEX idx_history_eq_code ON error_history(equipment_id, code, occurred_at);
 
@@ -128,8 +148,8 @@ CREATE TABLE po_drafts (
   reason       TEXT NOT NULL,
   urgency      TEXT DEFAULT 'normal',
   state        TEXT DEFAULT 'draft',
-  requested_by TEXT,
-  decided_by   TEXT,
+  requested_by TEXT REFERENCES users,     -- ASCII 사용자 ID (D36) + users FK (D41)
+  decided_by   TEXT REFERENCES users,
   decision_note TEXT,                   -- 반려 사유 / 승인 코멘트 (D38)
   session_id   TEXT,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -152,12 +172,25 @@ CREATE TABLE traces (
   tool         TEXT,
   payload      TEXT NOT NULL,
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CHECK (event_type IN ('tool_call','tool_result','block'))
+  -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
+  CHECK (event_type IN ('tool_call','tool_result','block')),
+  -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
+  -- 깨진 걸 아무도 모른다 (D41)
+  UNIQUE (session_id, seq)
 );
 CREATE INDEX idx_traces_session ON traces(session_id, seq);
 """
 
 # ────────────────────────────────────────────────────────────── 마스터 데이터
+
+# (user_id, email, display_name, role, auth_provider) — D41·D52
+# auth_provider 는 전부 'local' : 회사 IdP 연동(google)은 백로그 P21 이고, 개인 소셜은 넣지 않는다.
+# 이메일은 회사 도메인 형식 예시 (.example 은 RFC 2606 예약 도메인 — 실제로 발송되지 않는다)
+USERS = [
+    ("tech-01", "kim@maintq.example", "김OO", "technician", "local"),
+    ("tech-02", "lee@maintq.example", "이OO", "technician", "local"),
+    ("mgr-01", "park@maintq.example", "박OO", "manager", "local"),
+]
 
 SUPPLIERS = [
     ("SUP-A", "에이스산전", "02-555-0101 / sales@acesanjeon.example"),
@@ -275,6 +308,16 @@ PART_BY_ACTION = {
 
 def create_schema(con: sqlite3.Connection) -> None:
     con.executescript(SCHEMA)
+
+
+def seed_users(con: sqlite3.Connection) -> None:
+    """**가장 먼저** 적재한다 — po_drafts.requested_by/decided_by 와 error_history.recorded_by 가
+    FK 로 이 테이블을 참조한다 (D41). `PRAGMA foreign_keys=ON` 상태라 순서가 틀리면 즉시 실패한다.
+    """
+    con.executemany(
+        "INSERT INTO users (user_id, email, display_name, role, auth_provider) VALUES (?,?,?,?,?)",
+        USERS,
+    )
 
 
 def seed_masters(con: sqlite3.Connection) -> None:
@@ -525,8 +568,8 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
 # ────────────────────────────────────────────────────────────── 검증
 
 
-def verify(con: sqlite3.Connection, with_codes: bool) -> list[tuple[str, bool, str]]:
-    """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종 자가 검증."""
+def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
+    """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증."""
     q = lambda sql, *a: con.execute(sql, a).fetchone()  # noqa: E731
     results: list[tuple[str, bool, str]] = []
 
@@ -599,6 +642,49 @@ def verify(con: sqlite3.Connection, with_codes: bool) -> list[tuple[str, bool, s
         (ec > 0) if with_codes else (ec == 0),
         f"{ec}건" + ("" if with_codes else " (사람 승인 전이라 의도적으로 비움)"),
     )
+
+    # ── D41 스키마 보강 4건 회귀
+    users = con.execute("SELECT user_id, display_name, role FROM users ORDER BY user_id").fetchall()
+    check(
+        "⑨ users 3행 적재 (D41)",
+        users
+        == [
+            ("mgr-01", "박OO", "manager"),
+            ("tech-01", "김OO", "technician"),
+            ("tech-02", "이OO", "technician"),
+        ],
+        f"{len(users)}행 {[u[0] for u in users]}",
+    )
+
+    # 실재하지 않는 user_id 로는 발주가 만들어지지 않는다 (D41 FK).
+    # 실제로 INSERT 를 시도해야 검증이 되므로 SAVEPOINT 로 감싸고 되돌린다
+    con.execute("SAVEPOINT fk_probe")
+    fk_detail = "INSERT 가 통과해버림 (FK 미적용?)"
+    try:
+        con.execute(
+            "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, unit_price, reason,"
+            " requested_by) VALUES ('PO-FK00','FAN-IG5-01',1,'SUP-A',1000,'FK 검증','ghost-99')"
+        )
+        fk_rejected = False
+    except sqlite3.IntegrityError as exc:
+        fk_rejected, fk_detail = True, str(exc)
+    finally:
+        con.execute("ROLLBACK TO fk_probe")
+        con.execute("RELEASE fk_probe")
+        con.commit()  # 다음 검사가 다른 커넥션으로 읽으므로 트랜잭션을 남기지 않는다
+    check("⑩ 미등록 user_id 발주 → FK 거부", fk_rejected, fk_detail)
+
+    # 표시명은 하드코딩이 아니라 DB 조회여야 한다 (D41 — po.USER_NAMES 이관)
+    sys.path.insert(0, str(ROOT.parent))
+    from backend.services.po import display_name  # noqa: PLC0415
+
+    dn = display_name("tech-01", db_path=db_path)
+    unknown = display_name("ghost-99", db_path=db_path)
+    check(
+        "⑪ display_name 이 users 조회로 동작",
+        dn == "김OO" and unknown == "ghost-99",
+        f"tech-01 → {dn!r}, 미등록 → {unknown!r} (ID 그대로)",
+    )
     return results
 
 
@@ -643,6 +729,7 @@ def main() -> None:
     con.execute("PRAGMA foreign_keys=ON")  # 기본 OFF — 안 켜면 D33 FK가 무력화됨
     try:
         create_schema(con)
+        seed_users(con)  # ← po_drafts·error_history 보다 먼저 (FK, D41)
         seed_masters(con)
         seed_inventory(con, rng)
         seed_supplier_parts(con, rng)
@@ -662,7 +749,7 @@ def main() -> None:
         print(f"\n[기준일] {args.today}  (반복 고장 3건 = 기준일 -22/-12/-4일)")
         print(f"[완료] {args.db}\n")
 
-        results = verify(con, with_codes)
+        results = verify(con, with_codes, args.db)
         width = max(len(n) for n, _, _ in results)
         print("시드 케이스 맵 검증")
         print("─" * (width + 46))
