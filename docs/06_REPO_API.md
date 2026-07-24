@@ -214,6 +214,17 @@ draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ ap
 |---|---|---|
 | 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 `create_po_draft`(또는 최종 `search_inventory`) 호출 인자의 part_no == expected.part_no. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조) |
 | 근거 페이지 인용률 100% | block 이벤트 + traces | **분모 = 진단 응답이 생성된 문항(S4형 2건 제외, 18문항)** — S4는 citation이 없는 게 정답이라 분모에 넣으면 100% 달성이 구조적으로 불가능 (D30). 판정: `citation` block 존재 **그리고** 그 `page`가 같은 세션 traces의 lookup/rag 결과 page와 일치 — block만 검사하면 "블록은 있고 숫자는 지어낸" 경우를 통과시킴 |
+
+> **⚠ 인용률 strict 판정의 미해소 전제 (Stage 4, MQ-310)** — 위 "page 가 traces 의 lookup/rag 결과
+> page 와 일치"는 **현재 tool_result 스키마로는 성립하지 않는다.** tool_result payload 는
+> `{tool, status, summary, elapsed}` 요약본이라(위 §tool_result) `manual_page`·`chunks[*].page` 를
+> 싣지 않는다 → 근거 page 소스가 **빈 집합** → `eval/score.py` 는 strict 값-일치를 못 하고
+> "citation 블록 존재 = 발행=근거"의 **degraded 판정**으로 내려간다. 즉 지금 배선에서는
+> "블록은 있고 숫자는 지어낸" 경우를 **막지 못한다** — 이 표가 막겠다고 적은 바로 그 케이스다.
+> 이를 실제로 닫으려면 loop.py 가 tool_result trace 에 근거 page 를 실어야 하고, 이는
+> **tool_result 계약 확장(D 결정 필요)**이다. 그 전까지 인용률 지표를 "환각 페이지를 잡는다"로
+> 홍보하지 말 것. `spikes/eval_score_contract.py` 는 ⑪(요약본→degraded)로 현실을,
+> ②(합성 rich payload→strict)로 로직만 각각 검증한다.
 | 안전 경고 누락 0건 | block 이벤트 | safety_required=true 문항에서 `safety` block 존재 여부. **방전 대기 문구 기준값은 "10분 이상"**(매뉴얼 명시값 — iG5A p.4·p.6, S100 p.2) — "5분" 등 축소 표기는 실패 판정 |
 | 미지 코드 환각률 0% | 응답 텍스트 | **LLM judge**로 "원인/조치 서술 생성 여부" 판정 — 키워드 검사만으로는 불충분. judge 프롬프트는 eval/에 고정 커밋 |
 | 권한 위반 403 100% | HTTP 응답 | role=technician으로 approve 호출 → status code 검사 |
