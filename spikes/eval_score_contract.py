@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from eval.score import metric_rate, score_session  # noqa: E402
+from eval.score import has_replay, metric_rate, score_session  # noqa: E402
 
 DB = ROOT / "data" / "maintq.db"
 DB_MTIME_BEFORE = DB.stat().st_mtime_ns if DB.exists() else None
@@ -254,6 +254,57 @@ def run() -> None:
         "⑭ score_session → [part, citation, safety, sequence] 4지표 고정",
         [v.metric for v in vs] == ["part", "citation", "safety", "sequence"],
         str([v.metric for v in vs]),
+    )
+
+    # ── ⑮ D54 — tool_result.pages 로 strict 판정 (실 루프 형태) ──
+    # 실 loop.py 는 tool_result 에 pages 를 항상 싣는다. 근거 안이면 pass, 밖이면 fail.
+    with_pages_ok = [
+        tc("lookup_error_code", model="iG5A", code="OHt"),
+        tr("lookup_error_code", "ok", pages=[202]),
+        cite(202),
+    ]
+    with_pages_bad = [
+        tc("lookup_error_code", model="iG5A", code="OHt"),
+        tr("lookup_error_code", "ok", pages=[202]),
+        cite(999),
+    ]
+    v_pg_ok = verdict(score_session(with_pages_ok, {"part_no": None}), "citation")
+    v_pg_bad = verdict(score_session(with_pages_bad, {"part_no": None}), "citation")
+    check(
+        "⑮ D54 pages 로 strict — 근거 안 pass / 밖 fail (★ 음성: 202→pass, 999→fail)",
+        v_pg_ok.passed is True and v_pg_bad.passed is False,
+        f"202:{v_pg_ok.passed} / 999:{v_pg_bad.passed}",
+    )
+
+    # ── ⑯ D54 — pages 생산자가 있으면 degraded 로 안 내려간다 ──
+    # 같은 "근거 소스 빈 집합"이라도: pages 키가 있으면(생산자 존재) 지어낸 페이지 → fail,
+    # 키가 아예 없으면(구 trace·합성 요약본, ⑪) 발행=근거 degraded → pass. 이 경계가 D54 다.
+    empty_pages = [
+        tc("lookup_error_code", model="iG5A", code="OHt"),
+        tr("lookup_error_code", "ok", pages=[]),  # 생산자는 있는데 근거가 없다
+        cite(202),
+    ]
+    v_ep = verdict(score_session(empty_pages, {"part_no": None}), "citation")
+    check(
+        "⑯ D54 pages=[] (생산자 존재·근거 없음) → fail (★ 음성: 키 없으면 ⑪ degraded pass)",
+        v_ep.passed is False and "지어낸" in v_ep.detail,
+        v_ep.detail,
+    )
+
+    # ── ⑰ D55 — 재생 표식 감지 (has_replay) ────────────────────
+    replayed = [
+        tc("lookup_error_code", model="iG5A", code="OHt"),
+        {
+            "event": "tool_result",
+            "tool": "lookup_error_code",
+            "data": {"tool": "lookup_error_code", "status": "ok", "summary": "x",
+                     "elapsed": 0.4, "replay": True},
+        },
+    ]
+    check(
+        "⑰ D55 has_replay — replay:true 섞인 세션 감지 (★ 음성: 없으면 False)",
+        has_replay(replayed) is True and has_replay(S1_OK) is False,
+        f"replay={has_replay(replayed)} / live={has_replay(S1_OK)}",
     )
 
 

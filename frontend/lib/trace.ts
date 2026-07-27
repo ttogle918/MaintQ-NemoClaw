@@ -27,8 +27,8 @@ import type { TraceSession, TraceStatus, TraceStepData } from "./types";
  * 타임아웃은 타입을 늘리지 않고 `error` + summary `✗ timeout ·` 접두인데, **그 접두를
  * 붙이는 주체는 백엔드다** (`loop.py`). `traces` 는 화면만의 것이 아니라 평가 판정
  * 소스이므로(D21·D30) 저장된 summary 자체가 자기설명적이어야 한다. 여기서 다시 붙이지
- * 않는다 — `tool_result` payload 는 `{tool,status,summary,elapsed}` 4필드뿐이라
- * 프론트가 볼 `reason` 자체가 없다 (06_REPO_API).
+ * 않는다 — `tool_result` payload 는 `{tool,status,summary,elapsed,pages?}` 라(D54 로
+ * pages 추가) 프론트가 볼 `reason` 자체가 없다 (06_REPO_API).
  */
 
 /** 도구 status(D9 4종) → 스텝 상태. 계약 밖 값은 여기 없다 — `stepStatus()` 참조. */

@@ -329,7 +329,11 @@ async def run_turn(
             summary = summarize_result(tu.name, payload)
             if payload.get("reason") == "timeout":
                 summary = f"✗ timeout · {tu.name} 확인 실패"  # D44·D46 표시 규약
-            yield trace.tool_result(tu.name, status, summary, round(elapsed, 3))
+            # D54 — 근거 페이지를 tool_result 에 싣는다. **항상** 넘긴다(근거 없는 도구는
+            # 빈 리스트): 키가 있어야 평가가 strict 로 올라가 "블록은 있고 숫자는 지어낸"
+            # citation 을 잡는다. 실패 결과의 페이지는 근거가 아니다 — ok 만 인정.
+            pages = _pages_from(tu.name, payload) if status == "ok" else []
+            yield trace.tool_result(tu.name, status, summary, round(elapsed, 3), pages=pages)
 
             st.results[tu.name] = payload
             store.append(
@@ -346,7 +350,7 @@ async def run_turn(
                 st.repeat_window_days = tu.input["days"]
 
             if status == "ok":
-                for p in _pages_from(tu.name, payload):
+                for p in pages:
                     if p not in st.pages:
                         st.pages.append(p)
                 # 절 제목은 인용 라벨에 붙는다 — 안 모으면 항상 None 이 된다

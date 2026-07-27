@@ -272,7 +272,9 @@ async def chat(
 
     d = TOKEN_DELAY if delay is None else delay
     # 재생이든 실 루프든 **같은 writer** 를 쓴다 — A5(발행=저장)에 예외 경로를 만들지 않는다.
-    trace = TraceWriter(req.session_id)
+    # 다만 재생은 `replay: true` 표식을 단다 (D55) — 재생이 traces 에 남기는 합성 행이
+    # 실 도구 결과와 구분 불가능하면 실적 판정이 오염된다 (reviewer W-5).
+    trace = TraceWriter(req.session_id, replay=replay is not None)
 
     events = (
         _replay_s1(trace, d) if replay == "s1" else _agent_stream(request, req, c, trace)

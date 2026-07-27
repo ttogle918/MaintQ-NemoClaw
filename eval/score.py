@@ -8,11 +8,18 @@
     {"seq": int, "event": "tool_call"|"tool_result"|"block", "tool": str|None, "data": {...}}
 
   - tool_call   data = {"tool", "input", "ts"}
-  - tool_result data = {"tool", "status", "summary", "elapsed", ...}
-        ★ 실 traces 의 tool_result 는 **요약본**이라 `manual_page`·`chunks` 가 **없다**
-          (backend/agent/loop.py 가 summarize_result 로 벗겨 저장). 더 풍부한 합성 event 는
-          이 키들을 실을 수 있고, 그때만 D30 의 값 일치(page match)를 강하게 검사한다.
+  - tool_result data = {"tool", "status", "summary", "elapsed", "pages"?, ...}
+        ★ 실 루프의 tool_result 는 요약본에 **`pages`(근거 페이지 목록, D54)** 를 싣는다.
+          `pages` 키가 실린 tool_result 가 하나라도 있으면 인용 판정이 **strict** 로 올라간다 —
+          인용 page 가 근거 밖이면(빈 근거 포함) fail. 키가 전혀 없으면(구 trace·합성 요약본)
+          degraded(발행=근거) 를 유지한다. 합성 event 는 `manual_page`·`chunks` 를 실어도 되고
+          그 값도 근거 소스에 합산된다.
   - block       data = {"type": "safety"|"po_card"|"citation", "data": {...}}
+
+**재생(replay) 이벤트는 실적 판정 대상이 아니다 (D55).** `?replay=…` 가 남긴 이벤트는
+payload 에 `replay: true` 표식이 있다 — 실 DB traces 를 채점에 배선할 때는 `has_replay()`
+로 세션을 걸러 분모에서 제외해야 한다. 이 모듈은 인자로 받은 event 를 그대로 판정하므로
+거르는 책임은 호출자(배선 쪽)에 있다.
 
 이 모듈이 판정하는 4지표 (각각 `Verdict{metric, passed, detail, applicable}`):
 
@@ -104,12 +111,19 @@ def _lookup_status(events: list[dict]) -> str | None:
 
 
 def _grounded_pages(events: list[dict]) -> set[int]:
-    """인용 page 소스 = lookup.manual_page ∪ rag.chunks[*].page (D30 원문).
+    """인용 page 소스 = tool_result.pages(D54) ∪ lookup.manual_page ∪ rag.chunks[*].page.
 
-    tool_result 요약이 이 키들을 벗겼으면(실 traces 의 기본 형태) 그 소스는 **빈 집합**이다.
-    한쪽만 보지 않는다 — lookup 과 rag 를 모두 합친다.
+    실 루프는 `pages` 로 싣고(D54), 합성 event 는 `manual_page`·`chunks` 로 실을 수 있다 —
+    한쪽만 보지 않고 전부 합친다.
     """
     pages: set[int] = set()
+    for ev in events:
+        if ev.get("event") != "tool_result":
+            continue
+        d = ev.get("data") or {}
+        for p in d.get("pages") or []:
+            if isinstance(p, int):
+                pages.add(p)
     for d in _tool_results(events, "lookup_error_code"):
         p = d.get("manual_page")
         if isinstance(p, int):
@@ -119,6 +133,28 @@ def _grounded_pages(events: list[dict]) -> set[int]:
             if isinstance(c.get("page"), int):
                 pages.add(c["page"])
     return pages
+
+
+def _has_pages_producer(events: list[dict]) -> bool:
+    """`pages` 키를 실은 tool_result 가 있는가 (D54) — strict/degraded 판정의 경계.
+
+    키 **존재**로 판단한다(빈 리스트 포함). 생산자가 있는데 근거가 비었으면 그건
+    "근거 없이 인용을 만들었다"는 뜻이라 degraded 로 봐주면 안 된다.
+    """
+    return any(
+        "pages" in (ev.get("data") or {})
+        for ev in events
+        if ev.get("event") == "tool_result"
+    )
+
+
+def has_replay(events: list[dict]) -> bool:
+    """재생 표식(`replay: true`, D55)이 섞인 event 리스트인가.
+
+    실 DB traces 를 실적 채점에 배선할 때 이 함수로 세션을 걸러 **분모에서 제외**한다 —
+    재생은 어떤 도구도 반환한 적 없는 합성 payload 라 지표에 섞이면 실적이 오염된다.
+    """
+    return any((ev.get("data") or {}).get("replay") is True for ev in events)
 
 
 def _citation_pages(events: list[dict]) -> list[int]:
@@ -175,9 +211,16 @@ def _judge_citation(events: list[dict], expected: dict) -> Verdict:
 
     grounded = _grounded_pages(events)
     if not grounded:
-        # tool_result 요약 payload 가 manual_page·chunks 를 벗겨 근거 소스가 빈 집합인 경우.
-        # 값 일치는 검사할 수 없다 — citation 은 시스템(loop.py)이 도구 결과에서 생성하므로
-        # **발행=근거**로 인정한다 (degraded). 더 풍부한 trace 면 아래 strict 경로를 탄다.
+        if _has_pages_producer(events):
+            # D54 — pages 생산자가 있는데 근거가 빈 집합이면 그 인용은 지어낸 것이다.
+            # 여기서 degraded 로 봐주면 "블록은 있고 숫자는 지어낸" 케이스가 다시 통과한다.
+            return Verdict(
+                "citation",
+                False,
+                f"인용 발행 {cits} 이나 tool_result.pages 근거가 빈 집합 (지어낸 페이지, D54)",
+            )
+        # pages 키가 아예 없는 구 trace·합성 요약본 — 값 일치는 검사할 수 없다.
+        # citation 은 시스템(loop.py)이 도구 결과에서 생성하므로 발행=근거로 인정한다 (degraded).
         return Verdict(
             "citation",
             True,

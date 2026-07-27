@@ -365,6 +365,27 @@ async def run_all(db: Path) -> None:
         f"status={tr[0]['status'] if tr else None}, citation={len(blocks(ev, 'citation'))}건",
     )
 
+    # ── ⑭-b D54 — tool_result 에 근거 pages 를 항상 싣는다 (strict 인용 판정의 소스)
+    # ok 결과는 lookup.manual_page ∪ rag.chunks[*].page, 실패 결과는 빈 리스트.
+    # 키가 빠지면 평가가 degraded(발행=근거)로 내려가 "숫자를 지어낸" citation 을 못 잡는다.
+    ev_pg, _, _ = await drive(
+        [
+            [tu("lookup_error_code", model="iG5A", code="OHt")],
+            [tu("rag_search_manual", model="iG5A", query="점검")],
+            [("text", "과열입니다.")],
+        ],
+        {"lookup_error_code": LOOKUP_OK, "rag_search_manual": RAG_OK},
+        db=db,
+        session="TPG",
+    )
+    tr_pg = [e.data for e in ev_pg if e.event == "tool_result"]
+    check(
+        "⑭-b D54 tool_result.pages — ok 는 근거 page, 실패는 빈 리스트",
+        [d.get("pages") for d in tr_pg] == [[202], [204, 205, 206]]
+        and tr[0].get("pages") == [],
+        f"ok={[d.get('pages') for d in tr_pg]}, error={tr[0].get('pages')}",
+    )
+
     # ── ⑮ 이력 요약에 PRESERVE_FIELDS 가 살아남는가 (A2)
     from backend.agent.loop import _summarize_for_history
 

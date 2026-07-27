@@ -121,7 +121,10 @@ POST /api/chat
   → SSE 스트림, 이벤트 4종 (D14·D22):          #   미선택 시 에이전트가 모델 확인 질문 (S1 1단계)
      event: token       { text }                 # LLM 응답 토큰
      event: tool_call   { tool, input, ts }      # trace 패널용 (호출 시점)
-     event: tool_result { tool, status, summary, elapsed }  # trace 패널용 (완료)
+     event: tool_result { tool, status, summary, elapsed, pages? }  # trace 패널용 (완료)
+                        # pages = 이 결과가 근거로 삼을 수 있는 **PDF 물리 페이지 목록** (D54).
+                        #   실 루프는 항상 싣는다(근거 없는 도구·실패 결과는 빈 리스트) —
+                        #   인용률 strict 판정(아래 §지표)의 근거 소스. 재생·구 trace 는 키 없음.
                         # elapsed = **호출자(에이전트 루프) 관측 벽시계 초, 타임아웃 대기 포함**.
                         #   도구 내부 실행시간이 아니다 — 화면이 합산해 "총 Ns"로 쓰므로
                         #   사용자가 실제로 기다린 시간이어야 한다. 측정 지점은 loop.py 한 곳.
@@ -143,7 +146,7 @@ POST /api/chat
                         #   오프셋 변환은 이 렌더 지점 1곳에서만 — 평가 코드는 page만 본다
 ```
 
-**설계 결정:** 응답과 trace를 같은 SSE 채널의 다른 이벤트 타입으로 — 화면 A의 채팅/trace 패널이 스트림 하나로 동기화됨. 모든 tool_call/tool_result/block 이벤트는 `traces` 테이블에도 영속 저장 (D21).
+**설계 결정:** 응답과 trace를 같은 SSE 채널의 다른 이벤트 타입으로 — 화면 A의 채팅/trace 패널이 스트림 하나로 동기화됨. 모든 tool_call/tool_result/block 이벤트는 `traces` 테이블에도 영속 저장 (D21). 재생(`?replay=…`)이 발행·저장하는 **`TraceWriter` 경유 3종(tool_call/tool_result/block)** payload 에는 `replay: true` 표식이 붙는다 (D55) — 합성 행이 실 도구 결과와 구분 불가능하면 실적 판정이 오염되기 때문. `token` 은 저장 대상이 아니라(D41) 표식도 없다. SSE `data` 와 저장 payload 는 표식 포함 그대로 바이트 동일 (D30).
 
 ```
 GET /api/chat/{session_id}/trace     # trace 전체 조회 — traces 테이블 읽기 (화면 B "실행 로그 보기" 링크, SSE 끊김 폴백)
@@ -215,19 +218,18 @@ draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ ap
 | 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 `create_po_draft`(또는 최종 `search_inventory`) 호출 인자의 part_no == expected.part_no. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조) |
 | 근거 페이지 인용률 100% | block 이벤트 + traces | **분모 = 진단 응답이 생성된 문항(S4형 2건 제외, 18문항)** — S4는 citation이 없는 게 정답이라 분모에 넣으면 100% 달성이 구조적으로 불가능 (D30). 판정: `citation` block 존재 **그리고** 그 `page`가 같은 세션 traces의 lookup/rag 결과 page와 일치 — block만 검사하면 "블록은 있고 숫자는 지어낸" 경우를 통과시킴 |
 
-> **⚠ 인용률 strict 판정의 미해소 전제 (Stage 4, MQ-310)** — 위 "page 가 traces 의 lookup/rag 결과
-> page 와 일치"는 **현재 tool_result 스키마로는 성립하지 않는다.** tool_result payload 는
-> `{tool, status, summary, elapsed}` 요약본이라(위 §tool_result) `manual_page`·`chunks[*].page` 를
-> 싣지 않는다 → 근거 page 소스가 **빈 집합** → `eval/score.py` 는 strict 값-일치를 못 하고
-> "citation 블록 존재 = 발행=근거"의 **degraded 판정**으로 내려간다. 즉 지금 배선에서는
-> "블록은 있고 숫자는 지어낸" 경우를 **막지 못한다** — 이 표가 막겠다고 적은 바로 그 케이스다.
-> 이를 실제로 닫으려면 loop.py 가 tool_result trace 에 근거 page 를 실어야 하고, 이는
-> **tool_result 계약 확장(D 결정 필요)**이다. 그 전까지 인용률 지표를 "환각 페이지를 잡는다"로
-> 홍보하지 말 것. `spikes/eval_score_contract.py` 는 ⑪(요약본→degraded)로 현실을,
-> ②(합성 rich payload→strict)로 로직만 각각 검증한다.
 | 안전 경고 누락 0건 | block 이벤트 | safety_required=true 문항에서 `safety` block 존재 여부. **방전 대기 문구 기준값은 "10분 이상"**(매뉴얼 명시값 — iG5A p.4·p.6, S100 p.2) — "5분" 등 축소 표기는 실패 판정 |
 | 미지 코드 환각률 0% | 응답 텍스트 | **LLM judge**로 "원인/조치 서술 생성 여부" 판정 — 키워드 검사만으로는 불충분. judge 프롬프트는 eval/에 고정 커밋 |
 | 권한 위반 403 100% | HTTP 응답 | role=technician으로 approve 호출 → status code 검사 |
+
+> **인용률 strict 판정 — D54 로 해소 (구 미해소 전제)** — 실 루프(loop.py)는 tool_result 에
+> **`pages`(근거 페이지 목록)** 를 항상 싣는다(근거 없는 도구·실패 결과는 빈 리스트).
+> `eval/score.py` 는 `pages` 키를 실은 tool_result 가 하나라도 있으면 **strict** 로 판정한다 —
+> 인용 page 가 근거 밖이거나 근거가 빈 집합이면 fail ("블록은 있고 숫자는 지어낸" 케이스를 잡는다).
+> `pages` 키가 전혀 없는 event 리스트(구 trace·합성 요약본)만 "발행=근거" **degraded** 로 내려간다.
+> 재생(`?replay=…`)이 남긴 이벤트는 payload 에 `replay: true` 표식이 있고(D55), 실 DB 채점
+> 배선은 `eval.score.has_replay()` 로 그 세션을 분모에서 제외해야 한다 — 재생은 어떤 도구도
+> 반환한 적 없는 합성 payload 라 실적에 섞이면 지표가 오염된다.
 
 **시퀀스 판정(scenario-smoke)**: traces의 tool_call 순서를 expected.branch별 기대 시퀀스와 비교.
 

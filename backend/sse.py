@@ -43,11 +43,23 @@ def tool_call(tool: str, tool_input: dict, ts: str) -> SseEvent:
     return SseEvent("tool_call", {"tool": tool, "input": tool_input, "ts": ts})
 
 
-def tool_result(tool: str, status: str, summary: str, elapsed: float) -> SseEvent:
-    return SseEvent(
-        "tool_result",
-        {"tool": tool, "status": status, "summary": summary, "elapsed": elapsed},
-    )
+def tool_result(
+    tool: str,
+    status: str,
+    summary: str,
+    elapsed: float,
+    pages: list[int] | None = None,
+) -> SseEvent:
+    """도구 완료. `pages` 는 이 결과가 근거로 삼을 수 있는 PDF 물리 페이지 목록 (D54).
+
+    실 루프(loop.py)는 **항상** 싣는다(근거 없는 도구면 빈 리스트) — 평가는 `pages` 키가
+    실린 tool_result 가 하나라도 있으면 strict 판정으로 올라간다. `None` 이면 키 자체를
+    빼서(구 trace·재생과 동일한 요약본) degraded 판정 경로를 유지한다.
+    """
+    data: dict = {"tool": tool, "status": status, "summary": summary, "elapsed": elapsed}
+    if pages is not None:
+        data["pages"] = pages
+    return SseEvent("tool_result", data)
 
 
 def block(block_type: BlockType, data: dict) -> SseEvent:

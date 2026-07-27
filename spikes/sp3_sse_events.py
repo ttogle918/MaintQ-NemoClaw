@@ -274,6 +274,17 @@ async def run() -> None:
         f"traces {tr['count']}행 {sorted(types)} · SSE 비-token {len(streamed)}건",
     )
 
+    # ── ㉑ D55 — 재생이 남긴 모든 이벤트에 replay:true 표식 (SSE·저장 양쪽, W-5 해소)
+    # 표식이 없으면 감사 테이블에서 합성 행("재고 1 < 안전재고 3" 등)이 실 도구 결과와
+    # 구분되지 않아 실적 판정이 오염된다. 저장 payload 는 ⑬ 이 SSE 와 동일함을 이미 봤으므로
+    # 여기서는 저장본 기준으로 전수 확인한다.
+    unmarked = [e["seq"] for e in tr["events"] if e["data"].get("replay") is not True]
+    check(
+        "㉑ D55 재생 표식 — 저장된 재생 이벤트 전부 replay:true",
+        bool(tr["events"]) and not unmarked,
+        f"{tr['count']}행 중 표식 누락 {len(unmarked)}건 {unmarked[:5]}",
+    )
+
     # ── ⑭ 같은 session_id 로 두 번째 턴 → seq 가 이어진다 (D41 UNIQUE·화면 B 타임라인)
     first_seqs = [e["seq"] for e in tr["events"]]
     await collect()

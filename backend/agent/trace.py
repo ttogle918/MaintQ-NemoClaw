@@ -77,9 +77,14 @@ class TraceWriter:
     `token` 메서드는 없다 — 모듈 docstring 참조 (D41).
     """
 
-    def __init__(self, session_id: str, db_path: Path | None = None) -> None:
+    def __init__(
+        self, session_id: str, db_path: Path | None = None, *, replay: bool = False
+    ) -> None:
         self.session_id = session_id
         self.db_path = db_path
+        #: 재생 여부 (D55). True 면 모든 이벤트 payload 에 `replay: true` 를 주입해
+        #: 실 도구 결과와 구분한다 — 실적 판정은 이 표식이 섞인 세션을 분모에서 뺀다.
+        self.replay = replay
         #: 저장에 실패한 이벤트 수. 스트림은 계속 흐르되 실패를 숨기지는 않는다
         self.persist_errors = 0
         #: 마지막으로 성공한 seq. None 이면 아직 DB 에서 MAX(seq) 를 안 읽었다는 뜻
@@ -91,9 +96,19 @@ class TraceWriter:
         """도구 호출 **직전** 발행 (A1) — trace 패널이 '실행 중'을 먼저 보여줘야 한다."""
         return self._write(sse.tool_call(tool, tool_input, ts or utc_now_z()), tool)
 
-    def tool_result(self, tool: str, status: str, summary: str, elapsed: float) -> sse.SseEvent:
-        """도구 완료. `status` 는 D9 4종, 세분화는 도구가 `reason` 으로 (D46)."""
-        return self._write(sse.tool_result(tool, status, summary, elapsed), tool)
+    def tool_result(
+        self,
+        tool: str,
+        status: str,
+        summary: str,
+        elapsed: float,
+        pages: list[int] | None = None,
+    ) -> sse.SseEvent:
+        """도구 완료. `status` 는 D9 4종, 세분화는 도구가 `reason` 으로 (D46).
+
+        `pages` 는 근거 페이지 목록 (D54) — 실 루프는 항상 넘긴다(없으면 빈 리스트).
+        """
+        return self._write(sse.tool_result(tool, status, summary, elapsed, pages), tool)
 
     def block(self, block_type: str, data: dict) -> sse.SseEvent:
         """구조화 블록 — safety / po_card / citation (D22). `tool` 컬럼은 NULL."""
@@ -126,6 +141,11 @@ class TraceWriter:
     # ────────────────────────────────────────────── 내부
 
     def _write(self, event: sse.SseEvent, tool: str | None) -> sse.SseEvent:
+        # D55 — 재생 표식은 **저장·인코딩 전에** data 에 넣는다. SseEvent 는 frozen 이지만
+        # data dict 는 같은 객체라, 여기서 넣으면 traces payload 와 SSE `data` 가 같은
+        # 사실을 말한다(D30 바이트 동일 유지). 발행 뒤에 붙이면 저장본과 갈라진다.
+        if self.replay:
+            event.data["replay"] = True
         self._persist(event.event, tool, event_payload(event))
         return event
 

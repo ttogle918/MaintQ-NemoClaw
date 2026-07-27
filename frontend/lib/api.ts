@@ -182,9 +182,11 @@ export const rejectPo = (poId: string, reason: string) =>
  * `data` 는 SSE 로 나갔던 `data` 와 **바이트 동일**하다 (D30) — 즉 이벤트 종류별 모양이
  * `backend/sse.py` 와 같다:
  *   tool_call    `{tool, input, ts}`
- *   tool_result  `{tool, status, summary, elapsed}`
+ *   tool_result  `{tool, status, summary, elapsed, pages?}` — pages 는 근거 페이지 목록 (D54)
  *   block        `{type, data}`
  * token 은 들어오지 않는다 — traces 에 저장하지 않기 때문이다 (D41).
+ * 재생(`?replay=…`)이 남긴 이벤트는 `replay: true` 표식을 단다 (D55) — 화면은 무시해도
+ * 되지만, 이 행이 합성 데이터라는 뜻이므로 실적·통계 용도로 세지 말 것.
  * 모양을 여기서 좁게 못 박지 않고 `unknown` 값으로 두는 이유는, 백엔드가 키를 추가해도
  * 매퍼(`lib/trace.ts`)만 고치면 되게 하기 위해서다.
  */
