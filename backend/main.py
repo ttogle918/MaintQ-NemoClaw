@@ -13,11 +13,18 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.agent.mcp_client import McpClient
 from backend.routers import chat, equipment, po
+
+# .env 로드는 앱 진입점인 **여기 한 곳**에서만 한다 (D56).
+# `override=False` 가 핵심 — **OS 환경변수가 우선**이고 .env 는 빈 곳만 채운다.
+# 파일이 프로세스 환경을 조용히 덮으면 "어느 키로 돌았는지"를 디버깅할 수 없다.
+# MCP 서브프로세스는 D42 의 `env={**os.environ}` 상속으로 같은 값을 본다.
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 

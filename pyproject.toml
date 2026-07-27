@@ -6,10 +6,12 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.118.0",
     "fastapi>=0.139.2",
+    "google-genai>=2.14.0",
     "httpx>=0.28.1",
     "mcp>=1.28.1",
     # M1 데이터 파이프라인 (SP1 EDA·extract_error_codes.py에서 사용)
     "pdfplumber>=0.11",
+    "python-dotenv>=1.2.2",
     "uvicorn>=0.51.0",
 ]
 

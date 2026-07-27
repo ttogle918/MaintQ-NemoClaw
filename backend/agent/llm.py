@@ -111,19 +111,172 @@ class AnthropicClient:
         return gen()
 
 
+# ────────────────────────────────────────────── Gemini (D56)
+
+#: Gemini 함수 선언 스키마가 받는 키만 남긴다. MCP 의 inputSchema(JSON Schema)에는
+#: `title`·`additionalProperties`·`$schema` 같은 키가 섞여 오는데 Gemini 쪽 검증이
+#: 거부할 수 있다 — 없어도 의미가 줄지 않는 표시용 키라 버리는 쪽이 안전하다.
+_GEMINI_SCHEMA_KEYS = ("type", "description", "enum", "properties", "required", "items")
+
+
+def gemini_schema(schema: dict) -> dict:
+    """JSON Schema → Gemini 가 받는 부분집합으로 재귀 정리."""
+    out: dict = {}
+    for key in _GEMINI_SCHEMA_KEYS:
+        if key not in schema:
+            continue
+        value = schema[key]
+        if key == "properties" and isinstance(value, dict):
+            out[key] = {name: gemini_schema(p) for name, p in value.items()}
+        elif key == "items" and isinstance(value, dict):
+            out[key] = gemini_schema(value)
+        else:
+            out[key] = value
+    return out
+
+
+def gemini_declarations(tools: list[dict]) -> list[dict]:
+    """MCP 도구 목록(`{name, description, input_schema}` — Anthropic 형식과 동일)을
+    Gemini `function_declarations` 로 변환한다. 변환은 **여기(클라이언트 쪽)** 이다 —
+    루프·MCP 클라이언트가 제공자별 형식을 알게 하지 않는다 (D40·D56).
+
+    파라미터 없는 도구는 `parameters` 를 아예 뺀다 — 빈 object 스키마를 넘기면
+    SDK 검증이 판본에 따라 거부한다.
+    """
+    decls: list[dict] = []
+    for t in tools:
+        d: dict = {"name": t["name"], "description": t.get("description", "")}
+        params = gemini_schema(t.get("input_schema") or {})
+        if params.get("properties"):
+            d["parameters"] = params
+        decls.append(d)
+    return decls
+
+
+def gemini_contents(messages: list[dict]) -> list[dict]:
+    """루프 이력(`{"role": "user"|"assistant", "content": str}`)을 Gemini `contents` 로.
+
+    Gemini 의 상대 역할명은 `model` 이다. 루프는 도구 결과도 평문 user 로 넣으므로
+    (loop.py `_summarize_for_history`) 여기서 변환할 역할은 두 종뿐이다.
+    """
+    return [
+        {
+            "role": "model" if m["role"] == "assistant" else "user",
+            "parts": [{"text": str(m.get("content", ""))}],
+        }
+        for m in messages
+    ]
+
+
+def gemini_chunk_deltas(chunk: object, next_id) -> list[LlmDelta]:
+    """스트림 chunk 하나를 `LlmDelta` 목록으로 정규화한다.
+
+    SDK 객체를 duck-typing 으로만 읽는다 — 계약 스파이크가 SDK 없이 가짜 chunk 로
+    이 함수를 검증할 수 있어야 한다. Gemini 의 `function_call` 에는 id 가 없을 수
+    있어 `next_id()` 로 합성한다 (루프는 id 를 쓰지 않지만 `ToolUse` 계약은 채운다).
+    """
+    deltas: list[LlmDelta] = []
+    for cand in getattr(chunk, "candidates", None) or []:
+        content = getattr(cand, "content", None)
+        for part in (getattr(content, "parts", None) or []) if content else []:
+            text = getattr(part, "text", None)
+            if text:
+                deltas.append(("text", text))
+            fc = getattr(part, "function_call", None)
+            if fc is not None and getattr(fc, "name", None):
+                deltas.append(
+                    (
+                        "tool_use",
+                        ToolUse(
+                            id=getattr(fc, "id", None) or next_id(),
+                            name=fc.name,
+                            input=dict(getattr(fc, "args", None) or {}),
+                        ),
+                    )
+                )
+    return deltas
+
+
+class GeminiClient:
+    """실제 Gemini 호출 (D56). `google-genai` SDK 스트리밍을 `LlmDelta` 로 정규화한다."""
+
+    def __init__(self, model: str, api_key: str, max_tokens: int = 2048) -> None:
+        from google import genai  # noqa: PLC0415 — 선택적 의존성
+
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
+        self._max_tokens = max_tokens
+
+    def stream(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[LlmDelta]:
+        from google.genai import types  # noqa: PLC0415
+
+        client, model, max_tokens = self._client, self._model, self._max_tokens
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            max_output_tokens=max_tokens,
+            tools=[types.Tool(function_declarations=gemini_declarations(tools))],
+        )
+        contents = gemini_contents(messages)
+
+        async def gen() -> AsyncIterator[LlmDelta]:
+            counter = iter(range(1, 1_000_000))
+
+            def next_id() -> str:
+                return f"fc-{next(counter)}"
+
+            finish = None
+            stream = await client.aio.models.generate_content_stream(
+                model=model, contents=contents, config=config
+            )
+            async for chunk in stream:
+                for delta in gemini_chunk_deltas(chunk, next_id):
+                    yield delta
+                for cand in getattr(chunk, "candidates", None) or []:
+                    finish = getattr(cand, "finish_reason", None) or finish
+            yield ("end", str(finish) if finish else "end_turn")
+
+        return gen()
+
+
+PROVIDERS = ("gemini", "anthropic")
+
+
 def get_client() -> LlmClient:
-    """환경변수로 실제 클라이언트를 만든다.
+    """환경변수로 실제 클라이언트를 만든다 (D56 — 제공자 분기, 기본 gemini).
+
+    env 는 **OS 환경변수가 우선**이고 `.env` 는 빈 곳만 채운다 — 로드 지점은
+    `backend/main.py` 의 `load_dotenv(override=False)` 한 곳이다 (D56).
 
     **키가 없으면 ScriptedClient 로 폴백하지 않고 실패한다 (D40).**
     스크립트는 테스트가 명시적으로 주입할 때만 쓰인다.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    provider = os.environ.get("MAINTQ_LLM_PROVIDER", "gemini").strip().lower()
+    if provider not in PROVIDERS:
+        raise RuntimeError(
+            f"MAINTQ_LLM_PROVIDER 는 {PROVIDERS} 중 하나여야 합니다: {provider!r}"
+        )
+
     model = os.environ.get("MAINTQ_LLM_MODEL", "").strip()
-    missing = [n for n, v in (("ANTHROPIC_API_KEY", api_key), ("MAINTQ_LLM_MODEL", model)) if not v]
+    if provider == "gemini":
+        # SDK 관례상 두 이름이 통용된다 — GEMINI_API_KEY 를 우선하고 GOOGLE_API_KEY 도 인정
+        api_key = (
+            os.environ.get("GEMINI_API_KEY", "").strip()
+            or os.environ.get("GOOGLE_API_KEY", "").strip()
+        )
+        key_label = "GEMINI_API_KEY(또는 GOOGLE_API_KEY)"
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        key_label = "ANTHROPIC_API_KEY"
+
+    missing = [n for n, v in ((key_label, api_key), ("MAINTQ_LLM_MODEL", model)) if not v]
     if missing:
         raise RuntimeError(
-            f".env 에 {' · '.join(missing)} 이(가) 없습니다. "
-            "테스트용 스크립트 응답으로 자동 대체하지 않습니다 (D40) — "
-            "가짜 응답을 진짜로 착각하는 사고를 막기 위해서입니다."
+            f"환경변수(또는 .env)에 {' · '.join(missing)} 이(가) 없습니다 "
+            f"(provider={provider}). 테스트용 스크립트 응답으로 자동 대체하지 않습니다 "
+            "(D40) — 가짜 응답을 진짜로 착각하는 사고를 막기 위해서입니다."
         )
+    if provider == "gemini":
+        return GeminiClient(model=model, api_key=api_key)
     return AnthropicClient(model=model, api_key=api_key)
