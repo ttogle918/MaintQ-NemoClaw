@@ -171,9 +171,15 @@ def run() -> None:
     )
 
     # ── ⑮ 위험 키워드 판정 (safety-guardrail 규칙 2) — MQ-306 이 쓰는 헬퍼
+    # "방열핀…이물질"·"냉각팬…확인"은 실 Gemini 스모크(C-5, 2026-07-27)에서 안전 블록
+    # 없이 통과했던 실측 문장 유형이다 — 키워드를 줄이면 여기서 다시 잡힌다 (★ 음성).
     check(
-        "⑮ needs_safety_block — 위험 키워드 감지",
+        "⑮ needs_safety_block — 위험 키워드 감지 (내부 작업 확장 + 띄어쓰기 정규화)",
         needs_safety_block("커버를 열고 단자대 절연 측정을 진행합니다")
+        and needs_safety_block("방열핀에 이물질이 끼어 있는지 확인하십시오")
+        and needs_safety_block("인버터 냉각팬이 정상 동작하는지 확인하십시오")
+        # 실 Gemini 스모크(C-5)에서 게이트를 통과했던 실측 변주 — 띄어쓰기·외래어
+        and needs_safety_block("냉각 팬 및 히트싱크 점검을 진행하십시오")
         and not needs_safety_block("에러 이력을 조회했습니다")
         and "활선" in DANGER_KEYWORDS,
         f"키워드 {len(DANGER_KEYWORDS)}종",
