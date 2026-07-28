@@ -89,6 +89,13 @@ export interface TraceSession {
   meta: string;
   accent: "blue" | "orange";
   steps: TraceStepData[];
+  /**
+   * 재생(`?replay=…`) 이벤트가 1건 이상 섞인 세션 (D55).
+   * 표식은 백엔드 `TraceWriter(replay=True)` 가 payload 에 심은 `replay: true` 를
+   * **읽기만** 한 결과다 — 프론트가 부여·수정하지 않는다. mock 데이터는 이 필드가
+   * 없으므로(undefined) 배지가 뜨지 않는다.
+   */
+  replay?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */

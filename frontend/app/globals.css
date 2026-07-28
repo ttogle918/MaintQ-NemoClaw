@@ -26,6 +26,8 @@ a:hover { color: #5aa2e0; }
   --orange:#E8590C;--orange-tx:#ff8a4d;--orange-tx2:#ff9a5c;--saf-bd:#E8590C;--saf-bg:linear-gradient(90deg,rgba(232,89,12,.12),rgba(232,89,12,.04));
   --saf-tx:#f0d9cb;--saf-strong:#ffb98a;--saf-cite-tx:#f0a877;--saf-cite-bd:#a6521f;--saf-cite-bg:rgba(232,89,12,.10);
   --ok-tx:#5cc98f;--ok-bd:#2f6e4f;--ok-bg:rgba(46,158,106,.14);
+  /* 장애 전용 적색 (D44) — 오렌지(안전·긴급 전용)와 분리. 4테마 동일값 */
+  --error-dot:#C0392B;--error-tx:#D64545;
   --field:#171b21;--field-tx:#5c646e;--sw:#12151a;--sw-line:#262c35;
 }
 
@@ -39,6 +41,7 @@ a:hover { color: #5aa2e0; }
   --orange:#E8590C;--orange-tx:#ff9a5c;--orange-tx2:#ff9a5c;--saf-bd:#E8590C;--saf-bg:linear-gradient(90deg,rgba(232,89,12,.16),rgba(232,89,12,.05));
   --saf-tx:#f2ddd0;--saf-strong:#ffc39c;--saf-cite-tx:#f2b085;--saf-cite-bd:#b0592a;--saf-cite-bg:rgba(232,89,12,.13);
   --ok-tx:#6fd3a3;--ok-bd:#357a58;--ok-bg:rgba(46,158,106,.16);
+  --error-dot:#C0392B;--error-tx:#D64545;
   --field:#2a3038;--field-tx:#727b85;--sw:#22272e;--sw-line:#343b44;
 }
 
@@ -52,6 +55,7 @@ a:hover { color: #5aa2e0; }
   --orange:#E8590C;--orange-tx:#c2410c;--orange-tx2:#c2410c;--saf-bd:#E8590C;--saf-bg:#fdf1ea;
   --saf-tx:#7a3410;--saf-strong:#b23c08;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
   --ok-tx:#1f7d52;--ok-bd:#9ccbb2;--ok-bg:#e4f4ec;
+  --error-dot:#C0392B;--error-tx:#D64545;
   --field:#f4f5f7;--field-tx:#8c939c;--sw:#eceef1;--sw-line:#d4d8de;
 }
 
@@ -65,6 +69,7 @@ a:hover { color: #5aa2e0; }
   --orange:#E8590C;--orange-tx:#c2410c;--orange-tx2:#c2410c;--saf-bd:#E8590C;--saf-bg:#fff4ee;
   --saf-tx:#7a3410;--saf-strong:#b23c08;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
   --ok-tx:#1f7d52;--ok-bd:#a9d8bf;--ok-bg:#eaf7f0;
+  --error-dot:#C0392B;--error-tx:#D64545;
   --field:#f1f3f5;--field-tx:#a2a9b2;--sw:#ffffff;--sw-line:#e6e9ed;
 }
 

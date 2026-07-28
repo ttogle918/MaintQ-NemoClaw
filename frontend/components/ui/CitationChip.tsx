@@ -37,7 +37,7 @@ export function CitationRow({ citations }: { citations: Citation[] }) {
   return (
     <div style={sx("margin-top:8px;display:flex;gap:6px;flex-wrap:wrap")}>
       {citations.map((c) => (
-        <CitationChip key={`${c.manual}-${c.page}`} citation={c} />
+        <CitationChip key={`${c.label ?? c.manual}-${c.page}`} citation={c} />
       ))}
     </div>
   );

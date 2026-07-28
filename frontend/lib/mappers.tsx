@@ -115,7 +115,8 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
  * `GET /api/po/{id}` 응답에는 인쇄 페이지 필드가 **없고**, 오프셋 변환은 백엔드 렌더
  * 한 곳(`backend.sse.citation_for` → `manifest.to_print_page`)에서만 한다 (D32).
  * 그래서 프론트가 할 수 있는 정직한 표시는 "물리 페이지"뿐이다 —
- * `citationLabel()` 이 `printPage ?? page` 로 물리 페이지를 보여준다.
+ * `citationLabel()` 이 `"{manual} PDF p.{page}"` 병기로 정직하게 표시한다 (W-6 표시측 해소 —
+ * 근본 해소인 `/api/po/{id}` `print_page` 계약 추가는 D 선행 필요라 범위 밖).
  *
  * 이전 구현은 `printPage: page` 를 박았는데, 그러면 offset 이 0 이 아닌 S100(16)에서
  * **물리 p.416 을 인쇄 p.416 인 양** 표시한다. 라벨이 `(PDF p.416)` 병기까지 생략해

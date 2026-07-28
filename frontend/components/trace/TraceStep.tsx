@@ -2,22 +2,16 @@ import { sx } from "@/lib/sx";
 import type { TraceStatus, TraceStepData } from "@/lib/types";
 
 /**
- * 장애 전용 적색 (D44 · 09_RUNTIME §3 "✗ error(붉은 점)").
- *
- * 테마 토큰(globals.css)에는 error 색이 없고, 오렌지는 **안전·긴급 전용**이라
- * 재사용하면 장애와 안전 경고가 같은 색으로 섞인다. 토큰 추가는 4개 테마를 동시에
- * 건드리는 일이라 이 태스크(추가만) 범위 밖이므로 리터럴로 둔다.
- * 다크(--panel #0d1014)·라이트(--panel #fafbfc) 양쪽에서 읽히는 중간 채도를 골랐다.
+ * 장애 전용 적색은 테마 토큰 `--error-dot`/`--error-tx` (globals.css 4테마 공통,
+ * D44 · 09_RUNTIME §3 "✗ error(붉은 점)"). 오렌지는 **안전·긴급 전용**이라 재사용하면
+ * 장애와 안전 경고가 같은 색으로 섞인다.
  */
-const ERROR_DOT = "#C0392B";
-const ERROR_TX = "#D64545";
-
 const DOT: Record<TraceStatus, string> = {
   ok: "background:var(--blue);border:2px solid var(--blue-br);color:#fff",
   warn: "background:var(--orange);border:2px solid var(--orange-tx);color:#fff",
   pending: "background:transparent;border:2px dashed var(--dim3)",
   held: "background:transparent;border:2px solid var(--orange-tx);color:var(--orange-tx)",
-  error: `background:${ERROR_DOT};border:2px solid ${ERROR_TX};color:#fff`,
+  error: "background:var(--error-dot);border:2px solid var(--error-tx);color:#fff",
 };
 
 const GLYPH: Record<TraceStatus, string> = {
@@ -33,7 +27,7 @@ const SUMMARY_COLOR: Record<TraceStatus, string> = {
   warn: "var(--orange-tx2)",
   pending: "var(--dim2)",
   held: "var(--orange-tx2)",
-  error: ERROR_TX,
+  error: "var(--error-tx)",
 };
 
 /**

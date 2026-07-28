@@ -69,6 +69,18 @@ function TraceSessionHeader({ session }: { session: TraceSession }) {
       >
         {session.label}
       </span>
+      {session.replay && (
+        // 재생 세션 표식 (D55 — 표식은 읽기만 한다). 회색(--dim2 계열) 고정:
+        // 오렌지는 안전·긴급 전용, 파랑은 정상 실행이라 어느 쪽도 빌리지 않는다.
+        <span
+          style={sx(
+            "font:600 9px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2);" +
+              "border:1px solid var(--dim3);border-radius:3px;padding:1px 6px;flex-shrink:0"
+          )}
+        >
+          재생 데이터
+        </span>
+      )}
       <div style={sx("flex:1")} />
       <span style={sx("font:10px 'JetBrains Mono',monospace;color:var(--dim2)")}>
         {session.meta}
