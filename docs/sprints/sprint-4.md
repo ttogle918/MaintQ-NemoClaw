@@ -368,3 +368,55 @@ Stage 1 파일 교집합 없음.
   라이브에서 "30일 3회 반복" 맥락이 hold 카드에 안 뜬다 — 목업(`?scenario=s3`)의
   `repeat_banner` 는 mock 전용 데이터라 라이브엔 없음. **PoHold 타입 + PoHoldCard 확장**이
   필요한 후속 과제. MQ-405 에서 다룰지, 백로그로 뺄지 Stage 3 착수 시 판단
+
+---
+
+## Stage 3 완료 (2026-07-28) — **Sprint 4 · M3 종료**
+
+**커밋**: `01f8b77` — `[M3] Sprint 4 Stage 3 — 화면 A 라이브 배선 (M3 종료)`
+
+#### MQ-405
+- `frontend/components/screens/useChatStream.ts`(신규) · `DiagnosticConsole.tsx` ·
+  `app/(console)/technician/page.tsx` · `lib/chatStream.ts` · `lib/types.ts`
+- 라우트 분기: `?scenario=s1|s3`→mock 보존 · `?replay=s1`→live+재생 자동 send ·
+  없음→live 실 루프. 세션 `S-{ts36}`(D36), 장비 선택기(getEquipment, 미선택 null)
+- 실 루프 실패는 백엔드 안내 token 그대로(mock 폴백 금지, D40) · 409 toast(재생 PO-0117)
+
+#### ★ Stage 2 인계 "D45 repeated" 해소 — **PoHold 확장이 아니라 repeat_banner 산출로**
+- Stage 2 는 "PoHold 타입에 repeated 가 없어 못 싣는다"고 봤으나, **더 나은 경로가 있었다**:
+  `repeat_banner` 는 이미 `ChatItem` 종류(types.ts)이고 `ChatThread.tsx:41` 이 이미 렌더한다.
+  즉 MQ-404 가 "배너 만들 구조화 소스 없음"이라 한 건 **오판** — hold payload 의
+  `repeated:{count, window_days}`(D45, `loop.py _hold_block`)가 바로 그 소스다.
+- chatStream 리듀서가 hold 블록에서 `count>0` 이면 `repeat_banner` 를 hold 카드 앞에 산출.
+  badge `{count}×`, content "반복 고장 감지 — 최근 {window_days}일 {count}회". **개별 날짜는
+  payload 에 없어 미생성**(mock 은 "07-01·07-11·07-19"까지 있으나 라이브는 payload 가 주는
+  것만 — 환각 방지). PoHold 타입·PoHoldCard 는 **미변경**
+- **계약 변경 아님 (D 불요)** — repeat_banner ChatItem·hold repeated 둘 다 이미 D22·D45.
+  리듀서가 활용하느냐의 구현 정정. reviewer 확인. types.ts 주석도 정정
+
+#### 구현 결정 (reviewer 수용 3건)
+1. **deferred abort** — StrictMode 이중 mount 에서 즉시 abort 하면 재생 POST 가 끊긴 채
+   가드에 막히므로 `setTimeout(0)` 으로 미루고 재-mount 가 취소. 프로덕션 동작 동일·누수 없음
+2. **replay 데모 equipmentId=null → error_log 스킵** — `_replay_s1` 은 입력 무관이라 정합
+   (replay DoD 에 error_log 없음)
+3. **repeat_banner 경로** — PoHold 확장 대신 기존 ChatItem 재사용 (위 ★)
+
+#### 회귀
+- 243건(16스위트) + ruff + `tsc --noEmit` + `next build`(`/technician` 9.71kB) 전 통과
+  · reviewer PASS(블로커 0 · 경고 0 · 참고 2)
+
+#### 수동 검증 대기 (사용자가 Stage 1~3 한꺼번에 육안 예정)
+- `?replay=s1` 관통(도구 4스텝 A1·안전 블록이 위험 서술 앞·인용·PO 카드·`재생 데이터` 배지)
+- `?scenario=s3` → live 아님(목업 보존). **라이브 S3 반복 배너**는 실 루프(키·error_codes
+  필요)라 재생으론 안 뜸 — 라이브 hold 경로는 error_codes 승인 후 육안 가능
+- 키 없는 `/technician` live → 안내 token agent 버블, 빈 화면 없음
+- 스트리밍 중 라우트 이탈 → 콘솔 에러 0
+
+## Sprint 4 종료 상태
+
+- **M3 완료**: 화면 A(라이브 SSE + replay 데모) · 화면 B(Sprint 3) · 표시 규약 정리
+  (N-b·N-c·W-6·error 색 토큰·replay 배지·repeat_banner 라이브 산출)
+- 회귀 243건 유지 + 정적 3종. 백엔드는 D56 dotenv 핫픽스 외 무변경
+- 다음(M4): `eval/testset.json` 20문항 + 실 DB 채점 배선(`has_replay` 분모 제외) ·
+  환각률 LLM judge · 데모 영상 · README. 사람 항목: `error_codes` 승인(라이브 S1·S3 데모의
+  전제) · related_parts 검수 · 안전 문안/키워드 검수 · W-6 근본 해소 D 여부
