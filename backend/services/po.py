@@ -19,6 +19,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from backend import manifest
 from backend.db import connect
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
@@ -123,6 +124,31 @@ def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict
         return [_row_to_po(r) for r in con.execute(sql, args).fetchall()]
 
 
+def _attach_print_pages(po: dict) -> None:
+    """`evidence.basis[]` 각 항목에 `print_page` 를 얹는다 (D57 — W-6 근본 해소).
+
+    저장(`evidence` 컬럼)은 물리 페이지 그대로다(D26 불변) — 이 계산은 **응답 조립
+    시점**에만 하고 DB 에 쓰지 않는다. SSE 경로의 `sse.citation_for()` 와 나란한
+    REST 경로의 렌더 지점이고, 오프셋 산술 자체는 두 경로 모두 `manifest.to_print_page()`
+    한 곳에 위임한다(D32 원 취지 — "1곳"은 이 공유 함수를 뜻하지 REST·SSE 각자의
+    호출 지점을 하나로 합치라는 뜻이 아니다).
+
+    `model` 이 NULL(에러코드 승인 전의 현재 시드 — D33 은 이 상태를 허용)이거나
+    `manual_page` 가 없으면 **필드 자체를 뺀다** — 지어낸 값을 얹지 않는다. 프론트의
+    "PDF p." 폴백(W-6 표시측, Stage 1)이 그 경우를 계속 정직하게 표시한다.
+    """
+    model = po.get("model")
+    if model not in manifest.MODELS:
+        return
+    evidence = po.get("evidence")
+    if not evidence:
+        return
+    for entry in evidence.get("basis") or []:
+        page = entry.get("manual_page")
+        if isinstance(page, int) and not isinstance(page, bool) and page >= 1:
+            entry["print_page"] = manifest.to_print_page(model, page)
+
+
 def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
@@ -130,6 +156,7 @@ def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
         if r is None:
             return None
         po = _row_to_po(r)
+        _attach_print_pages(po)
 
         po["quotes"] = [
             dict(q)

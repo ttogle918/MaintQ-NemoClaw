@@ -90,6 +90,11 @@ def run(client) -> None:
         f"quotes={len(d['quotes'])}, 재고={d['inventory']['qty']}, trace={d['trace_url']}",
     )
     check(
+        "②-b D57 — 현재 시드(model 미확정)는 print_page 를 안 붙인다",
+        all("print_page" not in b for b in d["evidence"]["basis"]),
+        f"basis keys={[sorted(b) for b in d['evidence']['basis']]}",
+    )
+    check(
         "③ D36 표시명은 서버가 매핑",
         d["requested_by"] == "tech-01" and d["requested_by_name"] == "김OO",
         f"{d['requested_by']} → {d['requested_by_name']}",
@@ -219,6 +224,54 @@ def run(client) -> None:
     )
 
 
+def run_print_page_checks() -> None:
+    """`_attach_print_pages` (D57) 순수 함수 검증 — DB·HTTP 없이 딕셔너리로만.
+
+    ②-b 가 "현재 시드(model 미확정)는 안 붙인다"를 실측했으니, 여기서는 **model 이
+    있을 때** 오프셋 산술이 실제로 맞는지 본다 — DB 를 mutate 하지 않고 함수를 직접 호출한다.
+    """
+    from backend.services.po import _attach_print_pages  # noqa: PLC0415
+
+    # ㉔ iG5A(offset 0) — 물리=인쇄 이므로 값이 그대로
+    po = {"model": "iG5A", "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
+    _attach_print_pages(po)
+    check(
+        "㉔ D57 print_page — iG5A(offset 0): 202 → 202",
+        po["evidence"]["basis"][0].get("print_page") == 202,
+        f"{po['evidence']['basis'][0]}",
+    )
+
+    # ㉕ S100(offset 16) — 실제 환산이 걸리는 케이스 (★ 음성: 202 그대로면 오프셋 미적용)
+    po = {"model": "S100", "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
+    _attach_print_pages(po)
+    check(
+        "㉕ D57 print_page — S100(offset 16): 202 → 186 (★ 음성: 202 면 오프셋 미적용)",
+        po["evidence"]["basis"][0].get("print_page") == 186,
+        f"{po['evidence']['basis'][0]}",
+    )
+
+    # ㉖ model 없음 → 필드 자체를 안 붙인다 (지어낸 값 금지)
+    po = {"model": None, "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
+    _attach_print_pages(po)
+    check(
+        "㉖ D57 print_page — model 없음 → 필드 없음",
+        "print_page" not in po["evidence"]["basis"][0],
+        f"{po['evidence']['basis'][0]}",
+    )
+
+    # ㉗ basis 항목에 manual_page 자체가 없으면(예: search_inventory) 그 항목은 그대로
+    po = {
+        "model": "iG5A",
+        "evidence": {"basis": [{"tool": "search_inventory", "part_no": "FAN-IG5-01"}]},
+    }
+    _attach_print_pages(po)
+    check(
+        "㉗ D57 print_page — manual_page 없는 basis 항목은 무영향",
+        "print_page" not in po["evidence"]["basis"][0],
+        f"{po['evidence']['basis'][0]}",
+    )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
@@ -241,6 +294,7 @@ def main() -> None:
 
         with TestClient(app) as client:
             run(client)
+        run_print_page_checks()
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 40))

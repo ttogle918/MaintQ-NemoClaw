@@ -106,11 +106,14 @@ def citation_block(manual: str, page: int, print_page: int, section: str | None 
 
 
 def citation_for(model: str, page: int, section: str | None = None) -> SseEvent:
-    """model + PDF 물리 페이지로 인용 블록을 만든다 — **오프셋 변환의 유일한 지점** (D32).
+    """model + PDF 물리 페이지로 인용 블록을 만든다 — **SSE 경로에서 오프셋 변환이 일어나는
+    유일한 지점** (D32). REST 경로(`GET /api/po/{id}`)의 동치 지점은
+    `backend.services.po._attach_print_pages` 이다 (D57) — 둘 다 산술 자체는
+    `manifest.to_print_page()` 한 함수에 위임하고 재구현하지 않는다.
 
     호출자(에이전트 루프·라우터)는 도구 결과의 물리 페이지를 그대로 넘기면 된다.
-    manifest 조회와 인쇄 페이지 환산은 전부 여기 안에서 끝난다. 다른 곳에서
-    `print_page` 를 직접 계산하면 D32 의 "변환은 1곳"이 깨진다.
+    manifest 조회와 인쇄 페이지 환산은 전부 여기 안에서 끝난다. 이 경로 밖에서
+    `print_page` 를 직접 계산하면 D32 의 "산술은 1곳"이 깨진다.
 
     payload 의 `page` 는 **항상 PDF 물리 원본**이다 (D26) — 인용률 판정이 이 값을
     traces 의 lookup/rag 결과와 대조한다. `print_page` 는 표시용이고, 1 미만이 되는

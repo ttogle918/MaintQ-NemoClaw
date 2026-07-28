@@ -147,6 +147,9 @@ export interface ApiBasis {
   tool?: string;
   code?: string;
   manual_page?: number;
+  /** 인쇄 페이지 (D57) — `model`·`manual_page` 둘 다 유효할 때만 백엔드가 붙인다. 없으면
+   *  인쇄 페이지 미상 — 프론트가 계산해 채우지 않는다(D32, 오프셋 변환은 백엔드 1곳). */
+  print_page?: number;
   [k: string]: unknown;
 }
 

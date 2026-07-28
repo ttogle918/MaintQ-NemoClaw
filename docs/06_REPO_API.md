@@ -158,6 +158,11 @@ GET /api/chat/{session_id}/trace     # trace 전체 조회 — traces 테이블 
 GET  /api/po?state=pending           # 승인 큐 (manager)
 GET  /api/po/{po_id}                 # 상세: reason(한 줄 요약) + evidence(관찰 현상·근거·비고, D34)
                                      #     + model/error_code(D33) + trace 링크(session_id → /trace) + 공급사 비교
+                                     # evidence.basis[] 의 각 항목은 `manual_page`(PDF 물리, D26 불변)
+                                     #   + 선택적 `print_page`(인쇄 페이지, D57) — model·manual_page 가
+                                     #   둘 다 유효할 때만 응답 조립 시점에 계산해 붙는다(저장 안 함).
+                                     #   model 미확정(에러코드 승인 전 등)이면 필드가 아예 없다 — 화면은
+                                     #   그때 "PDF p." 로 정직하게 병기한다(W-6 표시측, Stage 1)
 POST /api/po/{po_id}/submit          # draft → pending   (technician만)
 POST /api/po/{po_id}/approve         # pending → approved (manager만)
 POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason} — 필수, D38)

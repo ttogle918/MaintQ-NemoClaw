@@ -110,24 +110,26 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
 /**
  * basis 안의 `manual_page` 를 인용 칩으로.
  *
- * **`printPage` 를 지정하지 않는다 (C-11 · D26 · D32).**
+ * **`printPage` 는 백엔드가 준 값을 그대로 옮길 뿐, 여기서 계산하지 않는다 (D26·D32·D57).**
  * `evidence.basis[].manual_page` 는 PDF **물리** 페이지다 (D26 — 저장·검증의 단일 기준).
- * `GET /api/po/{id}` 응답에는 인쇄 페이지 필드가 **없고**, 오프셋 변환은 백엔드 렌더
- * 한 곳(`backend.sse.citation_for` → `manifest.to_print_page`)에서만 한다 (D32).
- * 그래서 프론트가 할 수 있는 정직한 표시는 "물리 페이지"뿐이다 —
- * `citationLabel()` 이 `"{manual} PDF p.{page}"` 병기로 정직하게 표시한다 (W-6 표시측 해소 —
- * 근본 해소인 `/api/po/{id}` `print_page` 계약 추가는 D 선행 필요라 범위 밖).
+ * `print_page` 는 `GET /api/po/{id}` 가 응답 조립 시점에 계산해 붙인 값(D57,
+ * `backend.services.po._attach_print_pages` → `manifest.to_print_page`) — 오프셋
+ * 변환은 여전히 그 한 곳에서만 하고, 프론트는 옮겨 적기만 한다 (D32 불변).
  *
- * 이전 구현은 `printPage: page` 를 박았는데, 그러면 offset 이 0 이 아닌 S100(16)에서
- * **물리 p.416 을 인쇄 p.416 인 양** 표시한다. 라벨이 `(PDF p.416)` 병기까지 생략해
- * 틀렸다는 사실조차 화면에서 사라진다 — D32 가 막으려던 바로 그 문제다.
- * 인쇄 페이지를 여기서 계산해 메우면 변환 지점이 두 곳이 되므로 그것도 답이 아니다.
- * 필요해지면 `/api/po/{id}` 가 `print_page` 를 실어 보내는 **계약 변경**이 선행돼야 한다.
+ * `model` 이 미확정(에러코드 승인 전 등)이거나 `manual_page` 가 없으면 백엔드가 `print_page`
+ * 를 아예 안 보낸다 — 이때 `printPage` 를 `page` 로 채우면 offset 이 0 이 아닌 S100(16)에서
+ * **물리 p.416 을 인쇄 p.416 인 양** 표시하게 된다(D32 가 막으려던 문제). 그래서 `printPage`
+ * 는 **없으면 undefined 로 둔다** — `citationLabel()` 이 그 경우 `"{manual} PDF p.{page}"`
+ * 로 정직하게 병기한다 (W-6 표시측 해소, Stage 1).
  */
 function firstCitation(po: ApiPo): Citation | undefined {
-  const page = po.evidence?.basis?.find((b) => typeof b.manual_page === "number")?.manual_page;
-  if (typeof page !== "number") return undefined;
-  return { manual: `${po.model ?? ""} 매뉴얼`.trim(), page };
+  const basis = po.evidence?.basis?.find((b) => typeof b.manual_page === "number");
+  if (!basis || typeof basis.manual_page !== "number") return undefined;
+  return {
+    manual: `${po.model ?? ""} 매뉴얼`.trim(),
+    page: basis.manual_page,
+    printPage: typeof basis.print_page === "number" ? basis.print_page : undefined,
+  };
 }
 
 function relativeTime(iso: string): string {

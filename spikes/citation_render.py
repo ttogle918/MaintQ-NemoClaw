@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """MQ-312 — manifest 로더 + 인쇄 페이지 환산 검증 (D19 · D26 · D32 · D49).
 
-검증 질문:
-  오프셋 변환이 **백엔드 렌더 1곳**(`sse.citation_for`)에서만 일어나고,
+검증 질문 (범위: **SSE 경로**만 — REST 경로의 동치 검증은 `spikes/api_contract.py` 참조):
+  오프셋 산술이 `manifest.to_print_page()` **한 함수**에만 있고 (D32 —
+  SSE 의 `sse.citation_for()` 와 REST 의 `backend.services.po._attach_print_pages()`,
+  D57 이 둘 다 이 함수를 호출만 할 뿐 자체 산술을 하지 않는다),
   payload 의 `page` 는 언제나 PDF 물리 원본이며 (D26),
   환산 결과가 1 미만이면 음수를 노출하지 않는가 (D49)?
 
@@ -230,7 +232,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[MQ-312 실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\nMQ-312 통과 ({len(results)}건) — 오프셋 변환은 citation_for 1곳, page 는 물리 원본")
+    print(
+        f"\nMQ-312 통과 ({len(results)}건) — 오프셋 산술은 to_print_page 1함수"
+        "(SSE·REST 공유, D57), page 는 물리 원본"
+    )
 
 
 if __name__ == "__main__":
