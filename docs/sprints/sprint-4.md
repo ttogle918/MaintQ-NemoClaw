@@ -279,3 +279,37 @@ Stage 1 파일 교집합 없음.
   환각률 LLM judge · 데모 영상 · README
 
 실행: `/stage 1`
+
+---
+
+## Stage 1 완료 (2026-07-28)
+
+**커밋**: `25b0a98` — `[M3] Sprint 4 Stage 1 — trace 표시 규약·replay 배지 · composer 실 입력 · 인용 라벨 정직화`
+
+#### MQ-401
+- `frontend/lib/trace.ts` · `lib/types.ts` · `components/trace/TraceStep.tsx` ·
+  `components/trace/TracePanel.tsx` · `app/globals.css`
+- Stage 2 계약 export 확정: `stepFromCall(tool, input)` ·
+  `stepPatchFromResult(data) → {summary, status}` · `isHoldCard` · `HOLD_STEP`
+- 구현 해석 1건: **혼재 세션 elapsed 합산에서 replay 행 제외** — MQ-404 명세의
+  "replay===true 면 elapsed 합산 제외" 문구와 정합을 맞춘 것. 의도와 다르면
+  trace.ts 의 `if (ev.data.replay !== true) elapsed +=` 한 줄 되돌리면 됨
+
+#### MQ-402
+- `frontend/components/chat/ChatComposer.tsx` 단독
+- 구현 해석 1건: `onSend` 미지정 시 "무동작"을 no-op 으로 — 입력 텍스트 유지
+
+#### MQ-403
+- `frontend/lib/citation.ts` · `components/ui/CitationChip.tsx` · `lib/mappers.tsx`
+- **명세 문면 불일치 기록** (reviewer 참고 1): 명세는 mappers 를 "주석 정합만"이라
+  썼으나 실제로는 `firstCitation` 의 `printPage: page` 지정 제거가 필요했다(코드 1줄).
+  같은 명세의 DoD 가 "mappers 가 printPage 를 안 넣으므로 라벨이 바뀐다"고 명시해
+  문면끼리 모순 — 구현은 DoD·D32(물리를 인쇄인 양 표시 금지) 쪽을 따랐다
+- label 우선 시 section 무시 — 백엔드 label 이 section 을 이미 포함(sse.py)하므로
+  이중 표기 방지. reviewer 타당 판정
+
+#### 회귀
+- 241건(16스위트) + ruff + `tsc --noEmit` + `next build` 전 통과 · reviewer PASS
+  (블로커 0 · 경고 0 · 참고 3)
+- Stage 2 인계 사항: `types.ts:107` 의 repeat_banner 주석이 MQ-404 명세("배너 없음이
+  의도")와 표현 불일치 — MQ-404 구현 시 주석 정합 필요 (reviewer 참고 2)
