@@ -42,11 +42,11 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 | `/checkpoint` | 중단 시점 저장 (`sprint-N-wip.md`) |
 | `/done` | 세션 마무리 — 로그(`docs/sessions/`) + **D 범위 표기 정합성 점검** |
 
-회귀 스위트(고정, 총 241건 + 정적 3종): `data/seed.py` 11 · `spikes/` 아래
+회귀 스위트(고정, 총 243건 + 정적 3종): `data/seed.py` 11 · `spikes/` 아래
 sp2_mcp_roundtrip 15 · write_tool_contract 14 · api_contract 23 · sp3_sse_events 22 ·
 trace_persist 14 · mcp_client_contract 15 · prompt_rules 16 · lookup_contract 12 ·
 citation_render 13 · db_concurrency 13 · rag_contract 12 · agent_loop_contract 22 ·
-eval_score_contract 17 · s4_smoke 10 · llm_provider_contract 12.
+eval_score_contract 17 · s4_smoke 10 · llm_provider_contract 14.
 정적: `ruff check` · `tsc --noEmit` · `next build`. 계약이 깨지면 여기서 먼저 잡힌다.
 
 ## 현재 상태

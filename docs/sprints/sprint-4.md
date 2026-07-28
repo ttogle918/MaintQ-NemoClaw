@@ -313,3 +313,25 @@ Stage 1 파일 교집합 없음.
   (블로커 0 · 경고 0 · 참고 3)
 - Stage 2 인계 사항: `types.ts:107` 의 repeat_banner 주석이 MQ-404 명세("배너 없음이
   의도")와 표현 불일치 — MQ-404 구현 시 주석 정합 필요 (reviewer 참고 2)
+
+#### 수동 검증 (2026-07-28, Claude in Chrome 브라우저 자동화)
+
+**전부 확인 (✅)**
+- `/manager/trace/S1`(재생 세션 주입) — `재생 데이터` 회색 배지 · meta `4 calls · 재생`
+  (초 표기 없음) · 도구 4스텝 렌더
+- `/manager/trace/SERR`(상태 혼합 주입) — timeout 행 `✗` **글리프 1회만** + summary
+  "timeout · …"(접두 제거, N-c 해소) · meta `10.5s · 4 calls` 실측 형식 · 배지 없음 ·
+  ok/error/warn/pending 4상태 구분 렌더
+- error 색 **4테마 전부 가독** (다크·다크그레이·그레이·라이트 — 라이트 2테마 신규 확인)
+- `/manager/po/PO-0117` live — DIAGNOSIS 칩 `매뉴얼 PDF p.202` (**"PDF" 병기 적용**,
+  W-6 표시측 해소. "iG5A" 접두가 없는 건 시드의 `model=NULL` 때문 — firstCitation 구현대로)
+- `/technician?scenario=s1`·`s3` 목업 — 기존과 동일 (안전 블록·HOLD 카드·held 행 무변화)
+- composer — 한글 입력 정상 표시, Enter 후 무동작·텍스트 유지(mock no-op 구현대로), 크래시 없음.
+  ※ 실 IME 조합 이중 전송은 자동화로 재현 불가(CDP 는 조합 이벤트를 안 태움) — 사람 확인 항목으로 유지
+
+**검증이 잡은 결함 → 핫픽스 (스테이지 밖 백엔드 수정)**
+- **`.env` 의 빈 키가 기본값을 지움 (D56 구현 결함)** — `.env.example` 복사로 생긴
+  `MAINTQ_CORS_ORIGINS=`(빈 값)을 dotenv 가 빈 문자열로 로드 → `.get(키, 기본값)` 패턴이
+  "설정됨"으로 인식 → CORS 기본 범위(3000~3005)가 전멸해 브라우저 fetch 전부 실패.
+  `or` 패턴으로 수정(main.py CORS·MCP_AUTOSTART, llm.py provider — db.py·rag.py 는 원래
+  `or` 패턴이라 안전). 음성 검증 ⑬⑭ 를 llm_provider_contract 에 추가 (12→14건, 총 243건)

@@ -252,7 +252,8 @@ def get_client() -> LlmClient:
     **키가 없으면 ScriptedClient 로 폴백하지 않고 실패한다 (D40).**
     스크립트는 테스트가 명시적으로 주입할 때만 쓰인다.
     """
-    provider = os.environ.get("MAINTQ_LLM_PROVIDER", "gemini").strip().lower()
+    # `or` — .env 의 빈 키(`MAINTQ_LLM_PROVIDER=`)는 미설정과 같다 (D56, main.py CORS 와 동일 근거)
+    provider = (os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini").strip().lower()
     if provider not in PROVIDERS:
         raise RuntimeError(
             f"MAINTQ_LLM_PROVIDER 는 {PROVIDERS} 중 하나여야 합니다: {provider!r}"

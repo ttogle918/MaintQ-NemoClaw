@@ -214,6 +214,36 @@ def run() -> None:
                 str(e)[:60],
             )
 
+    # ── ⑬ D56 — .env 의 빈 키는 미설정과 같다 (기본값을 지우면 안 된다)
+    # .env.example 을 복사하면 `MAINTQ_LLM_PROVIDER=` 같은 빈 키가 생기고 dotenv 가
+    # 빈 문자열로 os.environ 에 넣는다. `.get(키, 기본값)` 패턴은 이걸 "설정됨"으로 봐서
+    # 기본값이 사라진다 — Stage 1 브라우저 검증에서 CORS 가 정확히 이걸로 전멸했다.
+    with env(MAINTQ_LLM_PROVIDER="", GOOGLE_API_KEY="fake-key", MAINTQ_LLM_MODEL="gemini-2.5-flash"):
+        c13 = get_client()
+    check(
+        "⑬ D56 — 빈 문자열 provider → 기본 gemini 적용 (★ 음성: .get 패턴이면 RuntimeError)",
+        isinstance(c13, GeminiClient),
+        type(c13).__name__,
+    )
+
+    # ── ⑭ D56 — 빈 MAINTQ_CORS_ORIGINS 도 기본 범위(3000~3005) 유지
+    saved_cors = os.environ.get("MAINTQ_CORS_ORIGINS")
+    os.environ["MAINTQ_CORS_ORIGINS"] = ""
+    try:
+        import backend.main as _main  # noqa: PLC0415 — env 설정 후 import 가 요점
+
+        cors_ok = "http://localhost:3003" in _main.ALLOWED_ORIGINS
+    finally:
+        if saved_cors is None:
+            os.environ.pop("MAINTQ_CORS_ORIGINS", None)
+        else:
+            os.environ["MAINTQ_CORS_ORIGINS"] = saved_cors
+    check(
+        "⑭ D56 — 빈 MAINTQ_CORS_ORIGINS → 기본 dev 범위 유지 (브라우저 검증 실측 결함)",
+        cors_ok,
+        f"origins={len(_main.ALLOWED_ORIGINS)}개",
+    )
+
     # ── ⑫ OS env 우선 — load_dotenv(override=False) 가 기존 값을 덮지 않는다 (D56)
     # (a) 우리 코드가 그렇게 부르는지 — main.py 소스에 override=False 가 박혀 있어야 한다.
     #     True 로 바뀌면 .env 가 OS 환경변수를 조용히 덮어 "어느 키로 돌았는지"가 사라진다.

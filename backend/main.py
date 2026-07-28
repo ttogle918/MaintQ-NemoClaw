@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # MCP 서브프로세스 기동을 끄는 탈출구. 라우터 계약만 보는 회귀(api_contract)가
 # 매번 stdio 서버를 띄우지 않아도 되게 한다. 기본값은 켜짐 — 데모·개발에서
 # 끄는 걸 잊으면 도구가 통째로 죽은 걸 늦게 알아차린다.
-MCP_AUTOSTART = os.environ.get("MAINTQ_MCP_AUTOSTART", "1") not in ("0", "false", "False")
+MCP_AUTOSTART = (os.environ.get("MAINTQ_MCP_AUTOSTART") or "1") not in ("0", "false", "False")
 
 
 @asynccontextmanager
@@ -70,9 +70,14 @@ _DEFAULT_ORIGINS = ",".join(
     f"http://{host}:{port}" for port in DEV_PORTS for host in ("localhost", "127.0.0.1")
 )
 
+# `or` 가 핵심이다 — `.get(키, 기본값)` 은 **빈 문자열을 "설정됨"으로** 본다.
+# .env.example 을 복사하면 `MAINTQ_CORS_ORIGINS=` 처럼 빈 키가 생기고, D56 의
+# load_dotenv 가 그걸 빈 문자열로 os.environ 에 넣는다 — 그 순간 기본 범위(3000~3005)가
+# 통째로 사라져 브라우저 fetch 가 전부 CORS 로 죽는다 (Stage 1 브라우저 검증에서 실측).
+# D56 취지는 ".env 는 빈 곳만 채운다"이므로 빈 값은 미설정과 같아야 한다.
 ALLOWED_ORIGINS = [
     o.strip()
-    for o in os.environ.get("MAINTQ_CORS_ORIGINS", _DEFAULT_ORIGINS).split(",")
+    for o in (os.environ.get("MAINTQ_CORS_ORIGINS") or _DEFAULT_ORIGINS).split(",")
     if o.strip()
 ]
 
