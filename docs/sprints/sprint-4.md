@@ -405,18 +405,37 @@ Stage 1 파일 교집합 없음.
 - 243건(16스위트) + ruff + `tsc --noEmit` + `next build`(`/technician` 9.71kB) 전 통과
   · reviewer PASS(블로커 0 · 경고 0 · 참고 2)
 
-#### 수동 검증 대기 (사용자가 Stage 1~3 한꺼번에 육안 예정)
-- `?replay=s1` 관통(도구 4스텝 A1·안전 블록이 위험 서술 앞·인용·PO 카드·`재생 데이터` 배지)
-- `?scenario=s3` → live 아님(목업 보존). **라이브 S3 반복 배너**는 실 루프(키·error_codes
-  필요)라 재생으론 안 뜸 — 라이브 hold 경로는 error_codes 승인 후 육안 가능
-- 키 없는 `/technician` live → 안내 token agent 버블, 빈 화면 없음
-- 스트리밍 중 라우트 이탈 → 콘솔 에러 0
+#### 수동 검증 (2026-07-28, Claude in Chrome 브라우저 자동화 — Stage 1~3 종합)
+
+**전부 확인 (✅)**
+- `/technician?replay=s1` 관통 — 도구 4스텝 A1 순서(pending→ok) · 안전 블록이 위험 서술
+  ("커버를 열고 냉각팬 커넥터를…") **앞**(D22) · 인용 `iG5A 매뉴얼 p.202` · PO 카드 ·
+  trace 패널 `4 calls · 재생` + `재생 데이터` 배지
+- **실 Gemini 1턴 라이브** (`/technician`, 장비 선택 후 진단 메시지) — `lookup_error_code` 가
+  `catalog_not_loaded` 로 정직 실패(D50, 붉은 X)하고 에이전트가 환각 없이 그대로 안내.
+  실 API·실 MCP 관통 확인
+- `/technician?scenario=s1`·`s3` — 목업 기존과 완전히 동일 (안전 블록·HOLD 카드·held 취소선 등)
+- 스트리밍 중 라우트 이탈(`?replay=s1` → `/manager`) — 콘솔 에러 0, D42 취소 안전 확인
+- Stage 1 항목 재확인 — N-c 단일 `✗`, error 색 4테마, W-6 `PDF p.` 라벨 전부 유지
+
+**검증이 잡은 결함 → 핫픽스 (커밋 `264a113`)**
+- **화면 A 라이브 세션 ID 하이드레이션 불일치** — `LiveConsole` 이
+  `useState(() => \`S-${Date.now().toString(36)}\`)` 로 세션 ID 를 초기 렌더에서 만들어
+  SSR·클라이언트 hydration 패스가 서로 다른 시각을 찍었다. `TracePanel` 의 `SESSION #…`
+  텍스트가 갈려 **`/technician` live 모드 접속마다 100% 재현**되는 React hydration mismatch —
+  Next dev 오버레이에 "1 error" 뜨고 전체 트리가 클라이언트 재렌더로 강등됨.
+  세션 ID 를 `useEffect`(클라이언트 전용, mount 이후)로 미루고 그 전엔 `null` 을 동일하게
+  그리도록 `LiveConsole`(게이트)/`LiveConsoleReady`(기존 로직)로 분리. 하드 리로드(진짜
+  SSR+hydration) 재검증으로 해소 확인 — 콘솔 에러 0. 회귀 243건 + 정적 3종 재통과
 
 ## Sprint 4 종료 상태
 
-- **M3 완료**: 화면 A(라이브 SSE + replay 데모) · 화면 B(Sprint 3) · 표시 규약 정리
-  (N-b·N-c·W-6·error 색 토큰·replay 배지·repeat_banner 라이브 산출)
+- **M3 완료 — 수동 검증까지 마침**: 화면 A(라이브 SSE + replay 데모, 실 Gemini 관통 확인) ·
+  화면 B(Sprint 3) · 표시 규약 정리(N-b·N-c·W-6·error 색 토큰·replay 배지·repeat_banner
+  라이브 산출) · 하이드레이션 결함 없음
 - 회귀 243건 유지 + 정적 3종. 백엔드는 D56 dotenv 핫픽스 외 무변경
+- **라이브 S3 반복 배너**는 `error_codes` 승인 + 반복 이력 없이는 육안 불가로 남음
+  (repeat_banner 산출 로직 자체는 Stage 3 에서 코드로 검증됨)
 - 다음(M4): `eval/testset.json` 20문항 + 실 DB 채점 배선(`has_replay` 분모 제외) ·
   환각률 LLM judge · 데모 영상 · README. 사람 항목: `error_codes` 승인(라이브 S1·S3 데모의
   전제) · related_parts 검수 · 안전 문안/키워드 검수 · W-6 근본 해소 D 여부
