@@ -335,3 +335,36 @@ Stage 1 파일 교집합 없음.
   "설정됨"으로 인식 → CORS 기본 범위(3000~3005)가 전멸해 브라우저 fetch 전부 실패.
   `or` 패턴으로 수정(main.py CORS·MCP_AUTOSTART, llm.py provider — db.py·rag.py 는 원래
   `or` 패턴이라 안전). 음성 검증 ⑬⑭ 를 llm_provider_contract 에 추가 (12→14건, 총 243건)
+
+---
+
+## Stage 2 완료 (2026-07-28)
+
+**커밋**: `14596ee` — `[M3] Sprint 4 Stage 2 — SSE 스트림 리듀서 (lib/chatStream.ts)`
+
+#### MQ-404
+- `frontend/lib/chatStream.ts` (신규, 434줄) · `frontend/lib/types.ts`(repeat_banner 주석 1줄)
+- **구현 결정 (reviewer 수용 3건)**:
+  1. **trace 를 `toTraceSession` 통째 재계산** — 리듀서가 `stepFromCall`/`stepPatchFromResult`
+     를 직접 부르는 대신, tool/block 이벤트를 `ApiTraceEvent[]` 로 누적 후 매 이벤트마다
+     `toTraceSession()` 재계산. FIFO·replay·N-b meta·HOLD_STEP 로직이 한 곳(MQ-401)에서만
+     나와 "화면 A·B 가 같은 스텝"(스테이지 구성 근거)에 **더 정합**. 명세 이탈 아님
+  2. **`ChatStreamState._ctx` 내부 필드** — 공개 4필드(items/trace/streaming/error)는 명세대로,
+     페어링 상태·equipmentId 는 `_ctx`(readonly, 매 reduce 마다 신규 생성). 순수 2-인자
+     리듀서 유지용. 소비자는 4필드만 읽음
+  3. **`runChatTurn` 이 user 버블 seed** — 명세 침묵 부분. 사용자 입력 문장이 화면에 남게
+     러너가 `{kind:"user"}` 를 심음
+- 회귀: 243건(16스위트) + ruff + `tsc --noEmit` + `next build` 전 통과 · reviewer PASS
+  (블로커 0 · 경고 0 · 참고 3)
+
+#### Stage 3(MQ-405) 인계 사항 — reviewer 지적
+- **★ user 버블 중복 seed 주의**: `runChatTurn`(`seedTurn`)이 user 버블을 **이미 심는다**.
+  MQ-405 의 `useChatStream`/`DiagnosticConsole` 이 사용자 버블을 또 append 하면 중복 —
+  **재삽입 금지** (명세 §MQ-405 핵심로직 4 "사용자 메시지 버블도 items 맨 앞에"는 러너가
+  이미 수행하므로 화면 쪽에서 하지 말 것)
+- **`_ctx` 는 내부**: `useChatStream` 소비 측은 공개 4필드만 읽을 것 (계약 불변)
+- **D45 `repeated` 정보 손실 (참고 1)**: 백엔드 hold payload 는 `repeated:{count, window_days}`
+  를 담지만 `PoHold` 타입(types.ts, MQ-401 소유)에 필드가 없어 `toHold` 가 못 싣는다. S3
+  라이브에서 "30일 3회 반복" 맥락이 hold 카드에 안 뜬다 — 목업(`?scenario=s3`)의
+  `repeat_banner` 는 mock 전용 데이터라 라이브엔 없음. **PoHold 타입 + PoHoldCard 확장**이
+  필요한 후속 과제. MQ-405 에서 다룰지, 백로그로 뺄지 Stage 3 착수 시 판단
