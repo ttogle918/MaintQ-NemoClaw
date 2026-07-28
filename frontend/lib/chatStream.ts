@@ -37,10 +37,13 @@
  * 기대 최종 items: [error_log?, agent#1(cite 202), safety, agent#2, po_draft]
  * 기대 trace: 4 calls · 재생 + `재생 데이터` 배지(TracePanel), 각 스텝 pending→ok.
  *
- * ## repeat_banner 는 이 리듀서의 산출물이 아니다 (의도)
- * hold payload 의 `repeated` 는 hold 카드 안에서 렌더될 뿐이고, 별도 배너를 만들 구조화
- * 소스(도구 결과)가 SSE 스트림에 없다. S3 라이브에서 배너 없이 hold 카드만 뜨는 것이
- * **의도**다 — summary 파싱 같은 우회로 배너를 지어내지 않는다 (D35·D45).
+ * ## repeat_banner 는 hold payload 의 `repeated` 로 산출한다 (MQ-405 정정)
+ * hold payload(`backend/agent/loop.py _hold_block`)는 `repeated:{count, window_days}` 를
+ * 담는다(D45). `repeated.count > 0` 이면 hold 카드(po_hold) **앞에** `repeat_banner` 를
+ * push 한다 — 배너 소스는 이 구조화 payload 이지, summary 파싱 같은 우회가 아니다.
+ * 개별 발생 날짜는 payload 에 없으므로 지어내지 않는다: mock 은 "07-01·07-11·07-19"까지
+ * 상세하지만 라이브는 payload 가 주는 `count`·`window_days` 만 쓴다. `repeated` 가 없거나
+ * count 0 이면 배너 없이 hold 카드만 뜬다 (D35·D45).
  *
  * ## 지켜야 할 결정
  * D14·D22(이벤트 4종·같은 채널 순서 보존) · D35·D45(hold payload) · D29·A7(자동 기록 금지,
@@ -243,7 +246,25 @@ function onBlock(s: ChatStreamState, data: Record<string, unknown>): ChatStreamS
   } else if (type === "po_card") {
     const variant = inner.variant;
     if (variant === "hold") {
-      // hold 를 po_draft 로 렌더하지 않는다 (D35). repeat_banner 는 만들지 않는다(위 docstring).
+      // hold 를 po_draft 로 렌더하지 않는다 (D35).
+      // repeated.count>0 이면 hold 카드 앞에 repeat_banner 를 산출한다 (위 docstring, D45).
+      // 개별 날짜는 payload 에 없으므로 지어내지 않는다 — count·window_days 만 쓴다.
+      const repeated = isRecord(inner.repeated) ? inner.repeated : {};
+      const count = num(repeated.count);
+      if (count > 0) {
+        const windowDays = num(repeated.window_days);
+        const bid = nextId(_ctx);
+        items = [
+          ...items,
+          {
+            kind: "repeat_banner",
+            id: bid,
+            badge: `${count}×`,
+            content: `반복 고장 감지 — 최근 ${windowDays}일 ${count}회`,
+          },
+        ];
+        _ctx = { ..._ctx, itemSeq: _ctx.itemSeq + 1 };
+      }
       const id = nextId(_ctx);
       items = [...items, { kind: "po_hold", id, hold: toHold(inner) }];
       _ctx = { ..._ctx, itemSeq: _ctx.itemSeq + 1 };
