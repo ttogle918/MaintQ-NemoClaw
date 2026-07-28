@@ -93,7 +93,7 @@ npm --prefix frontend run dev                             # 터미널 3 — 프�
 | [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
 | [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D56과 이유 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D57과 이유 |
 
 ## 데이터 출처
 
