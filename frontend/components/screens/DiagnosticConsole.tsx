@@ -18,9 +18,13 @@ import { CHAT_BY_SCENARIO, type Scenario } from "@/lib/mock/scenarios";
 import { TRACE_S1, TRACE_S3 } from "@/lib/mock/trace";
 import { ROLE_USER_NAME } from "@/lib/role";
 import { sx } from "@/lib/sx";
+import type { TraceSession } from "@/lib/types";
 import { useChatStream } from "./useChatStream";
 
 const TRACE_BY_SCENARIO = { s1: TRACE_S1, s3: TRACE_S3 };
+
+/** 세션 ID 가 아직 없는(mount 전) 순간의 자리표시 trace — 하이드레이션 안전용. */
+const EMPTY_TRACE: TraceSession = { label: "SESSION", meta: "0 calls", accent: "blue", steps: [] };
 
 /** 재생 데모의 고정 프롬프트 (`_replay_s1` 은 입력 무관하게 하드코딩 이벤트를 낸다, D55). */
 const REPLAY_PROMPT = "iG5A 인버터에 OHt 에러가 떴어";
@@ -82,9 +86,44 @@ function LiveConsole({
   replay?: "s1";
   onRequestApproval?: (poId: string) => void;
 }) {
-  // 로드마다 새 세션 (ASCII, D36). 재생도 매번 새 세션 — 같은 세션에 재생을 거듭 흘리면
-  // seq 가 이어붙어 타임라인이 계속 자란다.
-  const [sessionId] = useState(() => `S-${Date.now().toString(36)}`);
+  // `Date.now()` 를 초기 렌더에서 바로 쓰면 SSR 패스와 클라이언트 hydration 패스가
+  // **서로 다른 시각**을 찍어 세션 ID 가 갈리고, TracePanel 의 "SESSION #…" 텍스트가
+  // React hydration mismatch 를 낸다(실측 — 매 `/technician` 라이브 접속마다 재현).
+  // 그래서 세션 ID 는 **mount 이후**(useEffect, 클라이언트 전용)에만 만든다 — 그 전까지
+  // SSR·최초 클라이언트 렌더가 똑같이 `null` 을 그려 불일치가 생길 값 자체가 없다.
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  useEffect(() => {
+    // 로드마다 새 세션 (ASCII, D36). 재생도 매번 새 세션 — 같은 세션에 재생을 거듭 흘리면
+    // seq 가 이어붙어 타임라인이 계속 자란다.
+    setSessionId(`S-${Date.now().toString(36)}`);
+  }, []);
+
+  if (sessionId === null) {
+    return (
+      <ConsoleShell
+        header={
+          <SelectChip>
+            장비 · <Mono size={11}>연결 중…</Mono>
+          </SelectChip>
+        }
+        chat={<ChatThread items={[]} onRequestApproval={onRequestApproval} />}
+        composer={<ChatComposer disabled />}
+        trace={<TracePanel session={EMPTY_TRACE} />}
+      />
+    );
+  }
+  return <LiveConsoleReady sessionId={sessionId} replay={replay} onRequestApproval={onRequestApproval} />;
+}
+
+function LiveConsoleReady({
+  sessionId,
+  replay,
+  onRequestApproval,
+}: {
+  sessionId: string;
+  replay?: "s1";
+  onRequestApproval?: (poId: string) => void;
+}) {
   const { state, send } = useChatStream(sessionId);
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
