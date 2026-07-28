@@ -104,7 +104,9 @@ export interface TraceSession {
 /**
  * SSE block 이벤트는 3종이다 — safety / po_card / citation (D22).
  * `po_draft` 와 `po_hold` 는 둘 다 **po_card 로 도착**하며 variant 로 갈린다.
- * `repeat_banner` 는 block 이 아니라 get_error_history 의 tool_result 에서 파생되는 UI 요소다.
+ * `repeat_banner` 는 block 이 아니라 목업(`lib/mock`) 전용 UI 요소다 — 실 SSE 스트림에는
+ * 배너를 만들 구조화 소스(도구 결과)가 없어 리듀서(`lib/chatStream`)가 산출하지 않는다.
+ * S3 라이브는 hold 카드만 뜨는 게 의도다 (MQ-404).
  */
 export type ChatItem =
   | { kind: "user"; id: string; content: ReactNode }
