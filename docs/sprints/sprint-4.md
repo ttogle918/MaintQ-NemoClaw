@@ -433,9 +433,14 @@ Stage 1 파일 교집합 없음.
 - **M3 완료 — 수동 검증까지 마침**: 화면 A(라이브 SSE + replay 데모, 실 Gemini 관통 확인) ·
   화면 B(Sprint 3) · 표시 규약 정리(N-b·N-c·W-6·error 색 토큰·replay 배지·repeat_banner
   라이브 산출) · 하이드레이션 결함 없음
-- 회귀 243건 유지 + 정적 3종. 백엔드는 D56 dotenv 핫픽스 외 무변경
+- **W-6 근본 해소 완료 (D57, /done 이후 같은 세션)** — `/api/po/{id}` 에 `print_page`
+  계약 추가. 회귀 243→**248건**. `error_codes` 승인 전인 지금은 여전히 "PDF p." 폴백이
+  뜨고, 승인 후 실제 인쇄 페이지로 자동 전환됨(코드는 이미 준비 완료)
+- **`DANGER_KEYWORDS` 확장 4종 승인 완료** — 사람 검수 완료, TODO 종결
+- 회귀 248건 + 정적 3종. 백엔드는 D56 dotenv 핫픽스 + D57 print_page 추가
 - **라이브 S3 반복 배너**는 `error_codes` 승인 + 반복 이력 없이는 육안 불가로 남음
   (repeat_banner 산출 로직 자체는 Stage 3 에서 코드로 검증됨)
 - 다음(M4): `eval/testset.json` 20문항 + 실 DB 채점 배선(`has_replay` 분모 제외) ·
-  환각률 LLM judge · 데모 영상 · README. 사람 항목: `error_codes` 승인(라이브 S1·S3 데모의
-  전제) · related_parts 검수 · 안전 문안/키워드 검수 · W-6 근본 해소 D 여부
+  환각률 LLM judge · 데모 영상 · README. **남은 사람 항목은 `error_codes` 승인 하나로
+  수렴** — 승인되면 W-6 실화면 반영·라이브 S3 배너·데모 실데이터화가 한 번에 풀린다.
+  그 외 related_parts 검수 · SAFETY_BASELINE/QUALIFIED_WORKER_NOTE 문안 검수
