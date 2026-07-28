@@ -7,7 +7,9 @@ description: 목업 DB를 (재)생성하고 시드 케이스 맵을 검증한다
 
 ## 절차
 
-1. `data/seed.py` 실행 → `data/maintq.db` 생성 (기존 DB는 백업 후 덮어쓰기)
+1. `data/seed.py --with-error-codes` 실행 → `data/maintq.db` 생성 (기존 DB는 백업 후 덮어쓰기).
+   iG5A 매핑이 승인 완료(2026-07-28)라 이 플래그가 기본 — 빼면 error_codes 가 0행으로 돌아간다.
+   (승인 전 상태를 일부러 재현하려면 플래그 없이 실행)
 2. `docs/05_DB_SCHEMA.md`의 **시드 케이스 맵 7종**이 전부 재현되는지 SQL로 검증:
 
 | 검증 쿼리 | 기대 결과 |

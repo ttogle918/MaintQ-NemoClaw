@@ -53,11 +53,14 @@ description: 스프린트의 특정 스테이지를 실행한다. 병렬 구현 
 MaintQ의 회귀 스위트는 고정이다. 전부 통과해야 한다.
 
 ```bash
-uv run python data/seed.py --today 2026-07-23      # 시드 케이스 맵 8건
+uv run python data/seed.py --with-error-codes --today 2026-07-23  # 시드 케이스 맵 11건
+                                                    # --with-error-codes 필수 (iG5A 매핑
+                                                    # 승인 완료, 2026-07-28) — 빼면 error_codes
+                                                    # 가 다시 0행으로 리셋된다
 uv run python spikes/sp2_mcp_roundtrip.py          # MCP 왕복 15건
 uv run python spikes/write_tool_contract.py        # 쓰기 도구 경계 14건
-uv run python spikes/api_contract.py               # 권한·전이 19건
-uv run python spikes/sp3_sse_events.py             # SSE 4종 11건
+uv run python spikes/api_contract.py               # 권한·전이·D57 28건
+uv run python spikes/sp3_sse_events.py             # SSE 4종 22건
 uv run ruff check data backend mcp_server spikes
 ```
 

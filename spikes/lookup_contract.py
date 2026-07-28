@@ -249,7 +249,11 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — D13·D20·D25·D26·D50 준수. 실데이터 관통은 승인 후")
+    print(
+        f"\n통과 ({len(results)}건) — D13·D20·D25·D26·D50 준수. "
+        "iG5A 매핑 승인 완료(2026-07-28) — 실데이터는 계속 합성 픽스처로 격리 검증"
+        "(승인 결과가 회귀 기준값이 되는 걸 막기 위해, MQ-310 원칙과 동일)"
+    )
 
 
 if __name__ == "__main__":

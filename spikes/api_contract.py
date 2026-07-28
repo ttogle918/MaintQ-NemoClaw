@@ -90,9 +90,10 @@ def run(client) -> None:
         f"quotes={len(d['quotes'])}, 재고={d['inventory']['qty']}, trace={d['trace_url']}",
     )
     check(
-        "②-b D57 — 현재 시드(model 미확정)는 print_page 를 안 붙인다",
-        all("print_page" not in b for b in d["evidence"]["basis"]),
-        f"basis keys={[sorted(b) for b in d['evidence']['basis']]}",
+        "②-b D57 — model 확정(iG5A, 2026-07-28 승인 후) → print_page 실측 202(offset 0)",
+        next((b.get("print_page") for b in d["evidence"]["basis"] if b.get("manual_page") == 202), None)
+        == 202,
+        f"model={d['model']}, basis={d['evidence']['basis']}",
     )
     check(
         "③ D36 표시명은 서버가 매핑",
@@ -227,8 +228,9 @@ def run(client) -> None:
 def run_print_page_checks() -> None:
     """`_attach_print_pages` (D57) 순수 함수 검증 — DB·HTTP 없이 딕셔너리로만.
 
-    ②-b 가 "현재 시드(model 미확정)는 안 붙인다"를 실측했으니, 여기서는 **model 이
-    있을 때** 오프셋 산술이 실제로 맞는지 본다 — DB 를 mutate 하지 않고 함수를 직접 호출한다.
+    ②-b 가 실 DB(PO-0117, model=iG5A 확정 후)로 "값이 있을 때 offset 0 정합"을 이미
+    실측했으니, 여기서는 **S100(offset 16) 실환산·model 없음·manual_page 없음** 등
+    실 시드에는 없는 분기를 DB 를 mutate하지 않고 함수 직접 호출로 커버한다.
     """
     from backend.services.po import _attach_print_pages  # noqa: PLC0415
 

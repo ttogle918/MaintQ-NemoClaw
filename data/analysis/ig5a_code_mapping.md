@@ -1,10 +1,15 @@
 # iG5A 코드 ↔ 보호기능 매핑 검수표
 
-작성: 2026-07-18 · 갱신: 2026-07-18 (7-세그 이미지 비전 판독 반영)
+작성: 2026-07-18 · 갱신: 2026-07-18 (7-세그 이미지 비전 판독 반영) · **승인 완료: 2026-07-28**
 페이지는 iG5A 표준본(`iG5A_User_Manual_Standard_KR_210303.pdf`) PDF 물리 페이지 (D26).
 기계용 사본: `data/extracted/ig5a_code_map.json` (검수 반영 시 둘 다 수정).
 
-**검수 상태: 기존 낮음 6건 중 5건을 키패드 이미지 비전 판독으로 해소** (p.202~204를 140dpi 렌더링 후 판독, 트러블슈팅 p.22~29로 교차 확인). 사람이 할 일은 아래 ②③ 확인 2가지로 축소됨.
+**검수 완료 (2026-07-28)** — ② 4건은 180dpi 재렌더링 이미지로 재확인, ③ 2건은 아래 결정 사항대로
+확정. `data/extract_error_codes.py` 재실행 → `error_codes.json` `_status` 승인 표기로 갱신 →
+`data/seed.py --with-error-codes` 로 DB 적재 완료.
+
+~~기존 낮음 6건 중 5건을 키패드 이미지 비전 판독으로 해소~~ (p.202~204를 140dpi 렌더링 후 판독,
+트러블슈팅 p.22~29로 교차 확인). ~~사람이 할 일은 아래 ②③ 확인 2가지로 축소됨.~~
 
 ## ① 확신도 높음 19건 — 텍스트 근거 + 이미지 판독 일치 (확인 불필요)
 
@@ -30,7 +35,7 @@
 | 18 | ETA | `EtA` | A 접점 고장 신호 (p.203/206) | 이미지. **비트명 EXT-A** → alias |
 | 19 | ETB | `Etb` | B 접점 고장 신호 (p.203/206) | 이미지. **비트명 EXT-B** → alias |
 
-## ② 비전 판독으로 해소된 4건 — ⚠ 사람 확인 대기 (이미지 최종 확인만)
+## ② 비전 판독으로 해소된 4건 — ✅ 확인 완료 (2026-07-28, 180dpi 재렌더링 이미지 대조)
 
 | # | canonical(제안) | 키패드 판독 | 보호기능 한글명 (페이지) | 판독 근거 / 비고 |
 |---|---|---|---|---|
@@ -39,18 +44,20 @@
 | 22 | RERR | `rErr` | 리모트 통신 에러 (p.203) | p.203 + 트러블슈팅 p.27 이미지 (Latch) |
 | 23 | NBR | `nbr` | 브레이크 제어 이상 (p.204) | p.204 이미지 |
 
-## ③ 결정 필요 2건 — 사람 판단
+## ③ 결정 완료 2건 — 2026-07-28
 
-1. **주파수 지령 상실 코드 표기**: 키패드 표기가 `__L`(밑줄 2개+L, Level 타입 — p.203·트러블슈팅 p.27 판독). 영숫자 canonical이 없음 → `__L` 그대로 canonical로 쓸지, 별도 명명할지 결정. (S4 관점: 사용자가 "__L 떴어"라고 입력할 가능성이 높아 원표기 유지 제안)
-2. **canonical 기준 승인**: 키패드 표기 대문자를 canonical로, 통신 비트명은 aliases로 보존하는 정책 (IOL↔IOLT, ETA↔EXT-A, ETB↔EXT-B, EST↔BX). 근거: 사용자 입력은 키패드에서 읽은 값(S1 흐름) — lookup이 이걸 1차로 맞춰야 함. aliases도 case-insensitive 매칭 대상에 포함하면 비트명 입력도 커버.
+1. **주파수 지령 상실 코드 표기**: 키패드 표기가 `__L`(밑줄 2개+L, Level 타입 — p.203·트러블슈팅 p.27 판독). 영숫자 canonical이 없음 → **결정: `__L` 그대로 canonical로 채택** (제안대로 — S4 관점 "사용자가 __L 떴어 라고 입력할 가능성이 높다"는 근거 유지). D33 형식 제약(`[A-Z0-9_]` 2~4자)과도 호환 확인
+2. **canonical 기준 승인**: 키패드 표기 대문자를 canonical로, 통신 비트명은 aliases로 보존하는 정책 (IOL↔IOLT, ETA↔EXT-A, ETB↔EXT-B, EST↔BX). **결정: 제안 정책 그대로 승인.** 근거: 사용자 입력은 키패드에서 읽은 값(S1 흐름) — lookup이 이걸 1차로 맞춰야 함. aliases도 case-insensitive 매칭 대상에 포함하면 비트명 입력도 커버.
 
 ## 판독에 사용한 이미지
 
 스크래치 렌더링(140dpi): 표준본 p.202·203·204, 트러블슈팅 p.22~29. 재생성:
 `uv run python -c "import pdfplumber; [pdfplumber.open('data/raw/iG5A_User_Manual_Standard_KR_210303.pdf').pages[p-1].to_image(resolution=140).save(f'p{p}.png') for p in (202,203,204)]"`
 
-## 처리 방침
+## 처리 방침 (완료)
 
 - ①은 error_codes.json에 `mapping_confidence: "high"`로 포함됨
-- ②는 `mapping_confidence: "visual"`로 포함 — **사람 확인 후 high로 승격**
-- ③ 결정 + ② 확인 완료 → ig5a_code_map.json 갱신 → `uv run python data/extract_error_codes.py` 재실행 → **그 후에만 DB 적재**
+- ②는 확인 완료로 `mapping_confidence: "visual"` → `"high"` 로 승격 (`ig5a_code_map.json`)
+- ③ 결정 반영 — `__L` 신규 항목 추가, canonical 정책 확정 문구로 갱신
+- `ig5a_code_map.json` 갱신 → `uv run python data/extract_error_codes.py` 재실행 →
+  `error_codes.json` `_status` 승인 표기로 자동 반영 → `data/seed.py --with-error-codes` 적재 완료

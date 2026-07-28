@@ -6,7 +6,9 @@
 전략 : pdfplumber extract_text() 행 단위 규칙 파싱, extract_tables()는 보조 (D24)
 규칙 : code는 대문자 canonical, display_code에 키패드 원표기 보존 (D25)
        manual_page는 PDF 물리 페이지 (D26)
-주의 : 산출 JSON은 초안 — iG5A 매핑 사람 승인 전 DB 적재 금지 (TODO_직접할일.md)
+주의 : 승인 여부는 `ig5a_code_map.json` 에서 **유도**한다(하드코딩하지 않는다, D19) —
+       pending_review 가 남아 있거나 confidence 가 "high" 아닌 항목이 있으면 초안,
+       둘 다 해소되면 승인. 재실행할 때마다 사람이 `_status` 를 다시 손으로 칠 필요가 없다.
 """
 
 from __future__ import annotations
@@ -249,7 +251,7 @@ def parse_s100(pdf_path: Path) -> tuple[list[dict], list[str]]:
 
 
 # ──────────────────────────────────────────────── iG5A
-def parse_ig5a(pdf_path: Path) -> tuple[list[dict], list[str], list[dict]]:
+def parse_ig5a(pdf_path: Path) -> tuple[list[dict], list[str], list[dict], dict]:
     mapping = json.loads(IG5A_MAP.read_text(encoding="utf-8"))
     unparsed: list[str] = []
     with pdfplumber.open(pdf_path) as pdf:
@@ -315,7 +317,31 @@ def parse_ig5a(pdf_path: Path) -> tuple[list[dict], list[str], list[dict]]:
         if not entry["causes"]:
             unparsed.append(f"iG5A {m['code']}: 12.1/12.2 매칭 실패 (keys={m['match_keys']})")
         entries.append(entry)
-    return entries, unparsed, mapping.get("pending_review", [])
+    return entries, unparsed, mapping.get("pending_review", []), mapping
+
+
+def ig5a_approval_status(mapping: dict, pending: list) -> str:
+    """승인 여부를 `ig5a_code_map.json` 에서 유도한다 — 하드코딩하지 않는다 (D19).
+
+    사람이 검수를 마치면 그 파일의 `pending_review` 를 비우고 모든 매핑의
+    `confidence` 를 "high" 로 승격한다(`data/analysis/ig5a_code_mapping.md` 절차).
+    이 함수는 그 두 조건만 보고 판정한다 — 재실행할 때마다 `error_codes.json` 의
+    `_status` 를 사람이 다시 손으로 칠 필요가 없다.
+    """
+    if pending:
+        return (
+            f"초안 — 미결 항목 {len(pending)}건 "
+            "(data/analysis/ig5a_code_mapping.md ③). DB 적재 금지"
+        )
+    not_high = [m["code"] for m in mapping["mappings"] if m.get("confidence") != "high"]
+    if not_high:
+        return (
+            f"초안 — 확인 대기 항목 {len(not_high)}건({', '.join(not_high)}) "
+            "(data/analysis/ig5a_code_mapping.md ②). DB 적재 금지"
+        )
+    return mapping.get(
+        "_status", "승인 완료 — data/analysis/ig5a_code_mapping.md 참조"
+    )
 
 
 # ──────────────────────────────────────────────── main
@@ -326,10 +352,10 @@ def main() -> None:
     files = {m["id"]: RAW / m["file"] for m in manifest["manuals"]}
 
     s100_entries, s100_unparsed = parse_s100(files["s100-manual"])
-    ig5a_entries, ig5a_unparsed, pending = parse_ig5a(files["ig5a-manual"])
+    ig5a_entries, ig5a_unparsed, pending, ig5a_mapping = parse_ig5a(files["ig5a-manual"])
 
     out = {
-        "_status": "초안 — iG5A 매핑 사람 승인 전 DB 적재 금지 (data/analysis/ig5a_code_mapping.md)",
+        "_status": ig5a_approval_status(ig5a_mapping, pending),
         "generated_at": str(date.today()),
         "citation_basis": "PDF 물리 페이지 (D26)",
         "code_policy": "code=대문자 canonical, display_code=키패드 원표기 (D25)",

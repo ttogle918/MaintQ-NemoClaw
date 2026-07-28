@@ -48,8 +48,11 @@ def prepare_db(tmp: Path) -> Path:
     shutil.copy2(SOURCE_DB, db)
     con = sqlite3.connect(db)
     con.execute("PRAGMA foreign_keys=ON")
+    # OR REPLACE — iG5A 매핑 승인(2026-07-28) 후로는 복사한 실 DB 에 이미 (iG5A, OHT) 가
+    # 있을 수 있다. 이 테스트의 고정 fixture 값(causes·actions 등)이 실 데이터와 무관하게
+    # 항상 이겨야 뒤 검증이 결정적이다 — 순수 INSERT 면 UNIQUE 충돌로 죽는다.
     con.execute(
-        "INSERT INTO error_codes (model, code, display_code, error_name, severity,"
+        "INSERT OR REPLACE INTO error_codes (model, code, display_code, error_name, severity,"
         " causes, actions, related_parts, manual_page)"
         " VALUES ('iG5A','OHT','OHt','인버터 과열','warning','[]','[]',NULL,202)"
     )

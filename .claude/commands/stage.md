@@ -13,7 +13,7 @@ Stage $ARGUMENTS 를 실행합니다.
    프론트엔드 태스크는 `frontend/` 범위임을 명시해 전달한다.
 4. **eval-runner** 로 회귀를 검증한다. MaintQ의 회귀 스위트는 고정이다:
    ```
-   uv run python data/seed.py --today 2026-07-23
+   uv run python data/seed.py --with-error-codes --today 2026-07-23
    uv run python spikes/sp2_mcp_roundtrip.py
    uv run python spikes/write_tool_contract.py
    uv run python spikes/api_contract.py

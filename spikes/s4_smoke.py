@@ -131,8 +131,11 @@ def make_loaded(td: Path) -> Path:
     db = td / "loaded.db"
     shutil.copy2(SOURCE_DB, db)
     con = sqlite3.connect(db)
+    # OR REPLACE — iG5A 매핑 승인(2026-07-28) 후로는 복사한 실 DB 에 이미 (iG5A, OHT) 가
+    # 있다. 아래 검사들이 이 고정 fixture 문구(causes·actions)를 그대로 기대하므로
+    # 실 데이터와 무관하게 이 값이 이겨야 한다 — 순수 INSERT 면 UNIQUE 충돌로 죽는다.
     con.execute(
-        "INSERT INTO error_codes"
+        "INSERT OR REPLACE INTO error_codes"
         " (model, code, display_code, error_name, severity,"
         "  causes, actions, related_parts, manual_page)"
         " VALUES ('iG5A','OHT','OHt','인버터 과열','warning',"
@@ -148,7 +151,9 @@ def make_empty(td: Path) -> Path:
     db = td / "empty.db"
     shutil.copy2(SOURCE_DB, db)
     con = sqlite3.connect(db)
-    con.execute("DELETE FROM error_codes")  # 실 DB 도 0행이지만 재현성을 위해 명시
+    # 실 DB 는 이제 65행(iG5A 매핑 승인, 2026-07-28)이지만, 이 테스트는 승인 전 D50
+    # 게이트 상태를 재현해야 하므로 사본에서 명시적으로 비운다 — 실 DB 상태와 무관하게 결정적
+    con.execute("DELETE FROM error_codes")
     con.commit()
     con.close()
     return db

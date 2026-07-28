@@ -8,7 +8,8 @@ tools: Read, Bash, Grep, Glob
 
 작업 절차:
 
-1. DB 상태 확인 → 없으면 시드 실행 (`python data/seed.py`)
+1. DB 상태 확인 → 없으면 시드 실행 (`python data/seed.py --with-error-codes` — iG5A 매핑
+   승인 완료(2026-07-28)라 이 플래그를 빼면 error_codes 가 다시 0행으로 돌아간다)
 2. 시나리오 스모크: `.claude/skills/scenario-smoke/SKILL.md`의 S1~S4 절차 실행
 3. 평가셋: `python eval/run_eval.py` (API 비용 발생 — 실행 전 예상 호출 수 보고 후 진행)
 4. 직전 결과(`eval/results/`)와 diff → 회귀 감지
