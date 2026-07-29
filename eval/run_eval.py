@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from eval import score  # noqa: E402 — sys.path 설정 후여야 한다
-from eval.judge import judge_hallucination  # noqa: E402
+from eval.judge import JudgeVerdict, judge_hallucination  # noqa: E402
 
 SOURCE_DB = ROOT / "data" / "maintq.db"
 PORT = 8091
@@ -62,7 +62,10 @@ BASE_URL = f"http://127.0.0.1:{PORT}"
 #: 실 루프 동작은 backend/agent/loop.py 가 소유한다(이 상수를 복제해도 그 값을 바꾸지 못한다).
 MAX_LLM_CALLS_PER_TURN = 10
 
-#: 문항당 타임아웃(초) — 스트림 수신 + trace 조회 포함.
+#: 문항당 타임아웃(초) — 스트림 수신 + trace 조회 + (S4형 문항) judge 호출까지 포함.
+#: judge_hallucination 은 `get_client()`(D40) 를 직접 호출하는 별도 네트워크 호출이라
+#: httpx.AsyncClient(timeout=...) 의 보호 범위 밖이다 — asyncio.wait_for 로 별도로 감싼다
+#: (2026-07-29 실 20문항 실행 중 무제한 대기로 60분+ 멈춤 관측, 사후 수정).
 ITEM_TIMEOUT_S = 180.0
 
 # X-User 는 ASCII 사용자 ID (D36) — data/seed.py 의 users 시드와 일치해야 한다.
@@ -270,7 +273,16 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
     verdicts = score.score_session(events, expected)
     judge = None
     if expected.get("expect_not_found"):
-        judge = await judge_hallucination(item["input"], response_text)
+        try:
+            judge = await asyncio.wait_for(
+                judge_hallucination(item["input"], response_text), timeout=ITEM_TIMEOUT_S
+            )
+        except TimeoutError:
+            judge = JudgeVerdict(
+                hallucinated=True,
+                rationale=f"judge 호출이 {ITEM_TIMEOUT_S:.0f}초 내 응답하지 않음 — 보수적으로 fail 처리",
+                raw="",
+            )
 
     return ItemResult(
         item_id=item_id,
@@ -290,14 +302,14 @@ async def _run_all(base_url: str, items: list[dict]) -> list[ItemResult]:
     total = len(items)
     for i, item in enumerate(items, start=1):
         item_id = item.get("id", f"#{i}")
-        print(f"[{i}/{total}] {item_id} 실행 중...")
+        print(f"[{i}/{total}] {item_id} 실행 중...", flush=True)
         t0 = time.monotonic()
         try:
             result = await run_item(base_url, item)
         except Exception as exc:  # noqa: BLE001 — 이 문항만 "실행 실패", 나머지는 계속
             elapsed = time.monotonic() - t0
             expected = item.get("expected") or {}
-            print(f"  [실행 실패] {item_id}: {exc}")
+            print(f"  [실행 실패] {item_id}: {exc}", flush=True)
             result = ItemResult(
                 item_id=item_id,
                 branch=expected.get("branch", ""),
@@ -309,6 +321,8 @@ async def _run_all(base_url: str, items: list[dict]) -> list[ItemResult]:
                 judge=None,
                 elapsed_s=elapsed,
             )
+        else:
+            print(f"  완료 ({result.elapsed_s:.1f}초)", flush=True)
         results.append(result)
     return results
 
