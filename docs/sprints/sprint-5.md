@@ -368,3 +368,51 @@ MQ-506  (독립, 데모 촬영 준비)
   안전 문안 검수 · 실제 데모 영상 촬영
 
 실행: `/stage 1`
+
+---
+
+## Stage 1 완료 (2026-07-29)
+
+**커밋**: `237468c` — `[M4] Sprint 5 Stage 1 — testset 초안 · 환각 judge · 데모 큐시트 · README`
+
+#### MQ-501
+- `eval/testset_draft.json`(신규, 20문항) · `eval/testset_review_notes.md`(신규) ·
+  `docs/06_REPO_API.md` §3(expect_hold 필드 추가)
+- 실측: 6개 (model,code)→part_no 쌍의 manual_page 전부 `error_codes.json` 원본과 대조 확인
+  (iG5A OHT=202/FAN=203/GFT=204, S100 OHT=417/FAN=417/OCT=416). S3 반복 조합(INV-L3-01+OCT)
+  이 30일 내 유일함을 SQL 로 재확인. S4 후보(XY9/QQ1) 부재 확인, 충돌 없어 대체 불필요
+- **`eval/testset.json` 미접촉 확인** — `git status`·Glob 으로 파일 부재 재확인,
+  `guard_writes.py` 훅 우회 시도 없음(reviewer 확인)
+
+#### MQ-503
+- `eval/judge.py`(신규) · `eval/prompts/hallucination_judge.md`(신규) ·
+  `backend/agent/llm.py`(수정 — `GeminiClient.stream` 의 `tools=[]` 방어)
+- 단위 검증(가짜 LlmClient, API 비용 0) 7건 전부 PASS — 정상 JSON 2종·파싱 불가·키 없음·
+  타입 불일치·빈 응답(호출 자체 스킵)·비-dict JSON, 전부 보수적 fail 규칙대로 동작
+- `backend/agent/loop.py` 재확인 — 실 루프는 MCP 도구 7종을 항상 채워 호출하므로 이번
+  방어 수정으로 기존 동작 불변(reviewer 확인)
+- `test_` 명명 없음(Stop 훅 `pytest eval/ -q` 자동실행 방지 확인)
+
+#### MQ-506
+- `docs/demo_script.md`(신규, 7컷) — URL·버튼 라벨·403 메시지 포맷 전부 실제 코드 원문과
+  대조(`PoDraftCard.tsx`·`DecisionBar.tsx`·`backend/deps.py`)
+- 발견: `API_BASE` 기본값(8003) vs 흔한 기동 예시(8000) 불일치를 사전 준비 체크리스트에 명시.
+  컷7(403)은 `/technician` 에 승인 버튼 자체가 없어 curl 시연으로 대체(근거 명시)
+
+#### MQ-507
+- `README.md`(수정) — 평가 결과 표 placeholder(5지표 TBD) + 아키텍처 다이어그램(06_REPO_API
+  §0 원본 재구성) + 실행 명령 정확화. **기존 오류 발견·수정**: MCP 서버를 별도 터미널로
+  띄우라던 안내가 틀렸음(실제로는 `backend/main.py` lifespan 이 자동 기동, D42) — 2터미널
+  구성으로 교정
+
+#### 회귀
+- 248건(16스위트) + ruff + `tsc --noEmit` + `next build` 전 통과 · reviewer PASS
+  (블로커 0 · 경고 0 · 참고 1 — MQ-503 단위검증은 pytest 자동실행 방지 위해 커밋 산출물로
+  안 남김, 결과는 위 기록 참조)
+
+#### Stage 2(MQ-502) 인계 사항
+- `MAINTQ_MCP_AUTOSTART` 기본값(1) 유지 필수 — `sp3_sse_events.py` 처럼 끄면 20문항이
+  "도구 서버 연결 불가"로 조용히 전부 fail 처리된다
+- `run_eval.py` 는 `eval/testset.json` 을 로드 대상으로 하되, 아직 그 파일이 없으므로
+  Stage 2 의 `--dry-run` DoD 는 `--testset eval/testset_draft.json` 으로 검증할 것
+  (Stage 4 진입 전 사람이 draft→실 파일 반영을 완료해야 실제 20문항 실행이 가능)
