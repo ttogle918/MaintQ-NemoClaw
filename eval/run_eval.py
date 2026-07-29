@@ -334,24 +334,36 @@ async def _run_all(base_url: str, items: list[dict]) -> list[ItemResult]:
     return results
 
 
-def check_permission_403(base_url: str) -> tuple[bool, str]:
+async def check_permission_403(base_url: str) -> tuple[bool, str]:
     """문항 루프와 별개 1회 — 승인 큐 첫 pending 건에 technician 으로 approve 시도 (403 기대).
 
     pending 건이 없으면 임의로 pass 처리하지 않고 `(False, "N/A")` 를 즉시 돌려준다.
+
+    **`_run_all` 과 같은 `asyncio.run()` 호출 안에서 실행한다(async).** 별도의 동기
+    `httpx.Client` 로 짜여 있던 구버전은 Windows 에서 방금 닫힌 ProactorEventLoop 직후
+    새 동기 소켓 호출이 타임아웃도 없이 멈추는 사례가 실측(2026-07-29~30, 20문항 실행
+    2회 연속 재현)됐다 — 이벤트 루프를 닫지 않고 이어서 쓰면 이 경로를 피한다.
     """
-    with httpx.Client(timeout=30.0) as c:
-        r = c.get(f"{base_url}/api/po", params={"state": "pending"}, headers=MGR)
+    async with httpx.AsyncClient(timeout=30.0) as c:
+        r = await c.get(f"{base_url}/api/po", params={"state": "pending"}, headers=MGR)
         items = (r.json() or {}).get("items", [])
         if not items:
             return False, "N/A"
         po_id = items[0]["po_id"]
-        r2 = c.post(f"{base_url}/api/po/{po_id}/approve", headers=TECH)
+        r2 = await c.post(f"{base_url}/api/po/{po_id}/approve", headers=TECH)
         detail = ""
         try:
             detail = str(r2.json().get("detail", ""))[:120]
         except Exception:  # noqa: BLE001 — 상태 코드만 있어도 판정엔 충분
             pass
         return r2.status_code == 403, f"{r2.status_code} {detail}"
+
+
+async def _run_stage(base_url: str, items: list[dict]) -> tuple[list, tuple[bool, str]]:
+    """`_run_all` 과 `check_permission_403` 을 같은 이벤트 루프 안에서 순서대로 실행한다."""
+    results = await _run_all(base_url, items)
+    perm_result = await check_permission_403(base_url)
+    return results, perm_result
 
 
 # ────────────────────────────────────────────── 집계·리포트
@@ -627,8 +639,7 @@ def main() -> None:
                     "GEMINI_API_KEY 등 환경을 확인하세요."
                 )
 
-            results = asyncio.run(_run_all(BASE_URL, items))
-            perm_result = check_permission_403(BASE_URL)
+            results, perm_result = asyncio.run(_run_stage(BASE_URL, items))
         finally:
             proc.terminate()
             try:
