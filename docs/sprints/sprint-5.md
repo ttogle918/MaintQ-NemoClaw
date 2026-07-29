@@ -450,3 +450,36 @@ MQ-506  (독립, 데모 촬영 준비)
   `excluded_failed` 필드도 존재하므로 픽스처 구성 시 반영할 것(필수는 아니나 필드 누락 시
   KeyError 방지 차 참고)
 - API 비용 없음 유지(합성 `ItemResult` 픽스처만 사용)
+
+---
+
+## Stage 3 완료 (2026-07-29)
+
+**커밋**: `6c9e1d4` — `[M4] Sprint 5 Stage 3 — replay 분모 제외 배선 회귀`
+
+#### MQ-504
+- `spikes/eval_replay_guard.py`(신규, 유일) — 픽스처 A(정상)·B(재생오염)·C(빈 리스트)·
+  D(Stage 2 실행 실패 회귀 방지) 16건 전부 PASS
+- B/D 는 "포함되면 반드시 지표가 달라질 조합"으로 설계해 `aggregate([A,X])`와
+  `aggregate([A])`의 완전 동치를 배제 증거로 삼음 + `excluded_replay`/`excluded_failed`
+  직접 필드 검증 병행(reviewer 확인 — 우연 일치로 인한 오탐 가능성 없음)
+- D 픽스처가 Stage 2 에서 고친 결함(실행 실패 문항의 `sequence` 공허 PASS)을 정확히
+  재현해 회귀를 방지함을 reviewer 가 `_judge_sequence` 로직과 대조해 확인
+- 웜 실행 0.35~1.2초(비용 없음 실측), `test_` 명명 없음
+
+#### 회귀
+- 264건(17스위트) + ruff 전 통과 · reviewer PASS(블로커 0, 참고 1)
+
+#### 참고 (비블로커, 향후 개선 후보)
+- `eval_replay_guard.py` 가 `eval/run_eval.py` 의 사설 심볼 `_EXEC_FAILED_PREFIX` 를 직접
+  import 한다. 동작엔 문제없으나 `run_eval.py` 가 실패 마킹 방식을 바꾸면 이 spike 가
+  내부 구현에 결합돼 조용히 깨질 수 있음 — 다음에 `run_eval.py` 를 만질 일이 있으면
+  `EXEC_FAILED_PREFIX`(공개명)로 승격하는 걸 함께 고려
+
+#### Stage 4(MQ-505) 진입 전 — 사람 항목 재확인
+Stage 4 는 **유일한 비용 발생 지점**이다. 진입 전 반드시:
+1. `eval/testset_draft.json` 검수 → `eval/testset.json` 으로 사람이 직접 반영
+   (`.claude/hooks/guard_writes.py` 가 Claude 의 직접 반영을 차단하므로 이 스텝은
+   구조적으로 사람만 할 수 있다)
+2. `eval/judge.py` 의 Gemini `tools=[]` 경로 — Stage 1 에서 방어 코드는 추가했으나 실 API
+   호출로 검증된 적은 아직 없음(초저비용 1회 확인 권장, 20문항 실행 전에)
