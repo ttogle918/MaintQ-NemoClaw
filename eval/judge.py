@@ -42,6 +42,23 @@ def _conservative_fail(raw: str, rationale: str = _CONSERVATIVE_RATIONALE) -> Ju
     return JudgeVerdict(hallucinated=True, rationale=rationale, raw=raw)
 
 
+def _strip_code_fence(text: str) -> str:
+    """Gemini 는 "JSON 만 응답하라"고 지시해도 종종 마크다운 코드펜스(```json ... ```)로
+    감싸 돌려준다 — 실 API 스모크(2026-07-29)에서 실측 확인된 동작. 파싱 전에 펜스
+    마커만 벗긴다. **내용 자체는 건드리지 않는다** — 펜스가 없으면 원문 그대로 반환하므로
+    펜스 없는 응답(다른 제공자 등)에도 안전하다.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.split("\n")
+    if len(lines) >= 2 and lines[-1].strip() == "```":
+        lines = lines[1:-1]
+    else:
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 async def judge_hallucination(
     question: str, response_text: str, *, client: LlmClient | None = None
 ) -> JudgeVerdict:
@@ -69,7 +86,7 @@ async def judge_hallucination(
     raw = "".join(chunks)
 
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(_strip_code_fence(raw))
     except (json.JSONDecodeError, TypeError):
         return _conservative_fail(raw=raw)
 
