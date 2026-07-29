@@ -47,9 +47,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+# `judge_hallucination`(eval/judge.py) 은 스폰된 백엔드 서버가 아니라 **이 프로세스 자신**
+# 에서 `get_client()`(D40) 를 직접 호출한다 — backend/main.py 의 lifespan 이 하는
+# load_dotenv() 는 이 프로세스엔 적용되지 않으므로 여기서 직접 한 번 더 로드해야 한다
+# (2026-07-29 실 20문항 실행에서 S4 문항만 매번 "MAINTQ_LLM_MODEL 없음"으로 실패해 발견).
+load_dotenv(ROOT / ".env", override=False)
 
 from eval import score  # noqa: E402 — sys.path 설정 후여야 한다
 from eval.judge import JudgeVerdict, judge_hallucination  # noqa: E402
