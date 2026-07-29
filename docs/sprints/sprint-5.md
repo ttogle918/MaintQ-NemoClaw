@@ -416,3 +416,37 @@ MQ-506  (독립, 데모 촬영 준비)
 - `run_eval.py` 는 `eval/testset.json` 을 로드 대상으로 하되, 아직 그 파일이 없으므로
   Stage 2 의 `--dry-run` DoD 는 `--testset eval/testset_draft.json` 으로 검증할 것
   (Stage 4 진입 전 사람이 draft→실 파일 반영을 완료해야 실제 20문항 실행이 가능)
+
+---
+
+## Stage 2 완료 (2026-07-29)
+
+**커밋**: `61038cf` — `[M4] Sprint 5 Stage 2 — eval/run_eval.py 구현`
+
+#### MQ-502
+- `eval/run_eval.py`(신규, 유일) — 인계 사항 2건(MCP_AUTOSTART 기본값 유지·testset_draft.json
+  으로 `--dry-run` 검증) 전부 준수 확인
+- 임시 DB 사본 + subprocess uvicorn + `/health` `mcp:true` 확인 후 진행(아니면 SystemExit) ·
+  SSE 직접 파싱 · `eval.score.score_session()`/`eval.judge.judge_hallucination` 소비 · 403은
+  문항 루프 밖 별도 점검
+- `--dry-run --testset eval/testset_draft.json` → 20문항 검증 통과, API 호출 0회, 0.71초,
+  `data/maintq.db` mtime 불변(eval-runner 실측)
+
+#### reviewer 발견·수정 1건 (커밋에 포함)
+- **`aggregate()` 가 실행 실패 문항을 `sequence` 지표에서 공허하게 PASS 로 집계할 뻔함** —
+  서버 예외로 문항이 통째로 실행 안 돼도(`events=[]`) `_judge_sequence`(`eval/score.py`)는
+  "create_po_draft 미호출"을 근거로 PASS 를 반환한다(도구가 안 불린 것과 정확히 안 불렀다를
+  구분 못 함). "좋은 것만 보고 금지" 원칙과 정면 충돌하는 결함이라 커밋 전 수정 —
+  실행 실패 문항도 `has_replay` 와 같은 방식으로 전 지표 분모에서 제외(`excluded_failed`
+  필드 추가). 합성 데이터로 수정 검증 완료(정상 문항만 분모에 남고 `sequence` rate 가
+  올바르게 계산됨). 실패 사실 자체는 문항별 상세·콘솔 경고에 계속 노출 — 집계 수치만
+  정직해진 것이지 실패를 감추는 게 아님
+
+#### 회귀
+- 248건(16스위트) + ruff 전 통과(수정 후 재확인) · reviewer PASS(블로커 0, 경고 1 → 수정 완료)
+
+#### Stage 3(MQ-504) 인계 사항
+- `run_eval.ItemResult`/`aggregate` 심볼을 그대로 import 해서 회귀를 짠다 — 이번에 추가된
+  `excluded_failed` 필드도 존재하므로 픽스처 구성 시 반영할 것(필수는 아니나 필드 누락 시
+  KeyError 방지 차 참고)
+- API 비용 없음 유지(합성 `ItemResult` 픽스처만 사용)
