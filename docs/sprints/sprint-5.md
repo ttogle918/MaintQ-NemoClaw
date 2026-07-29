@@ -481,5 +481,10 @@ Stage 4 는 **유일한 비용 발생 지점**이다. 진입 전 반드시:
 1. `eval/testset_draft.json` 검수 → `eval/testset.json` 으로 사람이 직접 반영
    (`.claude/hooks/guard_writes.py` 가 Claude 의 직접 반영을 차단하므로 이 스텝은
    구조적으로 사람만 할 수 있다)
-2. `eval/judge.py` 의 Gemini `tools=[]` 경로 — Stage 1 에서 방어 코드는 추가했으나 실 API
-   호출로 검증된 적은 아직 없음(초저비용 1회 확인 권장, 20문항 실행 전에)
+2. ~~`eval/judge.py` 의 Gemini `tools=[]` 경로~~ — **2026-07-29 초저비용 1회 스모크로 확인
+   완료.** `tools=[]` 방어 코드(Stage 1)는 실 API 에서 정상 동작하나, **별개의 실제 결함을
+   발견해 수정**: Gemini 가 "JSON 만 응답하라"는 지시에도 마크다운 코드펜스(` ```json ... ``` `)
+   로 감싸 응답 → `json.loads()` 가 못 벗겨 정상 판정(`hallucinated:false`)이 파싱 실패로
+   뒤집혀 보수적 fail 이 됨. `_strip_code_fence()` 추가로 해소, 동일 질문 재스모크로
+   `hallucinated:false` 정확히 판정됨 확인(커밋 `699782b`). **20문항 실행 전에 잡아서
+   다행** — 그대로 뒀으면 환각률 지표가 통째로 틀렸을 것
