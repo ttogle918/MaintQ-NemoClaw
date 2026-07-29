@@ -1,0 +1,370 @@
+# Sprint 5 — M4 (마지막 마일스톤): 평가셋 실행 · 결과 문서화 · 데모 영상 · README
+
+**수립**: 2026-07-29 · **선행 상태**: M1~M3 전부 완료. `error_codes` 65건 실적재(2026-07-28,
+브라우저 실측 완료). Gemini 실 루프·화면 A/B 라이브 배선 전부 검증됨. `eval/score.py` 는
+이미 완성(D54·D55 반영, MQ-310) — `eval/testset.json`·`run_eval.py`·`results/` 는 아직 없다.
+
+**이번 스프린트의 성격**: 평가 파이프라인을 처음 만든다. 계약 변경은 없다(`eval/` 신규 코드가
+기존 API·MCP 계약을 건드리지 않음) — 단 **문서-구현 정합화 1건**(`expect_hold` 필드가
+`eval/score.py` 에는 이미 있는데 `06_REPO_API.md` §3 이 못 따라간 상태)은 있다.
+
+## 사전 조사 핵심 발견 (PM + tool-builder)
+
+- `eval/score.py` 의 `_judge_sequence` 는 이미 `expected.get("expect_hold")` 를 읽는다 —
+  `06_REPO_API.md` §3 스키마 예시에 이 필드가 없다. **문서만 뒤늦게 보정**(계약 변경 아님).
+- **`POST /api/chat` 은 role 을 게이트하지 않는다** — `backend/deps.py`·`backend/routers/chat.py`
+  확인: `require()` 호출은 `backend/routers/po.py:55,62,69`(승인 워크플로우)에만 있다. 20문항
+  루프 안에서 role 을 조작해도 403 지표에 아무 영향이 없다 — **403 지표는 문항 루프 밖 별도
+  고정 점검**으로 설계해야 한다(PO-0117 승인 시도).
+- **시드 데이터 실측 확인 완료**: `INV-L3-01`+`OCT` 가 30일 내 유일한 3회 반복 조합(다른 조합
+  없음), `error_codes` 65건에 `XY9`/`QQ1` 부재, `PCB-S100-CTRL-R2`(재고4·공급사2)·
+  `PWR-S100-MOD`(재고0·대체품0) 실측 일치, S1 후보 장비 전부 `GET /api/equipment` 존재.
+- ⚠ **`.claude/hooks/guard_writes.py` 가 `eval/testset.json` Write/Edit 을 exit 2 로 하드
+  차단한다** (matcher `Edit|Write`, 파일명이 `eval/testset.json` 로 끝나면 무조건 차단 —
+  `run-eval` 스킬 규칙 "기대 정답 변경은 사람 승인"을 도구 레벨에서 강제). **Claude 는 이 파일을
+  직접 쓸 수 없다** — Bash heredoc 등으로 우회하는 것은 금지(안전장치 무력화). MQ-501 설계를
+  이에 맞춰 변경함(아래).
+- ⚠ **`.claude/settings.json` 의 Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.** `judge.py`·
+  `run_eval.py` 에 `test_*` 로 시작하는 함수/파일명을 두면 안 된다 — 실비용 API 호출이 매 턴
+  자동 실행되는 사고로 이어진다.
+- ⚠ **`GeminiClient.stream()`(`backend/agent/llm.py`) 은 `tools=[]` 여도 항상
+  `types.Tool(function_declarations=[])` 를 `config.tools` 에 넣는다** — 실 Gemini API 가 빈
+  선언 목록의 Tool 을 받아들이는지 이 저장소에서 한 번도 검증된 적이 없다(기존 실 스모크는
+  전부 MCP 도구가 채워진 경로). judge.py 가 이 미검증 경로의 첫 소비자가 된다 — 방어적으로
+  고친다(아래 MQ-503).
+- `spikes/sp3_sse_events.py` 의 subprocess+임시DB 패턴은 `MAINTQ_MCP_AUTOSTART=0` 으로 MCP 를
+  **끈 채** 재생 전용으로 쓴다 — MQ-502 는 실 루프가 진짜 도구를 호출해야 하므로 **정반대
+  (autostart 기본값 1)** 가 필요하다. 그대로 복사하면 20문항이 "도구 서버 연결 불가"로 조용히
+  전부 실패하고 score.py 는 그걸 그냥 fail 로 채점한다(참사가 티가 안 남) — 명시적 방어 필요.
+
+## 범위 밖 (의도적)
+
+- `related_parts.seed.json` 검수 — 사람 전담(D12). testset 의 `part_no` 기대값은 이 파일에서
+  파생되므로 **testset 자체도 검수 전까지 초안**이다
+- `SAFETY_BASELINE`/`QUALIFIED_WORKER_NOTE` 문안 검수 — 사람 전담
+- `docs/07_BACKLOG.md` P1~P21 승격 없음
+
+---
+
+## Sprint 5 최종 실행 계획
+
+| 스테이지 | 태스크 | 병렬 | 예상 결과물 |
+|---------|--------|-----|-----------|
+| Stage 1 | MQ-501, MQ-503, MQ-506, MQ-507 | ✅ (파일 교집합 없음, tool-builder 실측 확인) | testset 초안 + expect_hold 문서 보정 · 환각 judge · 데모 큐시트 · README 골격 |
+| Stage 2 | MQ-502 | — | `eval/run_eval.py` (무비용 `--dry-run` 까지만 DoD) |
+| Stage 3 | MQ-504 | — | replay 분모 제외 회귀 (무비용) |
+| Stage 4 | MQ-505 | — (사람 비용 승인 게이트) | 실 20문항 1회 실행 + 결과 문서 + README 표 채움 |
+
+```
+MQ-501 ─┬─► [사람: testset.json 반영] ─► MQ-502 ─► MQ-504 ─► MQ-505
+MQ-503 ─┘                                              ▲
+MQ-507 ──────────────────────────────────────────────────┘ (골격 → 결과표 채움)
+MQ-506  (독립, 데모 촬영 준비)
+```
+
+### 스테이지 구성 근거
+
+- **Stage 1 네 태스크는 파일이 완전히 분리**(tool-builder 실측: `eval/testset_draft.json`+
+  `testset_review_notes.md`+`docs/06_REPO_API.md`(MQ-501) / `eval/judge.py`+
+  `eval/prompts/hallucination_judge.md`+`backend/agent/llm.py`(MQ-503, tools=[] 방어 수정
+  추가) / `docs/demo_script.md`(MQ-506) / `README.md`(MQ-507) — 교집합 없음.
+- **MQ-502 를 Stage 1 에 못 넣는 이유**: testset 문항 내용(MQ-501)과 judge 인터페이스(MQ-503)
+  를 소비한다.
+- **MQ-504 를 MQ-502 와 같은 스테이지에 못 넣는 이유**: `run_eval.ItemResult`/`aggregate`
+  심볼에 의존하는 회귀라 시그니처가 먼저 고정돼야 한다. API 비용은 0(합성 픽스처).
+- **MQ-505 를 별도 Stage(4)로 격리하는 이유**: 유일하게 실비용이 발생한다. **추가로 Stage 4
+  진입 전에 사람이 할 일이 하나 더 생겼다** — `eval/testset_draft.json`(MQ-501 산출)을 검수해
+  `eval/testset.json` 으로 직접 반영하는 것(훅이 Claude 의 직접 반영을 막으므로). 이 스텝
+  없이는 `run_eval.py --dry-run` 조차 로드할 파일이 없다.
+- 각 스테이지 검증: Stage 1~3 은 회귀 248건 + ruff(신규 파일이 기존 계약 무변경이라 구조적
+  통과) + 신규 산출물 자체 검증. Stage 4 는 회귀 재확인 + 5지표 전부 보고.
+
+---
+
+## 태스크별 상세 구현 명세
+
+### MQ-501 — testset 초안 + `expect_hold` 문서 보정
+
+- **복무 시나리오**: S1~S4 전부
+- **변경 파일**:
+  - `eval/testset_draft.json` (신규 — **`eval/testset.json` 이 아니다**, 훅 미보호 경로)
+  - `eval/testset_review_notes.md` (신규 — 사람 검수용 근거 대조표)
+  - `docs/06_REPO_API.md` §3 (`expect_hold` 필드 추가, 계약 변경 아님)
+- ⚠ **`eval/testset.json` 자체는 Claude 가 Write/Edit 할 수 없다**(`guard_writes.py` 하드
+  차단, exit 2). Bash heredoc 등 우회 시도 금지 — reviewer 게이트에서 이 우회 여부를 확인한다.
+  사람이 `testset_draft.json` 을 검수한 뒤 **직접** `eval/testset.json` 으로 옮긴다(그대로
+  복사든 수정 후든 사람 손을 거쳐야 함).
+
+- **인터페이스** (`docs/06_REPO_API.md` §3 + `expect_hold` 보정):
+  ```json
+  {
+    "id": "T01",
+    "input": "iG5A 인버터에 OHt 에러 떴어",
+    "equipment_id": "INV-L1-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline | s2_alternative | s3_root_cause | s4_not_found",
+      "part_no": "FAN-IG5-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  }
+  ```
+  - `expect_hold`: S3 문항만 `true` (`eval/score.py` `_judge_sequence` 소비, D35·A8).
+  - `safety_page`: 전부 채운다(iG5A=4, S100=2, `SAFETY_BASELINE["pages"]` 승인값) — 더 엄격한
+    판정.
+  - `part_no`: S3·S4 문항은 반드시 `null`.
+  - `role`: 20문항 전부 `"technician"` — `/api/chat` 은 role 게이트가 없으므로 조작 무의미.
+
+- **핵심 로직 (실행 절차)**:
+  1. **데이터 원천**: `data/extracted/error_codes.json`(65건)·`data/related_parts.seed.json`
+     (7건, 임시)·`data/seed.py` 상수만 근거로 삼는다. 애매하면 `uv run python -c`로 실
+     `data/maintq.db` 를 직접 조회해 실측(추측 금지).
+  2. **20문항 배분** (06_REPO_API §3 "부품 특정 15+S3형 3+S4형 2"와 정합):
+     - **S1 12문항(T01~T12)** — `related_parts.seed.json` 단일 매핑 4쌍(iG5A: OHT→FAN-IG5-01,
+       FAN→FAN-IG5-01, GFT→MTR-CBL-IG5 / S100: OHT→FAN-S100-01, FAN→FAN-S100-01,
+       OCT→MTR-CBL-S100 — iG5A OCT 는 2개 부품에 매핑돼 모호하므로 제외)를 서로 다른
+       `equipment_id`(실측 확인된 iG5A: INV-L1-01/02·L3-02·L4-03, S100: INV-L2-01/02·L3-03·
+       L4-01/02) 조합으로 반복 사용. 전부 `branch:"s1_pipeline"`, `safety_required:true`,
+       `expect_hold:false`, `expect_not_found:false`.
+     - **S2 3문항(T13~T15)** — `PCB-S100-CTRL`(재고0·단종)→`PCB-S100-CTRL-R2`(재고4, 확정
+       대체품) 조합 2문항(다른 equipment_id·문구) + `PWR-S100-MOD`(재고0·대체품 없음, 에스컬
+       레이션) 1문항. 전부 `branch:"s2_alternative"`, `safety_required:true`,
+       `safety_page:2`.
+     - **S3 3문항(T16~T18)** — 시드가 보장하는 유일 반복 조합 `INV-L3-01`+`OCT`(iG5A)를 문구만
+       바꿔 3회 사용(추측이 아니라 시드 데이터의 실측 한계). 전부 `equipment_id:"INV-L3-01"`,
+       `branch:"s3_root_cause"`, `part_no:null`, **`expect_hold:true`**.
+     - **S4 2문항(T19~T20)** — 후보 코드가 65건에 **없음을 스크립트로 실측 확인**한 뒤 확정
+       (예: iG5A `XY9`, S100 `QQ1` — 이미 이번 조사에서 부재 확인됨, 충돌 시 대체 후보로 교체
+       하고 확인 로그를 남긴다). 전부 `branch:"s4_not_found"`, `part_no:null`,
+       `safety_required:false`, `expect_not_found:true`.
+  3. **`role` 설계 결정**: `/api/chat` 은 role 을 게이트하지 않으므로 20문항 전부
+     `"technician"` 통일. 403 지표는 MQ-502 의 별도 고정 점검이 담당함을 §3 각주에 명시.
+  4. **`testset_review_notes.md`**: 문항별 `part_no` 근거 출처 명시(예 "T01 ← related_parts
+     OHT 매핑, reviewed:false"). 최상단 경고 배너: "이 표의 `part_no` 는 검수 전(D12) 초안이다
+     — `TODO_직접할일.md` 'related_parts 검수' 완료 전까지 이 testset 으로 낸 부품 특정
+     정확률을 실적으로 인용하지 말 것. **`eval/testset.json` 반영은 사람이 직접 수행**
+     (`.claude/hooks/guard_writes.py` 가 Claude 의 직접 반영을 차단함)."
+  5. **§3 문서 보정**: JSON 예시에 `expect_hold` 추가 + 각주 "score.py 가 먼저 구현했고 문서가
+     뒤늦게 반영. role 필드는 현재 score.py 가 참조하지 않음 — 403 지표는 run_eval.py 의 별도
+     고정 점검 참조."
+
+- **엣지 케이스**: T13/T14 가 같은 부품(PCB-S100-CTRL-R2)을 기대하는 건 의도(시드가 보장하는
+  S2 결정론적 케이스가 이것뿐) — review notes 에 한계로 명시. S4 후보 충돌 시 커밋 금지, 대체
+  후보로 교체 후 재확인.
+
+- **DoD**:
+  - `python -c "import json; d=json.load(open('eval/testset_draft.json',encoding='utf-8')); assert len(d)==20; assert sum(1 for x in d if x['expected']['branch']=='s3_root_cause')==3; assert all(x['expected']['part_no'] is None for x in d if x['expected']['branch'] in ('s3_root_cause','s4_not_found'))"` 통과
+  - S4 후보 코드 부재 확인 로그가 `testset_review_notes.md` 에 있음
+  - `eval/testset.json` 을 Claude 가 직접 만들거나 수정하지 않았음(reviewer 확인 항목)
+  - 회귀 248건 영향 없음
+
+- **관련 결정**: D12·D26·D30·D35·A8
+
+---
+
+### MQ-503 — 환각률 LLM judge (+ GeminiClient 방어 수정)
+
+- **복무 시나리오**: S4
+- **변경 파일**: `eval/judge.py`(신규) · `eval/prompts/hallucination_judge.md`(신규) ·
+  `backend/agent/llm.py`(수정 — `GeminiClient.stream` 방어)
+
+- ⚠ **선행 수정 — `backend/agent/llm.py` `GeminiClient.stream`**: `tools` 가 빈 리스트면
+  `config` 에 `tools` 키 자체를 넣지 않는다(현재는 `tools=[types.Tool(function_declarations=[])]`
+  를 항상 넣어 실 Gemini API 가 빈 선언 Tool 을 받아들이는지 이 저장소에서 검증된 적이 없다 —
+  judge.py 가 이 미검증 경로의 첫 소비자가 되므로 방어적으로 없앤다). 기존 실 루프
+  경로(`backend/agent/loop.py`)는 MCP 도구 7종을 항상 채워 호출하므로 이 변경으로 동작이
+  달라지지 않는다 — 순수 방어 코드.
+
+- **인터페이스**:
+  ```python
+  @dataclass(frozen=True)
+  class JudgeVerdict:
+      hallucinated: bool
+      rationale: str
+      raw: str
+
+  async def judge_hallucination(
+      question: str, response_text: str, *, client: LlmClient | None = None
+  ) -> JudgeVerdict: ...
+  ```
+  ⚠ **함수·파일명에 `test_` 접두 금지** — Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.
+  pytest 가 이 함수를 테스트로 오인해 자동 실행하면 매 턴 실비용 API 호출 사고가 된다.
+
+- **핵심 로직**:
+  1. `eval/prompts/hallucination_judge.md` 고정 프롬프트 커밋(플레이스홀더 `{question}`/
+     `{response_text}`). 판정 기준: PASS=매뉴얼에 없다고 명시하고 원인·조치 미서술(A/S 안내는
+     허용), FAIL=구체적 원인/조치를 확정적으로 서술. JSON 형식만 응답하게 강제:
+     `{"hallucinated": true|false, "rationale": "..."}`.
+  2. `judge_hallucination()`: `client = client or get_client()`(D40, 폴백 없음) →
+     `client.stream(system="", messages=[...], tools=[])` → text 델타 이어붙임 → `json.loads()`.
+     파싱 실패·빈 응답 → **보수적으로 `hallucinated=True`**(판정 불가를 pass 로 봐주지 않는다).
+
+- **엣지 케이스**: 빈 `response_text` → judge 호출 자체를 건너뛰고 보수적 fail.
+
+- **DoD**:
+  - 가짜 `LlmClient`(고정 응답)로 단위 검증 — 정상 JSON → 정확한 verdict, 파싱 실패 → 보수적
+    fail. **API 비용 0.**
+  - `backend/agent/llm.py` 수정 후 `spikes/llm_provider_contract.py` 재실행 통과(순수함수
+    회귀, 비용 없음).
+  - 함수/파일명에 `test_` 없음 확인. ruff 통과.
+
+- **관련 결정**: D40 · 06_REPO_API §지표(LLM judge 필요성)
+
+---
+
+### MQ-506 — 데모 영상 촬영 큐시트
+
+- **변경 파일**: `docs/demo_script.md`(신규)
+- **핵심 로직**: 사전 준비 체크리스트(DB `--with-error-codes` 적재 확인·`GEMINI_API_KEY`·
+  서버 기동) + 7컷 촬영표(화면A S1→A2 승인요청→S2→S3(라이브 또는 `?scenario=s3` 목업, 드라이런
+  후 최종 선택)→S4, 화면B 근거카드→403) — URL·입력 문구·보여줄 것을 실제 라우트/문항과 대조.
+  러닝타임은 촬영 후 실측 기입(추정치 기재 금지).
+- **DoD**: 7컷 전부 실제 URL·입력과 대조 확인. 코드 변경 없음.
+- **관련 결정**: D22·D35·D18·D38
+
+---
+
+### MQ-507 — README 골격 정리
+
+- **변경 파일**: `README.md`(수정)
+- **핵심 로직**: 아키텍처 다이어그램(06_REPO_API §0 내용 재구성) + 평가 결과 표
+  placeholder(5지표 전부 `TBD`) + related_parts 미검수 경고 각주 + 실행 방법(`pyproject.toml`/
+  `package.json` 실제 명령 인용) + 문서 지도 링크 + 저작권 고지. 데모 GIF 는 자리만
+  (`<!-- TODO: 촬영 후 삽입 -->`), 깨진 링크 방지.
+- **DoD**: 마크다운 렌더 확인, 실행 명령 실제 파일과 대조. 코드 변경 없음.
+- **관련 결정**: D19·D27
+
+---
+
+### MQ-502 — `eval/run_eval.py`
+
+- **변경 파일**: `eval/run_eval.py`(신규, 유일)
+- ⚠ **`MAINTQ_MCP_AUTOSTART` 는 기본값(1)을 유지한다 — `sp3_sse_events.py` 처럼 `"0"` 으로
+  끄지 않는다.** 20문항이 실 도구를 호출해야 하므로 MCP 가 반드시 떠 있어야 한다. 서버 기동
+  후 `GET /health` 로 `{"status":"ok","mcp":true}` 를 확인하는 단계를 하네스에 넣고, 이게
+  `mcp:false` 면 즉시 `SystemExit`(전체 문항이 조용히 "도구 서버 연결 불가"로 fail 처리되는
+  참사 방지).
+- ⚠ **`run_*`/`main` 등은 되나 `test_*` 명명 금지**(Stop 훅 pytest 자동 실행 방지).
+
+- **인터페이스**:
+  ```python
+  @dataclass
+  class ItemResult:
+      item_id: str
+      branch: str
+      expected: dict
+      events: list[dict]
+      response_text: str
+      verdicts: list[Verdict]
+      judge: JudgeVerdict | None
+      elapsed_s: float
+
+  def load_testset(path: Path) -> list[dict]: ...
+  def validate_testset(items: list[dict]) -> None:
+  def estimate_cost(items: list[dict]) -> str:
+  async def run_item(base_url: str, item: dict) -> ItemResult: ...
+  def check_permission_403(base_url: str) -> tuple[bool, str]:
+  def aggregate(results: list[ItemResult]) -> dict:
+  def write_report(results, agg, perm_result, out_dir: Path) -> Path:
+  def diff_against_previous(agg: dict, out_dir: Path) -> str: ...
+  def main() -> None:  # --testset --limit --dry-run --yes --out-dir
+  ```
+
+- **핵심 로직**:
+  1. CLI: `--testset eval/testset.json`(기본) · `--limit N` · `--dry-run`(스키마 검증+비용
+     보고만, API 호출 0) · `--yes` · `--out-dir eval/results`.
+  2. `validate_testset`: 필수 키·enum·S3/S4 의 `part_no is None`·S3 의 `expect_hold==True`
+     위반 시 문항 id 나열 후 `SystemExit(1)`.
+  3. `estimate_cost`: "문항 {n}개 × 최대 10회 LLM 호출(MAX_LLM_CALLS_PER_TURN) = 최대 {n*10}회.
+     실측 평균 3~5회/문항 예상. 계속? [y/N]". `--dry-run` 이면 여기서 종료(API 호출 0).
+     `--yes` 없이 비대화형이면 진행 거부.
+  4. **서버 기동**: `data/maintq.db` 를 `tempfile.TemporaryDirectory()` 로 복사(원본 보존) →
+     `subprocess.Popen(["uv","run","uvicorn","backend.main:app","--port",PORT], env={**os.environ,
+     "MAINTQ_DB": str(copy)})` — **env 는 부모 그대로 상속**(GEMINI_API_KEY 등, override 없음,
+     D56). `sp3_sse_events.py` 의 `wait_ready()` 폴링 패턴을 이 파일 안에 자체 구현(spikes
+     import 의존 없음). 기동 후 `GET /health` 로 `mcp:true` 확인(위 경고 참조).
+  5. `run_item`: `session_id=f"EVAL-{item['id']}"`, `X-User` 는 role 별 고정(`tech-01`/
+     `mgr-01`). `httpx.AsyncClient.stream("POST", .../api/chat, json={...})` — **`replay`
+     파라미터 없음**(실 루프). SSE 프레임 자체 파싱(`event:`/`data:` 분리)으로 `token.text`
+     이어붙여 `response_text`. 스트림 종료 후 `GET /api/chat/{session_id}/trace` → `events`.
+     문항당 타임아웃 180초.
+  6. 채점: `verdicts = eval.score.score_session(events, item["expected"])`.
+     `expect_not_found` 면 `judge = await judge_hallucination(...)`, 아니면 `None`.
+  7. `check_permission_403`: 문항 루프와 **별개** 1회. `GET /api/po?state=pending` → 첫 po_id.
+     없으면 `(False,"N/A")` 즉시 반환(임의 pass 금지). 있으면 `POST .../approve` 를
+     `X-Role: technician` 으로 호출(403 예상, 상태 변경 없음) → `(status==403, detail)`.
+  8. `aggregate`: `kept = [r for r in results if not eval.score.has_replay(r.events)]`(D55,
+     실 turn 이라 보통 전부 kept, 방어적 필터). 4지표는 `eval.score.metric_rate()`. 환각률 =
+     judge 있는 kept 중 `hallucinated=True` 비율. `excluded_replay` 도 리포트에 남김(0이
+     정상).
+  9. `write_report`: `eval/results/{날짜}.md`+`.json`. 최상단 경고 배너(related_parts 미검수·
+     testset 미확정). 5지표 전부 + PASS/FAIL + 문항별 상세.
+  10. `diff_against_previous`: `out_dir` 내 최신 `.json` 과 비교, 없으면 "최초 실행".
+  11. 5지표 항상 전부 출력(콘솔+파일) — 좋은 것만 보고 금지.
+
+- **엣지 케이스**: 문항 실행 중 예외 → 그 문항만 "실행 실패", 나머지는 계속. `--limit` 사용
+  시 "부분 실행(N/20)" 명시. pending PO 없으면 403 지표 `"N/A"`. 서버 기동 실패는
+  `SystemExit`.
+
+- **DoD**:
+  - `uv run python eval/run_eval.py --testset eval/testset_draft.json --dry-run` → 스키마
+    검증 통과 + 비용 추정 출력 + **API 호출 0회**로 종료(exit 0). (사람이 아직 `testset.json`
+    을 안 만들었을 수 있으므로 draft 파일로 하네스만 검증)
+  - MCP ready 확인 로직이 코드에 있음을 리뷰어가 확인
+  - 20문항 전체 실 실행은 이 태스크 DoD 에 **포함하지 않는다**(MQ-505 에서 수행)
+  - ruff 통과, 회귀 248건 영향 없음
+
+- **관련 결정**: D40·D42·D55·D56·D38
+
+---
+
+### MQ-504 — replay 분모 제외 배선 회귀
+
+- **변경 파일**: `spikes/eval_replay_guard.py`(신규)
+- **핵심 로직**: API 비용 없음, 합성 `ItemResult` 픽스처만. 정상 세션(A)·재생 오염 세션(B,
+  `replay:true` 포함 + 일부러 fail 조합)·빈 리스트(C) 3종으로 `aggregate()` 가 B 를 분모에서
+  제외하는지, `excluded_replay` 가 정확히 1인지, 0분모 방어가 되는지 확인. 표식 위치(첫/마지막
+  이벤트)에 무관하게 세션 전체가 제외되는지 확인.
+- **DoD**: `uv run python spikes/eval_replay_guard.py` 통과, 비용 0.
+- **관련 결정**: D55·D21·D30
+
+---
+
+### MQ-505 — 평가 1회 실행 + 결과 문서화 + README 표 채움 (Stage 4, 비용 게이트)
+
+- **변경 파일**: `eval/results/{날짜}.md`·`.json`(신규) · `README.md`(수정, MQ-507 placeholder
+  교체) · **`eval/testset.json`(사람이 직접 생성 — Claude 불가)**
+
+- **실행 절차**:
+  1. **사람**: `eval/testset_draft.json`(MQ-501)을 검수하고 `eval/testset.json` 으로 직접
+     반영(그대로든 수정 후든). 이 스텝 없이는 아래가 진행되지 않는다.
+  2. `uv run python eval/run_eval.py --dry-run` 으로 비용 추정치 먼저 보고.
+  3. 사람 승인 후 `uv run python eval/run_eval.py --yes` 1회 실행(20문항 전체).
+  4. 산출된 `eval/results/{날짜}.md` 커밋.
+  5. README 결과 표를 실제 수치로 교체 — **경고 각주(related_parts 미검수 등)는 그대로 유지**
+     (수치가 좋아도 지우지 않는다, 진짜 검수 전까지 잠정치).
+
+- **핵심 로직**: 5지표 전부 보고. 목표 미달 지표는 `Verdict.detail` 근거로 원인 분류 초안
+  시도(추출/라우팅/프롬프트/testset 오류) — **`expected` 를 결과에 맞춰 조용히 고치지 않는다**
+  (기대 정답 변경은 사람 승인 필요, run-eval 스킬 규칙).
+
+- **엣지 케이스**: 일부 문항 실패해도 "N/20 완주, 실패 문항: T..(사유)" 정직하게 기록.
+
+- **DoD**: 결과 문서 5지표+PASS/FAIL+경고 배너 존재. README TBD 5개 전부 교체. 회귀
+  248+1(MQ-504)건 재확인.
+
+- **관련 결정**: D12·run-eval 스킬 규칙
+
+---
+
+## 종료 시 상태 (예상)
+
+- **M4 완료 = 프로젝트 전체 완료**: 평가 파이프라인·환각 judge·데모 준비·README 정리
+- 회귀 249건(+MQ-504) + 정적 3종
+- 남은 사람 항목: `eval/testset_draft.json` → `testset.json` 반영 · `related_parts` 검수 ·
+  안전 문안 검수 · 실제 데모 영상 촬영
+
+실행: `/stage 1`
