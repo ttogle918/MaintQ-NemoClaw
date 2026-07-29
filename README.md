@@ -29,35 +29,45 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 | 안전 가드레일 ★ | 위험 작업(활선 측정, 콘덴서 방전 등) 언급 시 매뉴얼 근거와 함께 안전 경고 필수 삽입 |
 | 실행 trace 시각화 | 에이전트가 어떤 도구를 왜 호출했는지 실시간 타임라인 — 이 프로젝트의 시그니처 화면 |
 
+## 데모
+
+<!-- TODO: 촬영 후 삽입 (docs/demo_script.md 큐시트 기준 7컷 GIF/영상) -->
+
 ## 아키텍처
 
 ```
 [정비사 UI]──┐
-[팀장 UI]  ──┤→ [FastAPI 백엔드] → [Agent Loop] → [MCP 서버] → [SQLite 목업 DB]
-             │        └ SSE (token / tool_call / tool_result / block)   └ [벡터스토어 (매뉴얼)]
+[팀장 UI]  ──┤→ [FastAPI 백엔드] → [Agent Loop (LLM)] → [MCP 서버] → [SQLite 목업 DB]
+             │        │                                      │
+             │        └── SSE 스트림 (token/tool_call/       └── [벡터스토어 (매뉴얼 RAG)]
+             │             tool_result/block — D14·D22)
 ```
 
-- MCP 서버·백엔드 프로세스 분리 → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨
-- MCP 도구 총 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
+(도식 원본: `docs/06_REPO_API.md` §0)
+
+- MCP 서버·백엔드 프로세스 분리 (D15) → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨. 단, 개발/데모 시에는 백엔드 `lifespan`이 MCP 서버를 서브프로세스로 **자동 기동**한다(D42) — 별도 터미널로 띄울 필요 없음
+- MCP 도구 총 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`(draft INSERT만 가능 — 승인/반려는 `backend/routers/po.py`의 사람 전용 API, D10)
 
 ## 빠른 시작
 
-요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14)
+요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14), Node.js(프론트)
 
 ```bash
 git clone https://github.com/<YOUR_ID>/MaintQ.git && cd MaintQ
 uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
-cp .env.example .env                 # ANTHROPIC_API_KEY 입력
+cp .env.example .env                 # GEMINI_API_KEY, MAINTQ_LLM_MODEL 입력 (기본 제공자: gemini)
 
-uv run python data/seed.py           # 목업 DB 생성 (시드 케이스 맵 7종)
+uv run python data/seed.py --with-error-codes   # 목업 DB 생성 (시드 케이스 맵 7종 + error_codes)
 
-# 프로세스 2개를 각각 띄운다 (D15: MCP 서버·백엔드 분리)
-uv run python mcp_server/server.py                        # 터미널 1 — MCP 서버
-uv run uvicorn backend.main:app --reload --port 8003      # 터미널 2 — FastAPI 백엔드
-npm --prefix frontend run dev                             # 터미널 3 — 프론트 (localhost:3003)
+# 터미널 1 — FastAPI 백엔드 (MCP 서버는 lifespan이 자동 기동, D42)
+uv run uvicorn backend.main:app --reload --port 8003
+
+# 터미널 2 — 프론트 (localhost:3003)
+npm --prefix frontend install
+npm --prefix frontend run dev
 ```
 
-> 현재 M1(데이터 준비) 단계 — `seed.py`·`mcp_server`·`backend`는 M2에서 구현 예정이라 위 명령 중 일부는 아직 동작하지 않는다. 데이터 파이프라인은 지금도 실행 가능: `uv run python data/extract_error_codes.py`
+MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `uv run python mcp_server/server.py`
 
 ## 시나리오 (도구 오케스트레이션 패턴 4종)
 
@@ -70,37 +80,38 @@ npm --prefix frontend run dev                             # 터미널 3 — 프�
 
 ## 평가
 
-에러코드 20개 테스트셋 자동 실행 (`eval/run_eval.py`)
+에러코드 20개 테스트셋 자동 실행 (`eval/run_eval.py`) — 지표 판정 방법 상세는 `docs/06_REPO_API.md` §3 참조.
 
-- 부품 특정 정확률 ≥ 90%
-- 근거 페이지 인용률 100%
-- 안전 경고 누락 0건
-- 미지 코드 환각률 0%
-- 권한 위반(정비사 approve 호출) 403 차단 100%
+| 지표 | 목표 | 결과 |
+|---|---|---|
+| 부품 특정 정확률 | ≥90% | TBD (run_eval 실행 후 채움) |
+| 근거 페이지 인용률 | 100% | TBD (run_eval 실행 후 채움) |
+| 안전 경고 누락 | 0건 | TBD (run_eval 실행 후 채움) |
+| 미지 코드 환각률 | 0% | TBD (run_eval 실행 후 채움) |
+| 권한 위반 403 차단 | 100% | TBD (run_eval 실행 후 채움) |
+
+> ⚠ `related_parts.seed.json` 7건 미검수(D12) — 위 표의 부품 특정 정확률은 사람 검수 완료 전까지 잠정치다.
 
 ## 문서
 
+문서 지도(전체 목록·언제 열어보는지·진행 상태 요약)는 **[docs/README.md](docs/README.md)** 에 위임한다(이중 관리 방지). 자주 찾는 문서만 아래 요약:
+
 | | |
 |---|---|
-| [README](docs/README.md) | 문서 지도 + 3줄 요약 |
 | [00 MVP_SCOPE](docs/00_MVP_SCOPE.md) | 반드시 구현할 기능 6종 + 인프라 + 완료 기준 |
-| [01 OVERVIEW](docs/01_OVERVIEW.md) | 문제정의·페르소나·As-Is·KPI·Out of Scope·리스크·마일스톤 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
-| [03 WIREFRAME](docs/03_WIREFRAME.html) | 화면 A·A-2(S3)·B 구조 참조 + 주석 10개 (실제 화면은 `frontend/`) |
-| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력·설계 원칙 |
-| [05 DB_SCHEMA](docs/05_DB_SCHEMA.md) | 테이블 10절(실제 11개) + 시드 케이스 맵 |
-| [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계 |
-| [07 BACKLOG](docs/07_BACKLOG.md) | v2 이후 기능 |
-| [08 DESIGN_BRIEF](docs/08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 |
+| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 7종(읽기 6+쓰기 1) 입출력·설계 원칙 (계약 임의 변경 금지) |
+| [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~D57과 이유 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~ 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
-## 데이터 출처
+## 데이터 출처 · 저작권 고지
 
-- LS일렉트릭 공식 다운로드 센터 — SV-iG5A, S100 사용설명서 (비상업적 학습·포트폴리오 목적, 저작권은 LS ELECTRIC에 있음)
+- LS일렉트릭 공식 다운로드 센터에서 받은 공개 자료 — SV-iG5A, S100 사용설명서. **저작권은 LS ELECTRIC에 있으며**, 본 프로젝트는 비상업적 학습·포트폴리오 목적으로만 이를 참조한다.
+- 매뉴얼 원본 PDF는 이 저장소에 **포함하지 않는다**(`data/raw/`는 git 제외 — 읽기 전용, 재배포 없음). 출처·버전·해시는 `data/raw/manifest.json`으로만 추적한다(D19).
 - AI허브 「기계시설물 고장 예지 센서」 고장 유형 분포 참고 (에러 이력 시드 생성)
 - 재고·공급사·발주 데이터는 전부 목업
 
 ## 상태
 
-🚧 설계 완료 · M1(데이터 준비) 진행 중
+M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — 상세 진행 상태는 [docs/README.md](docs/README.md) 참조

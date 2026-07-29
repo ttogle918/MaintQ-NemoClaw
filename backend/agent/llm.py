@@ -213,11 +213,19 @@ class GeminiClient:
         from google.genai import types  # noqa: PLC0415
 
         client, model, max_tokens = self._client, self._model, self._max_tokens
-        config = types.GenerateContentConfig(
-            system_instruction=system,
-            max_output_tokens=max_tokens,
-            tools=[types.Tool(function_declarations=gemini_declarations(tools))],
-        )
+        config_kwargs: dict = {
+            "system_instruction": system,
+            "max_output_tokens": max_tokens,
+        }
+        # `tools` 가 빈 리스트면 config 에 `tools` 키 자체를 넣지 않는다 — 실 Gemini API 가
+        # 빈 function_declarations 를 가진 Tool 객체를 받아들이는지 이 저장소에서 한 번도
+        # 검증된 적이 없다(방어 코드, MQ-503). 기존 실 루프 경로(agent/loop.py)는 MCP 도구
+        # 7종을 항상 채워 호출하므로 이 분기로 기존 동작은 달라지지 않는다.
+        if tools:
+            config_kwargs["tools"] = [
+                types.Tool(function_declarations=gemini_declarations(tools))
+            ]
+        config = types.GenerateContentConfig(**config_kwargs)
         contents = gemini_contents(messages)
 
         async def gen() -> AsyncIterator[LlmDelta]:

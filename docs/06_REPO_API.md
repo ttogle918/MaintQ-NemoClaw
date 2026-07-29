@@ -211,10 +211,20 @@ draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ ap
     "branch": "s1_pipeline | s2_alternative | s3_root_cause | s4_not_found",
     "part_no": "FAN-IG5-01",                // 부품 특정 대상 문항만. S3/S4형은 null
     "safety_required": true,                 // 위험 작업 키워드 → SAFETY block 필수 여부
-    "expect_not_found": false                // S4형만 true
+    "expect_not_found": false,               // S4형만 true
+    "expect_hold": false                     // S3형만 true — 발주 보류 시퀀스 판정 (D35·A8)
   }
 }
 ```
+
+> `expect_hold` — `eval/score.py`의 `_judge_sequence`가 이미 이 필드를 읽는다(MQ-310).
+> 이 문서 예시가 뒤늦게 반영하는 것뿐 계약 변경은 아니다. `true`면 해당 문항(S3, 발주 보류)에서
+> `create_po_draft`가 호출되면 안 된다는 뜻(A8) — S4(미지 코드)도 발주를 호출하면 안 되지만
+> 그 판정은 `expect_not_found`로 이미 커버되므로 S4형은 `expect_hold: false`로 둔다.
+> `role` 필드는 현재 `eval/score.py`가 참조하지 않는다 — `POST /api/chat`은 role을 게이트하지
+> 않으므로(§2.1 대화, `require()`는 `po.py`의 승인 워크플로우에만 있음) 20문항 내에서 role을
+> 조작해도 의미가 없다. 권한 위반(403) 지표는 `eval/run_eval.py`의 문항 루프 밖 별도 고정
+> 점검(승인 큐 pending 건에 technician으로 approve 시도)이 담당한다.
 
 **지표별 판정 방법 (측정 가능성의 근거):**
 
