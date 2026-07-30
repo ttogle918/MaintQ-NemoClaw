@@ -1,0 +1,282 @@
+[
+  {
+    "id": "T01",
+    "input": "1번 조립라인 분전반 iG5A 인버터에 OHt 에러 떴어",
+    "equipment_id": "INV-L1-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-IG5-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T02",
+    "input": "1번 라인 컨베이어 iG5A 인버터 표시창에 OHt 떴습니다",
+    "equipment_id": "INV-L1-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-IG5-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T03",
+    "input": "3번 라인 배기팬 iG5A 인버터에서 FAn 경보가 나요",
+    "equipment_id": "INV-L3-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-IG5-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T04",
+    "input": "4번 포장라인 집진기 iG5A 인버터 FAn 뜨는데 확인 부탁드려요",
+    "equipment_id": "INV-L4-03",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-IG5-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T05",
+    "input": "1번 조립라인 분전반 iG5A 인버터에 GFt 에러 떴어요",
+    "equipment_id": "INV-L1-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "MTR-CBL-IG5",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T06",
+    "input": "3번 라인 배기팬 iG5A 인버터 GFt 에러 확인해주세요",
+    "equipment_id": "INV-L3-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "MTR-CBL-IG5",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T07",
+    "input": "2번 가공라인 주축 S100 인버터에 oht 에러 떴습니다",
+    "equipment_id": "INV-L2-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-S100-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T08",
+    "input": "3번 라인 리프터 S100 인버터 oht 뜨는데요",
+    "equipment_id": "INV-L3-03",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-S100-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T09",
+    "input": "2번 가공라인 절삭유 펌프 S100 인버터에 fan 에러 떴어요",
+    "equipment_id": "INV-L2-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-S100-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T10",
+    "input": "4번 포장라인 컨베이어 S100 인버터 fan 경보 확인 부탁드립니다",
+    "equipment_id": "INV-L4-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "FAN-S100-01",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T11",
+    "input": "4번 포장라인 랩핑기 S100 인버터에 oct 에러 떴어요",
+    "equipment_id": "INV-L4-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "MTR-CBL-S100",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T12",
+    "input": "2번 가공라인 주축 S100 인버터 또 oct 뜨는데요",
+    "equipment_id": "INV-L2-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s1_pipeline",
+      "part_no": "MTR-CBL-S100",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T13",
+    "input": "S100 인버터 제어보드 교체해야 해",
+    "equipment_id": "INV-L2-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s2_alternative",
+      "part_no": "PCB-S100-CTRL-R2",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T14",
+    "input": "3번 라인 리프터 S100 제어보드가 고장난 것 같아요, 교체 필요합니다",
+    "equipment_id": "INV-L3-03",
+    "role": "technician",
+    "expected": {
+      "branch": "s2_alternative",
+      "part_no": "PCB-S100-CTRL-R2",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T15",
+    "input": "4번 포장라인 컨베이어 S100 전원모듈 나갔어요, 교체해야 합니다",
+    "equipment_id": "INV-L4-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s2_alternative",
+      "part_no": "PWR-S100-MOD",
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  },
+  {
+    "id": "T16",
+    "input": "3번 라인 인버터 또 OCt 떴어",
+    "equipment_id": "INV-L3-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s3_root_cause",
+      "part_no": null,
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": true,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T17",
+    "input": "3번 라인 반송 컨베이어 iG5A 인버터에서 OCt 에러 또 발생했어요",
+    "equipment_id": "INV-L3-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s3_root_cause",
+      "part_no": null,
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": true,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T18",
+    "input": "또 3번 라인 OCt네요, 이번 달만 몇 번째인지 모르겠어요",
+    "equipment_id": "INV-L3-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s3_root_cause",
+      "part_no": null,
+      "safety_required": true,
+      "expect_not_found": false,
+      "expect_hold": true,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T19",
+    "input": "1번 조립라인 분전반 iG5A 인버터에 XY9 에러가 떴는데",
+    "equipment_id": "INV-L1-01",
+    "role": "technician",
+    "expected": {
+      "branch": "s4_not_found",
+      "part_no": null,
+      "safety_required": false,
+      "expect_not_found": true,
+      "expect_hold": false,
+      "safety_page": 4
+    }
+  },
+  {
+    "id": "T20",
+    "input": "2번 가공라인 절삭유 펌프 S100 인버터에 QQ1 에러 떴어요",
+    "equipment_id": "INV-L2-02",
+    "role": "technician",
+    "expected": {
+      "branch": "s4_not_found",
+      "part_no": null,
+      "safety_required": false,
+      "expect_not_found": true,
+      "expect_hold": false,
+      "safety_page": 2
+    }
+  }
+]
