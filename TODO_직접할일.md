@@ -43,7 +43,7 @@ Claude가 대신 못 하는 것들. 순서대로.
   타당하다고 확인. 과잉 경고(진단 서술의 단순 언급까지 걸리는 것)는 안전 쪽으로 완화하는
   방향이라 감수 — 누락보다 낫다. 파일: `backend/agent/prompts.py` `DANGER_KEYWORDS` 끝 4종 ·
   회귀: `spikes/prompt_rules.py` ⑮
-- [ ] 평가셋 20문항의 기대 정답(부품·분기) 확정
+- [x] ~~평가셋 20문항의 기대 정답(부품·분기) 확정~~ — **2026-07-29 승인 완료.** `eval/testset_draft.json` 그대로 승인, `eval/testset.json` 반영(사람이 직접 cp 실행). D12 경고: 부품 특정 정확률은 `related_parts` 검수 완료 전 실적 인용 금지 유지
 - [ ] 데모 영상 촬영 (S1→S2→S3→S4 순서, 화면 A/B 전환 포함)
 - [ ] README에 데모 GIF + 평가 결과표 삽입
 
