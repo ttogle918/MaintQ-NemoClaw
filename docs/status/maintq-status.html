@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaintQ 진행 현황</title>
+<style>
+  :root {
+    --bg: #F2F4F7;
+    --bg-panel: #FFFFFF;
+    --bg-sunken: #E8EBEF;
+    --ink: #161A21;
+    --ink-dim: #545F6E;
+    --ink-faint: #838EA0;
+    --border: #DBE0E7;
+    --border-soft: #E9ECF1;
+    --accent: #1957C2;
+    --accent-ink: #0F3E90;
+    --accent-soft: #E4ECFA;
+    --good: #1D8A5C;
+    --good-soft: #E2F3EA;
+    --warn: #B4700D;
+    --warn-soft: #FAF0DC;
+    --crit: #BC3B31;
+    --crit-soft: #FAE6E3;
+    --planned: #667080;
+    --planned-soft: #EBEEF2;
+    --font-display: -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", Pretendard, Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "D2Coding", Consolas, "Segoe UI Mono", monospace;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0F131A;
+      --bg-panel: #161B23;
+      --bg-sunken: #10141B;
+      --ink: #E8ECF2;
+      --ink-dim: #9AA5B4;
+      --ink-faint: #6B7688;
+      --border: #262E3A;
+      --border-soft: #1E2530;
+      --accent: #6AA1FF;
+      --accent-ink: #9DC0FF;
+      --accent-soft: rgba(106,161,255,0.14);
+      --good: #4FC08C;
+      --good-soft: rgba(79,192,140,0.14);
+      --warn: #E0A23F;
+      --warn-soft: rgba(224,162,63,0.14);
+      --crit: #E3766B;
+      --crit-soft: rgba(227,118,107,0.14);
+      --planned: #8D97A6;
+      --planned-soft: rgba(141,151,166,0.12);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F131A; --bg-panel: #161B23; --bg-sunken: #10141B;
+    --ink: #E8ECF2; --ink-dim: #9AA5B4; --ink-faint: #6B7688;
+    --border: #262E3A; --border-soft: #1E2530;
+    --accent: #6AA1FF; --accent-ink: #9DC0FF; --accent-soft: rgba(106,161,255,0.14);
+    --good: #4FC08C; --good-soft: rgba(79,192,140,0.14);
+    --warn: #E0A23F; --warn-soft: rgba(224,162,63,0.14);
+    --crit: #E3766B; --crit-soft: rgba(227,118,107,0.14);
+    --planned: #8D97A6; --planned-soft: rgba(141,151,166,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #F2F4F7; --bg-panel: #FFFFFF; --bg-sunken: #E8EBEF;
+    --ink: #161A21; --ink-dim: #545F6E; --ink-faint: #838EA0;
+    --border: #DBE0E7; --border-soft: #E9ECF1;
+    --accent: #1957C2; --accent-ink: #0F3E90; --accent-soft: #E4ECFA;
+    --good: #1D8A5C; --good-soft: #E2F3EA;
+    --warn: #B4700D; --warn-soft: #FAF0DC;
+    --crit: #BC3B31; --crit-soft: #FAE6E3;
+    --planned: #667080; --planned-soft: #EBEEF2;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-display);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ---------- Header ---------- */
+  header.top {
+    display: flex; flex-wrap: wrap; gap: 20px 32px;
+    align-items: flex-end; justify-content: space-between;
+    padding-bottom: 28px; border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .title-block .eyebrow {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--accent-ink); font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .title-block h1 {
+    font-size: clamp(26px, 3.4vw, 34px); margin: 0 0 8px; font-weight: 750;
+    letter-spacing: -0.01em; text-wrap: balance;
+  }
+  .title-block p { margin: 0; color: var(--ink-dim); font-size: 15px; max-width: 62ch; }
+  .asof { text-align: right; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  .asof b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+
+  /* ---------- Milestone rail ---------- */
+  .milestones {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 40px;
+  }
+  .ms {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; position: relative; overflow: hidden;
+  }
+  .ms::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  }
+  .ms.done::before { background: var(--good); }
+  .ms.active::before { background: var(--warn); }
+  .ms .ms-id { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); letter-spacing: 0.04em; }
+  .ms .ms-name { font-weight: 650; font-size: 14.5px; margin: 3px 0 6px; }
+  .ms .ms-state {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 650; padding: 2px 8px; border-radius: 100px;
+  }
+  .ms.done .ms-state { background: var(--good-soft); color: var(--good); }
+  .ms.active .ms-state { background: var(--warn-soft); color: var(--warn); }
+  .ms-state::before { content: "●"; font-size: 8px; }
+
+  /* ---------- Section scaffolding ---------- */
+  section { margin-bottom: 46px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .sec-head h2 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .sec-head .count { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  .sec-note { color: var(--ink-dim); font-size: 13.5px; margin: -8px 0 18px; max-width: 78ch; }
+
+  .grid { display: grid; gap: 12px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 860px) {
+    .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; }
+    .milestones { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ---------- Feature card ---------- */
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+  .card-head h3 { font-size: 15px; font-weight: 650; margin: 0; }
+  .chip {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 650; letter-spacing: 0.02em;
+    padding: 3px 8px; border-radius: 100px; white-space: nowrap; flex: none;
+  }
+  .chip.done { background: var(--good-soft); color: var(--good); }
+  .chip.partial { background: var(--warn-soft); color: var(--warn); }
+  .chip.blocked { background: var(--crit-soft); color: var(--crit); }
+  .chip.planned { background: var(--planned-soft); color: var(--planned); }
+  .card p.desc { margin: 0 0 10px; color: var(--ink-dim); font-size: 13.5px; }
+  .card .meta { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+  .meta .tag { background: var(--bg-sunken); border: 1px solid var(--border-soft); padding: 2px 7px; border-radius: 6px; }
+
+  /* ---------- Issue rows ---------- */
+  .issue {
+    display: grid; grid-template-columns: 84px 1fr; gap: 16px;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 10px;
+  }
+  .issue .sev {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+    height: 22px; display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; text-transform: uppercase;
+  }
+  .sev.crit { background: var(--crit-soft); color: var(--crit); }
+  .sev.warn { background: var(--warn-soft); color: var(--warn); }
+  .sev.info { background: var(--planned-soft); color: var(--planned); }
+  .issue h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 650; }
+  .issue p { margin: 0; font-size: 13.5px; color: var(--ink-dim); }
+  .issue .fix { margin-top: 6px; font-size: 12.5px; color: var(--ink-faint); }
+  .issue .fix b { color: var(--ink-dim); font-weight: 600; }
+
+  /* ---------- Data table ---------- */
+  .datatable-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  thead th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 650; background: var(--bg-sunken); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+  .status-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+  .status-dot.ok::before { background: var(--good); }
+  .status-dot.pending::before { background: var(--warn); }
+  .status-dot.missing::before { background: var(--crit); }
+
+  /* ---------- Backlog disclosure ---------- */
+  details.backlog-group {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  details.backlog-group > summary {
+    list-style: none; cursor: pointer; padding: 13px 18px; display: flex; align-items: center; gap: 10px;
+    font-weight: 650; font-size: 14px;
+  }
+  details.backlog-group > summary::-webkit-details-marker { display: none; }
+  details.backlog-group > summary::before {
+    content: "▸"; color: var(--ink-faint); font-size: 11px; transition: transform 0.15s ease;
+  }
+  details.backlog-group[open] > summary::before { transform: rotate(90deg); }
+  details.backlog-group > summary .n {
+    margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+    color: var(--planned); background: var(--planned-soft); padding: 2px 9px; border-radius: 100px;
+  }
+  .backlog-body { padding: 4px 18px 14px; }
+  .backlog-item { padding: 10px 0; border-top: 1px solid var(--border-soft); }
+  .backlog-item:first-child { border-top: none; }
+  .backlog-item .bid { font-family: var(--font-mono); font-size: 11px; color: var(--accent-ink); font-weight: 700; }
+  .backlog-item .bname { font-weight: 650; font-size: 13.5px; margin-left: 6px; }
+  .backlog-item p { margin: 4px 0 0; font-size: 13px; color: var(--ink-dim); }
+
+  /* ---------- footer strip ---------- */
+  .footer-strip {
+    display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center;
+    padding: 20px 22px; border-radius: 10px; background: var(--bg-sunken); border: 1px solid var(--border);
+    font-size: 13px; color: var(--ink-dim);
+  }
+  .footer-strip strong { color: var(--ink); }
+  .footer-strip .figs { display: flex; gap: 22px; flex-wrap: wrap; font-family: var(--font-mono); }
+  .footer-strip .figs div b { display: block; font-size: 17px; color: var(--ink); font-family: var(--font-display); }
+
+  code.inline {
+    font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-sunken);
+    border: 1px solid var(--border-soft); padding: 1px 5px; border-radius: 5px; color: var(--ink-dim);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <p class="eyebrow">MaintQ · Q 시리즈 3번째 · 도구 오케스트레이션</p>
+      <h1>설비 진단 → 부품 발주 AI 에이전트, 진행 현황</h1>
+      <p>에러코드 진단부터 재고 확인·발주서 초안·팀장 승인까지 이어지는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
+    </div>
+    <div class="asof">기준 시점<b>2026-07-31</b></div>
+  </header>
+
+  <div class="milestones">
+    <div class="ms done">
+      <div class="ms-id">M1</div>
+      <div class="ms-name">데이터 준비</div>
+      <span class="ms-state">완료</span>
+    </div>
+    <div class="ms done">
+      <div class="ms-id">M2</div>
+      <div class="ms-name">코어 구현</div>
+      <span class="ms-state">완료</span>
+    </div>
+    <div class="ms done">
+      <div class="ms-id">M3</div>
+      <div class="ms-name">UI 2종 + trace</div>
+      <span class="ms-state">완료</span>
+    </div>
+    <div class="ms active">
+      <div class="ms-id">M4</div>
+      <div class="ms-name">평가 · 마무리</div>
+      <span class="ms-state">진행 중 · 중단</span>
+    </div>
+  </div>
+
+  <!-- ============ 구현 완료 ============ -->
+  <section>
+    <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">M1~M3 전체 + M4 파이프라인 코드</span></div>
+    <p class="sec-note">회귀 스위트 248건(고정) + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(승인)까지 끝났는지는 별도로 표시했습니다.</p>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-head"><h3>에러코드 진단 — 룩업 × RAG 이원화</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">lookup_error_code</code>는 코드→의미를 결정론적으로 반환(exact match), <code class="inline">rag_search_manual</code>은 점검 절차를 매뉴얼에서 검색. 모든 답변에 근거 페이지 인용 포함.</p>
+        <div class="meta"><span class="tag">D1·D25·D26</span><span class="tag">iG5A + S100 실데이터 65건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>부품 재고·대체품·공급사 견적</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">search_inventory</code>(단종 여부 포함) → <code class="inline">find_alternative_parts</code>(재고 0/단종 시 분기) → <code class="inline">get_supplier_quotes</code>(2개 이상 비교 제시). 추천 로직은 백로그(P2).</p>
+        <div class="meta"><span class="tag">D12·D20·D28</span><span class="tag">S2 시나리오</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>발주서 초안 + 승인 워크플로우</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">create_po_draft</code>는 draft INSERT만 가능(도구에 UPDATE 권한 없음). 상태 전이(submit/approve/reject)는 사람 전용 API. 정비사 approve 시도 → 403 확인됨.</p>
+        <div class="meta"><span class="tag">D10·D23·D31·D33·D34</span><span class="tag">화면 B</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>반복 고장 감지 ★</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">get_error_history</code> — 동일 에러 30일 내 3회 감지 시 근본원인 모드 전환, 발주는 <code class="inline">hold</code> variant로 보류. 실 DB·라이브 화면에서 실측 확인 완료(<code class="inline">INV-L3-01</code> + <code class="inline">OCT</code>).</p>
+        <div class="meta"><span class="tag">D2·D29·D35</span><span class="tag">S3 시나리오</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>안전 가드레일 ★</h3><span class="chip partial">완료(품질 한계 있음)</span></div>
+        <p class="desc">위험 작업 언급 시 매뉴얼 근거와 함께 <code class="inline">safety</code> block을 절차 서술 전에 삽입. 방전 대기 기준 "10분 이상" 반영. 다만 아래 문제점 항목의 표면형 매칭 한계 참조.</p>
+        <div class="meta"><span class="tag">D2·D22</span><span class="tag">DANGER_KEYWORDS 19종</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>실행 trace 시각화 (시그니처 화면)</h3><span class="chip done">완료</span></div>
+        <p class="desc">SSE 4종(token/tool_call/tool_result/block) 고정, 발행과 동시에 <code class="inline">traces</code> 테이블 저장. 인용 페이지가 물리 페이지↔인쇄 페이지로 정확 환산(D57)되어 화면에 표시.</p>
+        <div class="meta"><span class="tag">D14·D21·D22·D57</span><span class="tag">화면 A trace 패널</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>MCP 서버 · 백엔드 · Agent Loop</h3><span class="chip done">완료</span></div>
+        <p class="desc">도구 7종(읽기 6 + 쓰기 1), 프로세스 분리 구조(D15). LLM 제공자는 Gemini로 실 API 검증 완료 — 스트리밍·도구 호출·정직한 실패(D50) 전부 실측.</p>
+        <div class="meta"><span class="tag">D9·D15·D40·D56</span><span class="tag">GeminiClient 실검증</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>UI 2종 (정비사 콘솔 / 승인 큐)</h3><span class="chip done">완료</span></div>
+        <p class="desc">화면 A(진단 콘솔, 실 SSE 라이브 배선)·화면 B(승인 큐)가 브라우저 수동 검증 전 항목 통과. S1~S4 재생(<code class="inline">?replay=</code>)과 라이브 모드 모두 동작.</p>
+        <div class="meta"><span class="tag">D18·D42·D45</span><span class="tag">Claude in Chrome 검증</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>평가 하네스 (5지표 채점 파이프라인)</h3><span class="chip partial">코드 완료 · 실행 미완주</span></div>
+        <p class="desc"><code class="inline">eval/run_eval.py</code>(실 20문항 실행) + <code class="inline">eval/judge.py</code>(환각 LLM judge) + replay/실행실패 분모 제외 로직. 20문항 <code class="inline">testset.json</code> 사람 검수·반영 완료.</p>
+        <div class="meta"><span class="tag">D40·D54·D55</span><span class="tag">아래 "진행 중" 참조</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 진행 중 / 막힘 ============ -->
+  <section>
+    <div class="sec-head"><h2>진행 중 — M4 Stage 4</h2><span class="count">유일한 실비용 실행 단계</span></div>
+    <p class="sec-note">평가 파이프라인 자체는 완성됐고, 실 20문항 1회 전체 실행만 남았습니다. 세 차례 시도에서 버그 3건을 발견·수정했고, 네 번째 시도는 환경 문제로 중단된 상태입니다.</p>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="card-head"><h3>fix 1 — judge 무제한 대기</h3><span class="chip done">수정완료</span></div>
+        <p class="desc">환각 judge 호출에 타임아웃이 없어 1차 시도가 60분+ 정지. <code class="inline">asyncio.wait_for</code>로 보호 + 타임아웃 시 보수적 fail 처리.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>fix 2 — .env 미로드</h3><span class="chip done">수정완료</span></div>
+        <p class="desc"><code class="inline">run_eval.py</code> 자신의 프로세스가 <code class="inline">.env</code>를 로드하지 않아 S4 문항(T19·T20)만 매번 실패. 모듈 상단 로드 추가.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>fix 3 — 이벤트 루프 재개방</h3><span class="chip done">수정완료</span></div>
+        <p class="desc">문항 루프 종료 후 새 동기 클라이언트가 Windows 소켓에서 정지. <code class="inline">check_permission_403</code>을 async로 바꿔 같은 루프 안에서 실행.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 문제점 ============ -->
+  <section>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">5건 — 코드 결함 아님, 대부분 환경·데이터 게이트</span></div>
+    <div class="issue">
+      <span class="sev crit">환경</span>
+      <div>
+        <h4>WinError 10014 — Windows 소켓 계층 불안정 (미해결)</h4>
+        <p>새 이벤트 루프 생성·서버 기동 시 간헐적으로 "잘못된 포인터 주소" 오류 발생. 반복된 강제 종료(<code class="inline">Stop-Process -Force</code>) 누적 효과로 추정 — 코드 문제 아님.</p>
+        <div class="fix"><b>다음 조치 —</b> 터미널/PC 재시작으로 소켓 상태 리셋 후 <code class="inline">run_eval.py --yes</code> 재시도. fix①②③은 회귀로 검증 완료된 상태라 코드는 준비돼 있음.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">데이터 게이트</span>
+      <div>
+        <h4>related_parts 7건 전부 미검수 (reviewed: false)</h4>
+        <p>부품 특정 정확률(≥90% 목표) 지표의 데이터 근거. 사람 검수 전까지는 평가 결과를 실적으로 인용 금지(D12) — 지금 20문항 testset의 part_no 기대값도 전부 이 임시 매핑에서 파생된 초안 상태.</p>
+        <div class="fix"><b>필요 조치 —</b> <code class="inline">data/related_parts.seed.json</code> 7건을 매뉴얼 원인/조치와 대조해 사람이 직접 검수.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">데이터 게이트</span>
+      <div>
+        <h4>SAFETY_BASELINE / QUALIFIED_WORKER_NOTE 문안 최종 검수 대기</h4>
+        <p>방전 대기 "10분 이상" 기준값 자체는 승인 완료. 남은 건 paraphrase된 문장이 매뉴얼 의미를 넘지 않는지, 인용 페이지(iG5A p.4 / S100 p.2)가 정확한지 확인.</p>
+        <div class="fix"><b>런타임 영향 없음 —</b> 검수 전에도 안전 블록은 계속 발행됨(게이트하면 더 위험해지므로).</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">품질 한계</span>
+      <div>
+        <h4>안전 가드레일이 표면형 키워드 매칭 — 의미 변주는 못 잡음</h4>
+        <p>실 Gemini 스모크에서 "냉각 팬"(띄어쓰기)·"히트싱크"(외래어) 변주는 키워드 확장으로 잡았지만, "팬 상태를 점검"처럼 의미는 같고 표현이 다른 문장은 원리적으로 탐지 불가.</p>
+        <div class="fix"><b>후보 —</b> 분류기 또는 LLM judge 도입은 M4 평가 결과와 함께 판단 예정(현재 미착수).</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">미검증</span>
+      <div>
+        <h4>AnthropicClient 실 API 미검증</h4>
+        <p>사용자 키가 Gemini로만 확보되어 Anthropic 경로는 ScriptedClient(회귀)로만 커버. 인터페이스(D40)는 제공자를 모르므로 클래스 하나 추가로 대응 가능한 구조.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 데이터 현황 ============ -->
+  <section>
+    <div class="sec-head"><h2>데이터 현황</h2><span class="count">보유 데이터 · 검수 상태 · 필요한 것</span></div>
+    <div class="datatable-wrap">
+      <table>
+        <thead>
+          <tr><th>데이터</th><th>현재 상태</th><th class="num">규모</th><th>검수/필요 조치</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LS일렉트릭 매뉴얼 원본 (iG5A·S100 PDF)</td>
+            <td><span class="status-dot ok">확보 완료</span></td>
+            <td class="num">2종</td>
+            <td><code class="inline">data/raw/</code> — 읽기 전용, git 미포함(저작권)</td>
+          </tr>
+          <tr>
+            <td>error_codes (에러코드 정의)</td>
+            <td><span class="status-dot ok">승인·적재 완료</span></td>
+            <td class="num">iG5A 24 + S100 41 = 65건</td>
+            <td>2026-07-28 사람 승인, <code class="inline">seed.py --with-error-codes</code>로 실적재</td>
+          </tr>
+          <tr>
+            <td>매뉴얼 청크 (RAG 벡터스토어 원천)</td>
+            <td><span class="status-dot ok">생성 완료</span></td>
+            <td class="num">manual_chunks.jsonl</td>
+            <td>추가 조치 불필요</td>
+          </tr>
+          <tr>
+            <td>related_parts (에러코드→부품 매핑)</td>
+            <td><span class="status-dot pending">임시·미검수</span></td>
+            <td class="num">7건, 전부 reviewed:false</td>
+            <td><b>부품 특정 정확률 지표의 뿌리</b> — 매뉴얼 원인/조치 대조 검수 필요</td>
+          </tr>
+          <tr>
+            <td>eval/testset.json (평가 문항 20개)</td>
+            <td><span class="status-dot ok">사람 반영 완료</span></td>
+            <td class="num">S1 12 · S2 3 · S3 3 · S4 2</td>
+            <td>related_parts 검수 전까지 결과는 "잠정치"로 취급</td>
+          </tr>
+          <tr>
+            <td>eval/results (실행 결과 리포트)</td>
+            <td><span class="status-dot missing">미생성</span></td>
+            <td class="num">0건</td>
+            <td>Stage 4 완주 필요(위 "진행 중" 참조) — README 결과표가 아직 TBD</td>
+          </tr>
+          <tr>
+            <td>SAFETY_BASELINE 문안</td>
+            <td><span class="status-dot pending">기준값 승인·표현 검수 대기</span></td>
+            <td class="num">iG5A p.4 · S100 p.2</td>
+            <td>paraphrase 표현이 매뉴얼 의미 초과하지 않는지 대조</td>
+          </tr>
+          <tr>
+            <td>SQLite 목업 DB (11테이블 + 시드 케이스)</td>
+            <td><span class="status-dot ok">구축 완료</span></td>
+            <td class="num">7종 시드 케이스</td>
+            <td>추가 조치 불필요</td>
+          </tr>
+          <tr>
+            <td>데모 영상 / README 데모 GIF</td>
+            <td><span class="status-dot missing">촬영 전</span></td>
+            <td class="num">7컷 큐시트 준비됨</td>
+            <td>Stage 4 완주 후 S1→S2→S3→S4 순서로 촬영</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 앞으로 구현할 것 ============ -->
+  <section>
+    <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P21 · MVP 이후</span></div>
+    <p class="sec-note">MVP 완료(M4) 이후 순위. 각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다.</p>
+
+    <details class="backlog-group" open>
+      <summary>진단 입력 확장<span class="n">4</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P1</span><span class="bname">사진 진단</span><p>HMI 에러 표시부 사진 업로드 → 비전 모델로 코드 인식. 입력창 📷 버튼은 이미 있음.</p></div>
+        <div class="backlog-item"><span class="bid">P4</span><span class="bname">다국어 현장 모드</span><p>외국인 현장 작업자 대상 번역. 안전 경고가 이미 별도 block으로 분리돼 있어 번역 대상 특정이 쉬움.</p></div>
+        <div class="backlog-item"><span class="bid">P7</span><span class="bname">모델 자동 식별 고도화</span><p>형명(nameplate) 텍스트/사진으로 모델 자동 판별.</p></div>
+        <div class="backlog-item"><span class="bid">P8</span><span class="bname">음성 인터페이스</span><p>UI(VoiceBar)는 이미 있음 — STT 연결만 남음.</p></div>
+      </div>
+    </details>
+
+    <details class="backlog-group">
+      <summary>조달 최적화<span class="n">4</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P2</span><span class="bname">긴급도 기반 공급사 추천</span><p>다운타임 비용 기반 "빠른 vs 싼" 추천. MOQ 미달이면 발주 자체가 거부되므로 반드시 고려해야 함.</p></div>
+        <div class="backlog-item"><span class="bid">P6</span><span class="bname">발주서 내보내기</span><p>승인된 발주서를 PDF/이메일로 공급사에 발송.</p></div>
+        <div class="backlog-item"><span class="bid">P9</span><span class="bname">예산/승인 한도 체크</span><p>금액 구간별 승인 단계 차등(팀장→부장).</p></div>
+        <div class="backlog-item"><span class="bid">P17</span><span class="bname">MOQ 미달 대응 제안</span><p>지금은 거부만 함 — "다른 부품과 묶기"·"차기 발주와 합치기" 제안 UX.</p></div>
+      </div>
+    </details>
+
+    <details class="backlog-group">
+      <summary>승인 프로세스 확장<span class="n">6</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P3</span><span class="bname">승인 요청 알림</span><p>발주 pending 시 팀장에게 슬랙/이메일 웹훅. 딥링크 착지점은 이미 있음.</p></div>
+        <div class="backlog-item"><span class="bid">P5</span><span class="bname">감사 로그</span><p>불변 기록 — requested_by·decided_by·evidence까지 이미 남는다. 남은 건 append-only 보장뿐.</p></div>
+        <div class="backlog-item"><span class="bid">P15</span><span class="bname">반려 → 재요청 흐름</span><p>지금 rejected는 종착역. 사유 기반 재요청 경로 추가.</p></div>
+        <div class="backlog-item"><span class="bid">P16</span><span class="bname">발주 품목 다건(line items)</span><p>지금은 1행=1품목. 실사용 첫 벽 — po_headers+po_lines 마이그레이션 필요.</p></div>
+        <div class="backlog-item"><span class="bid">P19</span><span class="bname">동시성 — po_id·낙관적 락</span><p>단일 사용자 데모 전제라 의도적으로 미룸. 조건부 UPDATE로 대응 가능한 구조는 이미 있음.</p></div>
+        <div class="backlog-item"><span class="bid">P21</span><span class="bname">인증·회사 IdP 연동(SSO)</span><p>지금은 X-Role/X-User 헤더 시뮬레이션. users 테이블에 email·auth_provider 자리는 이미 있음. 개인 소셜 로그인은 감사 로그 붕괴 우려로 배제.</p></div>
+      </div>
+    </details>
+
+    <details class="backlog-group">
+      <summary>인프라 · 확장성<span class="n">6</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P11</span><span class="bname">기종 확장(iS7, G100 등)</span><p>enum 확장 지점 4곳을 한 곳으로 모으는 리팩터가 선행되면 좋음.</p></div>
+        <div class="backlog-item"><span class="bid">P12</span><span class="bname">CMMS 연동</span><p>MCP 서버 교체 구조(D15) 덕에 백엔드는 그대로, MCP 쪽만 갈아끼울 수 있음.</p></div>
+        <div class="backlog-item"><span class="bid">P13</span><span class="bname">매뉴얼 버전 워처</span><p>LS 자료실 신버전 감지 → 재추출 자동화. 신버전은 페이지 오프셋 재확인 필수.</p></div>
+        <div class="backlog-item"><span class="bid">P14</span><span class="bname">docker-compose(backend+mcp)</span><p>프로세스 분리 구조가 그대로 서비스 2개 정의가 됨. MVP는 uv+venv로 충분해 보류.</p></div>
+        <div class="backlog-item"><span class="bid">P18</span><span class="bname">SSE 재연결(Last-Event-ID)</span><p>지금은 끊기면 전체 재수신. traces.seq가 그대로 Last-Event-ID가 될 수 있음.</p></div>
+        <div class="backlog-item"><span class="bid">P20</span><span class="bname">error_codes 승인 워크플로우</span><p>지금은 JSON의 _status 문자열을 손으로 고치는 방식 — 검수자가 늘면 승인 레코드 테이블로 전환 필요.</p></div>
+      </div>
+    </details>
+
+    <details class="backlog-group">
+      <summary>예지보전 연계<span class="n">1</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P10</span><span class="bname">예지보전 연계</span><p>반복 감지로 축적되는 실 이력(D29)을 고장 예측 모델 입력으로 연결. 이력 적재 경로는 이미 있음.</p></div>
+      </div>
+    </details>
+  </section>
+
+  <div class="footer-strip">
+    <div>다음 세션 우선순위: <strong>터미널 재시작 → run_eval.py --yes 완주 → eval/results 생성 → README 결과표 채움 → 데모 영상 촬영</strong></div>
+    <div class="figs">
+      <div><b>248</b>회귀 스위트</div>
+      <div><b>65</b>error_codes 실데이터</div>
+      <div><b>57</b>설계 결정 D1~D57</div>
+      <div><b>7</b>MCP 도구</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
