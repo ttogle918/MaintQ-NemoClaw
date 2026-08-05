@@ -20,12 +20,53 @@ DESCRIPTION = (
 )
 
 
+def _as_int(value: object) -> int | None:
+    """정수로 해석되면 int, 아니면 None. **추정하지 않는다.**
+
+    LLM 은 `line_id` 에 라인 **이름**을 넣곤 한다 ("2번 가공라인", "L1"). 시그니처를
+    `int` 로 좁혀 두면 MCP 계층의 스키마 검증이 예외를 던져 도구가 status 로 실패를
+    돌려주지 못하고(D9 위반) 원문 예외가 그대로 새어 나간다 — 에이전트에겐 조치할 수
+    없는 메시지이고 턴당 도구 호출 상한(8회)만 축낸다. 그래서 넓게 받아 여기서 판정한다.
+    "2번 가공라인" 에서 2 를 뽑아내는 식의 추정은 하지 않는다 — 라인 번호를 잘못 짚으면
+    남의 설비 이력으로 `repeated` 를 판정하게 된다.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
 def get_error_history(
     equipment_id: str | None = None,
-    line_id: int | None = None,
+    line_id: int | str | None = None,
     code: str | None = None,
-    days: int = REPEAT_WINDOW_DAYS,
+    days: int | str = REPEAT_WINDOW_DAYS,
 ) -> dict:
+    if line_id is not None:
+        parsed = _as_int(line_id)
+        if parsed is None:
+            return {
+                "status": "error",
+                "reason": "invalid_line_id",
+                "message": (
+                    f"line_id 는 라인 번호(정수)입니다: {line_id!r}. 라인 이름을 넣지 말고, "
+                    "설비를 알면 equipment_id 로 조회하세요."
+                ),
+            }
+        line_id = parsed
+
+    parsed_days = _as_int(days)
+    if parsed_days is None or parsed_days <= 0:
+        return {
+            "status": "error",
+            "reason": "invalid_days",
+            "message": f"days 는 양의 정수(조회 기간)입니다: {days!r}",
+        }
+    days = parsed_days
+
     if equipment_id is None and line_id is None and code is None:
         return {
             "status": "error",
@@ -39,7 +80,7 @@ def get_error_history(
         "FROM error_history h JOIN equipment e ON e.equipment_id = h.equipment_id",
         "WHERE h.occurred_at >= datetime('now', ?)",
     ]
-    args: list[object] = [f"-{int(days)} day"]
+    args: list[object] = [f"-{days} day"]
     if equipment_id:
         sql.append("AND h.equipment_id = ?")
         args.append(equipment_id)

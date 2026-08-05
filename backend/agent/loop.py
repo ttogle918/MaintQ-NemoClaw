@@ -50,6 +50,16 @@ PRESERVE_FIELDS = (
     "po_id",
 )
 
+#: 요약에서 탈락하면 안 되는 **문자열 리스트** 필드 — 원소가 dict 가 아니라 값 자체다.
+#:
+#: `related_parts` 는 D12 가 "진단→부품 특정의 다리"로 지정한 품번 목록이라
+#: PRESERVE_FIELDS 와 같은 등급이다. 개수만 남기면(`summarize_result` 의 "관련부품 1건")
+#: 에이전트가 다음 호출에 넘길 part_no 를 갖지 못해 **부품명을 지어낸다** —
+#: 2026-08-05 실 20문항 평가에서 `search_inventory{"part_name": "S100 냉각팬"}` →
+#: not_found 로 나타났고 부품 특정 정확률이 0/15 였다. 최상위 문자열 리스트라
+#: PRESERVE_FIELDS 루프(`key in payload` → 스칼라)에도, 중첩 dict 루프에도 안 걸린다.
+PRESERVE_LIST_FIELDS = ("related_parts",)
+
 #: 이력 요약에 보존할 중첩 원소 상한 — 전부 넣으면 컨텍스트를 잡아먹는다
 _PRESERVE_MAX_ITEMS = 5
 
@@ -115,6 +125,15 @@ def _summarize_for_history(tool: str, payload: dict) -> str:
         if key in payload:
             kept.append(f"{key}={payload[key]}")
 
+    # 문자열 리스트(related_parts) — 값 자체가 원소라 아래 중첩 dict 루프로는 못 건진다.
+    for key in PRESERVE_LIST_FIELDS:
+        seq = payload.get(key)
+        if not isinstance(seq, list) or not seq:
+            continue
+        shown = ", ".join(str(v) for v in seq[:_PRESERVE_MAX_ITEMS])
+        suffix = f" 외 {len(seq) - _PRESERVE_MAX_ITEMS}건" if len(seq) > _PRESERVE_MAX_ITEMS else ""
+        kept.append(f"{key}={shown}{suffix}")
+
     # 중첩 리스트는 **전 원소**를 보존한다 (상한 _PRESERVE_MAX_ITEMS).
     # [0] 만 남기면 S1 의 핵심 장면에서 정확히 깨진다 — 견적이 A사·B사 2건인데
     # 이력에 A사만 남으면, 사용자가 "B사로" 라고 말하는 **다음 턴**(A2 그 자체)에
@@ -142,6 +161,24 @@ def _pages_from(tool: str, payload: dict) -> list[int]:
         return [p] if isinstance(p, int) else []
     if tool == "rag_search_manual":
         return [c["page"] for c in payload.get("chunks", []) if isinstance(c.get("page"), int)]
+    return []
+
+
+def _parts_from(tool: str, payload: dict) -> list[str]:
+    """도구 결과가 특정한 부품 품번을 뽑는다 (D66 판정의 소스).
+
+    `find_alternative_parts` 는 **`compat_confirmed` 인 것만** 싣는다 — 미확인 호환품은
+    제안 자체가 금지(D20·규칙 4)라 "특정한 부품"이 아니다. 실어 두면 평가가 제안하면
+    안 되는 부품을 정답으로 셀 수 있다.
+    """
+    if tool == "search_inventory":
+        return [i["part_no"] for i in payload.get("items", []) if i.get("part_no")]
+    if tool == "find_alternative_parts":
+        return [
+            a["part_no"]
+            for a in payload.get("alternatives", [])
+            if a.get("part_no") and a.get("compat_confirmed")
+        ]
     return []
 
 
@@ -333,7 +370,12 @@ async def run_turn(
             # 빈 리스트): 키가 있어야 평가가 strict 로 올라가 "블록은 있고 숫자는 지어낸"
             # citation 을 잡는다. 실패 결과의 페이지는 근거가 아니다 — ok 만 인정.
             pages = _pages_from(tu.name, payload) if status == "ok" else []
-            yield trace.tool_result(tu.name, status, summary, round(elapsed, 3), pages=pages)
+            # D66 — 특정된 부품 품번도 같은 방식으로 싣는다. 실패 결과는 부품을 특정한 게
+            # 아니므로 ok 만 인정하는 것도 pages 와 같다.
+            parts = _parts_from(tu.name, payload) if status == "ok" else []
+            yield trace.tool_result(
+                tu.name, status, summary, round(elapsed, 3), pages=pages, parts=parts
+            )
 
             st.results[tu.name] = payload
             store.append(

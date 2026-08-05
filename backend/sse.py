@@ -49,16 +49,24 @@ def tool_result(
     summary: str,
     elapsed: float,
     pages: list[int] | None = None,
+    parts: list[str] | None = None,
 ) -> SseEvent:
     """도구 완료. `pages` 는 이 결과가 근거로 삼을 수 있는 PDF 물리 페이지 목록 (D54).
 
     실 루프(loop.py)는 **항상** 싣는다(근거 없는 도구면 빈 리스트) — 평가는 `pages` 키가
     실린 tool_result 가 하나라도 있으면 strict 판정으로 올라간다. `None` 이면 키 자체를
     빼서(구 trace·재생과 동일한 요약본) degraded 판정 경로를 유지한다.
+
+    `parts` 는 이 결과가 **특정한 부품 품번** 목록 (D66) — `pages` 와 같은 형태다.
+    S2 는 부품이 도구 인자가 아니라 결과에 있어(부품명으로 조회한다) 인자만 보는 판정이
+    부품 특정을 놓친다. summary 문자열을 파싱하지 않는 이유도 `pages` 와 같다 — 판정이
+    산문 표현에 묶이면 문구를 다듬는 순간 지표가 흔들린다.
     """
     data: dict = {"tool": tool, "status": status, "summary": summary, "elapsed": elapsed}
     if pages is not None:
         data["pages"] = pages
+    if parts is not None:
+        data["parts"] = parts
     return SseEvent("tool_result", data)
 
 

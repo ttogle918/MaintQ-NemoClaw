@@ -24,7 +24,15 @@ Claude가 대신 못 하는 것들. 순서대로.
   `extract_error_codes.py` 재실행(`_status` 는 이제 맵 파일에서 자동 유도, 하드코딩 아님) →
   `seed.py --with-error-codes` 로 iG5A 24 + S100 41 = **65건 적재 완료**.
   검수표: `data/analysis/ig5a_code_mapping.md` (완료 기록 남김)
-- [ ] **`related_parts` 수작업 매핑 검수** — 파일: `data/related_parts.seed.json`. 지금은 S1/S3를 돌려보기 위한 **임시 7건**만 있고 전부 `reviewed: false`. 각 코드의 원인/조치를 매뉴얼에서 읽고 교체 대상 부품이 맞는지 확인 → 맞으면 `reviewed: true`. **검수 전 평가(run_eval) 결과를 실적으로 인용하지 말 것** (부품 특정 정확률의 뿌리, D12)
+- [~] **`related_parts` 수작업 매핑 검수** — 파일: `data/related_parts.seed.json`.
+  **2026-08-05 Claude 위임 판정 완료(8코드)** — 사용자가 이 건에 한해 위임. 매뉴얼 조치문
+  (iG5A p.202~204 · S100 §9.2 p.420~421)을 직접 대조해 판정했고, 각 항목에
+  `reviewed_by: "claude (사용자 위임, 2026-08-05)"` 와 `verdict` 를 남겼다.
+  주요 변경: iG5A OCT 에서 모터 제거 · iG5A GFT 에 모터 추가 · **S100 OCT 반려(빈 목록)** ·
+  S100 GFT 신규. 근거는 `docs/sessions/2026-08-05.md` §2.
+  - [ ] **사람 최종 승인은 여전히 남아 있다** — 위 판정을 검토하고 동의하면 이 항목을 닫는다.
+    특히 S100 OCT 반려(부품 없음)와 GFT 2건 매핑의 조치 순서(케이블 → 모터)를 확인할 것
+  - 평가 결과 인용 시 `reviewed_by` 가 사람이 아님을 함께 밝힐 것 (D12)
 - [ ] 두 기종 간 동일 표기 코드 목록 확인 (OL, OC 계열) — "같은 코드, 다른 의미" 실증 자료
 - [ ] 시드 데이터의 부품명/가격이 현실적인지 감수 (냉각팬 3만원대 등)
 

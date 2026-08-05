@@ -23,8 +23,10 @@ payload 에 `replay: true` 표식이 있다 — 실 DB traces 를 채점에 배�
 
 이 모듈이 판정하는 4지표 (각각 `Verdict{metric, passed, detail, applicable}`):
 
-  part       부품 특정 — create_po_draft(또는 마지막 search_inventory) 호출 인자 part_no
-             == expected["part_no"] (D12). 분모는 part_no 가 있는 문항만 (06_REPO_API §지표).
+  part       부품 특정 — create_po_draft → search_inventory 호출 인자 part_no →
+             find_alternative_parts/search_inventory **결과**의 `parts` 단일 건 (D12·D66).
+             분모는 part_no 가 있는 문항만 (06_REPO_API §지표). 결과까지 보는 이유는 S2 가
+             부품을 인자가 아니라 결과로 특정하기 때문 — 상세는 `_identified_part` 참조.
   citation   근거 페이지 인용 — citation 블록이 있고 그 page 가 도구 근거 page 에 있는가 (D30).
              인용 page 소스 = lookup.manual_page ∪ rag.chunks[*].page.
   safety     안전 경고 — 위험 절차 문항에 safety 블록이 있고, 방전 대기 기준값이 유지되며,
@@ -167,14 +169,42 @@ def _citation_pages(events: list[dict]) -> list[int]:
     return out
 
 
+def _result_parts(events: list[dict], tool: str) -> list[str]:
+    """해당 도구의 **마지막** tool_result 가 특정한 부품 품번 목록 (D66)."""
+    results = _tool_results(events, tool)
+    if not results:
+        return []
+    return [p for p in (results[-1].get("parts") or []) if isinstance(p, str)]
+
+
 def _identified_part(events: list[dict]) -> str | None:
-    """부품 특정 근거 — create_po_draft 우선, 없으면 마지막 search_inventory 호출 인자."""
+    """부품 특정 근거 (D66) — 강한 증거부터 본다.
+
+      ① `create_po_draft.input.part_no`      — 발주까지 갔으면 그게 결론이다
+      ② 마지막 `search_inventory.input.part_no` — 품번을 직접 넘겼으면 에이전트가 고른 것
+      ③ 마지막 `find_alternative_parts` 결과의 `parts` (단일 건) — S2 의 결론
+      ④ 마지막 `search_inventory` 결과의 `parts` (단일 건)
+
+    ③④ 를 **정확히 1건일 때만** 채택하는 게 핵심이다. 부품명 조회는 여러 건을
+    돌려주는데(`'냉각팬'` → 3건) 첫 항목을 정답으로 세면 에이전트가 고르지도 않은 부품에
+    점수를 준다 — 판정 완화가 아니라 오판이다. 다건이면 "특정하지 못했다"가 사실이다.
+
+    ③ 이 ④ 보다 앞서는 이유: S2 에서 원부품은 단종이고 결론은 **대체품**이다.
+    """
     po = _tool_calls(events, "create_po_draft")
     if po:
         return (po[-1].get("input") or {}).get("part_no")
+
     inv = _tool_calls(events, "search_inventory")
     if inv:
-        return (inv[-1].get("input") or {}).get("part_no")
+        chosen = (inv[-1].get("input") or {}).get("part_no")
+        if chosen:
+            return chosen
+
+    for tool in ("find_alternative_parts", "search_inventory"):
+        found = _result_parts(events, tool)
+        if len(found) == 1:
+            return found[0]
     return None
 
 

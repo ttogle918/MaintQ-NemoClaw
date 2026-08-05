@@ -201,6 +201,62 @@ def run() -> None:
         f"오답:{v_pw.passed} / 정답:{v_pok.passed}",
     )
 
+    # ── ⑧-b D66 S2 — 부품이 도구 **결과**에만 있어도 특정으로 인정 ────
+    #
+    # S2 는 에러코드가 없어 related_parts 가 없고 부품명으로 조회한다 — input 에 part_no 가
+    # 없다. 실측(2026-08-05 T13)에서 단종 감지→대체품 제시까지 완주하고도 판정이 None 이었다.
+    s2_alt = [
+        tc("search_inventory", model="S100", part_name="제어보드"),
+        tr("search_inventory", "ok", parts=["PCB-S100-CTRL", "PCB-S100-CTRL-R2"]),
+        tc("find_alternative_parts", part_no="PCB-S100-CTRL"),
+        tr("find_alternative_parts", "ok", parts=["PCB-S100-CTRL-R2"]),
+        cite(417),
+    ]
+    s2_expect = {
+        "branch": "s2_alternative",
+        "part_no": "PCB-S100-CTRL-R2",
+        "safety_required": False,
+        "expect_not_found": False,
+        "expect_hold": False,
+    }
+    v_s2 = verdict(score_session(s2_alt, s2_expect), "part")
+    check(
+        "⑧-b D66 대체품 결과로 부품 특정 인정 (원부품 아닌 대체품)",
+        v_s2.passed is True,
+        v_s2.detail,
+    )
+
+    # 다건 결과는 채택하지 않는다 — 고르지도 않은 부품에 점수를 주면 완화가 아니라 오판이다
+    s2_ambiguous = [
+        tc("search_inventory", model="iG5A", part_name="냉각팬"),
+        tr("search_inventory", "ok", parts=["FAN-IG5-01", "FAN-GEN-40", "FAN-IG5-02"]),
+    ]
+    v_amb = verdict(
+        score_session(s2_ambiguous, {**s2_expect, "part_no": "FAN-IG5-01"}), "part"
+    )
+    check(
+        "⑧-c D66 결과 다건이면 특정 실패 (★ 첫 항목을 정답으로 세지 않음)",
+        v_amb.passed is False and "None" in v_amb.detail,
+        v_amb.detail,
+    )
+
+    # 미확인 호환품은 애초에 parts 에 실리지 않는다 — 실려도 정답으로 세면 안 되는 부품이다
+    v_pref = verdict(
+        score_session(
+            [
+                tc("search_inventory", model="iG5A", part_no="FAN-IG5-01"),
+                tr("search_inventory", "ok", parts=["FAN-IG5-01"]),
+            ],
+            {**s2_expect, "part_no": "FAN-IG5-01"},
+        ),
+        "part",
+    )
+    check(
+        "⑧-d 인자 part_no 가 결과보다 우선 (기존 판정 경로 불변)",
+        v_pref.passed is True,
+        v_pref.detail,
+    )
+
     # ── ⑨ 안전 근거 page 없음 → safety fail (절대규칙 3) ────────
     no_page = [e for e in S1_OK if e.get("data", {}).get("type") != "safety"] + [
         safety("작업 전 방전 대기 10분 이상 유지.", None)

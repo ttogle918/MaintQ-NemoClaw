@@ -1,62 +1,96 @@
 {
-  "_status": "임시 — 사람 검수 전. 최종 확정은 TODO_직접할일.md의 'related_parts 수작업 매핑 검수' 항목",
+  "_status": "검수 완료 (2026-08-05) — 단, 사람이 아니라 Claude 가 사용자 위임을 받아 판정했다. reviewed_by 필드 참조",
   "_설명": [
     "에러코드 → 관련 부품 매핑 (D12). error_codes.related_parts 컬럼의 원천.",
     "추출 파이프라인은 이 값을 만들어낼 수 없다 — 매뉴얼 표에 부품 품번이 없기 때문.",
-    "부품 특정 정확률(≥90%)의 뿌리라 사람이 최종 확인해야 한다.",
-    "여기 있는 값은 S1/S3 파이프라인을 돌려보기 위한 임시값이며, 검수 전에는",
-    "평가(run_eval) 결과를 실적으로 인용하지 말 것."
+    "부품 특정 정확률(≥90%)의 뿌리라 근거를 매뉴얼 '조치 사항' 컬럼에서 직접 확인했다.",
+    "판정 원칙: 매뉴얼 조치문이 '교체'를 지시하는 부품만 매핑한다.",
+    "  '확인/점검'만 지시하는 항목은 교체 대상이 아니므로 배선·부품을 넣지 않는다.",
+    "  설정값 조정(가감속 시간, 레벨 설정 등)만 나오는 코드는 부품 매핑을 비운다."
   ],
-  "_검수_방법": "각 코드의 원인/조치를 매뉴얼에서 읽고, 교체 대상 부품이 맞는지 확인 → 맞으면 이 파일에서 해당 항목의 reviewed를 true로",
+  "_검수_방법": "각 코드의 원인/조치를 매뉴얼에서 읽고, 교체 대상 부품이 맞는지 확인 → 맞으면 reviewed 를 true 로",
+  "_근거_출처": {
+    "iG5A": "data/raw/iG5A_User_Manual_Standard_KR_210303.pdf 보호기능·고장대책 표 (PDF 물리 페이지 202~204, D26)",
+    "S100": "data/raw/S100_Manual_Korean_V4.2.pdf §9.2 '트립 발생 시 조치 사항' 표 (PDF 물리 페이지 420~421, D26)"
+  },
+  "_주의": [
+    "S100 항목의 manual_page(416~417)는 §9.1 '고장 상태 내용'(트립 정의) 표를 가리킨다.",
+    "원인·조치는 §9.2 표(420~421)에 있다 — 아래 basis 의 페이지가 조치문의 실제 출처다.",
+    "data/extracted/error_codes.json 의 S100 41건은 actions 가 전부 비어 있다(추출 갭).",
+    "  따라서 아래 판정은 추출본이 아니라 원본 PDF 를 직접 읽고 내린 것이다."
+  ],
   "mappings": [
     {
       "model": "iG5A",
       "code": "OHT",
       "parts": ["FAN-IG5-01"],
-      "basis": "과열 — 냉각팬 고장/주위온도 초과가 주원인",
-      "reviewed": false
-    },
-    {
-      "model": "iG5A",
-      "code": "OCT",
-      "parts": ["MTR-CBL-IG5", "MTR-3P-2K2"],
-      "basis": "과전류 — 출력측 지락·모터 절연 저하. 반복 시 케이블·모터 점검 대상",
-      "reviewed": false
+      "basis": "냉각핀 과열 — 조치문 '인버터 냉각팬을 교체해야 합니다' (PDF p.202)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "승인 — 조치문이 냉각팬 교체를 직접 지시"
     },
     {
       "model": "iG5A",
       "code": "FAN",
       "parts": ["FAN-IG5-01"],
-      "basis": "냉각팬 이상 경보",
-      "reviewed": false
+      "basis": "냉각 팬 이상 — 조치문 '인버터 냉각팬을 교체해야 합니다' (PDF p.203)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "승인 — 조치문이 냉각팬 교체를 직접 지시"
     },
     {
       "model": "iG5A",
       "code": "GFT",
+      "parts": ["MTR-CBL-IG5", "MTR-3P-2K2"],
+      "basis": "지락 전류 — 원인 '출력선 지락'→조치 '출력 단자 배선을 조사', 원인 '전동기 절연 열화'→조치 '전동기를 교체하십시오' (PDF p.204)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "수정 후 승인 — MTR-3P-2K2 추가. 조치문에 '전동기를 교체' 가 명시돼 있는데 기존 매핑엔 케이블만 있었다"
+    },
+    {
+      "model": "iG5A",
+      "code": "OCT",
       "parts": ["MTR-CBL-IG5"],
-      "basis": "지락 — 출력 케이블 절연 파괴",
-      "reviewed": false
+      "basis": "과전류 — 원인 '출력 합선 및 지락'→조치 '출력 배선을 확인하여 주십시오' (PDF p.204). 나머지 원인·조치는 전부 설정값(가감속 시간·속도 써치·기계 브레이크)과 인버터 용량 문제",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "수정 후 승인 — MTR-3P-2K2 제거. iG5A OCT 조치문 어디에도 전동기 교체가 없다(그 지시는 GFT 항목에 있다)"
     },
     {
       "model": "S100",
       "code": "OHT",
       "parts": ["FAN-S100-01"],
-      "basis": "과열 — 냉각팬 계열",
-      "reviewed": false
+      "basis": "Over Heat — 원인 '인버터의 냉각 팬을 장기간 사용'→조치 '냉각 팬을 교체하십시오' (PDF p.421)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "승인 — 조치문이 냉각팬 교체를 직접 지시"
     },
     {
       "model": "S100",
       "code": "FAN",
       "parts": ["FAN-S100-01"],
-      "basis": "냉각팬 이상",
-      "reviewed": false
+      "basis": "Fan Trip — 원인 '냉각 팬 교체 시기가 되었습니다'→조치 '냉각 팬을 교체하십시오' (PDF p.421)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "승인 — 조치문이 냉각팬 교체를 직접 지시"
+    },
+    {
+      "model": "S100",
+      "code": "GFT",
+      "parts": ["MTR-CBL-S100", "MTR-3P-4K0"],
+      "basis": "Ground Trip — 원인 '인버터의 출력선이 지락'→조치 '출력 배선을 확인하십시오', 원인 '모터의 절연이 파손'→조치 '모터를 교체하십시오' (PDF p.420)",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "신규 추가 — S100 에서 부품 교체 근거가 가장 확실한 코드인데 매핑이 없었다"
     },
     {
       "model": "S100",
       "code": "OCT",
-      "parts": ["MTR-CBL-S100"],
-      "basis": "과전류 — 출력측 점검 대상",
-      "reviewed": false
+      "parts": [],
+      "basis": "Over Current1 — 조치 사항 3건이 전부 설정·운전 조정이다: '모터가 정지한 후에 운전하거나 속도 검색 기능(Cn.60)을 사용', '기계 브레이크를 확인', '감속 시간을 길게 설정' (PDF p.420). 교체 대상 부품이 없다",
+      "reviewed": true,
+      "reviewed_by": "claude (사용자 위임, 2026-08-05)",
+      "verdict": "반려 — MTR-CBL-S100 제거. S100 OCT 조치문에는 출력 배선조차 나오지 않는다(iG5A OCT 와 다른 점). 출력선 관련 조치는 S100 에서 GFT·POT·OHT 항목에 있다"
     }
   ]
 }

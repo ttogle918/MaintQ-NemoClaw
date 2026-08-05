@@ -197,6 +197,41 @@ def _start_server(db_copy: Path, port: int) -> subprocess.Popen:
     )
 
 
+def _shutdown_server(proc: subprocess.Popen) -> bytes:
+    """스폰한 서버를 **프로세스 트리째** 정리하고 stderr 를 회수한다.
+
+    `proc` 는 `uv run uvicorn ...` 이라 실제 서버는 손자 프로세스다. `proc.terminate()`
+    는 직계 자식(`uv`)만 죽이므로 uvicorn 과 그 밑의 MCP 서버(D15, 프로세스 분리)가
+    **고아로 살아남아 상속받은 stderr 파이프 쓰기 핸들을 계속 쥔다.** 그러면
+    `communicate()` 는 EOF 를 영원히 받지 못한다 — 타임아웃 없는 두 번째
+    `communicate()` 호출이 무한 블록되는 경로였다(2026-08-05 실측: 20문항 실행이 전부
+    끝난 뒤 46분간 CPU 0% 로 정지, `eval/results/` 미생성). 2026-07-30 세션이
+    'Windows 소켓 문제'로 분류했던 증상과 같은 자리다.
+
+    그래서 **트리 전체를 죽인 뒤** stderr 를 읽고, 마지막 회수에도 반드시 상한을 둔다.
+    stderr 는 진단 편의를 위한 것이므로 회수 실패는 평가 실패가 아니다 — 빈 바이트를
+    돌려주고 계속 진행한다(여기서 예외를 던지면 이미 끝난 20문항 결과가 통째로 날아간다).
+    """
+    if os.name == "nt":
+        # taskkill /T 는 자식 트리까지 함께 종료한다. 이미 죽은 PID 면 조용히 실패한다.
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        proc.terminate()
+
+    for attempt in (10, 5):
+        try:
+            _, err = proc.communicate(timeout=attempt)
+            return err or b""
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    print("[경고] 서버 stderr 회수 실패 — 고아 프로세스가 남았을 수 있습니다(집계는 계속합니다)")
+    return b""
+
+
 async def _wait_ready(base_url: str, timeout: float = 60.0) -> bool:
     """`/health` 폴링 — 요청은 적게, 타임아웃은 넉넉히 (Windows 소켓 바인딩 창 회피,
     `spikes/sp3_sse_events.py` `wait_ready()` 와 같은 이유)."""
@@ -641,12 +676,7 @@ def main() -> None:
 
             results, perm_result = asyncio.run(_run_stage(BASE_URL, items))
         finally:
-            proc.terminate()
-            try:
-                _, err_bytes = proc.communicate(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                _, err_bytes = proc.communicate()
+            err_bytes = _shutdown_server(proc)
 
     if err_bytes:
         stderr_text = err_bytes.decode("utf-8", "replace")

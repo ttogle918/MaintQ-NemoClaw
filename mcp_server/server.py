@@ -97,9 +97,11 @@ def get_supplier_quotes(part_no: str, qty: int = 1) -> dict:
 @mcp.tool(description=HIST_DESC)
 def get_error_history(
     equipment_id: str | None = None,
-    line_id: int | None = None,
+    # int 로 좁히면 LLM 이 라인 **이름**("2번 가공라인")을 넣었을 때 스키마 검증이 예외를
+    # 던져 도구가 status 로 실패를 못 돌려준다 (D9 위반). 넓게 받아 도구 안에서 판정한다.
+    line_id: int | str | None = None,
     code: str | None = None,
-    days: int = 30,
+    days: int | str = 30,
 ) -> dict:
     return _get_error_history(equipment_id=equipment_id, line_id=line_id, code=code, days=days)
 

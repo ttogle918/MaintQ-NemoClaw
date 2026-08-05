@@ -9,7 +9,7 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 D1~D57. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 D1~D67. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약. 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 10절(실제 11개) + 시드 케이스 맵
@@ -42,14 +42,32 @@ Q 시리즈 3번째 (FinAllQ·InsuQ·MaintQ). 주제는 **도구 오케스트레
 | `/checkpoint` | 중단 시점 저장 (`sprint-N-wip.md`) |
 | `/done` | 세션 마무리 — 로그(`docs/sessions/`) + **D 범위 표기 정합성 점검** |
 
-회귀 스위트(고정, 총 248건 + 정적 3종): `data/seed.py` 11 · `spikes/` 아래
-sp2_mcp_roundtrip 15 · write_tool_contract 14 · api_contract 28 · sp3_sse_events 22 ·
-trace_persist 14 · mcp_client_contract 15 · prompt_rules 16 · lookup_contract 12 ·
-citation_render 13 · db_concurrency 13 · rag_contract 12 · agent_loop_contract 22 ·
-eval_score_contract 17 · s4_smoke 10 · llm_provider_contract 14.
-정적: `ruff check` · `tsc --noEmit` · `next build`. 계약이 깨지면 여기서 먼저 잡힌다.
+## 회귀 스위트
 
-## 현재 상태
+계약이 깨지면 여기서 먼저 잡힌다. 코드 변경 후 반드시 실행 (`/stage`가 자동 호출).
 
-설계 완료. M1(데이터 준비) 진행 중 — 매뉴얼 EDA → error_codes 추출 → 시드.
-사람이 해야 할 일은 `TODO_직접할일.md` 참조 (Claude가 대신 처리하지 말 것: 매뉴얼 다운로드, related_parts 최종 검수, 안전 문구 승인).
+- `data/seed.py` — 시드 케이스 맵 자가 검증
+- `spikes/` — sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
+  trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
+  db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
+  llm_provider_contract
+- 정적: `ruff check` · `tsc --noEmit` · `next build`
+
+건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
+
+## 마일스톤
+
+`M1` 데이터 준비 → `M2` 코어(MCP 도구·백엔드·에이전트 루프·trace) → `M3` UI → `M4` 평가·마무리.
+단계별 내용은 `docs/00_MVP_SCOPE.md §구현 순서`.
+
+## 지금 어디까지 왔는지 확인하는 법
+
+진행 상태는 이 문서에 적지 않는다(금방 낡는다). 세션 시작 시 아래를 본다:
+
+| 알고 싶은 것 | 어디를 보나 |
+|---|---|
+| 전체 진행 상태·다음 액션 | `docs/README.md` 맨 아래 "진행 상태" |
+| 직전 세션에서 무슨 일이 있었나 | `docs/sessions/` 최신 파일 (특히 "다음 세션" 절) |
+| 중단된 작업 재개 | `docs/sprints/sprint-N-wip.md` |
+| **사람이 해야 할 일** | `TODO_직접할일.md` — Claude가 대신 처리하지 말 것 (매뉴얼 다운로드, related_parts 최종 검수, 안전 문구 승인) |
+| 최근 커밋 흐름 | `git log --oneline -10` (접두어로 마일스톤 확인) |

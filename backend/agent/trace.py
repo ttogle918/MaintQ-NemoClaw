@@ -103,12 +103,16 @@ class TraceWriter:
         summary: str,
         elapsed: float,
         pages: list[int] | None = None,
+        parts: list[str] | None = None,
     ) -> sse.SseEvent:
         """도구 완료. `status` 는 D9 4종, 세분화는 도구가 `reason` 으로 (D46).
 
-        `pages` 는 근거 페이지 목록 (D54) — 실 루프는 항상 넘긴다(없으면 빈 리스트).
+        `pages` 는 근거 페이지 목록 (D54), `parts` 는 특정된 부품 품번 목록 (D66) —
+        실 루프는 둘 다 항상 넘긴다(해당 없는 도구면 빈 리스트).
         """
-        return self._write(sse.tool_result(tool, status, summary, elapsed, pages), tool)
+        return self._write(
+            sse.tool_result(tool, status, summary, elapsed, pages, parts), tool
+        )
 
     def block(self, block_type: str, data: dict) -> sse.SseEvent:
         """구조화 블록 — safety / po_card / citation (D22). `tool` 컬럼은 NULL."""

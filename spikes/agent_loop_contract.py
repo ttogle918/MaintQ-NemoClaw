@@ -408,6 +408,48 @@ async def run_all(db: Path) -> None:
         s[:110],
     )
 
+    # ── ⑮-b lookup 의 related_parts 품번이 이력 요약에 살아남는가 (D12 · 09_RUNTIME §2)
+    #
+    # 실측 배경(2026-08-05 평가): 요약이 "관련부품 1건" 처럼 **개수만** 남기고 품번을
+    # 떨어뜨리면, 에이전트는 다음 턴에 넘길 part_no 를 갖지 못해 부품명을 지어낸다
+    # ("S100 냉각팬" → search_inventory not_found). 20문항 부품 특정 정확률이 0/15 로
+    # 나온 근본원인이었다. related_parts 는 D12 가 "진단→부품 특정의 다리"로 지정한
+    # 값이라 PRESERVE_FIELDS 와 같은 등급으로 보존해야 한다.
+    s_lk = _summarize_for_history(
+        "lookup_error_code",
+        {
+            "status": "ok",
+            "code": "OHT",
+            "error_name": "냉각핀 과열",
+            "severity": "fault",
+            "related_parts": ["FAN-IG5-01"],
+            "manual_page": 202,
+        },
+    )
+    check(
+        "⑮-b D12 related_parts 품번이 이력 요약에 보존됨",
+        "FAN-IG5-01" in s_lk,
+        s_lk[:110],
+    )
+
+    # 다건도 전부 살아야 한다 — GFT 처럼 케이블·모터 2건인 코드가 있다 (2026-08-05 검수)
+    s_lk2 = _summarize_for_history(
+        "lookup_error_code",
+        {
+            "status": "ok",
+            "code": "GFT",
+            "error_name": "지락 전류",
+            "severity": "fault",
+            "related_parts": ["MTR-CBL-IG5", "MTR-3P-2K2"],
+            "manual_page": 204,
+        },
+    )
+    check(
+        "⑮-c related_parts 다건 전부 보존",
+        "MTR-CBL-IG5" in s_lk2 and "MTR-3P-2K2" in s_lk2,
+        s_lk2[:110],
+    )
+
     # ── ⑯ A7 — 루프가 error_history 에 쓰지 않는다
     src = (ROOT / "backend" / "agent" / "loop.py").read_text(encoding="utf-8")
     check(

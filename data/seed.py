@@ -535,6 +535,32 @@ def error_codes_gate() -> tuple[bool, str]:
     return True, "승인 확인됨"
 
 
+def related_parts_caveat() -> str:
+    """related_parts 의 검수 상태를 파일에서 읽어 한 줄 경고로 돌려준다.
+
+    문구를 하드코딩하면 검수가 끝난 뒤에도 "사람 검수 전"이라고 계속 출력해
+    거짓 경고가 된다. 반대로 경고를 지우면 미검수 상태가 조용히 넘어간다 —
+    그래서 상태를 **파일에서 유도**한다 (D12: 부품 특정 정확률의 뿌리).
+    """
+    if not RELATED_PARTS_JSON.exists():
+        return "⚠ related_parts 매핑 파일 없음 — 부품 특정이 동작하지 않는다"
+
+    rp = json.loads(RELATED_PARTS_JSON.read_text(encoding="utf-8"))
+    mappings = rp.get("mappings", [])
+    pending = [m for m in mappings if not m.get("reviewed")]
+    if pending:
+        codes = ", ".join(f"{m['model']}/{m['code']}" for m in pending)
+        return f"⚠ 미검수 {len(pending)}건 ({codes}) — 평가 결과를 실적으로 인용하지 말 것"
+
+    reviewers = {str(m.get("reviewed_by", "")).lower() for m in mappings}
+    if any("claude" in r for r in reviewers):
+        return (
+            f"⚠ {len(mappings)}개 코드 검수 완료 — 단 Claude 위임 판정이며 사람 최종 승인은 아니다"
+            " (TODO_직접할일.md 참조)"
+        )
+    return f"✓ {len(mappings)}건 사람 검수 완료"
+
+
 def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
     """추출 JSON → error_codes. related_parts 는 임시 매핑 파일로 덧씌운다 (검수 전)."""
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
@@ -737,8 +763,8 @@ def main() -> None:
 
         if with_codes:
             total, mapped = load_error_codes(con)
-            print(f"[error_codes] {total}건 적재 · related_parts 임시 매핑 {mapped}건")
-            print("  ⚠ related_parts 는 사람 검수 전 임시값 — 평가 결과를 실적으로 인용하지 말 것")
+            print(f"[error_codes] {total}건 적재 · related_parts 매핑 {mapped}건")
+            print(f"  {related_parts_caveat()}")
         else:
             print(f"[error_codes] 적재 건너뜀 — {why}")
             print("  → 승인 후 실행: uv run python data/seed.py --with-error-codes")

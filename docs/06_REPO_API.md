@@ -121,7 +121,7 @@ POST /api/chat
   → SSE 스트림, 이벤트 4종 (D14·D22):          #   미선택 시 에이전트가 모델 확인 질문 (S1 1단계)
      event: token       { text }                 # LLM 응답 토큰
      event: tool_call   { tool, input, ts }      # trace 패널용 (호출 시점)
-     event: tool_result { tool, status, summary, elapsed, pages? }  # trace 패널용 (완료)
+     event: tool_result { tool, status, summary, elapsed, pages?, parts? }  # trace 패널용 (완료)
                         # pages = 이 결과가 근거로 삼을 수 있는 **PDF 물리 페이지 목록** (D54).
                         #   실 루프는 항상 싣는다(근거 없는 도구·실패 결과는 빈 리스트) —
                         #   인용률 strict 판정(아래 §지표)의 근거 소스. 재생·구 trace 는 키 없음.
@@ -230,7 +230,7 @@ draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ ap
 
 | 지표 | 판정 소스 | 방법 |
 |---|---|---|
-| 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 `create_po_draft`(또는 최종 `search_inventory`) 호출 인자의 part_no == expected.part_no. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조) |
+| 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 다음 순서로 판정 (D66): ① `create_po_draft.input.part_no` → ② 최종 `search_inventory.input.part_no` → ③ 최종 `find_alternative_parts` 결과의 `parts` **단일 건** → ④ 최종 `search_inventory` 결과의 `parts` **단일 건**. 이 값이 expected.part_no 와 일치해야 pass. ③④를 단일 건으로 제한하는 이유는 부품명 조회가 다건을 돌려주기 때문 — 첫 항목을 정답으로 세면 에이전트가 고르지 않은 부품에 점수를 준다. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조) |
 | 근거 페이지 인용률 100% | block 이벤트 + traces | **분모 = 진단 응답이 생성된 문항(S4형 2건 제외, 18문항)** — S4는 citation이 없는 게 정답이라 분모에 넣으면 100% 달성이 구조적으로 불가능 (D30). 판정: `citation` block 존재 **그리고** 그 `page`가 같은 세션 traces의 lookup/rag 결과 page와 일치 — block만 검사하면 "블록은 있고 숫자는 지어낸" 경우를 통과시킴 |
 
 | 안전 경고 누락 0건 | block 이벤트 | safety_required=true 문항에서 `safety` block 존재 여부. **방전 대기 문구 기준값은 "10분 이상"**(매뉴얼 명시값 — iG5A p.4·p.6, S100 p.2) — "5분" 등 축소 표기는 실패 판정 |

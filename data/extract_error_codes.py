@@ -76,6 +76,64 @@ def norm_key(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
+def assign_key(yr, item_cells, fallback):
+    """세로 겹침이 가장 큰 항목 키. 겹치는 항목이 없으면 직전 항목을 잇는다."""
+    hit = max(item_cells, key=lambda c: overlap(yr, c[1]), default=None)
+    return hit[0] if hit and overlap(yr, hit[1]) > 0 else fallback
+
+
+def span_key(y: float, parts: list[tuple[float, float, str]]) -> str | None:
+    """분할 구간에서 y 가 속한 항목 키. **어디에도 안 들어가면 버린다.**
+
+    가장 가까운 항목으로 흘려보내면 남의 조치문이 붙는다 — 실측에서 Out Phase Open 이
+    이웃 항목들의 조치까지 6건 흡수했다. 엉뚱한 에러코드에 붙은 조치는 누락보다 나쁘다.
+    에이전트가 그대로 정비사에게 전달하기 때문이다. 못 고르면 비운다.
+    """
+    for lo, hi, key in parts:
+        if lo <= y <= hi:
+            return key
+    return None
+
+
+def column_sentences(page, bbox) -> list[tuple[float, str]]:
+    """컬럼 bbox 를 단어로 읽어 줄로 묶고 문장으로 재구성 → [(문장 시작 y, 문장)].
+
+    `extract_text()` 로 통째 읽으면 줄바꿈 위치를 잃어 문장의 y 를 알 수 없고,
+    행 단위로 크롭하면 문장이 끊긴다 (D53 — 잘린 절차문은 뒷부분을 지어낼 여지를 만든다).
+    """
+    try:
+        words = page.crop(bbox).extract_words()
+    except ValueError:  # 크롭 영역이 페이지 밖
+        return []
+
+    lines: dict[int, list] = {}
+    for w in words:
+        lines.setdefault(round(w["top"]), []).append(w)
+
+    out: list[tuple[float, str]] = []
+    cur_y: float | None = None
+    cur: list[str] = []
+    for top in sorted(lines):
+        row = sorted(lines[top], key=lambda w: w["x0"])
+        text = clean(" ".join(w["text"] for w in row))
+        if not text:
+            continue
+        if cur_y is None:
+            cur_y = float(top)
+        cur.append(text)
+        # 마침표로 끝나면 문장 종료 — 다음 줄은 새 문장
+        if text.endswith("."):
+            joined = clean(" ".join(cur))
+            if len(joined) > 3:
+                out.append((cur_y, joined))
+            cur, cur_y = [], None
+    if cur and cur_y is not None:
+        joined = clean(" ".join(cur))
+        if len(joined) > 3:
+            out.append((cur_y, joined))
+    return out
+
+
 def split_bullets(cell: str) -> list[str]:
     """'' 불릿 셀 → 문장 리스트 (개행은 문장 내 이어붙임)"""
     if not cell:
@@ -196,6 +254,23 @@ def parse_s100(pdf_path: Path) -> tuple[list[dict], list[str]]:
                     # 겹치는 항목이 없으면 직전 항목 carry (페이지 경계에서 병합이 끊긴 경우)
                     item_cells: list[tuple[str, tuple[float, float]]] = []
                     body: list[tuple[int, tuple[float, float], str]] = []  # (col, y구간, 텍스트)
+
+                    # '조치 사항' 컬럼은 **본문 행에서 cells[2] 가 항상 None** 이다 —
+                    # 괘선이 닫힌 셀을 만들지 않아 pdfplumber 가 bbox 를 못 낸다.
+                    # bbox is None 을 건너뛰면 actions 가 통째로 비고(S100 41/41 결측,
+                    # 2026-08-05 확인), 진단 결과에 조치가 없어 에이전트가 절차를 서술하지
+                    # 못한다. 헤더 행에서 컬럼 x 범위를 얻어 **항목 병합 셀의 y 구간 전체**를
+                    # 한 번에 crop 한다 (iG5A 12.1 의 desc 크롭과 같은 기법).
+                    #
+                    # 행 단위로 자르지 않는 이유: 진단 행과 조치 셀의 y 경계가 어긋나 문장이
+                    # 조각나고("있는지 확인하십시오.") 다음 항목으로 번진다. **잘린 절차문은
+                    # 에이전트가 뒷부분을 지어낼 여지를 만든다 (D53)** — 항목 단위로 통째
+                    # 크롭한 뒤 문장으로 나누면 원문이 온전히 보존된다.
+                    head_cells = table.rows[0].cells if table.rows else []
+                    act_x = None
+                    if len(head_cells) >= 3 and head_cells[2] is not None:
+                        act_x = (head_cells[2][0], head_cells[2][2])
+
                     for row in table.rows[1:]:
                         for ci, bbox in enumerate(row.cells[:3]):
                             if bbox is None:
@@ -213,13 +288,53 @@ def parse_s100(pdf_path: Path) -> tuple[list[dict], list[str]]:
                     for key, _ in item_cells:
                         remedies.setdefault(key, {"causes": [], "actions": []})
                     for ci, yr, txt in body:
-                        hit = max(item_cells, key=lambda c: overlap(yr, c[1]), default=None)
-                        key = hit[0] if hit and overlap(yr, hit[1]) > 0 else last_item
+                        key = assign_key(yr, item_cells, last_item)
                         if key is None:
                             continue
                         remedies.setdefault(key, {"causes": [], "actions": []})
                         remedies[key]["causes" if ci == 1 else "actions"].append(txt)
                         last_item = key
+
+                    # 조치 사항 — 컬럼 전체를 단어로 읽어 줄→문장으로 재구성한 뒤 y 로 배정.
+                    #
+                    # 행 단위 크롭이 안 되는 이유: 조치 문장이 같은 행의 진단보다 길어
+                    # 아래로 더 흐르기 때문에 진단 행 y 로 자르면 문장이 끊긴다
+                    # ("…속도 검색 기능(Cn.60)을"). 반대로 항목 셀 y 는 병합 스팬이 아니라
+                    # 텍스트가 놓인 한 행이라 그것도 못 쓴다. 그래서 **컬럼을 통째로 읽고
+                    # 문장으로 나눈 뒤**, 각 문장의 y 를 원인 행 스팬과 맞춰 항목에 준다.
+                    if act_x and body:
+                        spans: dict[str, tuple[float, float]] = {}
+                        for ci_b, yr_b, _ in body:
+                            if ci_b != 1:
+                                continue
+                            # 스팬은 **항목 셀과 실제로 겹치는 행만** 정의한다.
+                            # last_item 으로 흘려보내면 겹치지 않는 행까지 흡수돼
+                            # 그 항목의 y 범위가 페이지 전체로 부풀고, nearest_span 이
+                            # 다른 항목의 조치까지 전부 그쪽으로 몰아준다 (실측: 41문장이
+                            # ETH·OLW 두 항목에만 배정됨).
+                            k = assign_key(yr_b, item_cells, None)
+                            if k is None:
+                                continue
+                            lo, hi = spans.get(k, (yr_b[0], yr_b[1]))
+                            spans[k] = (min(lo, yr_b[0]), max(hi, yr_b[1]))
+
+                        if spans:
+                            # 표 본문 전체를 훑는다 — 스팬 합집합으로 자르면 원인 행이
+                            # 덜 잡힌 항목의 조치문이 크롭 밖으로 떨어진다.
+                            top = min(v[0] for v in spans.values())
+                            bot = max(v[1] for v in spans.values())
+                            parts = [(lo, hi, k) for k, (lo, hi) in spans.items()]
+                            for y_mid, sent in column_sentences(
+                                page, (act_x[0], top, act_x[1], bot)
+                            ):
+                                k = span_key(y_mid, parts)
+                                if k is None:
+                                    continue
+                                remedies.setdefault(k, {"causes": [], "actions": []})
+                                bucket = remedies[k]["actions"]
+                                if sent not in bucket:
+                                    bucket.append(sent)
+
                     if item_cells:
                         last_item = item_cells[-1][0]
 

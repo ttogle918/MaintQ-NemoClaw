@@ -93,6 +93,71 @@ async def run() -> None:
                 f"필터 없음 {wide_n}건 → S100 지정 {len(narrow.get('items', []))}건",
             )
 
+            # ── ⑤-b part_name 은 띄어쓰기에 흔들리지 않아야 한다
+            #
+            # 실측 배경(2026-08-05 평가): LLM 은 부품명을 자연스럽게 띄어 쓴다
+            # ("냉각 팬", "전원 모듈"). 시드의 name 은 붙여쓰기라 LIKE 가 통째로 빗나가
+            # not_found 가 났고, T04·T15 가 "부품을 찾을 수 없습니다"로 끝났다.
+            # S2 진입(에러코드 없이 부품명만 말하는 경로)은 이름 조회가 **유일한 경로**라
+            # 여기서 막히면 분기 자체가 성립하지 않는다.
+            spaced = payload(
+                await session.call_tool(
+                    "search_inventory", {"part_name": "냉각 팬", "model": "iG5A"}
+                )
+            )
+            tight = payload(
+                await session.call_tool(
+                    "search_inventory", {"part_name": "냉각팬", "model": "iG5A"}
+                )
+            )
+            spaced_nos = [i["part_no"] for i in spaced.get("items", [])]
+            check(
+                "⑤-b part_name 공백 무관 매칭",
+                spaced.get("status") == "ok"
+                and spaced_nos == [i["part_no"] for i in tight.get("items", [])],
+                f"'냉각 팬' → {spaced.get('status')} {spaced_nos}",
+            )
+
+            # 반대 방향 — 시드 이름에 공백이 있어도 붙여 쓴 질의로 찾혀야 한다
+            pwr = payload(
+                await session.call_tool(
+                    "search_inventory", {"part_name": "전원 모듈", "model": "S100"}
+                )
+            )
+            check(
+                "⑤-c part_name 공백 무관 매칭 (전원모듈)",
+                pwr.get("status") == "ok"
+                and any(i["part_no"] == "PWR-S100-MOD" for i in pwr.get("items", [])),
+                f"'전원 모듈' → {pwr.get('status')} "
+                f"{[i['part_no'] for i in pwr.get('items', [])]}",
+            )
+
+            # ── ⑤-d line_id 에 라인 이름이 오면 예외가 아니라 status:error (D9)
+            #
+            # 실측(2026-08-05): LLM 이 line_id 에 "2번 가공라인"·"L1" 을 넣었고, 시그니처가
+            # int 라 MCP 스키마 검증이 예외를 던져 원문 오류가 그대로 샜다. 에이전트는
+            # 조치할 수 없고 턴당 도구 상한(8회)만 축난다. 추정해서 2 를 뽑지도 않는다 —
+            # 라인을 잘못 짚으면 남의 설비 이력으로 repeated 를 판정하게 된다.
+            bad_line = payload(
+                await session.call_tool("get_error_history", {"line_id": "2번 가공라인"})
+            )
+            check(
+                "⑤-d line_id 라인 이름 → status:error (예외 아님)",
+                bad_line.get("status") == "error"
+                and bad_line.get("reason") == "invalid_line_id",
+                f"status={bad_line.get('status')}, reason={bad_line.get('reason')}",
+            )
+
+            # 숫자 문자열은 받아준다 — 값이 명확해 추정이 아니다
+            num_line = payload(
+                await session.call_tool("get_error_history", {"line_id": "3", "code": "OCT"})
+            )
+            check(
+                "⑤-e line_id 숫자 문자열은 정상 조회",
+                num_line.get("status") == "ok" and num_line.get("count", 0) >= 3,
+                f"status={num_line.get('status')}, count={num_line.get('count')}",
+            )
+
             # ── S2: 재고 0 + 단종 → 대체품 분기
             s2 = payload(await session.call_tool("search_inventory", {"part_no": "PCB-S100-CTRL"}))
             it = s2["items"][0]

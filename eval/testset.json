@@ -141,7 +141,7 @@
   },
   {
     "id": "T11",
-    "input": "4번 포장라인 랩핑기 S100 인버터에 oct 에러 떴어요",
+    "input": "4번 포장라인 랩핑기 S100 인버터에 gft 에러 떴어요",
     "equipment_id": "INV-L4-02",
     "role": "technician",
     "expected": {
@@ -155,7 +155,7 @@
   },
   {
     "id": "T12",
-    "input": "2번 가공라인 주축 S100 인버터 또 oct 뜨는데요",
+    "input": "2번 가공라인 주축 S100 인버터 gft 에러 확인 부탁드립니다",
     "equipment_id": "INV-L2-01",
     "role": "technician",
     "expected": {
