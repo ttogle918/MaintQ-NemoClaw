@@ -59,12 +59,14 @@
     -webkit-font-smoothing: antialiased;
   }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-  .wrap { max-width: 1220px; margin: 0 auto; padding: 40px 24px 90px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 40px 24px 90px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
+  /* ---------- header ---------- */
   header.top {
     display: flex; flex-wrap: wrap; gap: 20px 32px;
     align-items: flex-end; justify-content: space-between;
-    padding-bottom: 26px; border-bottom: 1px solid var(--border); margin-bottom: 30px;
+    padding-bottom: 26px; border-bottom: 1px solid var(--border); margin-bottom: 28px;
   }
   .eyebrow {
     font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.09em;
@@ -78,19 +80,37 @@
   .asof { text-align: right; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
   .asof b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
 
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 42px; }
+  /* ---------- stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
   .stat {
     background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
     padding: 15px 17px; position: relative; overflow: hidden;
   }
   .stat::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--planned); }
   .stat.g::before { background: var(--good); }
+  .stat.a::before { background: var(--accent); }
   .stat.w::before { background: var(--warn); }
-  .stat.c::before { background: var(--crit); }
-  .stat .n { font-size: 27px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.15; }
+  .stat .n { font-size: 27px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
   .stat .l { font-size: 12.5px; color: var(--ink-dim); margin-top: 3px; }
   .stat .s { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-top: 6px; }
 
+  /* ---------- legend ---------- */
+  .legend {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 11px;
+    padding: 16px 18px; margin-bottom: 42px;
+  }
+  .legend h2 { font-size: 14px; margin: 0 0 4px; font-weight: 680; }
+  .legend .sub { font-size: 13px; color: var(--ink-dim); margin: 0 0 14px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .lg { display: flex; gap: 10px; align-items: flex-start; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; margin-top: 5px; }
+  .swatch.real { background: var(--accent); }
+  .swatch.mock { background: var(--warn); }
+  .swatch.todo { background: var(--planned); }
+  .lg b { display: block; font-size: 13px; font-weight: 660; }
+  .lg span { font-size: 12.5px; color: var(--ink-dim); }
+
+  /* ---------- sections ---------- */
   section { margin-bottom: 46px; }
   .sec-head {
     display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
@@ -102,7 +122,6 @@
 
   .grid { display: grid; gap: 12px; }
   .cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .cols-3 { grid-template-columns: repeat(3, 1fr); }
 
   .card {
     background: var(--bg-panel); border: 1px solid var(--border); border-radius: 11px;
@@ -115,7 +134,8 @@
     letter-spacing: 0.05em; display: block; margin-bottom: 3px;
   }
   .desc { font-size: 13.5px; color: var(--ink-dim); margin: 0 0 12px; }
-  .desc code, code.inline {
+  .desc:last-of-type { margin-bottom: 12px; }
+  code, code.inline {
     font-family: var(--font-mono); font-size: 12px; background: var(--bg-sunken);
     padding: 1px 5px; border-radius: 4px; color: var(--ink);
   }
@@ -132,20 +152,21 @@
   .dblock { margin-top: auto; border-top: 1px dashed var(--border); padding-top: 11px; }
   .dlabel {
     font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.07em;
-    text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px;
+    text-transform: uppercase; color: var(--ink-faint); margin-bottom: 7px;
   }
   .dlist { display: flex; flex-wrap: wrap; gap: 5px; }
   .d {
     font-family: var(--font-mono); font-size: 11.5px; padding: 3px 8px; border-radius: 5px;
-    background: var(--bg-sunken); color: var(--ink-dim); border: 1px solid var(--border-soft);
+    border: 1px solid var(--border-soft); font-variant-numeric: tabular-nums;
+    border-left-width: 3px;
   }
-  .d.ok   { background: var(--good-soft); color: var(--good); border-color: transparent; }
-  .d.pend { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
-  .d.none { background: var(--crit-soft); color: var(--crit); border-color: transparent; }
-  .d.new  { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+  .d.real { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--border-soft); border-left-color: var(--accent); }
+  .d.mock { background: var(--warn-soft);   color: var(--warn);      border-color: var(--border-soft); border-left-color: var(--warn); }
+  .d.todo { background: var(--planned-soft);color: var(--planned);   border-color: var(--border-soft); border-left-color: var(--planned); }
 
+  /* ---------- tables ---------- */
   .twrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-panel); }
-  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
   th {
     font-size: 11.5px; font-family: var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase;
@@ -154,26 +175,23 @@
   tbody tr:last-child td { border-bottom: none; }
   td.mono, .mono { font-family: var(--font-mono); font-size: 12.5px; }
   td .sub { display: block; color: var(--ink-faint); font-size: 12px; margin-top: 3px; }
-  .num { text-align: right; font-family: var(--font-mono); white-space: nowrap; }
+  .num { text-align: right; font-family: var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .srcbar { display: inline-block; width: 3px; height: 13px; border-radius: 2px; margin-right: 7px; vertical-align: -2px; }
+  .srcbar.real { background: var(--accent); }
+  .srcbar.mock { background: var(--warn); }
+  .srcbar.todo { background: var(--planned); }
 
   .note {
     border-left: 3px solid var(--accent); background: var(--accent-soft);
-    padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; margin: 18px 0 0;
-    color: var(--ink);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; margin: 18px 0 0; color: var(--ink);
   }
   .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
   .note.crit { border-left-color: var(--crit); background: var(--crit-soft); }
   .note b { font-weight: 680; }
 
   .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .step {
-    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
-    position: relative;
-  }
-  .step .sn {
-    font-family: var(--font-mono); font-size: 11px; color: var(--accent-ink);
-    font-weight: 650; letter-spacing: 0.06em; margin-bottom: 5px;
-  }
+  .step { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .step .sn { font-family: var(--font-mono); font-size: 11px; color: var(--accent-ink); font-weight: 650; letter-spacing: 0.06em; margin-bottom: 5px; }
   .step h4 { margin: 0 0 6px; font-size: 14px; font-weight: 660; }
   .step p { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
 
@@ -186,7 +204,7 @@
   }
 
   @media (max-width: 900px) {
-    .cols-2, .cols-3, .stats, .flow { grid-template-columns: 1fr; }
+    .cols-2, .flow, .legend-grid { grid-template-columns: 1fr; }
     .stats { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
@@ -198,7 +216,7 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기존 기능 6종(구현 완료)과 확장 기능 6종(D67로 본 범위 편입)을 나열하고, 각 기능이 실제로 소비하는 데이터를 <b>이미 만든 것 · 원천은 정했지만 아직 없는 것 · 있으면 좋아지는 것 · 원천 자체가 없는 것</b>으로 나눠 붙였습니다.</p>
+      <p class="lede">기능 12종(구현 완료 6 · 예정 6)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 데이터마다 출처와 규모를 함께 적었습니다.</p>
     </div>
     <div class="asof">기준 시점<b>2026-08-07</b></div>
   </header>
@@ -206,37 +224,50 @@
   <div class="stats">
     <div class="stat g">
       <div class="n">6</div>
-      <div class="l">기존 기능 — 구현 완료</div>
-      <div class="s">MCP 도구 7종 · 회귀 264건</div>
+      <div class="l">구현 완료 기능</div>
+      <div class="s">MCP 도구 7종 · 회귀 257건</div>
     </div>
     <div class="stat w">
       <div class="n">6</div>
-      <div class="l">확장 기능 — 예정 (F1~F4)</div>
-      <div class="s">룰 엔진만 선행 완료</div>
+      <div class="l">앞으로 구현할 기능</div>
+      <div class="s">F1~F4 · 룰 엔진만 선행 완료</div>
+    </div>
+    <div class="stat a">
+      <div class="n">7</div>
+      <div class="l">실제 데이터</div>
+      <div class="s">매뉴얼 4 · 공공데이터 3</div>
     </div>
     <div class="stat">
-      <div class="n">13</div>
-      <div class="l">확보된 데이터 자산</div>
-      <div class="s">자체 구축 8 · 외부 원천 5</div>
-    </div>
-    <div class="stat c">
-      <div class="n">3</div>
-      <div class="l">원천 없는 공백</div>
-      <div class="s">추정치 고지로만 대응 (D65)</div>
+      <div class="n">11</div>
+      <div class="l">생성한 데이터</div>
+      <div class="s">시드 8 · 수기 3</div>
     </div>
   </div>
 
-  <div class="note" style="margin:-26px 0 40px">
-    <b>2026-08-07 갱신.</b> 법제처·국세청·등기정보광장 신청 완료 · 중진공 CSV 확보 및 EDA 완료(유효 5,396건) ·
-    그 결과로 <b>D68</b>(확장 범위의 대상을 인버터 → 호스트 설비로 재정의) 확정 ·
-    백로그 <b>P28</b>(외부 데이터 적재 계층) · <b>P29</b>(기종 확장 코드 이미지 추출) 추가.
+  <div class="legend">
+    <h2>데이터 3분류 — 이 문서 전체에서 같은 색을 씁니다</h2>
+    <p class="sub">"실제"와 "생성"을 구분하는 이유는 <b>신뢰도가 다르기 때문</b>입니다. 실제 데이터에 근거한 판정은 인용할 수 있지만, 목업에 근거한 수치는 반드시 추정치임을 고지해야 합니다(D65).</p>
+    <div class="legend-grid">
+      <div class="lg">
+        <span class="swatch real"></span>
+        <div><b>실제 데이터</b><span>외부 원천에서 받은 것 — LS 공식 매뉴얼, 공공데이터, 법령 원문. 근거로 인용 가능</span></div>
+      </div>
+      <div class="lg">
+        <span class="swatch mock"></span>
+        <div><b>생성한 데이터</b><span>우리가 만든 것 — <code>seed.py</code> 목업, 수기 매핑, 직접 작성한 해석 룰. 고지 필요</span></div>
+      </div>
+      <div class="lg">
+        <span class="swatch todo"></span>
+        <div><b>앞으로 만들 데이터</b><span>아직 없음 — 확장 기능이 요구하는 테이블·컬럼. 일부는 실제 데이터에서 파생</span></div>
+      </div>
+    </div>
   </div>
 
-  <!-- ================= 기존 기능 ================= -->
+  <!-- ================= 구현 완료 기능 ================= -->
   <section>
     <div class="sec-head">
-      <h2>기존 기능 6종 — 구현 완료</h2>
-      <span class="count">M1~M4 · 회귀 264건 통과</span>
+      <h2>구현 완료 — 기능 6종</h2>
+      <span class="count">M1~M4 · 회귀 257건 통과</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -247,14 +278,13 @@
           <div><span class="fno">기능 1 · S1~S4</span><h3>에러코드 진단 — 룩업 × RAG 이원화</h3></div>
           <span class="chip done">완료</span>
         </div>
-        <p class="desc"><code>lookup_error_code</code>는 코드→의미를 exact match로, <code>rag_search_manual</code>은 점검 절차를 매뉴얼에서 검색. 정의와 절차의 경계가 설계의 핵심(D1).</p>
+        <p class="desc"><code>lookup_error_code</code>는 코드→의미를 exact match로, <code>rag_search_manual</code>은 점검 절차를 매뉴얼에서 검색. <b>정의와 절차의 경계</b>가 설계 핵심(D1).</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">error_codes.json · 65건</span>
-            <span class="d ok">manual_chunks.jsonl · 1,035청크</span>
-            <span class="d ok">ig5a_code_map.json</span>
-            <span class="d new">＋ 기종 확장 매뉴얼 (P11)</span>
+            <span class="d real">error_codes.json · 65건</span>
+            <span class="d real">manual_chunks.jsonl · 1,035청크</span>
+            <span class="d real">ig5a_code_map.json</span>
           </div>
         </div>
       </div>
@@ -268,11 +298,11 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d pend">related_parts.seed.json · 7건 <b>검수 미완</b></span>
-            <span class="d ok">parts 40 · inventory 40</span>
-            <span class="d ok">suppliers 4 · supplier_parts 80</span>
-            <span class="d ok">part_alternatives 4</span>
-            <span class="d new">＋ 조달청 낙찰 단가 (현실화)</span>
+            <span class="d mock">related_parts · 7건 <b>검수 미완</b></span>
+            <span class="d mock">parts 40 · inventory 40</span>
+            <span class="d mock">suppliers 4 · supplier_parts 80</span>
+            <span class="d mock">part_alternatives 4</span>
+            <span class="d real">조달청 자재단가 xlsx 2종</span>
           </div>
         </div>
       </div>
@@ -282,13 +312,13 @@
           <div><span class="fno">기능 3 · S1·S2</span><h3>발주서 초안 + 승인 워크플로우</h3></div>
           <span class="chip done">완료</span>
         </div>
-        <p class="desc"><code>create_po_draft</code>는 draft만 생성. 도구에 UPDATE 권한 자체가 없고(D10) 확정은 팀장 승인 큐에서만(D18). 정비사 approve → 403.</p>
+        <p class="desc"><code>create_po_draft</code>는 draft만 생성. <b>도구에 UPDATE 권한 자체가 없고</b>(D10) 확정은 팀장 승인 큐에서만(D18). 정비사 approve → 403.</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">po_drafts 5 (시드)</span>
-            <span class="d ok">users 3</span>
-            <span class="d ok">supplier_parts (단가 스냅샷 D31)</span>
+            <span class="d mock">po_drafts 5</span>
+            <span class="d mock">users 3</span>
+            <span class="d mock">supplier_parts (단가 스냅샷 D31)</span>
           </div>
         </div>
       </div>
@@ -302,9 +332,9 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">error_history · 200건</span>
-            <span class="d ok">equipment · 10대</span>
-            <span class="d">시드 보장 반복조합 <code>INV-L3-01+OCT</code> 1건</span>
+            <span class="d mock">error_history · 200건</span>
+            <span class="d mock">equipment · 10대</span>
+            <span class="d mock">반복조합 <code>INV-L3-01+OCT</code> 1건</span>
           </div>
         </div>
       </div>
@@ -318,9 +348,9 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">SAFETY_BASELINE (iG5A p.4 · S100 p.2)</span>
-            <span class="d ok">방전 대기 "10분 이상" 매뉴얼 명시값</span>
-            <span class="d pend">QUALIFIED_WORKER_NOTE 문안 <b>승인 대기</b></span>
+            <span class="d real">SAFETY_BASELINE (iG5A p.4 · S100 p.2)</span>
+            <span class="d real">방전 대기 "10분 이상" 매뉴얼 명시값</span>
+            <span class="d mock">QUALIFIED_WORKER_NOTE <b>승인 대기</b></span>
           </div>
         </div>
       </div>
@@ -330,12 +360,12 @@
           <div><span class="fno">기능 6 · 전 시나리오</span><h3>실행 trace 시각화</h3></div>
           <span class="chip done">완료</span>
         </div>
-        <p class="desc">SSE 4종 고정(<code>token</code>/<code>tool_call</code>/<code>tool_result</code>/<code>block</code>). 발행과 동시에 <code>traces</code>에 영속화 — 평가 5지표의 판정 소스가 전부 이 테이블이다.</p>
+        <p class="desc">SSE 4종 고정(<code>token</code>/<code>tool_call</code>/<code>tool_result</code>/<code>block</code>). 발행과 동시에 <code>traces</code>에 영속화 — <b>평가 5지표의 판정 소스가 전부 이 테이블</b>이다.</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">traces (런타임 생성)</span>
-            <span class="d ok">eval/testset.json · 20문항 검수완료</span>
+            <span class="d mock">traces (런타임 생성)</span>
+            <span class="d mock">eval/testset.json · 20문항</span>
           </div>
         </div>
       </div>
@@ -343,48 +373,47 @@
     </div>
   </section>
 
-  <!-- ================= 확장 기능 ================= -->
+  <!-- ================= 예정 기능 ================= -->
   <section>
     <div class="sec-head">
-      <h2>확장 기능 6종 — 예정</h2>
+      <h2>앞으로 구현할 기능 — 6종</h2>
       <span class="count">D67 본 범위 편입 · 순서 F1 → F4</span>
     </div>
     <p class="sec-note">
-      순서 제약은 유지됩니다 — <b>① S1~S4 관통과 완료기준 5개 → ② <code>related_parts</code> 검수(M1 크리티컬 패스) → ③ F1 근거 계층</b>. 나머지가 전부 F1 위에 얹힙니다.
+      순서 제약은 유지됩니다 — <b>① S1~S4 관통과 완료기준 5개 → ② <code>related_parts</code> 검수(M1 크리티컬 패스) → ③ F1 근거 계층.</b> 나머지가 전부 F1 위에 얹힙니다.
     </p>
 
     <div class="grid cols-2">
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 11 · F1 · 토대</span><h3>근거 3계층 — 법령 · 해석 · 서명</h3></div>
+          <div><span class="fno">기능 7 · F1 · 토대</span><h3>근거 3계층 — 법령 · 해석 · 서명</h3></div>
           <span class="chip wip">엔진 완료 · 원문 대기</span>
         </div>
         <p class="desc">계층 1(법령 원문, append-only) · 계층 2(해석 룰, 근거 미인용 시 로드 거부) · 계층 3(사람 서명, 번들 해시 고정). <b>확장 전체의 토대.</b></p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">rules/ · 5종 + 엔진 + 테스트 19개</span>
-            <span class="d pend">laws/ · 6건 전부 <b>fetch_status: PENDING</b></span>
-            <span class="d new">→ 법제처 OPEN API (승인 완료)</span>
-            <span class="d none">decisions 테이블 미생성</span>
+            <span class="d mock">rules/ · 5종 + 엔진 + 테스트 19개</span>
+            <span class="d todo">laws/ 원문 6조문 · <b>수집 대기</b></span>
+            <span class="d todo">decisions 테이블</span>
           </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 10 · F2 · S9</span><h3>처분 법정 조건 검사</h3></div>
+          <div><span class="fno">기능 8 · F2 · S9</span><h3>처분 법정 조건 검사</h3></div>
           <span class="chip">예정</span>
         </div>
-        <p class="desc"><code>check_disposal_blockers</code> — BLOCKING/PRECONDITION 판정, 409 반환 + 해소 경로 안내. 거부하되 이유와 다음 행동을 함께 준다(S4와 같은 태도).</p>
+        <p class="desc"><code>check_disposal_blockers</code> — BLOCKING/PRECONDITION 판정, 409 반환 + 해소 경로 안내. <b>거부하되 이유와 다음 행동을 함께 준다</b>(S4와 같은 태도).</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">rules/ 5종 (판정 로직 동작 중)</span>
-            <span class="d pend">laws/ 원문 (근거 인용용)</span>
-            <span class="d none">equipment 확장 9필드 미생성</span>
-            <span class="d none">flags 테이블 미생성</span>
+            <span class="d mock">rules/ 5종 (판정 로직 동작 중)</span>
+            <span class="d todo">laws/ 원문 (근거 인용용)</span>
+            <span class="d todo">equipment 확장 9필드</span>
+            <span class="d todo">flags 테이블</span>
           </div>
         </div>
       </div>
@@ -398,44 +427,43 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d none">repair_records 테이블 미생성</span>
-            <span class="d none">parts.part_class 컬럼 미추가</span>
-            <span class="d ok">error_codes FK 규칙 재사용 (D13·D33)</span>
+            <span class="d todo">repair_records 테이블</span>
+            <span class="d todo">parts.part_class 컬럼</span>
+            <span class="d real">error_codes FK 규칙 재사용</span>
           </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 8 · F3</span><h3>보전지표 — MTBF · 예방보전 비율</h3></div>
+          <div><span class="fno">기능 10 · F3</span><h3>보전지표 — MTBF · 예방보전 비율</h3></div>
           <span class="chip">예정</span>
         </div>
         <p class="desc"><code>get_maintenance_metrics</code>. MTBF 추세·가용도·누적수리비. <b>예방보전 비율이 매수자가 가장 신뢰하는 지표</b> — 시계열이라 조작이 어렵다.</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d ok">error_history 200건 (재사용)</span>
-            <span class="d none">repair_records (work_type이 지표의 뿌리)</span>
-            <span class="d">OEE는 <b>거래 판정에 사용 금지</b> (D64)</span>
+            <span class="d mock">error_history 200건 (재사용)</span>
+            <span class="d todo">repair_records (work_type이 지표의 뿌리)</span>
+            <span class="d todo">OEE는 <b>거래 판정 사용 금지</b> (D64)</span>
           </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 7 · F4 · S1+</span><h3>수리 / 교체 / 매각 3지 판단</h3></div>
+          <div><span class="fno">기능 11 · F4 · S1+</span><h3>수리 / 교체 / 매각 3지 판단</h3></div>
           <span class="chip">예정</span>
         </div>
-        <p class="desc"><code>assess_repair_value</code> — 수리비 대비 가치 회복분 + 3지 대안. <code>repeat_failure</code>면 3지 판단보다 <b>근본원인이 먼저</b>(S3 우선, D2). <b>대상은 인버터가 아니라 호스트 설비</b>(D68).</p>
+        <p class="desc"><code>assess_repair_value</code> — 수리비 대비 가치 회복분 + 3지 대안. <code>repeat_failure</code>면 3지 판단보다 <b>근본원인이 먼저</b>(S3 우선, D2). 대상은 인버터가 아니라 <b>호스트 설비</b>(D68).</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d none">assets 테이블 미생성 (D68)</span>
-            <span class="d none">residual_curve 테이블 미생성</span>
-            <span class="d ok">중진공 매물 — <b>EDA 완료 · 유효 5,396건</b></span>
-            <span class="d new">→ 캠코 온비드 동산 감정가·낙찰가</span>
-            <span class="d new">→ 국세청 (제조사 존속 = 진부화)</span>
-            <span class="d ok">get_error_history의 repeated 재사용</span>
+            <span class="d real">중진공 매물 · <b>유효 5,396건</b></span>
+            <span class="d todo">assets 테이블 (D68)</span>
+            <span class="d todo">residual_curve ← 위 실데이터에서 파생</span>
+            <span class="d todo">캠코 온비드 감정가·낙찰가</span>
+            <span class="d mock">get_error_history의 repeated 재사용</span>
           </div>
         </div>
       </div>
@@ -449,10 +477,9 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d none">체크리스트 템플릿 미생성</span>
-            <span class="d ok">국세청 상태조회 — <b>신청 완료</b> (매도인 실체)</span>
-            <span class="d pend">등기정보광장 — 신청 완료, 단 <b>통계뿐</b></span>
-            <span class="d pend">법정 필수항목은 룰 카탈로그에서 자동 주입</span>
+            <span class="d real">국세청 사업자등록 (매도인 실체)</span>
+            <span class="d real">등기정보광장 통계 (배경 근거뿐)</span>
+            <span class="d todo">실사 체크리스트 템플릿</span>
           </div>
         </div>
       </div>
@@ -460,260 +487,232 @@
     </div>
 
     <div class="note warn">
-      <b>기능 12의 구조적 한계는 데이터로 못 메웁니다.</b> 동산은 등기가 없어 점유가 곧 권리 외관이고, <b>운용리스는 애초에 등기 대상이 아닙니다.</b> 외부 API를 아무리 붙여도 <code>VERIFIED</code>가 아니라 <code>PARTIAL</code>이 정답인 구간이 남습니다 — 데이터 부족이 아니라 제도의 성질입니다.
+      <b>기능 12의 한계는 데이터로 못 메웁니다.</b> 동산은 등기가 없어 점유가 곧 권리 외관이고, <b>운용리스는 애초에 등기 대상이 아닙니다.</b> 외부 API를 아무리 붙여도 <code>VERIFIED</code>가 아니라 <code>PARTIAL</code>이 정답인 구간이 남습니다 — 데이터 부족이 아니라 제도의 성질입니다.
+    </div>
+  </section>
+
+  <!-- ================= 실제 데이터 ================= -->
+  <section>
+    <div class="sec-head"><h2><span class="srcbar real"></span>실제 데이터 — 외부 원천에서 받은 것</h2><span class="count">7종</span></div>
+    <p class="sec-note">근거로 인용할 수 있는 데이터입니다. 매뉴얼 인용은 페이지까지, 법령 인용은 조문까지 추적됩니다.</p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>데이터</th><th class="num">규모</th><th>출처</th><th>왜 받았나</th><th>쓰는 기능</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">LS 매뉴얼 원본 4종<span class="sub">iG5A 사용/트러블슈팅 · S100 · IE5</span></td>
+            <td class="num">35.1MB</td>
+            <td>LS Solution Square<span class="sub">공식 자료실</span></td>
+            <td><b>프로젝트의 뿌리.</b> 에러코드·점검 절차·안전 경고의 유일한 근거</td>
+            <td>1, 2, 5</td>
+          </tr>
+          <tr>
+            <td class="mono">error_codes.json</td>
+            <td class="num">65건</td>
+            <td>매뉴얼 표 추출<span class="sub">브라우저 실측 대조 완료</span></td>
+            <td>정의 룩업의 결정론적 소스 (D1)</td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <td class="mono">manual_chunks.jsonl</td>
+            <td class="num">1,035청크<br>56.8만자</td>
+            <td>매뉴얼 청킹<span class="sub">평균 548자 · page 무가공(D26)</span></td>
+            <td>절차 RAG + 인용 페이지 추적</td>
+            <td>1, 5</td>
+          </tr>
+          <tr>
+            <td class="mono">중진공 자산거래중개장터 매물정보</td>
+            <td class="num">16,011건<br><b>유효 5,396</b></td>
+            <td><a href="https://www.data.go.kr/data/15112833/fileData.do">data.go.kr</a><span class="sub">연 1회 갱신</span></td>
+            <td><b>잔가율의 유일한 실데이터.</b> 제조년월+희망가격으로 경과연수별 분포 역산</td>
+            <td>11</td>
+          </tr>
+          <tr>
+            <td class="mono">조달청 시설공통자재 가격</td>
+            <td class="num">xlsx 2종</td>
+            <td><a href="https://www.kseis.co.kr">KSEIS</a><span class="sub">기계설비 · 전기/정보통신</span></td>
+            <td>신품 단가 기준선 — 잔가<b>율</b>의 분모, 부품 단가 현실화</td>
+            <td>2, 11</td>
+          </tr>
+          <tr>
+            <td class="mono">국세청 사업자등록 상태조회</td>
+            <td class="num">API</td>
+            <td><a href="https://www.data.go.kr/data/15081808/openapi.do">data.go.kr</a><span class="sub">1일 100만건 · 30분 동기화</span></td>
+            <td><b>외부 원천 중 개별 조회가 되는 유일한 것.</b> 매도인 실체 · 제조사 존속</td>
+            <td>12, 11</td>
+          </tr>
+          <tr>
+            <td class="mono">등기정보광장 동산담보 통계</td>
+            <td class="num">API 4종</td>
+            <td><a href="https://data.iros.go.kr/rp/oa/openOapiIntro.do">대법원</a><span class="sub">집계 통계뿐</span></td>
+            <td>S18 <code>residual_risk</code>의 배경 근거<span class="sub">⚠ 개별 담보 조회는 불가</span></td>
+            <td>12</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>법령 원문 6조문은 "실제 데이터인데 아직 안 받은 것"입니다.</b> 법제처 API 승인·호출까지 끝났고 <code>data/rules/laws/*.json</code>에 자리도 잡혀 있지만 <code>fetch_status: PENDING</code>입니다 — <b>조문을 손으로 타이핑하면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문에</b> 의도적으로 비워 뒀습니다.
+    </div>
+  </section>
+
+  <!-- ================= 생성한 데이터 ================= -->
+  <section>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">11종</span></div>
+    <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b></p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>데이터</th><th class="num">규모</th><th>만든 방식</th><th>왜 목업인가</th><th>쓰는 기능</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">equipment</td><td class="num">10대</td><td><code>seed.py</code></td><td>실제 공장 설비 대장을 구할 수 없음</td><td>4</td></tr>
+          <tr><td class="mono">parts · inventory</td><td class="num">40 · 40</td><td><code>seed.py</code><span class="sub">단종·안전재고 포함</span></td><td>ERP 재고는 사내 시스템 — MCP 교체 구조(D15)로 대응</td><td>2</td></tr>
+          <tr><td class="mono">suppliers · supplier_parts</td><td class="num">4 · 80</td><td><code>seed.py</code><span class="sub">lead_days·unit_price·moq</span></td><td>공급사 계약 단가는 비공개</td><td>2, 3</td></tr>
+          <tr><td class="mono">error_history</td><td class="num">200건</td><td><code>seed.py</code><span class="sub">AI허브 고장 유형 분포 참고(D16)</span></td><td>실 고장 이력 없음. <b>단 분포는 실데이터를 참고</b></td><td>4, 10</td></tr>
+          <tr><td class="mono">po_drafts · users</td><td class="num">5 · 3</td><td><code>seed.py</code></td><td>발주·계정은 데모용</td><td>3</td></tr>
+          <tr><td class="mono">related_parts.seed.json</td><td class="num">7건</td><td>사람 수기 매핑<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이지만 매핑 판단은 사람이 한 것.</b> 부품 특정 정확률의 뿌리(D12) — 최종 승인 대기</td><td>2</td></tr>
+          <tr><td class="mono">data/rules/rules/*.json</td><td class="num">5종</td><td>직접 작성<span class="sub">엔진 + 테스트 19개</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
+          <tr><td class="mono">eval/testset.json</td><td class="num">20문항</td><td>초안 생성 → 사람 검수<span class="sub">S1 12·S2 3·S3 3·S4 2</span></td><td>평가 기준은 우리가 정의</td><td>6</td></tr>
+          <tr><td class="mono">traces</td><td class="num">런타임</td><td>에이전트 루프가 발행</td><td>실행할 때 생성됨</td><td>6</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 앞으로 만들 데이터 ================= -->
+  <section>
+    <div class="sec-head"><h2><span class="srcbar todo"></span>앞으로 만들 데이터</h2><span class="count">8종</span></div>
+    <p class="sec-note">확장 기능이 요구하는 것들입니다. <b>일부는 위의 실제 데이터에서 파생</b>되고, 나머지는 새 목업입니다.</p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>만들 것</th><th>어떻게</th><th>필요한 기능</th><th>선행 조건</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono"><b>laws/*.json</b>의 <code>text</code></td>
+            <td><span class="srcbar real"></span><b>실제 수집</b> — 법제처 API로 6조문<span class="sub">＋ <code>text_hash</code>·<code>effective_from</code></span></td>
+            <td>7, 8</td>
+            <td>API 승인 완료 → <code>fetch_from_api</code> 구현만 남음</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>residual_curve</b></td>
+            <td><span class="srcbar real"></span><b>실데이터 파생</b> — 중진공 5,396건에서 경과연수별 잔가 역산</td>
+            <td>11</td>
+            <td>D68 반영 (카테고리를 <code>assets</code>에 매핑)</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>assets</b> + <code>equipment.asset_id</code></td>
+            <td><span class="srcbar mock"></span>시드 — <code>equipment.location</code>에서 호스트 설비 유도<span class="sub">컨베이어·랩핑기·집진기·리프터·절삭유 펌프</span></td>
+            <td>8, 11, 12</td>
+            <td><b>D68</b> — 스키마·시드·문서 반영</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>repair_records</b></td>
+            <td><span class="srcbar mock"></span>시드 + 런타임 생성<span class="sub"><code>work_type</code> 필수 · append-only</span></td>
+            <td>9, 10</td>
+            <td><code>parts.part_class</code> 컬럼 추가</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>decisions</b> (서명 레코드)</td>
+            <td><span class="srcbar mock"></span>런타임 생성<span class="sub"><code>bundle_hash</code>·<code>override</code>·사유</span></td>
+            <td>7</td>
+            <td>계층 1 수집 완료 후</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>flags</b> (법정 조건)</td>
+            <td><span class="srcbar mock"></span>런타임 생성 — 발생 → 이행 → 해소</td>
+            <td>8</td>
+            <td>룰 엔진 연결</td>
+          </tr>
+          <tr>
+            <td class="mono"><code>equipment</code> 확장 9필드</td>
+            <td><span class="srcbar mock"></span>시드<span class="sub">세액공제·담보·보험·안전검사 이력</span></td>
+            <td>8</td>
+            <td>룰 <code>required_facts</code>와 이름 일치 필요</td>
+          </tr>
+          <tr>
+            <td class="mono">실사 체크리스트 템플릿</td>
+            <td><span class="srcbar mock"></span>작성 — <code>{법정필수항목[], 사내항목[]}</code><span class="sub">법정 항목은 룰 카탈로그에서 자동 주입</span></td>
+            <td>12</td>
+            <td>법령 원문 수집 (법정 항목 근거)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 공백 ================= -->
+  <section>
+    <div class="sec-head"><h2>원천 자체가 없는 것</h2><span class="count">3종</span></div>
+    <p class="sec-note">조사했으나 공개 API·데이터셋이 존재하지 않습니다. <b>없는 정확도를 있는 척하지 않는 것</b>이 유일한 정직한 처리입니다(D65).</p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>필요한 것</th><th>왜 없나</th><th>대응</th></tr></thead>
+        <tbody>
+          <tr><td><b>기계기구 감정평가 정률법 잔가율 표</b></td><td>감정평가사협회 실무기준이 <b>문서로만 존재</b>. 협회 공개 데이터 55건은 전부 부동산</td><td>필요 시 사람이 수기 정리</td></tr>
+          <tr><td><b>민간 중고 딜러·경매 실거래가</b></td><td>딜러·경매사 자체 시스템. 공개 API 없음</td><td>중진공 + 캠코로 대체</td></tr>
+          <tr><td><b>이전 비용 실적치</b><span class="sub">해체·중량물 운송·반입경로·설치·시운전</span></td><td>건별 견적이라 축적된 공개 데이터가 없음</td><td>목업 + "과소평가되기 쉬움" 경고</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note crit">
+      <b>D65는 유지됩니다.</b> 중진공·캠코로 잔가 추정의 <i>근거</i>는 생겼지만 <i>정확도</i>가 생긴 건 아닙니다. 시장가·감정가 출력에는 추정치 고지가 계속 강제되고, 단정적 금액 표현은 차단됩니다.
     </div>
   </section>
 
   <!-- ================= D68 ================= -->
   <section>
-    <div class="sec-head"><h2>D68 — 실측이 바꾼 것</h2><span class="count">2026-08-07 · 확장 범위의 대상 재정의</span></div>
-    <p class="sec-note">중진공 CSV를 실제로 열어 본 결과가 설계 공백을 하나 드러냈고, 그게 D68이 됐습니다. 데이터가 없어서 생긴 문제가 아니라 <b>데이터를 보니 드러난 문제</b>입니다.</p>
-
+    <div class="sec-head"><h2>D68 — 실측이 바꾼 것</h2><span class="count">2026-08-07</span></div>
+    <p class="sec-note">중진공 CSV를 실제로 열어 본 결과가 설계 공백을 드러냈고, 그게 D68이 됐습니다. <b>데이터가 없어서 생긴 문제가 아니라 데이터를 보니 드러난 문제</b>입니다.</p>
     <div class="grid cols-2">
       <div class="card">
         <div class="card-head"><div><span class="fno">발견</span><h3>대상이 어긋나 있었다</h3></div><span class="chip miss">문제</span></div>
-        <p class="desc">중고설비 매물 <b>16,011건 중 인버터는 4건</b>, 공작기계는 7,048건. 이 시장은 완제품 설비지 부품이 아닙니다. 그런데 확장 범위(S9·S10·S18)의 대상이 <code>equipment_id</code> = <b>인버터</b>였습니다.</p>
-        <p class="desc" style="margin-bottom:0"><code>11 §1</code>이 처분 서사의 근거로 든 <i>"수명 20~30년 · 신품 납기 수개월~1년 · 급하면 중고가 유일 대안"</i>은 <b>공작기계 특성이지 인버터가 아닙니다.</b> 근거와 대상이 처음부터 어긋나 있었습니다.</p>
+        <p class="desc">중고설비 매물 <b>16,011건 중 인버터는 4건</b>, 공작기계는 7,048건. 이 시장은 완제품 설비지 부품이 아닙니다. 그런데 확장 범위의 대상이 <code>equipment_id</code> = <b>인버터</b>였습니다.</p>
+        <p class="desc"><code>11 §1</code>이 처분 서사의 근거로 든 <i>"수명 20~30년 · 신품 납기 수개월~1년"</i>은 <b>공작기계 특성이지 인버터가 아닙니다.</b></p>
       </div>
       <div class="card">
         <div class="card-head"><div><span class="fno">해결</span><h3>실마리는 이미 데이터 안에 있었다</h3></div><span class="chip done">D68 확정</span></div>
-        <p class="desc"><code>equipment.location</code>에 호스트가 이미 문자열로 있었습니다 — 반송 컨베이어 · 랩핑기 · 집진기 · 리프터 · 절삭유 펌프 · 주축 · 배기팬. <b>지어내는 게 아니라 있던 정보를 승격하는 것</b>입니다.</p>
-        <p class="desc" style="margin-bottom:0"><code>assets</code> 신설 + <code>equipment.asset_id</code> FK. 확장 6종은 <code>asset_id</code>, <b>기존 6종은 <code>equipment_id</code> 그대로</b> — MCP 도구 계약 무변경.</p>
+        <p class="desc"><code>equipment.location</code>에 호스트가 이미 문자열로 있었습니다 — 반송 컨베이어 · 랩핑기 · 집진기 · 리프터 · 절삭유 펌프. <b>지어내는 게 아니라 있던 정보를 승격하는 것</b>입니다.</p>
+        <p class="desc"><code>assets</code> 신설 + <code>equipment.asset_id</code> FK. 확장 6종은 <code>asset_id</code>, <b>기존 6종은 <code>equipment_id</code> 그대로</b> — 도구 계약 무변경.</p>
       </div>
     </div>
-
-    <div class="note">
-      <b>제약 3가지를 함께 못 박았습니다.</b>
-      ⓐ 기존 6종의 도구 계약·<code>equipment_id</code> 불변 (D67 "범위는 넓히되 순서는 지킨다"와 같은 태도)
-      ⓑ S3 반복고장 판정은 <b>인버터 단위 유지</b> — 에러코드가 인버터의 것이므로. <code>12 §1</code>의 "감점 신호 재사용"은 <code>asset_id</code>로 <b>집계</b>하는 것이지 판정 기준 변경이 아닙니다
-      ⓒ <code>assets</code>는 F2~F4 착수 시점에 생성 — <b>F1(근거 계층)은 자산 구조와 무관하므로 D68이 F1을 막지 않습니다</b>
-    </div>
     <div class="note warn">
-      <b>보너스 — <code>확인불가</code> 함정.</b> CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code> <b>문자열</b>이 채워져 있습니다. 결측률을 그대로 믿고 5,911 대신 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도 5,911 · 연도+가격 교집합 5,396(33.7%)</b>입니다.
-    </div>
-  </section>
-
-  <!-- ================= 데이터 인벤토리 ================= -->
-  <section>
-    <div class="sec-head"><h2>① 생성 완료 — 자체 구축 데이터</h2><span class="count">8종</span></div>
-    <p class="sec-note">M1에서 만들었고 지금 기능이 실제로 소비하고 있는 것들입니다.</p>
-    <div class="twrap">
-      <table>
-        <thead><tr><th>데이터</th><th class="num">규모</th><th>출처 · 생성 방식</th><th>쓰는 기능</th><th>상태</th></tr></thead>
-        <tbody>
-          <tr><td class="mono">data/extracted/error_codes.json</td><td class="num">65건</td><td>LS 매뉴얼 PDF 표 추출<span class="sub">iG5A + S100, 브라우저 실측 대조</span></td><td>1</td><td><span class="chip done">승인 완료</span></td></tr>
-          <tr><td class="mono">data/extracted/manual_chunks.jsonl</td><td class="num">1,035청크<br>56.8만자</td><td><code class="inline">chunk_manual.py</code> · MAX_CHARS 900<span class="sub">평균 548자 · page 무가공(D26)</span></td><td>1, 5</td><td><span class="chip done">완료</span></td></tr>
-          <tr><td class="mono">data/related_parts.seed.json</td><td class="num">7건</td><td>사람 수기 매핑<span class="sub">부품 특정 정확률의 뿌리(D12)</span></td><td>2</td><td><span class="chip wip">검수 미완 · 크리티컬 패스</span></td></tr>
-          <tr><td class="mono">parts · inventory</td><td class="num">40 · 40</td><td><code class="inline">seed.py</code> 목업<span class="sub">단종 여부·안전재고 포함</span></td><td>2</td><td><span class="chip done">완료</span></td></tr>
-          <tr><td class="mono">suppliers · supplier_parts</td><td class="num">4 · 80</td><td><code class="inline">seed.py</code> 목업<span class="sub">lead_days · unit_price · moq</span></td><td>2, 3</td><td><span class="chip done">완료</span></td></tr>
-          <tr><td class="mono">equipment · error_history</td><td class="num">10 · 200</td><td><code class="inline">seed.py</code> 목업<span class="sub">30일 3회 반복조합 1건 보장</span></td><td>4, 8</td><td><span class="chip done">완료</span></td></tr>
-          <tr><td class="mono">data/rules/rules/*.json</td><td class="num">5종</td><td>직접 작성 (계층 2 해석 룰)<span class="sub">엔진 + 단위테스트 19개 통과</span></td><td>10, 11</td><td><span class="chip done">동작 중</span></td></tr>
-          <tr><td class="mono">eval/testset.json</td><td class="num">20문항</td><td>초안 생성 → 사람 검수 반영<span class="sub">S1 12 · S2 3 · S3 3 · S4 2</span></td><td>6</td><td><span class="chip done">검수 완료</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>② 확보 예정 — 원천 확정, 아직 수집 전</h2><span class="count">4종</span></div>
-    <p class="sec-note">2026-08-07 공공데이터 조사에서 원천을 확정한 것들입니다. 상세 근거는 <code class="inline">data/data_list.md</code>.</p>
-    <div class="twrap">
-      <table>
-        <thead><tr><th>원천</th><th>형태</th><th>채우는 것</th><th>쓰는 기능</th><th>상태</th></tr></thead>
-        <tbody>
-          <tr>
-            <td><b>국가법령정보 OPEN API</b><span class="sub">법제처 · <code class="inline">lawService.do?target=eflaw</code></span></td>
-            <td class="mono">JSON API</td>
-            <td>법령 원문 6개 조문 (계층 1)<span class="sub">＋ 기준내용연수 별표 ＋ 안전검사 대상 고시</span></td>
-            <td>10, 11<br><span class="sub">7(내용연수)</span></td>
-            <td><span class="chip done">승인 · 테스트 성공</span></td>
-          </tr>
-          <tr>
-            <td><b>중진공 자산거래중개장터 매물정보</b><span class="sub">data.go.kr / 15112833</span></td>
-            <td class="mono">CSV 파일<br>연 1회 갱신</td>
-            <td><code class="inline">residual_curve</code> 잔가율 근거<span class="sub">제조사·모델명·제조년월·희망가격·가동여부·수리가능여부</span></td>
-            <td>7, 12</td>
-            <td><span class="chip done">확보 · EDA 완료</span><span class="sub">16,011건 중 <b>유효 5,396</b><br>→ D68 계기</span></td>
-          </tr>
-          <tr>
-            <td><b>국세청 사업자등록 상태조회</b><span class="sub">data.go.kr / 15081808</span></td>
-            <td class="mono">오픈API</td>
-            <td><b>개별 조회가 되는 유일한 외부 원천</b><span class="sub">매도인 실체(S18) · 제조사 존속(진부화)</span></td>
-            <td>12, 7</td>
-            <td><span class="chip done">활용신청 완료</span><span class="sub">1일 100만건 · 30분 주기</span></td>
-          </tr>
-          <tr>
-            <td><b>법원 등기정보광장</b><span class="sub">data.iros.go.kr · 동산·채권담보 4종</span></td>
-            <td class="mono">오픈API</td>
-            <td>S18 <code class="inline">residual_risk</code>의 <b>배경 근거</b>(집계 통계)<span class="sub">개별 담보 조회는 불가 — 아래 ③ 5순위 참조</span></td>
-            <td>12</td>
-            <td><span class="chip wip">신청 완료 · 용도 제한적</span></td>
-          </tr>
-          <tr>
-            <td><b>캠코 온비드 동산 물건목록·입찰정보</b><span class="sub">data.go.kr / 15157232 · 15157251</span></td>
-            <td class="mono">오픈API</td>
-            <td>감정가 → 최저입찰가 → 낙찰가<span class="sub">호가를 실거래 쪽으로 보정</span></td>
-            <td>7</td>
-            <td><span class="chip wip">활용신청 필요</span></td>
-          </tr>
-          <tr>
-            <td><b>조달청 나라장터 낙찰정보</b><span class="sub">data.go.kr</span></td>
-            <td class="mono">오픈API</td>
-            <td>신품 가격 기준선 (잔가율의 분모)</td>
-            <td>7<span class="sub">2(단가 현실화)</span></td>
-            <td><span class="chip">조건부 · 후순위</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">
-      <b>법령 수집은 런타임이 아니라 개발 시점 작업입니다.</b> <code>fetch_laws.py</code>가 본인 PC에서 API를 호출해 <code>laws/*.json</code>을 채우고 git에 커밋하면, 배포 환경은 커밋된 파일만 읽습니다(11 §7). 요청마다 법제처를 호출하면 "서명 시점 스냅샷 재현" 전제가 깨집니다.
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>③ Enrich 후보 — 있으면 좋아지는 데이터</h2><span class="count">5종</span></div>
-    <p class="sec-note">없어도 기능은 성립하지만, 붙이면 판정 근거가 목업에서 실데이터로 올라가는 것들입니다. 우선순위 순.</p>
-    <div class="twrap">
-      <table>
-        <thead><tr><th class="num">순위</th><th>원천</th><th>무엇이 좋아지나</th><th>쓰는 기능</th><th>비용 · 주의</th></tr></thead>
-        <tbody>
-          <tr>
-            <td class="num">1</td>
-            <td><b>국세청 사업자등록 상태조회 API</b><span class="sub">data.go.kr / 15081808</span></td>
-            <td><b>매도인이 실재하는 사업자인가</b> 실시간 확인 → S18 권리관계 첫 관문<span class="sub">＋ <b>제조사 존속 여부</b> 판정 → 기술적 진부화(12 §4)</span></td>
-            <td>12, 7</td>
-            <td><b>✅ 신청 완료 — ② 로 승격</b><span class="sub">1일 100만건 · 30분 주기 · 폐업일자·과세유형까지</span></td>
-          </tr>
-          <tr>
-            <td class="num">2</td>
-            <td><b>LS 추가 기종 매뉴얼 — IE5 확보</b><span class="sub"><code class="inline">data/raw/IE5_User Manual(Simple)...pdf</code> 64p</span></td>
-            <td>기종 확장(P11)<span class="sub">제8장이 iG5A·S100과 <b>동일 2단 구조</b>(정의표 + 원인·대책표)</span></td>
-            <td>1, 2, 5</td>
-            <td><b>🚨 현재 상태로는 못 쓴다 — P29</b><span class="sub"><code class="inline">고장표시</code>(코드) 셀이 <b>전부 빈 문자열</b>. 7세그먼트 <b>이미지</b>라 추출 불가 → <code class="inline">lookup_error_code</code>의 진입점 자체가 없음</span></td>
-          </tr>
-          <tr>
-            <td class="num">3</td>
-            <td><b>조달청 시설공통자재 가격정보</b><span class="sub">data.go.kr · 또는 kseis.co.kr 배포본 xlsx 4종</span></td>
-            <td><code class="inline">supplier_parts</code> 단가·리드타임을 목업에서 실측 분포로</td>
-            <td>2, 3</td>
-            <td>건설자재 중심이라 설비 부품 커버리지 낮음<span class="sub">전기·정보통신 + <b>기계설비</b> 두 파일 모두 필요</span></td>
-          </tr>
-          <tr>
-            <td class="num">4</td>
-            <td><b>한국산업단지공단 전국등록공장현황</b><span class="sub">factoryon.go.kr · data.go.kr</span></td>
-            <td><code class="inline">equipment</code> 시드를 실제 공장 분포에 맞춰 현실화</td>
-            <td>4</td>
-            <td>공장 단위라 <b>설비 단위가 아님</b> — 데모 설득력용, 기능 영향 없음</td>
-          </tr>
-          <tr>
-            <td class="num">5</td>
-            <td><b>법원 등기정보광장 Open API</b><span class="sub">data.iros.go.kr · 대법원 (법제처와 별개 사이트)</span></td>
-            <td><b>통계뿐이다.</b> 동산·채권담보 서비스 6종 전부 집계치. 쓸 것은 <b>2개</b>:<br>① <i>신청사건 현황</i>(건수·기간별) → "동산담보 설정이 연 N건 규모"<br>② <i>신청현황(채권최고액별)</i> → 금액 구간 분포를 <b>중진공 설비 가격대(중앙 630만·p90 8천만)와 대조</b><span class="sub">나머지 4종(누적채권액·담보권자유형·등기기록수 현황·열람발급 현황)은 불필요</span></td>
-            <td>12</td>
-            <td>인증키 즉시 발급 · 1일 1,000건 초과 시 차단<span class="sub">⚠ <b>개별 물건 조회는 존재하지 않는다</b> — 등기부 열람은 iros.go.kr 유료 + 본인확인. 기능 12의 '동산담보등기 조회' 항목은 API로 수행 불가</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note warn">
-      <b>등기 조회 API가 없다는 사실은 S18의 결함이 아니라 실증입니다.</b> <code>11 §6</code>은 이미 "동산은 등기가 없다 · 리스는 등기 대상 아님"을 전제로 <code>PARTIAL</code>을 설계했습니다. 확인 수단이 구조적으로 불완전하다는 게 시나리오의 논지이므로, 조회가 안 된다는 확인은 그 논지를 뒷받침합니다. <b>개별 조회가 되는 유일한 외부 원천은 국세청 사업자등록 상태조회(1순위)뿐입니다.</b>
-    </div>
-    <div class="note crit">
-      <b>등기 통계를 인용할 때의 금지선.</b> 6종 전부 <b>"동산·채권" 합산</b>이고, 동산 안에서 기계설비가 몇 %인지는 공개되지 않습니다 — 동산담보에는 재고자산·원자재·농축산물이 함께 들어갑니다.
-      최소한 동산으로 필터하되, <span class="mono">✗ "기계설비 담보가 연 N건"</span> 으로 쓰면 사실 왜곡입니다.
-      <span class="mono">✓ "동산담보 등기가 연 N건 규모이며, 이 중 기계설비 비중은 공개 통계로 확인되지 않는다"</span> 가 정확한 표현이고, 이건 <code>11 §4</code> 불변식 6번(<b>고려하지 않은 것 명시</b> · <code class="inline">not_considered</code>)이 요구하는 그대로입니다.
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>④ 공백 — 원천 자체가 없음</h2><span class="count">3종</span></div>
-    <p class="sec-note">조사했으나 공개 API·데이터셋이 존재하지 않는 것들입니다. 없는 정확도를 있는 척하지 않는 것이 유일한 정직한 처리입니다(D65).</p>
-    <div class="twrap">
-      <table>
-        <thead><tr><th>필요한 것</th><th>왜 없나</th><th>대응</th></tr></thead>
-        <tbody>
-          <tr>
-            <td><b>기계기구 감정평가 정률법 잔가율 표</b></td>
-            <td>한국감정평가사협회 실무기준 <b>문서로만 존재</b>. 협회 공개 데이터 55건은 전부 부동산</td>
-            <td>필요 시 사람이 수기 정리 → <code class="inline">TODO_직접할일.md</code></td>
-          </tr>
-          <tr>
-            <td><b>민간 중고 딜러 · 경매 실거래가</b></td>
-            <td>딜러·경매사 자체 시스템. 공개 API 없음</td>
-            <td>스크래핑 검토 대상이나 우선순위 낮음. ②의 중진공+캠코로 대체</td>
-          </tr>
-          <tr>
-            <td><b>이전 비용 실적치</b><span class="sub">해체·중량물 운송·반입경로·설치·시운전</span></td>
-            <td>건별 견적이라 축적된 공개 데이터가 없음</td>
-            <td>목업 유지 + "과소평가되기 쉬움" 경고 표시(12 §5)</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note crit">
-      <b>D65는 유지됩니다.</b> ②·③으로 잔가 추정의 <i>근거</i>는 생기지만 <i>정확도</i>가 생기는 건 아닙니다. 시장가·감정가 출력에는 추정치 고지가 계속 강제되고, 단정적 금액 표현은 차단됩니다.
+      <b><code>확인불가</code> 함정.</b> CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code> <b>문자열</b>이 채워져 있습니다. 그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도 5,911 · 연도+가격 교집합 5,396(33.7%)</b>입니다.
     </div>
   </section>
 
   <!-- ================= 착수 순서 ================= -->
   <section>
     <div class="sec-head"><h2>착수 순서</h2><span class="count">데이터 관점</span></div>
-    <p class="sec-note">기능 순서(F1→F4)와 데이터 확보 순서는 다릅니다. 캠코는 표본이 쌓여야 의미가 생기므로 일찍 시작하는 게 유리합니다.</p>
     <div class="flow">
       <div class="step">
-        <div class="sn">STEP 1 · 완료</div>
-        <h4>✅ 중진공 CSV 형식 분석</h4>
-        <p>유효 5,396건 확인. 잔가율 산출 가능. 부수적으로 <b>D68을 낳았다</b> — 대상이 인버터가 아니라 호스트 설비여야 함.</p>
+        <div class="sn">완료</div>
+        <h4>중진공 CSV 분석</h4>
+        <p>유효 5,396건 확인. 부수적으로 <b>D68을 낳았다</b>.</p>
       </div>
       <div class="step">
-        <div class="sn">STEP 2 · 다음</div>
-        <h4>법제처 <code>fetch_from_api</code> 구현</h4>
-        <p>계층 1 채우기. F1의 실질적 시작. <b>D68과 독립</b>이라 지금 바로 가능하다.</p>
+        <div class="sn">다음</div>
+        <h4>법제처 <code>fetch_from_api</code></h4>
+        <p>계층 1 채우기. F1의 실질적 시작. <b>D68과 독립</b>이라 지금 바로 가능.</p>
       </div>
       <div class="step">
-        <div class="sn">STEP 3</div>
-        <h4>캠코 온비드 수집 시작</h4>
-        <p>진행 중 물건만 조회되므로 <b>주기 축적</b>이 필요. 늦게 시작할수록 표본이 적다.</p>
+        <div class="sn">그다음</div>
+        <h4>캠코 온비드 수집</h4>
+        <p>진행 중 물건만 조회되므로 <b>주기 축적</b> 필요 — 늦을수록 표본이 적다.</p>
       </div>
       <div class="step">
-        <div class="sn">STEP 4</div>
-        <h4><code>assets</code> 신설 + 잔가곡선</h4>
-        <p>D68 반영(스키마·시드·문서) 후 5,396건을 <code>assets.category</code>에 매핑.</p>
+        <div class="sn">그다음</div>
+        <h4><code>assets</code> + 잔가곡선</h4>
+        <p>D68 반영 후 5,396건을 <code>assets.category</code>에 매핑.</p>
       </div>
     </div>
     <div class="note">
-      <b>단, 데이터가 순서를 앞지르지 않게 합니다.</b> 완료 기준 5개와 <code>related_parts</code> 검수(M1 크리티컬 패스)가 여전히 먼저입니다 — 범위를 넓히는 것과 품질 기준을 느슨하게 하는 것은 다른 일입니다.
-    </div>
-  </section>
-
-  <!-- ================= 적재 구조 ================= -->
-  <section>
-    <div class="sec-head"><h2>적재 구조 — 지금은 없습니다</h2><span class="count">→ 백로그 P28</span></div>
-    <p class="sec-note">"API로 받아오면 DB에 저장하는 형태인가?"에 대한 답. <b>셋 다 없고, 그중 하나는 문서와 구현이 어긋나 있습니다.</b></p>
-    <div class="twrap">
-      <table>
-        <thead><tr><th>항목</th><th>현재 상태</th></tr></thead>
-        <tbody>
-          <tr><td><b>외부 API 응답 저장</b></td><td><span class="chip miss">없음</span> 구조 자체가 없다. 받을 때마다 다시 호출하는 형태</td></tr>
-          <tr>
-            <td><b>법령·룰 SQLite 적재</b></td>
-            <td><span class="chip miss">문서-구현 불일치</span> <code class="inline">data/rules/README.md</code>와 <code class="inline">11 §7</code>은 <i>"실행 시 SQLite에 적재해 조회한다"</i>고 쓰는데, <code class="inline">engine.py</code>는 <code class="inline">json.loads(path.read_text())</code>로 <b>파일에서 직접</b> 읽는다 — 적재 코드가 없다</td>
-          </tr>
-          <tr><td><b>파생 분석 결과 보관</b></td><td><span class="chip miss">없음</span> <code class="inline">residual_curve</code> 같은 산출물을 넣을 자리가 없다</td></tr>
-          <tr><td>정적 파일 캐시</td><td><span class="chip done">일부</span> <code class="inline">backend/manifest.py</code>의 1회 메모리 캐시만 (D19)</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">
-      <b>설계 원칙은 D60을 그대로 따라야 합니다 — 원본은 파일(git)이 정본, DB는 조회용 사본.</b> 재적재로 언제든 복원 가능해야 하고, DB를 지워도 근거는 남아야 합니다. 계층 1이 append-only인 이유와 같은 논리이고, 이걸 뒤집어 DB를 정본으로 삼으면 "서명 시점 스냅샷 재현"이 깨집니다.
+      <b>데이터가 순서를 앞지르지 않게 합니다.</b> 완료 기준 5개와 <code>related_parts</code> 검수(M1 크리티컬 패스)가 여전히 먼저입니다 — 범위를 넓히는 것과 품질 기준을 느슨하게 하는 것은 다른 일입니다.
     </div>
   </section>
 
   <footer>
     <span>MaintQ · Q 시리즈 3번째</span>
     <span>기준 2026-08-07</span>
-    <span>근거 문서: <code class="inline">00_MVP_SCOPE</code> · <code class="inline">07_BACKLOG</code> · <code class="inline">11_ASSET_LIFECYCLE</code> · <code class="inline">12_MAINT_VALUE</code> · <code class="inline">data/data_list.md</code></span>
+    <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/data_list.md</code></span>
   </footer>
 
 </div>
