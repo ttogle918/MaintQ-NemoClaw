@@ -1,0 +1,28 @@
+{
+  "rule_id": "LIEN-CONSENT",
+  "label": "담보 설정 자산 처분 동의",
+  "category": "CONTRACT",
+  "disposal_type": "BLOCKING",
+  "source_type": "CONTRACT",
+  "law_refs": ["KR-CIVIL-388"],
+  "contract_refs": ["여신거래기본약관", "근저당권설정계약서"],
+  "interpretation": "담보로 제공된 설비를 채권자 동의 없이 처분하면 여신거래약관상 기한이익 상실 사유에 해당할 수 있다. 법령이 처분을 금지하는 것이 아니라 계약이 제한하는 구조다.",
+  "required_facts": ["has_lien", "lien_creditor", "lien_consent_ref"],
+  "trigger": {
+    "all_of": [
+      {"field": "has_lien", "op": "eq", "value": true},
+      {"field": "lien_consent_ref", "op": "is_null"}
+    ]
+  },
+  "message": "담보 설정된 자산. 채권자 동의서 없이 처분 시 기한이익 상실 위험",
+  "resolve_options": [
+    "금융기관 동의서 확보 후 첨부 (lien_consent_ref 등록)",
+    "대출 상환 후 근저당 말소"
+  ],
+  "confidence": "HIGH",
+  "confidence_note": "근거가 법령이 아니라 개별 계약이므로, 실제 약관 조항을 contract_refs에 등록해야 근거가 완성된다",
+  "requires_expert_review": false,
+  "rule_version": 1,
+  "authored_by": null,
+  "reviewed_at": null
+}

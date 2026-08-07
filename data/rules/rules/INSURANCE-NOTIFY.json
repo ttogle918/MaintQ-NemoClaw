@@ -1,0 +1,33 @@
+{
+  "rule_id": "INSURANCE-NOTIFY",
+  "label": "보험 목적물 변경 통지",
+  "category": "INSURANCE",
+  "disposal_type": "PRECONDITION",
+  "source_type": "LAW",
+  "law_refs": ["KR-KCC-652"],
+  "interpretation": "부보 목적물에 포함된 설비를 반출하거나 신규 설비를 반입해 위험이 현저히 변경·증가하면 보험자에게 지체 없이 통지해야 한다. 미이행 시 계약 해지 또는 보험금 감액 위험이 있다.",
+  "required_facts": ["policy_id", "building_id", "risk_grade_before", "risk_grade_after"],
+  "trigger": {
+    "any_of": [
+      {"field": "policy_id", "op": "is_not_null"},
+      {"field": "risk_grade_changed", "op": "eq", "value": true}
+    ]
+  },
+  "boundary": {
+    "field": "risk_score_delta_pct",
+    "review_band": [-10, 10],
+    "on_boundary": "HOLD",
+    "note": "법문의 '현저히'는 해석 영역. 임계값은 시스템이 명시적으로 선언하고 경계는 사람에게 넘긴다"
+  },
+  "message": "부보 대상 설비 변동. 보험자 통지 및 보험료 정산 필요",
+  "resolve_options": [
+    "보험자 통지 → 접수번호 기록",
+    "통지 이행 기록 첨부 (일시·수신자·근거조항)"
+  ],
+  "confidence": "HIGH",
+  "confidence_note": "통지 의무 자체는 명확하나, '현저성' 판단은 사안별로 갈린다",
+  "requires_expert_review": true,
+  "rule_version": 1,
+  "authored_by": null,
+  "reviewed_at": null
+}

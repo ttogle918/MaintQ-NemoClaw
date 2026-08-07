@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-STTC-24",
+  "law_name": "조세특례제한법",
+  "article": "24",
+  "clause": null,
+  "title": "통합투자세액공제",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/조세특례제한법",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "조문 번호·제목은 확인 필요. law.go.kr OPEN API로 원문 수집 후 확정할 것."
+}

@@ -1,0 +1,26 @@
+{
+  "rule_id": "VAT-INVOICE",
+  "label": "사업용 고정자산 매각 세금계산서",
+  "category": "TAX",
+  "disposal_type": "PRECONDITION",
+  "source_type": "LAW",
+  "law_refs": ["KR-VAT-32"],
+  "interpretation": "사업용 고정자산의 매각은 재화의 공급에 해당하여 부가가치세 과세 대상이며 세금계산서를 발급해야 한다. 폐기는 공급이 아니므로 해당하지 않는다.",
+  "required_facts": ["disposal_mode", "sale_amount", "buyer_biz_no"],
+  "trigger": {
+    "all_of": [
+      {"field": "disposal_mode", "op": "eq", "value": "SALE"},
+      {"field": "vat_invoice_issued", "op": "eq", "value": false}
+    ]
+  },
+  "message": "매각가액 기준 세금계산서 발급 필요",
+  "resolve_options": [
+    "세금계산서 발급 후 발급번호 등록"
+  ],
+  "confidence": "HIGH",
+  "confidence_note": "면세사업자·간이과세 등 예외 상황은 별도 검토 필요",
+  "requires_expert_review": false,
+  "rule_version": 1,
+  "authored_by": null,
+  "reviewed_at": null
+}

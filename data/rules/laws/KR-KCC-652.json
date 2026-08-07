@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-KCC-652",
+  "law_name": "상법",
+  "article": "652",
+  "clause": null,
+  "title": "위험변경증가의 통지와 계약해지",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/상법",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "'현저한 변경 또는 증가'의 판단 기준은 법문에 없음 → 해석 영역. 룰에서 임계값을 명시적으로 선언할 것."
+}

@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-OSHA-93",
+  "law_name": "산업안전보건법",
+  "article": "93",
+  "clause": null,
+  "title": "안전검사",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/산업안전보건법",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "안전검사 대상 기계 목록은 시행령/고시에 있음. 대상 판정 룰에는 그 하위 법령이 필요."
+}

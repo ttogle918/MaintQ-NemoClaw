@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-VAT-32",
+  "law_name": "부가가치세법",
+  "article": "32",
+  "clause": null,
+  "title": "세금계산서 등",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/부가가치세법",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "재화의 공급 정의(제9조) 및 공급시기(제15조) 조문도 함께 필요할 수 있음."
+}

@@ -1,0 +1,33 @@
+{
+  "rule_id": "TAX-CREDIT-2Y",
+  "label": "투자세액공제 사후관리 기간",
+  "category": "TAX",
+  "disposal_type": "BLOCKING",
+  "source_type": "LAW",
+  "law_refs": ["KR-STTC-24", "KR-STTC-146"],
+  "interpretation": "투자세액공제를 적용받은 자산을 사후관리 기간 내에 처분하면 공제세액이 추징된다. 통상 2년으로 운용하나 자산 유형·공제 종류별로 다를 수 있다.",
+  "required_facts": ["tax_credit_applied", "acquired_at", "disposal_date"],
+  "trigger": {
+    "all_of": [
+      {"field": "tax_credit_applied", "op": "eq", "value": true},
+      {"field": "months_since_acquisition", "op": "lt", "value": 24}
+    ]
+  },
+  "boundary": {
+    "field": "months_since_acquisition",
+    "review_band": [22, 26],
+    "on_boundary": "HOLD",
+    "note": "기산일 해석(취득일 vs 사용개시일)에 따라 달라질 수 있어 경계 구간은 유보"
+  },
+  "message": "취득 후 사후관리 기간 미경과. 처분 시 공제세액 추징 대상",
+  "resolve_options": [
+    "사후관리 기간 경과까지 대기",
+    "추징 감수 결정 (override, 사유 기재 필수)"
+  ],
+  "confidence": "MEDIUM",
+  "confidence_note": "중고자산 취득은 애초에 공제 대상에서 제외되는 경우가 있어, 중고 매입 설비에는 이 룰이 걸리지 않을 수 있음",
+  "requires_expert_review": true,
+  "rule_version": 1,
+  "authored_by": null,
+  "reviewed_at": null
+}
