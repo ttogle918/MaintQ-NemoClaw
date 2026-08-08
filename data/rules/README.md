@@ -6,17 +6,20 @@
 
 ```
 data/rules/
-├── laws/           계층 1 — 법령 스냅샷 (append-only, 수정 금지)
-├── rules/          계층 2 — 해석 룰 (rule_version 관리)
-├── engine.py       결정론적 판정기
-├── fetch_laws.py   수집 · 개정 감지
-└── test_rules.py   19개 테스트
+├── laws/               계층 1 — 법령 스냅샷 7건 (append-only, 수정 금지)
+├── rules/              계층 2 — 해석 룰 (rule_version 관리)
+├── pending_revisions/  개정 감지분 (자동 반영 금지 — 사람 검토·서명 대기). 최초 감지 시 생성
+├── engine.py           결정론적 판정기
+├── fetch_laws.py       수집(미구현) · 적용 · 개정 감지
+└── test_rules.py       19개 테스트
 ```
 
 ## 실행
 
 ```bash
-uv run python -m pytest data/rules/test_rules.py -q     # 19 passed
+# ⚠ pytest 는 dev 의존성에 없다 (--with 로 임시 설치). `uv run python -m pytest` 는 실패한다.
+uv run --with pytest python -m pytest data/rules/test_rules.py -q   # 19 passed
+uv run python spikes/law_fetch_contract.py                          # apply_fetch 계약 (네트워크 미사용)
 ```
 
 ```python
@@ -71,16 +74,51 @@ result = check_disposal_blockers({
 조문 원문을 손으로 타이핑하면 그 순간 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너진다. 각 파일의 `verification_note`에 확인 사항을 적어뒀다.
 
 **조문 번호와 제목도 검증 대상이다** — 개정으로 바뀌므로 수집 시 실제 응답과 대조해야 한다.
+이 대조는 문서상의 당부가 아니라 `apply_fetch` 가 코드로 강제한다 (불일치 → 파일 미수정 + `LawMismatchError`).
 
-### 체크리스트
+### 수집 파이프라인 — 지금 어디까지 되나
 
-- [ ] law.go.kr OPEN API 이용 신청 → `LAW_API_KEY` 설정
-- [ ] `fetch_from_api` 구현 (응답 스키마 확인 후)
-- [ ] 6개 조문 수집 → `text`·`effective_from`·`text_hash` 채우기
-- [ ] 조문 번호·제목 검증, 어긋나면 `law_ref_id` 정정
+`fetch_laws.py` 는 **수집기와 적용기를 분리**한다. 인증키가 필요한 건 수집기뿐이라
+적용기는 키 없이도 합성 픽스처로 검증돼 있다 (`spikes/law_fetch_contract.py`, **25건**).
+
+| 단계 | 함수 | 상태 |
+|---|---|---|
+| ① OPEN API 이용 신청 → `LAW_API_OC` 발급·설정 | — | ⛔ **미완료 — 사람이 해야 함** (`TODO_직접할일.md`) |
+| ② 실호출·응답 파싱 | `fetch_from_api` | ⛔ **미구현 — Sprint 7** (`NotImplementedError`) |
+| ③ 조문번호·제목 대조 → 파일 기입 → 해시 | `apply_fetch` | ✅ **완료** (`FILLED`/`UNCHANGED`/`REVISION_PENDING`) |
+| ④ 개정 감지 → `pending_revisions` | `check_revisions` | ✅ 코드 완료 — 단 ②가 없어 실행하면 전부 `NOT_FETCHED`/`FETCH_FAILED` |
+| ⑤ `pending_revisions` 검토·서명 흐름 | — | ⛔ 미착수 (Sprint 7, 계층 3) |
+
+> ②를 지금 구현하지 않는 이유: `MST` 조회 단계와 `JO` 조번호 형식은 **실호출로만 확정된다.**
+> 추측한 URL 파라미터를 코드에 박아두면 "구현돼 있는데 안 되는" 상태가 되어 원인 추적이 더 어려워진다.
+
+### 남은 체크리스트
+
+- [ ] law.go.kr OPEN API 이용 신청 → `LAW_API_OC` 설정 (**사람**)
+      — 값은 API 키가 아니라 **신청 이메일 ID 앞부분**. 비어 있으면 응답이
+      `{"result":"필수입력요소 검증에 실패하였습니다"}` 로 온다 (200 이라 조용히 넘어가기 쉽다)
+- [ ] `fetch_from_api` 구현 (①→ MST 조회 → `JO` 형식 실호출 확인 → 응답 스키마 확정)
+- [ ] 7개 조문 수집 → `text`·`effective_from`·`text_hash` 채우기 (`apply_fetch` 경유)
+- [ ] 조문 번호·제목 검증 결과 반영, 어긋나면 `law_ref_id` 정정
+      — 특히 `KR-CITA-ENF-31`(자본적 지출 정의가 실제 몇 조 몇 항인지 미확정)
 - [ ] 하위 법령 추가 — 안전검사 대상 기계 목록(시행령·고시), 사후관리 기간(시행령)
 - [ ] `pending_revisions` 검토·서명 흐름 연결
 - [ ] MCP 도구 `check_disposal_blockers`로 래핑 (`mcp_server/tools/`)
+
+### 완료된 것
+
+- [x] `apply_fetch` — 3분기(`FILLED`/`UNCHANGED`/`REVISION_PENDING`) + 불일치 시 중단
+- [x] 자동 덮어쓰기 차단 — 이미 `FETCHED` 인데 해시가 다르면 파일을 건드리지 않고
+      `pending_revisions/{law_ref_id}.{timestamp}.json` 에 누적. `force=True` 로 반영할 때도
+      직전 스냅샷을 먼저 남긴다 (D60)
+- [x] 조문번호·제목 대조를 **누락에도** 적용 — 응답에 `article`·`title` 이 없거나 비어 있으면
+      `LawMismatchError`. "확인할 값이 없다"를 "확인했고 문제없다"로 처리하지 않는다
+- [x] `text_hash` 는 `engine.text_hash` 재사용 (NFKC + 공백 축약 후 sha256) — 재구현 없음
+
+> **Sprint 7 서명 큐가 읽을 대상: `requires_signature == true` 인 기록만** (`applied` 값으로 재판단하지 말 것).
+> `applied` 는 `null`(반영 시도 없음) → `"intent"`(파일 기입 직전, **성공 미확인**) → `"confirmed"`(기입 성공 확인)
+> 3상태이고, `confirmed` 만 `requires_signature:false` 다. `intent` 로 멈춘 기록은
+> **기입 도중 중단된 것**이므로 사람이 `laws/*.json` 실제 내용과 대조해야 한다.
 
 ### 룰을 추가할 때
 

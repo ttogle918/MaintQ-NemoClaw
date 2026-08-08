@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-CITA-ENF-31",
+  "law_name": "법인세법 시행령",
+  "article": "31",
+  "clause": null,
+  "title": "즉시상각의제",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/법인세법 시행령",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "자본적 지출 정의가 실제 몇 조 몇 항인지 API 응답으로 확정할 것. 어긋나면 law_ref_id 정정"
+}
