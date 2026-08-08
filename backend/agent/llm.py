@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
@@ -95,7 +96,7 @@ class AnthropicClient:
                 model=model,
                 max_tokens=max_tokens,
                 system=system,
-                messages=messages,
+                messages=anthropic_messages(messages),  # D76 — role:"tool" 변환
                 tools=tools,
             ) as stream:
                 async for event in stream:
@@ -154,18 +155,63 @@ def gemini_declarations(tools: list[dict]) -> list[dict]:
 
 
 def gemini_contents(messages: list[dict]) -> list[dict]:
-    """루프 이력(`{"role": "user"|"assistant", "content": str}`)을 Gemini `contents` 로.
+    """루프 이력을 Gemini `contents` 로.
 
-    Gemini 의 상대 역할명은 `model` 이다. 루프는 도구 결과도 평문 user 로 넣으므로
-    (loop.py `_summarize_for_history`) 여기서 변환할 역할은 두 종뿐이다.
+    역할 3종을 받는다 (D76):
+      `user`/`assistant` — `{"content": str}`. Gemini 의 상대 역할명은 `model` 이다
+      `tool`             — `{"name": str, "content": dict}` → **`functionResponse` 파트**
+
+    도구 결과를 평문으로 넣지 않는 이유는 D76 에 있다 — 프로즈로 뭉개면 값이 사라지고
+    모델이 "사용자가 그렇게 말했다"고 읽는다.
     """
-    return [
-        {
-            "role": "model" if m["role"] == "assistant" else "user",
-            "parts": [{"text": str(m.get("content", ""))}],
-        }
-        for m in messages
-    ]
+    out: list[dict] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "tool":
+            payload = m.get("content")
+            # Gemini 의 functionResponse.response 는 **객체**여야 한다. 도구가 스칼라를
+            # 돌려주는 일은 없지만(04_MCP_TOOLS 는 전부 dict) 방어적으로 감싼다.
+            resp = payload if isinstance(payload, dict) else {"result": payload}
+            out.append(
+                {
+                    "role": "user",
+                    "parts": [
+                        {"functionResponse": {"name": m.get("name", ""), "response": resp}}
+                    ],
+                }
+            )
+        else:
+            out.append(
+                {
+                    "role": "model" if role == "assistant" else "user",
+                    "parts": [{"text": str(m.get("content", ""))}],
+                }
+            )
+    return out
+
+
+def anthropic_messages(messages: list[dict]) -> list[dict]:
+    """루프 이력을 Anthropic `messages` 로 (D76).
+
+    ⚠️ **네이티브 `tool_result` 블록을 쓰지 않는다.** Anthropic 의 `tool_result` 는 직전
+    assistant 메시지의 `tool_use` 와 `tool_use_id` 로 짝지어야 하는데, 루프가 assistant
+    `tool_use` 블록을 이력에 남기지 않는다(sprint-3 C-5 가 지적한 그 구조). 짝 없이
+    `tool_result` 를 보내면 400 이다.
+
+    그래서 **구조는 보존하되 JSON 텍스트로** 넘긴다 — 프로즈 요약보다는 낫고, 네이티브
+    프로토콜보다는 못하다. 완전 해소는 루프가 `tool_use` 를 기록하도록 바꿔야 하며
+    별도 결정 대상이다. 현재 기본 제공자는 gemini 라 실경로가 아니다(D56).
+    """
+    out: list[dict] = []
+    for m in messages:
+        if m.get("role") == "tool":
+            body = json.dumps(m.get("content"), ensure_ascii=False, sort_keys=True)
+            out.append(
+                {"role": "user", "content": f"[도구 결과 {m.get('name', '')}]\n{body}"}
+            )
+        else:
+            out.append({"role": m["role"], "content": str(m.get("content", ""))})
+    return out
 
 
 def gemini_chunk_deltas(chunk: object, next_id) -> list[LlmDelta]:

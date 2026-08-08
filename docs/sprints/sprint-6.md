@@ -297,6 +297,23 @@ MQ-602L ────────────────────────
 - **변경 파일**: `data/seed.py` · `docs/05_DB_SCHEMA.md`
 - ⛔ `engine.py`·`test_rules.py`·`data/rules/laws/` 접근 금지 (MQ-601b·MQ-602L 소유)
 
+> ### 🔗 D76-2 편입 (2026-08-09 추가 — 별개 작업에서 인계)
+>
+> **`traces` 에 `tool_payload TEXT` 컬럼을 함께 추가한다.** `data/seed.py` 가 이 태스크의
+> 단독 소유라 여기서 처리해야 충돌이 없다.
+>
+> ```sql
+> ALTER TABLE traces ADD COLUMN tool_payload TEXT;   -- 도구 원본 JSON. tool_result 행만, nullable
+> ```
+>
+> - ⚠️ **기존 `payload` 컬럼을 재사용하지 말 것.** `payload` 는 **SSE `data` 와 바이트 동일**이
+>   계약이고(D30) `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로 검증한다.
+>   여기에 도구 원본을 넣으면 평가의 두 소스 대조가 깨진다.
+> - `tool_payload` 는 **nullable** — `tool_call`·`block` 행에는 없다.
+> - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D76-2 담당자가 별도로** 처리한다.
+>   이 태스크는 **컬럼 추가와 `05_DB_SCHEMA` 반영까지만**.
+> - 근거·전체 맥락: **D76**
+
 - **DDL — 신규 7테이블**
 
 ```sql

@@ -38,30 +38,21 @@ MAX_LLM_CALLS_PER_TURN = 10
 MAX_LLM_CALLS_PER_SESSION = 50
 HISTORY_LIMIT = 20
 
-#: 요약에서 탈락하면 안 되는 발주 식별 필드 (09_RUNTIME §2).
-#: A2 에 따라 create_po_draft 가 **다음 턴**에 호출되므로 이 값이 유실되면 발주 입력이 부정확해진다.
-PRESERVE_FIELDS = (
-    "part_no",
-    "supplier_id",
-    "qty",
-    "unit_price",
-    "moq",
-    "lead_days",
-    "po_id",
-)
-
-#: 요약에서 탈락하면 안 되는 **문자열 리스트** 필드 — 원소가 dict 가 아니라 값 자체다.
+#: 이력에서 **잘라낼** 경로만 나열한다 (D76 — 화이트리스트가 아니라 블랙리스트).
+#: 키는 payload 루트부터의 경로, 값은 `"drop"`(통째 제거) 또는 int(문자 상한).
 #:
-#: `related_parts` 는 D12 가 "진단→부품 특정의 다리"로 지정한 품번 목록이라
-#: PRESERVE_FIELDS 와 같은 등급이다. 개수만 남기면(`summarize_result` 의 "관련부품 1건")
-#: 에이전트가 다음 호출에 넘길 part_no 를 갖지 못해 **부품명을 지어낸다** —
-#: 2026-08-05 실 20문항 평가에서 `search_inventory{"part_name": "S100 냉각팬"}` →
-#: not_found 로 나타났고 부품 특정 정확률이 0/15 였다. 최상위 문자열 리스트라
-#: PRESERVE_FIELDS 루프(`key in payload` → 스칼라)에도, 중첩 dict 루프에도 안 걸린다.
-PRESERVE_LIST_FIELDS = ("related_parts",)
+#: 여기 없는 필드는 **전부 원형 그대로** 간다 — 새 도구가 새 필드를 돌려줘도
+#: 자동으로 보존된다. 빠뜨렸을 때의 대가가 "환각"이 아니라 "토큰 조금 더"다.
+HISTORY_DROP: dict[tuple[str, ...], object] = {
+    # rag 청크 본문 — 최대 900자 × top_k. 절차 원문은 안전 블록·인용이 코드로 실어 나르므로
+    # (D22·D32) LLM 이력에는 어느 페이지의 어느 절인지만 있으면 된다.
+    ("chunks", "text"): 400,
+}
 
-#: 이력 요약에 보존할 중첩 원소 상한 — 전부 넣으면 컨텍스트를 잡아먹는다
-_PRESERVE_MAX_ITEMS = 5
+#: 리스트 원소 상한. 초과분은 "…외 N건 생략" 표식을 남긴다 — 조용히 줄이지 않는다.
+#: 5 였다가 10 으로 올렸다: 견적이 A사·B사 2건인데 이력에 A사만 남으면 사용자가
+#: "B사로" 라고 말하는 **다음 턴**(A2)에 SUP-B 의 단가·MOQ 가 없어 발주가 틀어진다.
+HISTORY_MAX_ITEMS = 10
 
 #: 문장 종결 판정 — 안전 블록을 문장 **앞에** 끼워 넣으려면 문장 단위로 끊어야 한다
 _SENTENCE_ENDINGS = ("다.", "요.", ".", "!", "?", "\n")
@@ -113,45 +104,48 @@ def _model_for(equipment_id: str | None) -> str | None:
         return None
 
 
-def _summarize_for_history(tool: str, payload: dict) -> str:
-    """이력에는 요약본만 남긴다 (원문은 traces — D21).
+def _history_payload(tool: str, payload: dict) -> dict:
+    """이력에 넣을 도구 결과 — **구조를 보존한다** (D76).
 
-    단 `PRESERVE_FIELDS` 는 요약 뒤에 붙여 유실을 막는다 (A2).
+    ~~화이트리스트(`PRESERVE_FIELDS`)~~ 를 버리고 **블랙리스트**로 뒤집었다.
+    실패 방향이 바뀌는 게 요점이다:
+
+      화이트리스트 — 넣을 걸 나열한다. 빠뜨리면 값이 사라지고 **에이전트가 지어낸다.**
+                     2026-08-05 부품 특정 0/15 가 이 구조에서 났다
+                     (`related_parts` 가 스칼라 루프에도 중첩 dict 루프에도 안 걸림).
+      블랙리스트 — 뺄 걸 나열한다. 빠뜨려도 **토큰을 조금 더 쓸 뿐**이다.
+
+    도구가 7종에서 16종으로 늘어도(Sprint 6) 샐 표면이 커지지 않는다.
+    잘라내는 건 **부피가 큰 자연어 본문뿐**이고, 판단에 쓰이는 식별자·수치는 전부 남는다.
     """
-    base = summarize_result(tool, payload)
-    kept: list[str] = []
+    trimmed = _trim(payload, ())
+    # `summary` 는 사람이 읽는 한 줄이라 LLM 에게는 중복이지만, 도구가 실패했을 때
+    # (status != ok) 이유가 여기 담기는 경우가 있어 같이 넘긴다.
+    trimmed.setdefault("_summary", summarize_result(tool, payload))
+    return trimmed
 
-    for key in PRESERVE_FIELDS:
-        if key in payload:
-            kept.append(f"{key}={payload[key]}")
 
-    # 문자열 리스트(related_parts) — 값 자체가 원소라 아래 중첩 dict 루프로는 못 건진다.
-    for key in PRESERVE_LIST_FIELDS:
-        seq = payload.get(key)
-        if not isinstance(seq, list) or not seq:
-            continue
-        shown = ", ".join(str(v) for v in seq[:_PRESERVE_MAX_ITEMS])
-        suffix = f" 외 {len(seq) - _PRESERVE_MAX_ITEMS}건" if len(seq) > _PRESERVE_MAX_ITEMS else ""
-        kept.append(f"{key}={shown}{suffix}")
-
-    # 중첩 리스트는 **전 원소**를 보존한다 (상한 _PRESERVE_MAX_ITEMS).
-    # [0] 만 남기면 S1 의 핵심 장면에서 정확히 깨진다 — 견적이 A사·B사 2건인데
-    # 이력에 A사만 남으면, 사용자가 "B사로" 라고 말하는 **다음 턴**(A2 그 자체)에
-    # SUP-B 의 unit_price·moq·lead_days 가 없어 발주 입력이 부정확해진다.
-    for seq_key in ("suppliers", "items", "alternatives"):
-        seq = payload.get(seq_key)
-        if not isinstance(seq, list):
-            continue
-        for elem in seq[:_PRESERVE_MAX_ITEMS]:
-            if not isinstance(elem, dict):
+def _trim(node: object, path: tuple[str, ...]) -> object:
+    """`HISTORY_DROP` 경로만 잘라낸 사본. 그 외는 원형 그대로."""
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            here = (*path, k)
+            rule = HISTORY_DROP.get(here)
+            if rule is None:
+                out[k] = _trim(v, here)
+            elif rule == "drop":
                 continue
-            fields = [f"{k}={elem[k]}" for k in PRESERVE_FIELDS if k in elem]
-            if fields:
-                kept.append("(" + " ".join(fields) + ")")
-        if len(seq) > _PRESERVE_MAX_ITEMS:
-            kept.append(f"…외 {len(seq) - _PRESERVE_MAX_ITEMS}건")
-
-    return f"{base} | {' '.join(kept)}" if kept else base
+            else:  # 길이 상한 — 자른 사실을 값 안에 남긴다 (조용히 줄이지 않는다)
+                text = str(v)
+                out[k] = text if len(text) <= rule else text[:rule] + f"…(총 {len(text)}자)"
+        return out
+    if isinstance(node, list):
+        if len(node) > HISTORY_MAX_ITEMS:
+            head = [_trim(x, path) for x in node[:HISTORY_MAX_ITEMS]]
+            return [*head, f"…외 {len(node) - HISTORY_MAX_ITEMS}건 생략"]
+        return [_trim(x, path) for x in node]
+    return node
 
 
 def _pages_from(tool: str, payload: dict) -> list[int]:
@@ -378,11 +372,15 @@ async def run_turn(
             )
 
             st.results[tu.name] = payload
+            # D76 — 도구 결과는 `role:"tool"` 로 **구조를 보존해** 남긴다.
+            # 프로즈로 뭉개면 LLM 이 값을 다시 파싱해야 하고, 화이트리스트가 빠뜨린 필드는
+            # 아예 사라져 에이전트가 지어낸다. 제공자별 변환은 llm.py 어댑터가 맡는다.
             store.append(
                 session_id,
                 {
-                    "role": "user",
-                    "content": f"[도구 결과 {tu.name}] {_summarize_for_history(tu.name, payload)}",
+                    "role": "tool",
+                    "name": tu.name,
+                    "content": _history_payload(tu.name, payload),
                 },
             )
 

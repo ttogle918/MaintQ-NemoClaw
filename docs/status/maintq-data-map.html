@@ -225,7 +225,7 @@
     <div class="stat g">
       <div class="n">6</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 7종 · 회귀 273건</div>
+      <div class="s">MCP 도구 7종 · 회귀 298건</div>
     </div>
     <div class="stat w">
       <div class="n">6</div>
@@ -267,7 +267,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 273건 · 17스위트</span>
+      <span class="count">M1~M4 · 회귀 298건 · 18스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -459,9 +459,9 @@
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d real">중진공 매물 · <b>유효 5,396건</b></span>
+            <span class="d mock">residual_curve — 법정 내용연수 정률 목업 (D74)</span>
             <span class="d todo">assets 테이블 (D68)</span>
-            <span class="d todo">residual_curve ← 위 실데이터에서 파생</span>
+            <span class="d mock">residual_curve — <b>목업 공식</b> (D74)</span>
             <span class="d todo">캠코 온비드 감정가·낙찰가</span>
             <span class="d mock">get_error_history의 repeated 재사용</span>
           </div>
@@ -524,7 +524,7 @@
             <td class="mono">중진공 자산거래중개장터 매물정보</td>
             <td class="num">16,011건<br><b>유효 5,396</b></td>
             <td><a href="https://www.data.go.kr/data/15112833/fileData.do">data.go.kr</a><span class="sub">연 1회 갱신</span></td>
-            <td><b>잔가율의 유일한 실데이터.</b> 제조년월+희망가격으로 경과연수별 분포 역산</td>
+            <td>⚠️ <b>잔가율 값 원천으로는 반증됐다 (D74).</b> 연차-가격 상관이 사실상 0 — 호가는 연차가 아니라 기계 규격이 지배한다<span class="sub">지금은 "왜 실데이터를 못 쓰는가"의 <b>한계 실증</b>으로만 쓰인다 (<code class="inline">residual_curve.md §4</code>). 실사 체크리스트 그라운딩·진부화 신호로는 여전히 유효</span></td>
             <td>11</td>
           </tr>
           <tr>

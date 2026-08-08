@@ -386,68 +386,109 @@ async def run_all(db: Path) -> None:
         f"ok={[d.get('pages') for d in tr_pg]}, error={tr[0].get('pages')}",
     )
 
-    # ── ⑮ 이력 요약에 PRESERVE_FIELDS 가 살아남는가 (A2)
-    from backend.agent.loop import _summarize_for_history
+    # ── ⑮ 이력이 도구 결과의 **구조를 보존**하는가 (D76)
+    #
+    # 이전에는 프로즈 요약 + 화이트리스트(`PRESERVE_FIELDS`)였고, 목록에서 빠진 필드는
+    # 그대로 사라졌다. 2026-08-05 평가에서 `related_parts` 가 그렇게 새어
+    # 에이전트가 부품명을 지어냈고("S100 냉각팬" → not_found) 부품 특정 0/15 였다.
+    # D76 이 블랙리스트로 뒤집었으므로, 이제는 **빠뜨려도 값이 사라지지 않는다**.
+    from backend.agent.llm import anthropic_messages, gemini_contents
+    from backend.agent.loop import HISTORY_MAX_ITEMS, _history_payload
 
-    s = _summarize_for_history(
-        "get_supplier_quotes",
-        {
-            "status": "ok",
-            "suppliers": [
-                {"supplier_id": "SUP-A", "lead_days": 3, "unit_price": 38000, "moq": 1},
-                {"supplier_id": "SUP-B", "lead_days": 14, "unit_price": 29000, "moq": 10},
-            ],
-        },
-    )
+    quotes = {
+        "status": "ok",
+        "suppliers": [
+            {"supplier_id": "SUP-A", "lead_days": 3, "unit_price": 38000, "moq": 1},
+            {"supplier_id": "SUP-B", "lead_days": 14, "unit_price": 29000, "moq": 10},
+        ],
+    }
+    h = _history_payload("get_supplier_quotes", quotes)
     # 공급사 **2건** — [0] 만 건지던 버그를 잡는 픽스처 (S1 의 A사 vs B사 비교)
     check(
-        "⑮ A2 발주 식별 필드가 요약에서 안 사라짐 (다건 보존)",
-        all(k in s for k in ("supplier_id", "unit_price", "moq", "lead_days"))
-        and "SUP-A" in s
-        and "SUP-B" in s,
-        s[:110],
+        "⑮ A2 발주 식별 필드가 구조 그대로 보존 (다건)",
+        h["suppliers"] == quotes["suppliers"],
+        f"suppliers={h['suppliers']}",
     )
 
-    # ── ⑮-b lookup 의 related_parts 품번이 이력 요약에 살아남는가 (D12 · 09_RUNTIME §2)
-    #
-    # 실측 배경(2026-08-05 평가): 요약이 "관련부품 1건" 처럼 **개수만** 남기고 품번을
-    # 떨어뜨리면, 에이전트는 다음 턴에 넘길 part_no 를 갖지 못해 부품명을 지어낸다
-    # ("S100 냉각팬" → search_inventory not_found). 20문항 부품 특정 정확률이 0/15 로
-    # 나온 근본원인이었다. related_parts 는 D12 가 "진단→부품 특정의 다리"로 지정한
-    # 값이라 PRESERVE_FIELDS 와 같은 등급으로 보존해야 한다.
-    s_lk = _summarize_for_history(
-        "lookup_error_code",
-        {
-            "status": "ok",
-            "code": "OHT",
-            "error_name": "냉각핀 과열",
-            "severity": "fault",
-            "related_parts": ["FAN-IG5-01"],
-            "manual_page": 202,
-        },
-    )
+    lk = {
+        "status": "ok",
+        "code": "OHT",
+        "error_name": "냉각핀 과열",
+        "severity": "fault",
+        "related_parts": ["FAN-IG5-01"],
+        "manual_page": 202,
+    }
     check(
-        "⑮-b D12 related_parts 품번이 이력 요약에 보존됨",
-        "FAN-IG5-01" in s_lk,
-        s_lk[:110],
+        "⑮-b D12 related_parts 품번이 이력에 보존됨",
+        _history_payload("lookup_error_code", lk)["related_parts"] == ["FAN-IG5-01"],
+        "리스트 원형 유지",
     )
 
     # 다건도 전부 살아야 한다 — GFT 처럼 케이블·모터 2건인 코드가 있다 (2026-08-05 검수)
-    s_lk2 = _summarize_for_history(
-        "lookup_error_code",
-        {
-            "status": "ok",
-            "code": "GFT",
-            "error_name": "지락 전류",
-            "severity": "fault",
-            "related_parts": ["MTR-CBL-IG5", "MTR-3P-2K2"],
-            "manual_page": 204,
-        },
-    )
+    lk2 = {**lk, "code": "GFT", "related_parts": ["MTR-CBL-IG5", "MTR-3P-2K2"], "manual_page": 204}
     check(
         "⑮-c related_parts 다건 전부 보존",
-        "MTR-CBL-IG5" in s_lk2 and "MTR-3P-2K2" in s_lk2,
-        s_lk2[:110],
+        _history_payload("lookup_error_code", lk2)["related_parts"]
+        == ["MTR-CBL-IG5", "MTR-3P-2K2"],
+        "2건 유지",
+    )
+
+    # ── ⑮-d **화이트리스트에 없던 필드도 보존되는가** — D76 의 핵심
+    #
+    # 옛 구조에서 `meaning`·`actions` 는 PRESERVE_FIELDS 에 없어서 통째로 사라졌다.
+    # 에러코드의 *의미*가 이력에서 없어지는 것이라 다음 턴의 판단이 근거를 잃는다.
+    rich = {**lk, "meaning": "과열", "actions": ["냉각팬을 교체하십시오"], "제조사": "LS"}
+    hr = _history_payload("lookup_error_code", rich)
+    check(
+        "⑮-d 목록에 없던 필드도 보존 (블랙리스트 뒤집기)",
+        hr.get("meaning") == "과열"
+        and hr.get("actions") == ["냉각팬을 교체하십시오"]
+        and hr.get("제조사") == "LS",
+        f"meaning={hr.get('meaning')} actions={hr.get('actions')} 제조사={hr.get('제조사')}",
+    )
+
+    # ── ⑮-e 블랙리스트는 **부피 큰 본문만** 자르고 식별자는 남긴다
+    rag = {
+        "status": "ok",
+        "chunks": [{"page": 202, "section": "8.2", "text": "가" * 900}],
+    }
+    hc = _history_payload("rag_search_manual", rag)["chunks"][0]
+    check(
+        "⑮-e rag 본문만 절삭 · page·section 은 보존 · 절삭 사실 명시",
+        hc["page"] == 202
+        and hc["section"] == "8.2"
+        and len(hc["text"]) < 900
+        and "총 900자" in hc["text"],
+        f"text={len(hc['text'])}자 tail={hc['text'][-12:]}",
+    )
+
+    # ── ⑮-f 리스트 상한 초과 시 **조용히 줄이지 않는다**
+    many = {"status": "ok", "items": [{"part_no": f"P-{i}"} for i in range(HISTORY_MAX_ITEMS + 3)]}
+    hm = _history_payload("search_inventory", many)["items"]
+    check(
+        "⑮-f 리스트 상한 초과분은 생략 표식을 남김",
+        len(hm) == HISTORY_MAX_ITEMS + 1 and "생략" in str(hm[-1]),
+        f"{len(hm)}개 · 마지막={hm[-1]}",
+    )
+
+    # ── ⑮-g 제공자 어댑터가 `role:"tool"` 을 네이티브 형식으로 변환하는가 (D76)
+    msgs = [
+        {"role": "user", "content": "OHt 에러"},
+        {"role": "tool", "name": "lookup_error_code", "content": hr},
+    ]
+    g = gemini_contents(msgs)
+    fr = g[1]["parts"][0].get("functionResponse", {})
+    check(
+        "⑮-g Gemini 는 functionResponse 파트로 변환 (평문 아님)",
+        fr.get("name") == "lookup_error_code"
+        and fr.get("response", {}).get("related_parts") == ["FAN-IG5-01"],
+        f"name={fr.get('name')} keys={sorted(fr.get('response', {}))[:4]}",
+    )
+    a = anthropic_messages(msgs)
+    check(
+        "⑮-h Anthropic 은 JSON 텍스트로 변환 (tool_use 짝 없음 — 주석 참조)",
+        a[1]["role"] == "user" and "FAN-IG5-01" in a[1]["content"],
+        a[1]["content"][:60],
     )
 
     # ── ⑯ A7 — 루프가 error_history 에 쓰지 않는다
