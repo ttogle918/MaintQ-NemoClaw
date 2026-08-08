@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaintQ 다이어그램 — 유스케이스 · 데이터 흐름 · 사용자 액션</title>
+<style>
+  :root {
+    --bg: #F2F4F7; --bg-panel: #FFFFFF; --bg-sunken: #E8EBEF;
+    --ink: #161A21; --ink-dim: #545F6E; --ink-faint: #838EA0;
+    --border: #DBE0E7; --border-soft: #E9ECF1;
+    --accent: #1957C2; --accent-ink: #0F3E90; --accent-soft: #E4ECFA;
+    --good: #1D8A5C; --good-soft: #E2F3EA;
+    --warn: #B4700D; --warn-soft: #FAF0DC;
+    --crit: #BC3B31; --crit-soft: #FAE6E3;
+    --planned: #667080; --planned-soft: #EBEEF2;
+    --plate: #FBFCFD;           /* 다이어그램 판면 — 양 테마 공통 밝은 바탕 */
+    --plate-edge: #D5DBE3;
+    --font-display: -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", Pretendard, Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "D2Coding", Consolas, "Segoe UI Mono", monospace;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0F131A; --bg-panel: #161B23; --bg-sunken: #10141B;
+      --ink: #E8ECF2; --ink-dim: #9AA5B4; --ink-faint: #6B7688;
+      --border: #262E3A; --border-soft: #1E2530;
+      --accent: #6AA1FF; --accent-ink: #9DC0FF; --accent-soft: rgba(106,161,255,0.14);
+      --good: #4FC08C; --good-soft: rgba(79,192,140,0.14);
+      --warn: #E0A23F; --warn-soft: rgba(224,162,63,0.14);
+      --crit: #E3766B; --crit-soft: rgba(227,118,107,0.14);
+      --planned: #8D97A6; --planned-soft: rgba(141,151,166,0.12);
+      --plate: #F4F7FA; --plate-edge: #2E3744;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F131A; --bg-panel: #161B23; --bg-sunken: #10141B;
+    --ink: #E8ECF2; --ink-dim: #9AA5B4; --ink-faint: #6B7688;
+    --border: #262E3A; --border-soft: #1E2530;
+    --accent: #6AA1FF; --accent-ink: #9DC0FF; --accent-soft: rgba(106,161,255,0.14);
+    --good: #4FC08C; --good-soft: rgba(79,192,140,0.14);
+    --warn: #E0A23F; --warn-soft: rgba(224,162,63,0.14);
+    --crit: #E3766B; --crit-soft: rgba(227,118,107,0.14);
+    --planned: #8D97A6; --planned-soft: rgba(141,151,166,0.12);
+    --plate: #F4F7FA; --plate-edge: #2E3744;
+  }
+  :root[data-theme="light"] {
+    --bg: #F2F4F7; --bg-panel: #FFFFFF; --bg-sunken: #E8EBEF;
+    --ink: #161A21; --ink-dim: #545F6E; --ink-faint: #838EA0;
+    --border: #DBE0E7; --border-soft: #E9ECF1;
+    --accent: #1957C2; --accent-ink: #0F3E90; --accent-soft: #E4ECFA;
+    --good: #1D8A5C; --good-soft: #E2F3EA;
+    --warn: #B4700D; --warn-soft: #FAF0DC;
+    --crit: #BC3B31; --crit-soft: #FAE6E3;
+    --planned: #667080; --planned-soft: #EBEEF2;
+    --plate: #FBFCFD; --plate-edge: #D5DBE3;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--font-display); line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 90px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  header.top {
+    display: flex; flex-wrap: wrap; gap: 20px 32px;
+    align-items: flex-end; justify-content: space-between;
+    padding-bottom: 26px; border-bottom: 1px solid var(--border); margin-bottom: 30px;
+  }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--accent-ink); font-weight: 600; margin: 0 0 8px;
+  }
+  header.top h1 {
+    font-size: clamp(25px, 3.3vw, 33px); margin: 0 0 9px; font-weight: 750;
+    letter-spacing: -0.01em; text-wrap: balance;
+  }
+  header.top .lede { margin: 0; color: var(--ink-dim); font-size: 15px; max-width: 66ch; }
+  .asof { text-align: right; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  .asof b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+
+  /* ---------- 목차 ---------- */
+  .toc {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 11px;
+    padding: 14px 18px; margin-bottom: 42px;
+    display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline;
+  }
+  .toc b { font-size: 12.5px; font-family: var(--font-mono); color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase; }
+  .toc a { font-size: 13.5px; }
+
+  /* ---------- figure ---------- */
+  section { margin-bottom: 52px; scroll-margin-top: 20px; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 8px;
+  }
+  .sec-head h2 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  .sec-head .count { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); }
+  .sec-note { color: var(--ink-dim); font-size: 14px; margin: 0 0 18px; max-width: 78ch; }
+
+  figure { margin: 0; }
+  .plate {
+    background: var(--plate); border: 1px solid var(--plate-edge); border-radius: 11px;
+    padding: 22px 18px; overflow-x: auto;
+  }
+  .plate pre.mermaid {
+    margin: 0; background: none; padding: 0; text-align: center;
+    font-family: var(--font-mono); font-size: 12px; color: #2B3440;
+  }
+  figcaption {
+    font-size: 13px; color: var(--ink-dim); margin-top: 12px;
+    padding-left: 11px; border-left: 3px solid var(--accent);
+  }
+  figcaption b { color: var(--ink); font-weight: 660; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; margin: 18px 0 0; color: var(--ink);
+  }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note.crit { border-left-color: var(--crit); background: var(--crit-soft); }
+  .note b { font-weight: 680; }
+
+  code, code.inline {
+    font-family: var(--font-mono); font-size: 12px; background: var(--bg-sunken);
+    padding: 1px 5px; border-radius: 4px; color: var(--ink);
+  }
+  a { color: var(--accent-ink); text-decoration: none; border-bottom: 1px solid transparent; }
+  a:hover { border-bottom-color: currentColor; }
+
+  .twrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-panel); margin-top: 18px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  th {
+    font-size: 11.5px; font-family: var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; background: var(--bg-sunken); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  footer {
+    margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 8px 22px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">MaintQ · 다이어그램</p>
+      <h1>유스케이스 · 데이터 흐름 · 사용자 액션</h1>
+      <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
+      <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 시퀀스) · <code>06_REPO_API §2.2·2.4</code>(전이·권한) · <code>09_RUNTIME §1·§2</code>(A1~A8·루프 상한).</p>
+    </div>
+    <div class="asof">기준 시점<b>2026-08-07</b></div>
+  </header>
+
+  <nav class="toc">
+    <b>그림</b>
+    <a href="#uc">① 유스케이스</a>
+    <a href="#arch">② 시스템 구성 · 쓰기 경로</a>
+    <a href="#seq">③ 데이터 흐름 (S1)</a>
+    <a href="#ux-a">④ 사용자 액션 — 진단 콘솔</a>
+    <a href="#ux-b">⑤ 사용자 액션 — 승인 큐 · 상태 전이</a>
+  </nav>
+
+  <!-- ================= ① 유스케이스 ================= -->
+  <section id="uc">
+    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 13</span></div>
+    <p class="sec-note">행위자는 <b>정비사</b>와 <b>팀장</b> 둘뿐입니다. 이 그림의 요점은 기능 목록이 아니라 <b>두 액터의 권한이 어디서 갈리는가</b> — 승인·반려로 가는 점선이 그것입니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  tech["정비사<br/>technician"]
+  mgr["팀장<br/>manager"]
+
+  subgraph SYS["MaintQ"]
+    direction TB
+    subgraph NOW["구현 완료"]
+      direction TB
+      u1["에러코드 진단<br/>정의=룩업 · 절차=RAG"]
+      u2["부품 특정 → 재고·견적"]
+      u3["대체품 탐색<br/>재고 0 또는 단종"]
+      u4["반복고장 근본원인 점검<br/>30일 3회"]
+      u5["발주 초안 생성"]
+      u6["발주 요청 제출"]
+      u7["고장 이력 기록"]
+      u8["발주 승인 · 반려"]
+      u9["실행 trace 열람"]
+    end
+    subgraph NEXT["예정 · F1~F4"]
+      direction TB
+      x1["처분 법정조건 검사"]
+      x2["처분 서명 · 증빙"]
+      x3["중고 취득 검증"]
+      x4["수리 증빙 서명"]
+    end
+  end
+
+  tech --> u1
+  tech --> u2
+  tech --> u3
+  tech --> u4
+  tech --> u5
+  tech --> u6
+  tech --> u7
+  tech -. "403 차단" .-> u8
+  mgr --> u8
+  mgr --> u9
+  tech --> x3
+  tech --> x4
+  mgr --> x1
+  mgr --> x2
+
+  u1 -.->|"repeated=true"| u4
+  u2 -.->|"qty=0 또는 단종"| u3
+
+  classDef blocked stroke-dasharray:5 3,stroke:#BC3B31,color:#BC3B31;
+  class u8 blocked;
+</pre>
+      </div>
+      <figcaption><b>정비사는 자기가 올린 발주를 스스로 승인할 수 없습니다.</b> 정비사 → 승인 화살표가 점선인 이유이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다. 이 한 줄이 human-in-the-loop을 성립시킵니다(D18). 점선 내부 화살표 둘은 조건 분기입니다 — 반복 고장이 감지되면 발주가 아니라 근본원인 모드로 갑니다(D2·D35).</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= ② 시스템 구성 ================= -->
+  <section id="arch">
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 둘로 갈린다</h2><span class="count">프로세스 2 · 도구 7</span></div>
+    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 한 곳뿐입니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  subgraph FE["프론트엔드 · Next.js"]
+    direction LR
+    scrA["화면 A · /technician<br/>DiagnosticConsole"]
+    scrB["화면 B · /manager<br/>ApprovalQueueScreen"]
+  end
+
+  subgraph BE["백엔드 프로세스 · FastAPI"]
+    direction TB
+    chat["POST /api/chat<br/>StreamingResponse"]
+    loop["Agent Loop<br/>턴당 도구 8 · LLM 10<br/>세션 LLM 50"]
+    worker["MCP 워커 태스크<br/>lifespan 이 소유 · D42"]
+    poapi["routers/po.py<br/>submit · approve · reject"]
+    tw["TraceWriter"]
+  end
+
+  subgraph MCPP["MCP 서버 · 별도 프로세스 · D15"]
+    direction TB
+    rd["읽기 도구 6종<br/>lookup · rag · history<br/>inventory · alternatives · quotes"]
+    wr["create_po_draft<br/>쓰기 1종"]
+  end
+
+  llm["Gemini API"]
+  db[("SQLite<br/>11 테이블 · WAL")]
+  vec[("매뉴얼 인덱스<br/>1,035 청크")]
+
+  scrA -->|"질문 전송"| chat
+  chat --> loop
+  loop <-->|"도구 선언 + 응답"| llm
+  loop -->|"future 를 큐에 넣고 await<br/>세션을 직접 열지 않는다"| worker
+  worker -->|"stdio · 세션 1개를 열고 닫음"| rd
+  worker -->|"stdio"| wr
+  rd --> db
+  rd --> vec
+  wr ==>|"draft INSERT 만"| db
+  scrB -->|"승인 · 반려 클릭"| poapi
+  poapi ==>|"상태 전이 UPDATE"| db
+  loop --> tw
+  tw -->|"tool_call · tool_result · block<br/>발행과 동시 저장"| db
+  chat -.->|"SSE 4종"| scrA
+  db -.->|"GET /api/po"| scrB
+
+  linkStyle 9 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 11 stroke:#BC3B31,stroke-width:3px;
+</pre>
+      </div>
+      <figcaption><b>굵은 화살표 둘이 이 시스템의 쓰기 경로 전부입니다.</b> 초록(<code>create_po_draft</code> → <code>draft</code> INSERT)과 빨강(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주를 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10). MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
+      <div class="note warn" style="margin-top:14px">
+        <b>루프와 MCP 사이에 워커 태스크가 하나 끼어 있는 건 실측으로 배운 것입니다(D42).</b> 원래는 스트리밍 제너레이터가 직접 <code>async with</code>로 MCP 세션을 열 계획이었는데, 실험해 보니 <b>소비자가 취소되는 순간 <code>cancel scope</code>가 무너지고 무관한 후속 태스크까지 끌고 죽었습니다.</b> <code>StreamingResponse</code> + 브라우저 조기 종료가 정확히 그 패턴입니다. 그래서 세션은 lifespan이 소유한 워커 하나가 열고 닫고, 루프는 future를 큐에 넣고 <code>shield</code>로 기다립니다 — 스트림이 끊겨도 진행 중인 도구 호출은 살아남습니다. 성능도 같은 결론이었습니다: 호출마다 프로세스를 띄우면 8콜에 +8초입니다.
+      </div>
+    </figure>
+
+    <div class="note warn">
+      <b>이 그림이 지켜지는지는 회귀로 검증됩니다.</b> <code>spikes/write_tool_contract.py</code>가 쓰기 도구의 계약을, <code>spikes/api_contract.py</code>가 상태 전이 권한을 확인합니다. 도구에 UPDATE를 추가하는 코드는 리뷰 이전에 회귀에서 먼저 잡힙니다.
+    </div>
+  </section>
+
+  <!-- ================= ③ 데이터 흐름 ================= -->
+  <section id="seq">
+    <div class="sec-head"><h2>③ 데이터 흐름 — S1 진단→발주 한 턴</h2><span class="count">시퀀스</span></div>
+    <p class="sec-note">"iG5A에 OHT 에러가 떴다"는 한 문장이 발주 초안 카드가 되기까지. <b><code>tool_call</code>이 도구 호출 <i>직전</i>에 발행</b>되는 게 핵심입니다 — 그래야 trace 패널이 "실행 중" 상태를 보여줄 수 있습니다(A1).</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor T as 정비사
+  participant UI as 화면 A
+  participant API as POST /api/chat
+  participant L as Agent Loop
+  participant G as Gemini
+  participant M as MCP 서버
+  participant DB as SQLite
+  participant TR as traces
+
+  T->>UI: "iG5A에 OHt 에러 떴어"
+  UI->>API: 질문 + equipment_id
+  API-->>UI: SSE 연결 수립
+  L->>G: 도구 7종 선언 + 대화
+  G-->>L: lookup_error_code 호출 요청
+
+  Note over L,TR: tool_call 은 호출 직전 발행 (A1)
+  L-->>UI: event: tool_call
+  L->>TR: 동시 저장 (A5)
+  L->>M: lookup_error_code
+  M->>DB: SELECT error_codes
+  DB-->>M: 정의 + manual_page + related_parts
+  M-->>L: status: ok
+  L-->>UI: event: tool_result
+  L->>TR: 동시 저장
+
+  L->>G: 도구 결과 전달
+  G-->>L: rag_search_manual 호출 요청
+  L->>M: rag_search_manual
+  M-->>L: 절차 청크 + page
+  L-->>UI: event: block (safety)
+  Note over UI: 안전 경고가 절차 서술보다 먼저 도착 (D22)
+
+  G-->>L: search_inventory → get_supplier_quotes
+  L->>M: 재고·견적 조회
+  M-->>L: 재고 1 · 안전재고 3 미달 · 공급사 2
+
+  L-->>UI: event: token 스트리밍 + block (citation)
+  Note over T,UI: 턴 1 종료. create_po_draft 는 아직 호출되지 않는다 (A2)<br/>견적을 비교 제시하고 사용자 선택을 기다린다
+
+  T->>UI: "A사로 진행"
+  UI->>API: 새 턴 — 공급사 선택 발화
+  L->>M: create_po_draft
+  M->>DB: INSERT po_drafts (state=draft)
+  Note over M,DB: unit_price 는 도구 입력이 아니라<br/>supplier_parts 조회 스냅샷 (D31)
+  M-->>L: po_id
+  L-->>UI: event: block (po_card)
+
+  T->>UI: 발주 요청 버튼 클릭
+  UI->>API: POST /api/po/{id}/submit
+  Note over API,DB: 에이전트 루프 밖 REST — 루프는 이 전이에 관여하지 않는다 (A3)
+  API->>DB: UPDATE state draft → pending
+</pre>
+      </div>
+      <figcaption><b>S1은 한 턴이 아니라 세 턴입니다.</b> 견적을 제시한 뒤 <code>create_po_draft</code>를 자동으로 부르지 않고 <b>사용자의 공급사 선택 발화를 기다립니다</b>(A2) — 발주는 사람이 고른 뒤에만 만들어집니다. 그래서 <code>09_RUNTIME §2</code>가 "발주 식별 필드(<code>part_no</code>·<code>supplier_id</code>·<code>qty</code>)는 이력 요약에서 탈락 금지"를 못 박아 뒀습니다. 다음 턴까지 살아남아야 하니까요. 2026-08-05에 부품 특정 정확률 0%를 만든 버그가 정확히 이 지점이었습니다. <code>draft→pending</code>은 채팅 밖 REST고 루프는 관여하지 않습니다(A3).</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= ④ 사용자 액션 A ================= -->
+  <section id="ux-a">
+    <div class="sec-head"><h2>④ 사용자 액션 — 진단 콘솔 <code>/technician</code></h2><span class="count">화면 A</span></div>
+    <p class="sec-note">정비사가 마우스로 하는 일. <b>같은 자리에 오는 카드가 상황에 따라 달라집니다</b> — 발주 카드일 수도, 보류 카드일 수도, A/S 안내일 수도 있습니다. 화면 A는 <b>진입 모드가 셋</b>이라 그것부터 갈립니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  enter(["화면 A 진입"]) --> mode{"라우트 분기"}
+  mode -->|"?scenario=s1 또는 s3"| mock["목업 렌더<br/>백엔드·LLM 불요"]
+  mode -->|"?replay=s1"| rep["재생 데모<br/>mount 시 1회 자동 send"]
+  mode -->|"쿼리 없음"| pick["헤더에서 장비 선택<br/>GET /api/equipment<br/>미선택이면 null → 모델 확인 질문"]
+
+  rep --> stream
+  pick --> typed["ChatComposer 에 증상 입력"]
+  typed --> send{{"전송 클릭"}}
+  send --> stream["SSE 스트리밍 시작<br/>useChatStream"]
+
+  stream --> panel["TracePanel<br/>ok · warn · error · pending · held 5상태<br/>재생이면 '재생 데이터' 배지"]
+  stream --> branch{"에이전트 판정"}
+
+  branch -->|"S1 정상 진단"| safety["SafetyBlock 표시<br/>절차보다 먼저"]
+  safety --> quote["공급사 비교 제시<br/>리드타임 · 단가 · MOQ"]
+  branch -->|"S2 재고 0 또는 단종<br/>진단 없이 중간 진입"| alt["대체품 제시<br/>compat_confirmed=true 만"]
+  alt --> quote
+
+  quote --> choose{{"공급사 선택 발화<br/>'A사로 진행'"}}
+  choose --> card["PoDraftCard<br/>부품 · 수량 · 공급사"]
+  card --> submit{{"발주 요청 클릭"}}
+  submit --> posted["POST /api/po/{id}/submit<br/>draft → pending"]
+  posted --> done(["팀장 승인 큐로 넘어감"])
+
+  branch -->|"S3 반복 고장 감지"| hold["RepeatFaultBanner<br/>+ PoHoldCard · 발주 버튼 없음"]
+  hold --> logbtn{{"이력 기록 클릭<br/>ErrorLogAction"}}
+  logbtn --> logged["POST /api/equipment/{id}/errors<br/>정비사의 명시적 액션만"]
+
+  branch -->|"S4 미지 코드<br/>status: not_found"| as4["표시부 재확인 요청<br/>A/S 연락처 · 문의 메일 초안<br/>유사 코드 추측 없음"]
+  branch -->|"카탈로그 미적재<br/>status: error<br/>reason: catalog_not_loaded"| broken["붉은 점으로 정직하게 실패<br/>S4 성공으로 세지 않는다 · D50"]
+
+  classDef act fill:#E4ECFA,stroke:#1957C2,color:#0F3E90;
+  class send,choose,submit,logbtn act;
+  classDef caution fill:#FAF0DC,stroke:#B4700D,color:#B4700D;
+  class hold caution;
+  classDef fail fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class broken fail;
+</pre>
+      </div>
+      <figcaption><b>사람이 개입하는 지점은 파란 육각형 넷입니다</b> — 전송 · <b>공급사 선택</b> · 발주 요청 · 이력 기록. 공급사 선택이 빠지면 안 됩니다: 견적을 제시한 턴에서 발주서가 자동으로 만들어지지 않고, 사용자가 고른 다음 턴에서만 <code>create_po_draft</code>가 호출됩니다(A2). 이력 기록을 버튼으로 둔 이유도 같은 성질입니다 — 채팅 진입만으로 자동 기록하면 <code>count</code>가 고장 횟수가 아니라 <b>질문 횟수</b>가 되어, 같은 에러를 세 번 물어본 것만으로 근본원인 모드가 잘못 켜집니다(D29·A7). <b>S2는 진단 없이 재고 조회부터 시작하는 의도적 케이스</b>입니다.</figcaption>
+    </figure>
+
+    <div class="note">
+      <b>발주 카드 자리에 보류 카드가 옵니다.</b> 반복 고장일 때 <code>PoDraftCard</code> 대신 <code>PoHoldCard</code>(<code>po_card</code> variant <code>hold</code>)가 같은 위치에 렌더됩니다 — 발주 버튼이 없는 카드입니다. 원인이 확정되기 전에는 부품을 사지 않는다는 판단이 UI 형태로 나타난 것입니다(D35).
+    </div>
+    <div class="note crit">
+      <b>붉은 갈래가 이 프로젝트의 자부심입니다.</b> <code>error_codes</code>가 아직 0행이면 <code>lookup_error_code</code>는 <code>not_found</code>가 아니라 <code>catalog_not_loaded</code> 에러를 돌려주고, 화면에 <b>붉은 점으로 정직하게 실패</b>합니다(D50). <code>not_found</code>를 줬다면 모든 코드가 S4로 흘러 <b>환각률 지표가 가짜 100%</b>가 되고 스모크도 위양성으로 통과했을 겁니다. 2026-07-28 실 Gemini 라이브 검증에서 이 동작이 확인됐습니다 — 에이전트가 공백을 지식으로 메우지 않고 그대로 안내했습니다.
+    </div>
+  </section>
+
+  <!-- ================= ⑤ 사용자 액션 B ================= -->
+  <section id="ux-b">
+    <div class="sec-head"><h2>⑤ 사용자 액션 — 승인 큐 <code>/manager</code> · 상태 전이</h2><span class="count">화면 B</span></div>
+    <p class="sec-note">팀장이 대화를 읽지 않고도 3초 안에 판단할 수 있어야 합니다. 그래서 승인은 <b>채팅 밖 별도 화면</b>에 있습니다(D18).</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  q["QueueList<br/>GET /api/po?state=pending"] --> sel{{"발주 건 클릭"}}
+  sel --> detail["PoDetail · /manager/po/{poId}"]
+  detail --> ev["EvidenceCard<br/>reason 한 줄 + evidence"]
+  detail --> sup["SupplierCompare<br/>리드타임 · 단가 · MOQ"]
+  ev --> trace{{"실행 로그 보기"}}
+  trace --> tp["/manager/trace/{sessionId}<br/>도구 호출 전체 재생"]
+  ev --> bar["DecisionBar"]
+  sup --> bar
+  bar --> ok{{"승인"}}
+  bar --> no{{"반려 + 사유"}}
+
+  classDef act fill:#E4ECFA,stroke:#1957C2,color:#0F3E90;
+  class sel,trace,ok,no act;
+</pre>
+      </div>
+      <figcaption><b>근거가 결정 바로 옆에 있습니다.</b> <code>reason</code>(한 줄 요약, D5)과 <code>evidence</code>(관찰 증상 · 근거 도구 결과 · 비고, D34)가 승인 버튼과 같은 화면에 있고, 더 파고들고 싶으면 실행 로그로 그 세션의 도구 호출 전체를 재생할 수 있습니다(D21).</figcaption>
+    </figure>
+
+    <figure style="margin-top:26px">
+      <div class="plate">
+<pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> draft: create_po_draft (도구)
+  draft --> pending: submit — 정비사
+  pending --> approved: approve — 팀장
+  pending --> rejected: reject + 사유 — 팀장
+  approved --> [*]
+  rejected --> [*]
+
+  note right of draft
+    도구가 만들 수 있는 유일한 상태
+  end note
+  note right of pending
+    역할 분리는 양방향이다
+    technician 이 approve → 403
+    manager 가 submit → 403
+    권한은 맞지만 순서가 틀리면 → 409
+    반려 사유 누락은 본문 검증 → 422
+  end note
+  note right of rejected
+    지금은 종착역 —
+    재요청 경로 없음 (백로그 P15)
+  end note
+</pre>
+      </div>
+      <figcaption><b>상태 전이는 <code>ALLOWED_FROM</code> 한 곳을 지납니다.</b> 권한 문제(<code>403</code>)와 순서 문제(<code>409</code>)를 구분하는 이유는 사용자가 할 행동이 다르기 때문이고, 평가에서도 두 판정이 섞이면 안 되기 때문입니다(D38). <code>rejected</code>가 종착역인 건 알려진 빈틈입니다 — 실무에서 가장 흔한 동선인데 재요청 경로가 없어 백로그 P15로 잡혀 있습니다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= 근거 ================= -->
+  <section>
+    <div class="sec-head"><h2>그림이 참조한 실제 코드</h2><span class="count">대조표</span></div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
+        <tbody>
+          <tr><td>REST 엔드포인트 10종</td><td class="mono">backend/routers/ — chat.py · equipment.py · po.py</td></tr>
+          <tr><td>MCP 도구 7종</td><td class="mono">mcp_server/tools/ — 파일당 1개</td></tr>
+          <tr><td>화면 A · B 라우트</td><td class="mono">frontend/app/(console)/technician · /manager</td></tr>
+          <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
+          <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
+          <tr><td>trace 패널</td><td class="mono">components/trace/ — TracePanel · TraceStep</td></tr>
+          <tr><td>루프 상한</td><td class="mono">backend/agent/loop.py — MAX_LLM_CALLS_PER_TURN 10 · PER_SESSION 50</td></tr>
+          <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · po.py 3곳에서만 호출</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span>MaintQ · Q 시리즈 3번째</span>
+    <span>기준 2026-08-07</span>
+    <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code></span>
+  </footer>
+
+</div>
+
+<!--
+  로컬(file://)에서 열 때만 필요한 폴백입니다.
+  Artifact 로 퍼블리시하면 mermaid 가 네이티브로 렌더링되고 이 스크립트는 CSP 로 차단됩니다 — 정상입니다.
+-->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid && typeof window.mermaid.initialize === "function") {
+    window.mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      themeVariables: {
+        fontFamily: 'ui-monospace, Consolas, "D2Coding", monospace',
+        fontSize: "13px",
+        background: "#FBFCFD",
+        primaryColor: "#EEF3FA",
+        primaryTextColor: "#1B2430",
+        primaryBorderColor: "#8FA6C4",
+        lineColor: "#5B6B80",
+        secondaryColor: "#F1F4F8",
+        tertiaryColor: "#FFFFFF",
+        clusterBkg: "#F5F8FC",
+        clusterBorder: "#C3CEDC",
+        noteBkgColor: "#FAF0DC",
+        noteBorderColor: "#B4700D",
+        noteTextColor: "#4A3208"
+      }
+    });
+  }
+</script>
+</body>
+</html>
