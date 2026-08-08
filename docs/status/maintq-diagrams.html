@@ -172,7 +172,7 @@
 
   <!-- ================= ① 유스케이스 ================= -->
   <section id="uc">
-    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 13</span></div>
+    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 17</span></div>
     <p class="sec-note">행위자는 <b>정비사</b>와 <b>팀장</b> 둘뿐입니다. 이 그림의 요점은 기능 목록이 아니라 <b>두 액터의 권한이 어디서 갈리는가</b> — 승인·반려로 가는 점선이 그것입니다.</p>
 
     <figure>
@@ -203,6 +203,13 @@ flowchart LR
       x3["중고 취득 검증"]
       x4["수리 증빙 서명"]
     end
+    subgraph LATER["후속 · F5~F6"]
+      direction TB
+      y1["기한 임박 알림<br/>세액공제 24개월 · 안전검사 주기"]
+      y2["사고 이력 기록<br/>충돌 · 정밀도 손상"]
+      y3["실사 확인 결과 보존"]
+      y4["법령 개정 감지"]
+    end
   end
 
   tech --> u1
@@ -219,15 +226,21 @@ flowchart LR
   tech --> x4
   mgr --> x1
   mgr --> x2
+  tech --> y2
+  tech --> y3
+  mgr --> y1
+  mgr --> y4
 
   u1 -.->|"repeated=true"| u4
   u2 -.->|"qty=0 또는 단종"| u3
+  y1 -.->|"기한 임박 경고"| x1
+  y2 -.->|"자산가치 감점"| x3
 
   classDef blocked stroke-dasharray:5 3,stroke:#BC3B31,color:#BC3B31;
   class u8 blocked;
 </pre>
       </div>
-      <figcaption><b>정비사는 자기가 올린 발주를 스스로 승인할 수 없습니다.</b> 정비사 → 승인 화살표가 점선인 이유이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다. 이 한 줄이 human-in-the-loop을 성립시킵니다(D18). 점선 내부 화살표 둘은 조건 분기입니다 — 반복 고장이 감지되면 발주가 아니라 근본원인 모드로 갑니다(D2·D35).</figcaption>
+      <figcaption><b>정비사는 자기가 올린 발주를 스스로 승인할 수 없습니다.</b> 정비사 → 승인 화살표가 점선인 이유이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다. 이 한 줄이 human-in-the-loop을 성립시킵니다(D18). 내부 점선은 조건 분기와 신호 전달입니다 — 반복 고장이 감지되면 발주가 아니라 근본원인 모드로 가고(D2·D35), <b>F5~F6은 새 기능이라기보다 기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다. 기한 임박은 처분 판정보다 <b>먼저</b> 알아야 의미가 있습니다 — 지금은 처분을 요청해야만 "24개월 미달"을 알게 됩니다.</figcaption>
     </figure>
   </section>
 

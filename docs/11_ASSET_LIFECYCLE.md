@@ -304,6 +304,79 @@ F1이 가장 크고 나머지는 그 위에 얇게 얹힌다. **F1만 해도 "�
 
 ---
 
+## 10. 확장 데이터 — 기한 · 사고 · 위험 프로파일
+
+> 룰 카탈로그를 만들면서 드러난 **자체 공백**이다. 아래 넷은 새 아이디어가 아니라
+> **이미 있는 룰과 시나리오가 요구하는데 저장할 자리가 없는 것들**이다.
+
+### 10-1. 왜 필요한가 — 기존 룰이 요구하는데 자리가 없다
+
+| 요구하는 쪽 | 무엇이 없나 |
+|---|---|
+| `TAX-CREDIT-2Y` (§3) | `months_since_acquisition` 을 쓰고 `review_band [22, 26]` 경계까지 있는데, **기한이 다가오는 걸 미리 알 방법이 없다.** 물어봐야만 안다 — 24개월을 하루 넘겨 팔면 추징이다 |
+| `SAFETY-INSPECTION` (§3) | `last_inspection_date` 를 요구한다. 검사 주기는 설치 후 3년·이후 2년이고 **미이행이면 사용 자체가 불가**인데 추적 장치가 없다 |
+| `12 §1` 자산가치 | *"충돌·사고 이력은 마이너스다 — 베드·주축 정렬이 영구히 틀어지면 정밀도가 회복되지 않는다"* 고 써 뒀는데 **사고를 기록할 테이블이 없다.** `error_history` 는 에러코드 트립이지 물리적 사고가 아니다 |
+| `verify_ownership` (§5·§6 S18) | 9개 카테고리를 확인한 **결과를 남길 자리가 없다.** 매번 처음부터 다시 확인하게 된다 |
+
+### 10-2. 신규 테이블 4종
+
+```
+deadlines          기한 추적 — 시점을 관리한다
+  deadline_id, decision_id, type, due_date, status, reminder_sent_at
+
+incidents          물리적 사고 이력 (error_history 와 별개)
+  incident_id, equipment_id, type, occurred_at, book_value_at_loss
+
+ownership_checks   권리관계·실사 확인 항목 (S18 결과 보존)
+  check_id, equipment_id, check_item, status, evidence_ref, checked_at
+
+risk_profile       건물 단위 속성
+  building_id, fire_handling, hazmat_volume, power_capacity,
+  product_type, risk_grade, risk_grade_updated_at
+```
+
+**`risk_profile` 이 건물 단위인 이유:** `equipment.location` 은 `"3번 조립라인 반송 컨베이어"`
+같은 **문자열**이라 건물 자체의 조건을 담을 자리가 없다. 그런데 `SAFETY-INSPECTION` 대상 판정과
+`12 §6` 실사 체크리스트의 '법정 요건' 카테고리(안전검사·안전인증·환경 규제)는 **건물 조건에
+걸린다.** 넷 중 내부 활용도가 가장 낮으므로 **후순위**로 둔다.
+
+**`deadlines` 와 `flags`(§3)는 성격이 다르다** — `flags` 는 *상태*(발생 → 이행 → 해소)를,
+`deadlines` 는 *시점*을 관리한다. 같은 사안이 양쪽에 각각 걸린다: `LIEN-CONSENT` 는 flag,
+"세액공제 사후관리 24개월"은 deadline.
+
+### 10-3. 도구 3종 추가
+
+| 도구 | 성격 | 무엇을 푸는가 |
+|---|---|---|
+| `track_deadlines` | 읽기 | **가장 값이 크다.** 기한 임박 항목 조회 → `TAX-CREDIT-2Y` 경계 구간(22~26개월)에 들어가기 전에 알려 준다. 지금은 처분을 요청해야만 BLOCKED 를 알게 된다 |
+| `detect_law_revision` | 읽기 | 해시 비교 + 영향 룰 역추적. **`fetch_laws.py` 의 `check_revisions()` 가 이미 하는 일**을 도구로 노출하는 것이라 새로 만들 로직이 거의 없다 |
+| `assess_risk_grade` | 읽기 | 위험 프로파일 → 등급 + 변동 판정 |
+
+`verify_ownership`(§5)은 그대로 재사용한다 — `ownership_checks` 가 생겨도 **판정 스키마
+(`PARTIAL` / `VERIFIED` 구분)는 바꾸지 않는다.**
+
+### 10-4. 기존 구조와의 접점
+
+- **`detect_law_revision` 은 계층 1 append-only 가 실제로 작동하는 지점이다.** §2가 *"왜
+  수정 불가인가"* 였다면 이건 *"그래서 개정될 땐 어떻게 하는가"* 의 답이다 — 새 레코드를
+  쌓고 이전 것에 `effective_to` 를 찍는다. 자동 반영하지 않고 `pending_revisions` 로 넘겨
+  사람 서명을 받는 흐름은 `fetch_laws.py` 에 이미 있다.
+- **`incidents` 는 `12 §1` 의 감점 신호를 완성한다.** 지금은 반복 고장(`repeated`)만 감점
+  근거인데, 충돌·사고는 그보다 무겁고 회복이 안 되는 종류다.
+- **`ownership_checks` 가 있어야 `PARTIAL` 이 의미를 갖는다.** 무엇을 확인했고 무엇이
+  남았는지를 다음 사람이 이어받을 수 있어야 한다 — 안 남기면 매번 처음부터다.
+
+### 10-5. 순서
+
+`§8` 의 F1~F4 **뒤**에 온다. 넷 다 F1(근거 계층)이 없으면 근거를 붙일 수 없다.
+
+| 단계 | 내용 |
+|---|---|
+| **F5** 기한·사고 | `deadlines` · `incidents` + `track_deadlines`. **F1~F4 중 가장 값이 큰 후속** — 기존 룰이 이미 요구하는 것을 채운다 |
+| **F6** 실사 보존·위험 | `ownership_checks` · `risk_profile` + `assess_risk_grade` · `detect_law_revision` |
+
+---
+
 ## 관련 문서
 
 | 목적 | 문서 |
