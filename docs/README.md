@@ -20,7 +20,7 @@
 
 **규칙:** 설계와 다른 구현을 하려면 10_DECISIONS에 결정을 먼저 추가하고 진행한다. 새 기능 아이디어는 07_BACKLOG로 보낸다.
 
-**범위가 넓어졌다 (D67).** `11`·`12`는 이제 본 범위다 — 당초 Phase 2로 미뤄 둔 것(D58)을 열었다. 단 **순서는 그대로** — 완료 기준 5개와 S1~S4 관통이 먼저고, 그다음 근거 계층, 그 위에 나머지가 얹힌다. 룰 카탈로그는 `data/rules/` 에 있다(pytest 통과, **법령 원문은 수집 대기 — `LAW_API_OC` 미발급**).
+**범위가 넓어졌다 (D67).** `11`·`12`는 이제 본 범위다 — 당초 Phase 2로 미뤄 둔 것(D58)을 열었다. 단 **순서는 그대로** — 완료 기준 5개와 S1~S4 관통이 먼저고, 그다음 근거 계층, 그 위에 나머지가 얹힌다. 룰 카탈로그는 `data/rules/` 에 있다(pytest 통과, **법령 원문은 Sprint 7 MQ-701 에서 실수집 — 7건 중 6건 `FETCHED`**).
 
 ---
 
@@ -36,13 +36,22 @@
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |
 | REST | `GET /api/assets` · `GET /api/assets/{id}` · `POST /api/assets/{id}/disposal/precheck`(무저장, D71) |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
-| 계층 1 (법령 원문) | ⛔ **미수집** — 참조 7건 전부 `fetch_status:"PENDING"`. 적용기(`apply_fetch`)는 완료(D75), **수집기(`fetch_from_api`)는 Sprint 7** |
+| 계층 1 (법령 원문) | ✅ **실수집 완료 (Sprint 7 MQ-701)** — 참조 7건 중 **6건 `FETCHED` · 1건 `PENDING`**(`KR-CITA-ENF-31`). 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
+
+> **계층 1 현재값 (Sprint 7 MQ-701 실수집 이후)** — `KR-CITA-ENF-31` 만 `PENDING` 이다.
+> 등록 제목(`즉시상각의제`)이 API 값(`즉시상각의 의제`)과 달라 `apply_fetch` 가 `LawMismatchError` 로
+> **파일을 손대기 전에 중단**했다 — 조용히 덮어쓰지 않은 것이 정상 동작이며 **사람 승인 대기**다.
+> 처분 룰 5종이 인용하는 조문은 나머지 6건에 전부 포함되므로 `check_disposal_blockers` 의
+> `evidence_completeness` 실 DB 정상값은 **`COMPLETE`** 이고, `build_evidence_bundle` 은
+> 9자산 × SALE/SCRAP **18조합 전부 `status:"ok"`**(`law_text_unavailable` 0건)다.
+> **이 미수집 경로가 다시 발화하는 때**: 새 조문을 등록했는데 아직 안 받았을 때 ·
+> 개정으로 `pending_revisions` 가 열렸을 때 · `KR-CITA-ENF-31` 처럼 정체성 대조에 실패했을 때.
 
 **다음 액션 (Sprint 7)**
 
-1. 🔴 **사람** — law.go.kr OPEN API 활용신청 → `.env` 의 `LAW_API_OC` 기입. **모든 계층 1 작업의 하드 선행 조건**이다
+1. 🟡 **사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인(`즉시상각의제` → API 값 `즉시상각의 의제`). 이 1건이 계층 1 의 마지막 `PENDING` 이다
 2. 🔴 **사람** — 기준내용연수 `N=8` 법령 원문 대조 (잔가곡선 전체가 이 값에 걸려 있다) · `parts.part_class` 40종 감수 · `related_parts` 최종 승인
-3. 조문 원문 실수집 → `build_evidence_bundle` 이 `law_text_unavailable` 을 벗어난다 → 계층 3 서명 API
+3. 계층 3 서명 API — `build_evidence_bundle` 이 실 DB 에서 이미 `status:"ok"` 를 내므로 선행 조건은 풀렸다
 4. 쓰기 도구 2종(`generate_disposal_document` · `create_repair_record`)
 5. 3차 평가 — 확장 도구를 켠 상태와 끈 상태를 **분리해서** 돌린다 (D69 가 지키려는 것)
 

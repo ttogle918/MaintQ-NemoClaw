@@ -75,6 +75,31 @@ def probe_dates(db: Path) -> dict[str, str]:
         con.close()
 
 
+BUCKETS = ("blockers", "preconditions", "holds", "insufficient")
+
+
+def judgment_signature(result: dict) -> dict:
+    """두 판정 경로(파일 정본 ↔ DB 사본)를 대조할 때 쓰는 **지문**.
+
+    ⚠ `verdict` 만 보면 검사력이 모자란다. `disposal_type` 을 BLOCKING→PRECONDITION 으로
+      내린 뮤턴트는 **verdict 로 드러나지 않는다** — `AST-L3-CONV` 는 blocker 가 2건이라
+      하나를 내려도 `BLOCKED` 로 남는다(Sprint 6 실측, `asset_tools_contract.py:590-594`
+      가 같은 사실을 주석으로 남겼다). **버킷 소속과 인용 조문으로는 드러난다.**
+
+    ⛔ `message`·`disclaimer` 는 넣지 않는다. 전자는 자유 문장이라 취성이고, 후자는 MCP
+       도구가 `evidence_completeness` 에 따라 접미사를 붙여 **조문 수집이 진행되면 값이
+       바뀐다**. 문구 드리프트는 ㉕㉖ 이 **엔진 상수와 REST 응답**을 직접 대조한다.
+
+    비교 로직을 한 벌로 유지하는 이유: 뮤턴트 확인이 이 함수를 그대로 재사용해야
+    "확장 전에는 안 잡히고 확장 후에는 잡힌다"를 같은 코드로 보일 수 있다.
+    """
+    return {
+        "verdict": result["verdict"],
+        "buckets": {b: sorted(f["rule_id"] for f in result[b]) for b in BUCKETS},
+        "law_refs": {b: sorted({r for f in result[b] for r in f["law_refs"]}) for b in BUCKETS},
+    }
+
+
 def precheck(client, asset_id: str, mode: str, when: str | None = None, headers=None):
     body: dict = {"disposal_mode": mode}
     if when is not None:
@@ -84,7 +109,7 @@ def precheck(client, asset_id: str, mode: str, when: str | None = None, headers=
     )
 
 
-def run(client, db: Path, probe: dict[str, str]) -> None:
+def run(client, db: Path, probe: dict[str, str], captured: dict) -> None:
     before = row_counts(db)
 
     # ── 목록·상세
@@ -247,16 +272,20 @@ def run(client, db: Path, probe: dict[str, str]) -> None:
         ):
             row = con.execute("SELECT * FROM assets WHERE asset_id=?", (asset_id,)).fetchone()
             facts = engine.build_facts(row, disposal_mode=mode, disposal_date=probe[asset_id])
-            file_verdict = engine.check_disposal_blockers(facts)["verdict"]
-            rest_verdict = precheck(client, asset_id, mode, probe[asset_id]).json()["verdict"]
-            if file_verdict != rest_verdict:
-                mismatch.append(f"{asset_id}: REST={rest_verdict} vs 파일={file_verdict}")
+            file_sig = judgment_signature(engine.check_disposal_blockers(facts))
+            rest_body = precheck(client, asset_id, mode, probe[asset_id]).json()
+            rest_sig = judgment_signature(rest_body)
+            if file_sig != rest_sig:
+                axes = [k for k in file_sig if file_sig[k] != rest_sig[k]]
+                mismatch.append(f"{asset_id}: {axes} REST={rest_sig} vs 파일={file_sig}")
+            captured.setdefault("body", rest_body)  # ㉕㉖ 문구 드리프트 대조용
     finally:
         con.close()
     check(
-        "⑳ REST(DB 사본) 판정 == engine.check_disposal_blockers(파일 정본) — 두 벌이 어긋나면 여기서 잡힌다",
+        "⑳ REST(DB 사본) == 파일 정본 — verdict **+ 버킷별 rule_id 집합 + law_ref_id 집합**"
+        " (verdict 만 보면 disposal_type 뮤턴트가 통과한다)",
         not mismatch,
-        "; ".join(mismatch) or "5자산 일치",
+        "; ".join(mismatch) or "5자산 · 3축(verdict·버킷 4종·인용 조문) 전부 일치",
     )
 
     # ── 장비 목록의 asset_id (가산 계약 변경)
@@ -295,8 +324,8 @@ def run_catalog_outage(client, empty_db: Path) -> None:
         bdb.DB_PATH = original
 
 
-def run_static_checks() -> None:
-    """D71 매핑이 D79 어휘 5종을 전부 덮는가 — HTTP 없이 상수만 본다."""
+def run_static_checks(captured: dict) -> None:
+    """D71 매핑이 D79 어휘 5종을 전부 덮는가 — HTTP 없이 상수만 본다. + W2 문구 드리프트."""
     from backend.routers.disposal import HTTP_BY_VERDICT  # noqa: PLC0415
     from data.rules import engine  # noqa: PLC0415
 
@@ -306,6 +335,29 @@ def run_static_checks() -> None:
         and {v for v, c in HTTP_BY_VERDICT.items() if c == 409}
         == {"BLOCKED", "HOLD", "INSUFFICIENT_FACTS"},
         f"{HTTP_BY_VERDICT}",
+    )
+
+    # ── W2 — REST 가 엔진 문구를 **복제하지 않는다**
+    #   값만 비교하면 복제본이 우연히 같은 동안은 통과한다. 그래서 값 일치 + **소스에
+    #   리터럴이 없음**을 함께 본다 — 복제가 되살아나는 순간 두 번째 축이 먼저 깨진다.
+    #   ⛔ 기준은 `engine` 상수와 REST 응답이다. MCP 도구 출력을 기준으로 삼지 않는다 —
+    #      `check_disposal_blockers.py` 가 `LAW_TEXT_PENDING` 일 때 접미사를 붙여서
+    #      **조문 수집이 진행되면 값이 바뀐다**(MQ-701 진행 중). `message` 를 대조에서
+    #      뺀 것과 같은 이유다.
+    body = captured.get("body") or {}
+    source = (ROOT / "backend" / "services" / "disposal.py").read_text(encoding="utf-8")
+    check(
+        "㉕ not_considered 가 engine.NOT_CONSIDERED 와 동일 · backend 소스에 문구 리터럴 0건 (W2)",
+        body.get("not_considered") == list(engine.NOT_CONSIDERED)
+        and not [s for s in engine.NOT_CONSIDERED if s in source],
+        f"REST={body.get('not_considered')} · 소스 복제="
+        f"{[s for s in engine.NOT_CONSIDERED if s in source] or 0}건",
+    )
+    check(
+        "㉖ disclaimer 가 engine.DISCLAIMER 와 동일 · backend 소스에 문구 리터럴 0건 (W2)",
+        body.get("disclaimer") == engine.DISCLAIMER and engine.DISCLAIMER not in source,
+        f"일치={body.get('disclaimer') == engine.DISCLAIMER} ·"
+        f" 소스 복제={engine.DISCLAIMER in source}",
     )
 
 
@@ -337,10 +389,11 @@ def main() -> None:
         from backend.main import app  # noqa: PLC0415
 
         probe = probe_dates(db)
+        captured: dict = {}
         with TestClient(app) as client:
-            run(client, db, probe)
+            run(client, db, probe, captured)
             run_catalog_outage(client, empty)
-        run_static_checks()
+        run_static_checks(captured)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 30))

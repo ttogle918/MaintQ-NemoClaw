@@ -6,8 +6,15 @@
 쳐서 채점한다. `replay` 파라미터를 쓰지 않는다 — 실 루프가 실 MCP 도구를 호출해야
 지표가 의미를 갖는다.
 
-**비용 안전장치.** `--dry-run` 은 스키마 검증 + 비용 추정만 하고 API 호출·서버 기동 자체를
-하지 않는다 (exit 0). 실행에는 `--yes` 또는 대화형 확인이 필요하다.
+**비용 안전장치.** `--dry-run` 은 스키마 검증 + 비용 추정 + **D88 프로파일 가드 확인**만 한다
+(exit 0, 위반 시 exit 2). 실행에는 `--yes` 또는 대화형 확인이 필요하다.
+
+**`--dry-run` 은 LLM 을 단 1회도 호출하지 않는다.** 가드가 읽는 `/health` 는 실측값(D69 의
+`tools` = `list_tools()` 개수)이라 서버가 있어야 얻을 수 있으므로, dry-run 도 **임시 포트에
+서버를 띄워 `/health` 만 읽고 즉시 내린다** — 문항 루프(`_run_stage`)에는 들어가지 않으므로
+모델 호출은 0회다. "가드를 순수 함수로 분리"(`profile_violations`)와 "실측 health 조회"를
+둘 다 하는 이유: 가드 로직은 스파이크가 서버 없이 검증하고, 실행 경로는 가짜값이 아닌
+실측으로 판정해야 하기 때문이다.
 
 **`MAINTQ_MCP_AUTOSTART` 를 이 파일에서 건드리지 않는다.** env 딕셔너리는 부모 프로세스의
 `os.environ` 을 그대로 상속한다 — 기본값(1, MCP 기동)을 그대로 쓴다. `sp3_sse_events.py`
@@ -24,11 +31,12 @@
 의 직접 반영을 차단, MQ-501/MQ-505 참조).
 
 관련 결정: D40(LLM 폴백 금지)·D42(MCP lifespan 단독 소유)·D55(재생 표식 분모 제외)·
-D56(env 상속)·D38(403 vs 409).
+D56(env 상속)·D38(403 vs 409)·D69(프로파일 게이트)·**D88(이중 게이트)**.
 
 실행:
     uv run python eval/run_eval.py --testset eval/testset_draft.json --dry-run
     uv run python eval/run_eval.py --yes                # 실 20문항 (비용 발생, 사람 승인 필요)
+    uv run python eval/run_eval.py --yes --allow-full-profile   # full 프로파일 의도적 실행
 """
 
 from __future__ import annotations
@@ -38,6 +46,7 @@ import asyncio
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -64,6 +73,10 @@ from eval.judge import JudgeVerdict, judge_hallucination  # noqa: E402
 SOURCE_DB = ROOT / "data" / "maintq.db"
 PORT = 8091
 BASE_URL = f"http://127.0.0.1:{PORT}"
+
+#: core 프로파일의 도구 수 (04_MCP_TOOLS §1~§7). 확장 7종(§8~§14)은 `MAINTQ_TOOLS_PROFILE=full`
+#: 에서만 등록된다 (D69) — 그래서 실측 개수가 7을 넘으면 core 가 아니다.
+CORE_TOOL_COUNT = 7
 
 #: docs/09_RUNTIME.md §2 의 루프 상한 — 여기서는 비용 추정 문구용 참조값일 뿐,
 #: 실 루프 동작은 backend/agent/loop.py 가 소유한다(이 상수를 복제해도 그 값을 바꾸지 못한다).
@@ -247,6 +260,121 @@ async def _wait_ready(base_url: str, timeout: float = 60.0) -> bool:
         except Exception:  # noqa: BLE001 — 아직 바인딩 전이면 연결 자체가 거부된다
             await asyncio.sleep(min(1.0 * attempt, 3.0))
     return False
+
+
+# ────────────────────────────────────────────── D88 프로파일 가드
+
+
+def profile_violations(health: dict) -> list[str]:
+    """`/health` 응답을 받아 D88 위반 사유를 돌려준다. **순수 함수** — 네트워크·부작용 없음.
+
+    두 신호를 **OR 로 겹친다**. 한쪽만 보면 각각 사각이 남는다:
+
+    - `tools_profile` — `backend/main.py:111` 이 backend 프로세스의 env 를 **에코**한 값이고,
+      같은 파일 105행이 스스로 "참고값"이라고 규정한다. MCP 자식(D15, 별도 프로세스)이 다른
+      env 로 떴다면 이 값이 `core` 여도 실제로는 확장 7종이 등록돼 있을 수 있다.
+    - `tools` — `list_tools()` **실측** 개수(D69 가 정본으로 규정). 다만 MCP 미기동이면
+      `None` 이라 이것만으로도 판정을 세울 수 없다.
+
+    → 둘 중 **하나라도** 걸리면 위반. 빈 dict(= health 조회 실패)는 `tools_profile` 이 없으므로
+    자연히 위반으로 떨어진다 — **모르는 상태를 통과로 세지 않는다**(fail-closed).
+    """
+    reasons: list[str] = []
+    profile = health.get("tools_profile")
+    if profile != "core":
+        reasons.append(
+            f"tools_profile={profile!r} — 기대 'core' (backend env 에코, main.py:111)"
+        )
+    tools = health.get("tools") or 0
+    if tools > CORE_TOOL_COUNT:
+        reasons.append(
+            f"tools={tools} — 기대 ≤{CORE_TOOL_COUNT} (list_tools() 실측, main.py:110)"
+        )
+    return reasons
+
+
+def enforce_profile_guard(health: dict, *, allow_full_profile: bool) -> None:
+    """D88 이중 게이트. 위반이면 **왜 막혔는지·어떻게 푸는지**를 출력하고 `SystemExit(2)`.
+
+    조용히 종료하지 않는다 — 종료코드만 남기면 CI 로그에서 "왜 2인지"를 알 수 없다.
+    """
+    reasons = profile_violations(health)
+    if not reasons:
+        return
+
+    if allow_full_profile:
+        print("[--allow-full-profile] D88 가드를 명시적으로 우회합니다:")
+        for r in reasons:
+            print(f"  - {r}")
+        print(
+            "  ⚠ 이 실행의 지표는 core 프로파일 기준 결과와 **같은 축에 놓을 수 없습니다**"
+            " (D69) — 결과 MD 의 meta 로 구분하십시오."
+        )
+        return
+
+    print("[중단] D88 프로파일 가드 — 평가는 core 프로파일에서만 유효합니다.")
+    for r in reasons:
+        print(f"  - 위반: {r}")
+    print(
+        "  왜 막는가: 확장 7종(04 §8~§14)이 등록된 상태의 점수는 core 기준 지표와 분모가 달라"
+        " 이전 회차와 비교할 수 없습니다. 사후에는 어느 프로파일로 돌았는지 복원할 수 없어"
+        " 결과 전체가 무효가 됩니다."
+    )
+    print(
+        "  어떻게 푸는가: ① MAINTQ_TOOLS_PROFILE 을 unset 하거나 'core' 로 두고 다시 실행"
+        " — 이 값은 자식 MCP 서버로 상속되므로 셸 세션 전체에서 지워야 합니다."
+        " ② 의도한 full 실행이면 --allow-full-profile 을 명시하십시오."
+    )
+    raise SystemExit(2)
+
+
+def build_meta(health: dict) -> dict:
+    """결과 JSON·MD 머리말에 실을 실행 환경 기록 (D56 — 제공자는 env 우선, 기본 gemini)."""
+    return {
+        "tools_profile": health.get("tools_profile"),
+        "tools": health.get("tools"),
+        # `or` — .env 의 빈 키를 미설정과 같게 본다 (backend/agent/llm.py:310 과 같은 근거).
+        "llm_provider": os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini",
+    }
+
+
+def _free_port() -> int:
+    """비어 있는 로컬 포트를 하나 잡아 돌려준다 (dry-run 프로브 전용).
+
+    고정 포트를 쓰면 **다른 스위트가 띄워 둔 서버의 `/health` 를 읽어** 가드 판정이
+    남의 env 로 오염된다 — 그 순간 이 가드는 "무엇을 측정했는지 모르는 검사"가 된다.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+def probe_health() -> dict:
+    """서버를 임시 포트에 띄워 `/health` 만 읽고 즉시 내린다. **LLM 호출 0회.**
+
+    실패하면 빈 dict — `profile_violations` 가 fail-closed 로 받는다.
+    DB 는 `_start_server` 와 같은 방식으로 **사본**을 쓴다(`data/maintq.db` 에 쓰지 않는다).
+    """
+    if not SOURCE_DB.exists():
+        print(f"[경고] {SOURCE_DB} 가 없어 /health 프로브를 건너뜁니다 — 프로파일 확인 불가")
+        return {}
+
+    port = _free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    with tempfile.TemporaryDirectory() as td:
+        db_copy = Path(td) / "probe.db"
+        shutil.copy2(SOURCE_DB, db_copy)
+        proc = _start_server(db_copy, port)
+        try:
+            if not asyncio.run(_wait_ready(base_url, timeout=60.0)):
+                print(f"[경고] /health 프로브 서버가 뜨지 않았습니다 ({base_url})")
+                return {}
+            return httpx.get(f"{base_url}/health", timeout=10.0).json()
+        except Exception as exc:  # noqa: BLE001 — 프로브 실패는 "모르는 상태"로 넘긴다
+            print(f"[경고] /health 프로브 실패: {exc}")
+            return {}
+        finally:
+            _shutdown_server(proc)
 
 
 def _parse_sse_frame(buf: str, on_event) -> str:
@@ -462,8 +590,12 @@ def _metric_row(label: str, d: dict, goal: float, *, lower_is_better: bool = Fal
     return f"| {label} | {count}/{d['total']} | {rate:.1%} | {'PASS' if ok else 'FAIL'} |"
 
 
-def write_report(results, agg, perm_result, out_dir: Path) -> Path:
-    """`eval/results/{날짜}.md`+`.json` 생성. 5지표 전부(좋은 것만 골라내지 않는다)."""
+def write_report(results, agg, perm_result, out_dir: Path, meta: dict) -> Path:
+    """`eval/results/{날짜}.md`+`.json` 생성. 5지표 전부(좋은 것만 골라내지 않는다).
+
+    `meta`(D88·D56)는 **JSON 최상위 `meta` 키**와 **MD 머리말** 양쪽에 싣는다 — 어느 프로파일·
+    어느 제공자로 낸 수치인지 결과물만 보고 알 수 있어야 회차 간 비교가 성립한다.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     json_path = out_dir / f"{stamp}.json"
@@ -476,6 +608,7 @@ def write_report(results, agg, perm_result, out_dir: Path) -> Path:
         "generated_at": datetime.now(timezone.utc)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
+        "meta": meta,
         "aggregate": agg,
         "permission_403": {"passed": perm_ok, "detail": perm_detail, "verdict": perm_verdict},
         "items": [
@@ -508,6 +641,10 @@ def write_report(results, agg, perm_result, out_dir: Path) -> Path:
     m = agg["metrics"]
     lines: list[str] = [
         f"# MaintQ 평가 결과 — {stamp}",
+        "",
+        f"- tools_profile: {meta.get('tools_profile')}",
+        f"- tools: {meta.get('tools')}",
+        f"- llm_provider: {meta.get('llm_provider')}",
         "",
         "> ⚠ **경고**: `related_parts.seed.json` 은 아직 사람 검수 전이다(D12) — 이 결과의 부품",
         "> 특정 정확률을 최종 실적으로 인용하지 말 것. `eval/testset.json` 도 초안",
@@ -628,6 +765,11 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--yes", action="store_true")
+    parser.add_argument(
+        "--allow-full-profile",
+        action="store_true",
+        help="D88 프로파일 가드 우회 — core 가 아닌 프로파일에서 의도적으로 실행할 때만",
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("eval/results"))
     args = parser.parse_args()
 
@@ -642,7 +784,17 @@ def main() -> None:
     print(estimate_cost(items))
 
     if args.dry_run:
-        print("[--dry-run] 스키마 검증 + 비용 추정만 수행 — API 호출 0회로 종료합니다.")
+        print("[--dry-run] 스키마 검증 + 비용 추정 + D88 프로파일 가드 — LLM 호출 0회.")
+        # 가드는 실측 `/health` 로만 의미가 있다(D69: `tools` 가 정본). 문항 루프에 들어가지
+        # 않으므로 서버를 띄워도 모델은 한 번도 불리지 않는다.
+        health = probe_health()
+        meta = build_meta(health)
+        print(
+            f"  meta: tools_profile: {meta['tools_profile']} · tools: {meta['tools']} · "
+            f"llm_provider: {meta['llm_provider']}"
+        )
+        enforce_profile_guard(health, allow_full_profile=args.allow_full_profile)
+        print("  D88 프로파일 가드 통과 — 실행하려면 --yes 를 붙이십시오.")
         return
 
     if not args.yes:
@@ -674,6 +826,16 @@ def main() -> None:
                     "GEMINI_API_KEY 등 환경을 확인하세요."
                 )
 
+            # ★ D88 — **문항 루프(=LLM 호출) 이전**에 막는다. 순서가 반대면 full 로 돌았는지
+            #   사후에 알 수 없고, 이미 비용을 쓴 뒤라 되돌릴 수도 없다.
+            #   여기서는 위 `mcp` 검사를 통과했으므로 `tools` 가 null 이 아님이 보장된다.
+            enforce_profile_guard(health, allow_full_profile=args.allow_full_profile)
+            meta = build_meta(health)
+            print(
+                f"실행 환경 meta: tools_profile={meta['tools_profile']} · "
+                f"tools={meta['tools']} · llm_provider={meta['llm_provider']}"
+            )
+
             results, perm_result = asyncio.run(_run_stage(BASE_URL, items))
         finally:
             err_bytes = _shutdown_server(proc)
@@ -685,7 +847,7 @@ def main() -> None:
 
     agg = aggregate(results)
     diff_text = diff_against_previous(agg, args.out_dir)
-    report_path = write_report(results, agg, perm_result, args.out_dir)
+    report_path = write_report(results, agg, perm_result, args.out_dir, meta)
 
     print()
     print(diff_text)

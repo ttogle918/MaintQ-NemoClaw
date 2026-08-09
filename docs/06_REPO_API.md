@@ -47,7 +47,7 @@ MaintQ/
 │   │   ├── rules/*.json       #   계층 2 해석 룰 (처분 플래그 전용, disposal_type 필수)
 │   │   ├── pending_revisions/ #   개정본 대기 (applied: null|intent|confirmed — D75)
 │   │   ├── engine.py          #   룰 엔진 (build_facts·evaluate_rule·check_disposal_blockers)
-│   │   ├── fetch_laws.py      #   법령 수집기 (LAW_API_OC. fetch_from_api 는 Sprint 7)
+│   │   ├── fetch_laws.py      #   법령 수집기 (수집 fetch_from_api + 적용 apply_fetch 분리 — 둘 다 완료)
 │   │   └── test_rules.py      #   pytest — 발화 가능성·해제 가능성 회귀 (D77·D78)
 │   └── analysis/residual_curve.md  # 잔가곡선 산출 근거 + 호가 데이터 한계 실증 (D72→D74)
 │

@@ -160,7 +160,7 @@
 | 8 | **보전지표** — MTBF 추세 · 예방보전 비율 · 누적 수리비 | `12 §2` · `04 §10·§11` | ✅ **Sprint 6** — `get_maintenance_metrics` · `classify_part_criticality`. MTBF 는 **달력 기준**(D70) |
 | 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 7** |
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
-| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14` | 🟡 **부분** — 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들 해시(`build_evidence_bundle`) 완료. **조문 원문 수집·계층 3 서명 API 는 Sprint 7** (법제처 `LAW_API_OC` 미발급이 하드 블로커) |
+| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14` | 🟡 **부분** — 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들 해시(`build_evidence_bundle`) 완료. **계층 1 조문 원문은 Sprint 7 MQ-701 이 실수집**(7건 중 6건 `FETCHED`, 1건은 제목 불일치로 사람 승인 대기) → 번들 18조합 전부 `ok`. **남은 것은 계층 3 서명 API 뿐**이고 외부 블로커는 없다 |
 | 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` | ✅ **Sprint 6** — `verify_ownership`. 9카테고리, `PARTIAL` 승격 경로 없음 |
 
 > **노출은 기본 꺼져 있다 (D69).** 확장 7종은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.

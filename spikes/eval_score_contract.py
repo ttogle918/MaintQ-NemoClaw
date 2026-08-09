@@ -9,6 +9,10 @@ event 형태는 `backend.agent.trace.read_trace` 스키마 `{seq, event, tool, d
 fail 하는지**(음성 검증)를 citation·safety·sequence·S4 4개 지표에서 스크립트 안에서 확인하고
 결과를 주석(★ 음성)으로 남긴다.
 
+⑱⑲ 는 `eval/run_eval.py` 의 **D88 프로파일 가드**(MQ-703)다. 합성 `/health` dict 를 가드
+함수에 직접 먹여 `SystemExit.code` 를 본다 — 서버·서브프로세스를 띄우지 않으므로 이 파일의
+"DB·API 불필요" 성질이 유지된다(다른 스위트와 포트·DB 를 다투지 않는다).
+
 실행:  uv run python spikes/eval_score_contract.py
 """
 
@@ -20,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from eval.run_eval import enforce_profile_guard, profile_violations  # noqa: E402
 from eval.score import has_replay, metric_rate, score_session  # noqa: E402
 
 DB = ROOT / "data" / "maintq.db"
@@ -363,6 +368,45 @@ def run() -> None:
         f"replay={has_replay(replayed)} / live={has_replay(S1_OK)}",
     )
 
+    # ── ⑱ D88 이중 게이트 — core 아님 → SystemExit(2) ───────────
+    #
+    # `run_eval.py --dry-run` 을 서브프로세스로 돌려 종료코드를 보는 대신 **가드 함수를 직접**
+    # 부른다. 이 스파이크의 불변식이 "DB·API 불필요"라 서버를 띄우면 그 성질이 깨지고, 다른
+    # 스위트와 포트·DB 를 다투는 플래키 원인이 된다. 종료코드는 `SystemExit.code` 로 같은 값을
+    # 본다 — main() 은 이 예외를 잡지 않으므로 프로세스 종료코드와 동치다.
+    #
+    # ★ 두 팔을 **따로** 건다. 한쪽만 검사하면 "이중 게이트"라는 이름만 남는다:
+    #   (가) env 에코만 full  (나) 에코는 core 인데 실측 tools 가 7 초과  (다) 둘 다
+    def _guard_code(health: dict, *, allow: bool = False) -> object:
+        try:
+            enforce_profile_guard(health, allow_full_profile=allow)
+        except SystemExit as e:
+            return e.code
+        return 0
+
+    echo_only = _guard_code({"status": "ok", "mcp": True, "tools": 7, "tools_profile": "full"})
+    tools_only = _guard_code({"status": "ok", "mcp": True, "tools": 14, "tools_profile": "core"})
+    both = _guard_code({"status": "ok", "mcp": True, "tools": 14, "tools_profile": "full"})
+    unknown = _guard_code({})  # health 조회 실패 → 모르는 상태를 통과로 세지 않는다
+    core_ok = _guard_code({"status": "ok", "mcp": True, "tools": 7, "tools_profile": "core"})
+    check(
+        "⑱ D88 이중 게이트 — 에코만 full·실측만 14·둘 다·health 불명 → 전부 exit 2 "
+        "(★ 음성: core/7 → 0)",
+        (echo_only, tools_only, both, unknown, core_ok) == (2, 2, 2, 2, 0),
+        f"에코만:{echo_only} / 실측만:{tools_only} / 둘다:{both} / 불명:{unknown} / core:{core_ok}",
+    )
+
+    # ── ⑲ --allow-full-profile → 우회 (exit 0) ─────────────────
+    allowed = _guard_code(
+        {"status": "ok", "mcp": True, "tools": 14, "tools_profile": "full"}, allow=True
+    )
+    reasons = profile_violations({"status": "ok", "mcp": True, "tools": 14, "tools_profile": "full"})
+    check(
+        "⑲ D88 --allow-full-profile → 우회해 exit 0 (★ 위반 사유 자체는 2건 그대로 보고)",
+        allowed == 0 and len(reasons) == 2,
+        f"exit={allowed} / 사유 {len(reasons)}건: {reasons}",
+    )
+
 
 def _po_name(ev: dict) -> str | None:
     return ev.get("tool")
@@ -395,7 +439,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — 4지표 · D30 분모 · D50 S4 · 발행=근거 폴백 확인")
+    print(
+        f"\n통과 ({len(results)}건) — 4지표 · D30 분모 · D50 S4 · 발행=근거 폴백 · "
+        "D88 프로파일 가드 확인"
+    )
 
 
 if __name__ == "__main__":

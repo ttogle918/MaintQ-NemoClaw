@@ -388,14 +388,15 @@
       <div class="card">
         <div class="card-head">
           <div><span class="fno">기능 7 · F1 · 토대</span><h3>근거 3계층 — 법령 · 해석 · 서명</h3></div>
-          <span class="chip wip">엔진 완료 · 원문 대기</span>
+          <span class="chip wip">엔진 · 원문 완료 · 서명 대기</span>
         </div>
         <p class="desc">계층 1(법령 원문, append-only) · 계층 2(해석 룰, 근거 미인용 시 로드 거부) · 계층 3(사람 서명, 번들 해시 고정). <b>확장 전체의 토대.</b></p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d mock">rules/ · 5종 + 엔진 + 테스트 19개</span>
-            <span class="d todo">laws/ 원문 6조문 · <b>수집 대기</b></span>
+            <span class="d real">laws/ 원문 6조문 · <b>법제처 API 실수집</b></span>
+            <span class="d todo">laws/ KR-CITA-ENF-31 · <b>제목 대조 대기</b></span>
             <span class="d todo">decisions 테이블</span>
           </div>
         </div>
@@ -552,7 +553,8 @@
       </table>
     </div>
     <div class="note">
-      <b>법령 원문 6조문은 "실제 데이터인데 아직 안 받은 것"입니다.</b> 법제처 API 승인·호출까지 끝났고 <code>data/rules/laws/*.json</code>에 자리도 잡혀 있지만 <code>fetch_status: PENDING</code>입니다 — <b>조문을 손으로 타이핑하면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문에</b> 의도적으로 비워 뒀습니다.
+      <b>법령 원문 6조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
+      남은 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인 대기</b>입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b>
     </div>
   </section>
 

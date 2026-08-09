@@ -15,6 +15,19 @@
 도구 목록은 **부분집합 비교**다 — MQ-304·314 가 도구를 더 붙이므로 완전 일치로 두면
 남의 태스크가 이 스파이크를 깨뜨린다.
 
+## DB 격리 보강 (MQ-704)
+
+이 스위트는 처음부터 사본 + `MAINTQ_DB` 로 돌았지만, 연속 실행에서 두 군데가 샜다:
+
+  - 임시 디렉터리 정리 실패가 **예외로 터져** 계약 결과를 가렸다. Windows 는 자식 프로세스
+    핸들 해제가 비동기라 `create_po_draft` 가 만든 `-wal`/`-shm` 이 남아 있을 수 있다
+    → `ignore_cleanup_errors=True` (rules_db_load.py 선례).
+  - WAL 사이드카를 안 옮겨 사본이 원본보다 낡을 수 있었다 → `copy_db` 가 함께 복사한다.
+    체크포인트로 해결하지 않는다 — 원본 mtime 이 변해 ⑨-c 가 자기 손으로 깨진다.
+
+자식 종료는 `client.stop()` 이 워커 태스크를 await 하고, 그 안의 `stdio_client` 종료가
+`process.wait()` 를 부른다 (sleep 아님).
+
 실행:  uv run python spikes/mcp_client_contract.py
 """
 
@@ -53,6 +66,16 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, ok, detail))
 
 
+def copy_db(src: Path, dst: Path) -> Path:
+    """DB 를 사본으로 뜬다. WAL 사이드카가 있으면 함께 가져온다 (원본은 건드리지 않는다)."""
+    shutil.copy2(src, dst)
+    for suffix in ("-wal", "-shm"):
+        side = src.with_name(src.name + suffix)
+        if side.exists():
+            shutil.copy2(side, dst.with_name(dst.name + suffix))
+    return dst
+
+
 def po_count(db: Path) -> int:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
@@ -74,6 +97,9 @@ async def run_session(db: Path) -> None:
     ok = await client.start()
     check("① start() → 세션 준비 (lifespan 소유)", ok and client.ready, f"ready={client.ready}")
     if not ok:
+        # 기동 실패 경로에서도 워커를 회수한다 — 자식이 살아 있으면 다음 스위트가
+        # writer 락을 못 잡는다 (MQ-704). stop() 은 태스크를 await 한다(sleep 아님).
+        await client.stop()
         return
 
     try:
@@ -251,16 +277,22 @@ def main() -> None:
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
     REAL_BEFORE = (po_count(SOURCE_DB), SOURCE_DB.stat().st_mtime)
+    print(
+        f"[격리] 실 DB(before) mtime={REAL_BEFORE[1]:.6f} "
+        f"size={SOURCE_DB.stat().st_size} po_drafts={REAL_BEFORE[0]}행"
+    )
 
-    with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "client.db"
-        shutil.copy2(SOURCE_DB, db)
+    # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
+    # 정리 실패가 계약 검증 결과를 가리지 않게 한다 (rules_db_load.py 선례)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        db = copy_db(SOURCE_DB, Path(td) / "client.db")
         before_rows = po_count(db)
 
         # os.environ 경유로 준다 — SDK 화이트리스트 우회가 실제로 되는지 보는 게 목적이라
         # 생성자 override 가 아니라 이 경로여야 한다.
         prev = os.environ.get("MAINTQ_DB")
         os.environ["MAINTQ_DB"] = str(db)
+        print(f"[격리] MAINTQ_DB = {db}\n")
         try:
             asyncio.run(run_session(db))
             asyncio.run(run_startup_failure())
@@ -271,6 +303,11 @@ def main() -> None:
                 os.environ["MAINTQ_DB"] = prev
 
         verify_env_isolation(db, before_rows, REAL_BEFORE[1])
+
+    print(
+        f"\n[격리] 실 DB(after)  mtime={SOURCE_DB.stat().st_mtime:.6f} "
+        f"size={SOURCE_DB.stat().st_size} po_drafts={po_count(SOURCE_DB)}행\n"
+    )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))

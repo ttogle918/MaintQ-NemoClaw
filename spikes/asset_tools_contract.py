@@ -27,8 +27,9 @@ MQ-612 확장분 (Stage 5 reviewer 지정 3건):
   ⓔ `get_maintenance_metrics` 에 `oee` 키 부재 (D64) · `classify_part_criticality` 의 `reviewed`
   ⓕ `classify_expenditure` 판정 3종 (`12 §3`)
   ⓖ `assess_repair_value` 의 `estimates[]`(D65) · `ROOT_CAUSE_FIRST` 는 3지 선택지를 내지 않는다
-  ⓗ `build_evidence_bundle` — 실 DB 에서는 항상 `law_text_unavailable`(정상)이고,
-     **합성 픽스처**(조문 원문을 채운 임시 DB)에서만 해시가 나온다. 같은 사실 → 같은 해시
+  ⓗ `build_evidence_bundle` — 정상 케이스 기대값을 **`data/rules/laws/*.json` 의 수집 상태와
+     그 자산이 실제로 인용한 조문**에서 파생시킨다(하드코딩 0건). 해시 안정성은 인용 조문이
+     전부 채워진 **임시 DB 사본**에서 본다. 같은 사실 → 같은 해시
 
 **실 DB 를 읽기만 한다** — 7도구 전부 읽기 전용이고(D10), 실행 전후 mtime·size 불변을
 마지막 검사가 직접 확인한다 (`s4_smoke.py` 선례). 픽스처는 전부 **임시 폴더의 사본**에
@@ -187,12 +188,48 @@ CASES: tuple[tuple[str, object, dict, dict, dict, tuple[str, ...]], ...] = (
 )
 
 # 정상 케이스의 기대 status. 기본은 `ok` 이고, **실 DB 에서 정상적으로 실패하는** 도구만 예외다.
-# `build_evidence_bundle` 은 조문 원문이 아직 수집되지 않아(전 7건 PENDING) 해시할 사실이 없다 —
-# 이건 결함이 아니라 계약된 동작이고, 여기서 `ok` 를 기대하면 회귀가 "수집 완료"를 강요하게 된다.
-# 원문이 실제로 수집되면 이 줄이 FAIL 하며 사람에게 알린다(조용히 넘어가지 않는다).
-GOOD_EXPECT: dict[str, tuple[str, str | None]] = {
-    "build_evidence_bundle": ("error", "law_text_unavailable"),
-}
+#
+# `build_evidence_bundle` 은 인용 조문의 원문이 하나라도 미수집이면 `law_text_unavailable`
+# 로 거부한다. 그래서 기대값은 **수집 상태에 따라 달라진다** — 여기 상수로 박으면
+# MQ-701 이 조문을 채우는 순간 회귀가 "수집하지 말 것"을 강요하고,
+# 반대로 `ok` 로 박으면 수집이 되돌아갔을 때 조용히 통과한다.
+# → `data/rules/laws/*.json` 의 `fetch_status` + **그 자산이 실제로 인용한 조문**에서 파생시킨다.
+LAWS_DIR = ROOT / "data" / "rules" / "laws"
+_JUDGMENT_BUCKETS = ("blockers", "preconditions", "holds", "insufficient")
+
+
+def unhashable_law_refs() -> set[str]:
+    """계층 1 **정본 파일** 기준으로 해시할 원문이 없는 조문 (D60 — 파일이 정본)."""
+    out: set[str] = set()
+    for path in sorted(LAWS_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if raw.get("fetch_status") != "FETCHED" or not raw.get("text") or not raw.get("text_hash"):
+            out.add(raw["law_ref_id"])
+    return out
+
+
+def cited_law_refs(judgment: dict) -> set[str]:
+    """판정 4버킷이 인용한 조문 합집합. 어떤 조문이 필요한지는 **판정이 정한다.**"""
+    return {
+        ref
+        for bucket in _JUDGMENT_BUCKETS
+        for item in judgment.get(bucket) or []
+        for ref in item.get("law_refs") or []
+    }
+
+
+def derive_good_expect() -> tuple[dict[str, tuple[str, str | None]], str]:
+    """정상 케이스 기대값 + 그 근거 문장."""
+    args = GOOD_ARGS["build_evidence_bundle"]
+    judgment = call(check_disposal_blockers, **args)
+    needed = cited_law_refs(judgment)
+    missing = sorted(needed & unhashable_law_refs())
+    if missing:
+        return (
+            {"build_evidence_bundle": ("error", "law_text_unavailable")},
+            f"미수집 조문 {missing} 인용 → 번들 거부가 정상",
+        )
+    return {}, f"인용 조문 {len(needed)}건 전부 수집됨 → 번들 성공이 정상"
 
 # 케이스 인자를 **이름으로** 꺼낸다. `CASES[5][2]` 처럼 인덱스를 박으면 케이스를 하나
 # 끼워 넣는 순간 조용히 다른 도구를 검사하게 된다 — MARKS 번호를 자동 부여한 것과 같은 이유다.
@@ -247,8 +284,11 @@ def main() -> None:
         ]
 
     # ─ ①~㉑ 7도구 × 3케이스 ─────────────────────────────────────────────────
+    #   `build_evidence_bundle` 의 기대값만 계층 1 수집 상태에서 파생된다 (하드코딩 0건).
+    good_expect, expect_why = derive_good_expect()
+    print(f"[기대값 파생] build_evidence_bundle 정상 케이스 — {expect_why}\n")
     for label, fn, good, bad, missing, _extra in CASES:
-        good_status, good_reason = GOOD_EXPECT.get(label, ("ok", None))
+        good_status, good_reason = good_expect.get(label, ("ok", None))
         for kind, kwargs, expect, want_reason in (
             ("정상", good, good_status, good_reason),
             ("잘못된 입력", bad, "error", None),
@@ -419,6 +459,34 @@ def main() -> None:
             detail += f" blockers={len(res.get('blockers') or [])}(기대 {n_blockers})"
         check(f"처분 판정 — {asset}/{mode} → {want}", ok, detail)
 
+    # ─ ㉙-b 출력 키집합 전수 대조 (`04 §8`) ──────────────────────────────────
+    #   ★ 이 검사가 없어서 `facts_used`·`laws_used`(D82) 가 엔진 → `**result` 스프레드를 타고
+    #     계약에 없는 키로 조용히 승격됐다. 개별 키 존재만 보면 **늘어난 키를 영원히 못 잡는다.**
+    #     계약을 넓히는 변경은 `04 §8` 을 먼저 고치라는 신호로 여기서 FAIL 시킨다.
+    contract_keys = {
+        "status",
+        "asset_id",
+        "evaluated_at",
+        "verdict",
+        "blockers",
+        "preconditions",
+        "holds",
+        "insufficient",
+        "disposal_mode",
+        "disposal_date",
+        "evidence_completeness",
+        "not_considered",
+        "disclaimer",
+    }
+    probe = probe_date.get("AST-L3-CONV")
+    keyset = set(call(check_disposal_blockers, asset_id="AST-L3-CONV", disposal_mode="SALE",
+                      disposal_date=probe))
+    check(
+        "check_disposal_blockers — 출력 키집합이 04 §8 과 정확히 일치 (초과 키 = 계약 드리프트)",
+        keyset == contract_keys,
+        f"초과={sorted(keyset - contract_keys) or '없음'} 누락={sorted(contract_keys - keyset) or '없음'}",
+    )
+
     # ─ ㉚ OEE 는 계산도 출력도 하지 않는다 (D64) ─────────────────────────────
     oee = [a for a in assets if "oee" in call(get_maintenance_metrics, asset_id=a)]
     check("get_maintenance_metrics — 출력에 oee 키 부재 (D64)", not oee, f"검출 {oee}")
@@ -478,8 +546,9 @@ def main() -> None:
     #   처분일은 위 verdict 프로브와 **같은 값**을 쓴다 — 여기서 오늘 날짜를 쓰면 판정이
     #   달라져 "무엇을 근거로 묶었는가"가 위 검사와 어긋난다 (D62).
     probe_iso = probe_date.get("AST-L3-CONV")
-    #   실 DB 는 조문 원문이 없어 `law_text_unavailable` 이 정상이므로(위 케이스에서 확인),
-    #   해시 안정성은 **원문을 채운 사본**에서만 검증할 수 있다. 원본은 건드리지 않는다.
+    #   해시 안정성은 **인용 조문이 전부 채워진 DB** 에서만 검증할 수 있다. MQ-701 이 실 DB 를
+    #   채운 뒤에도 이 사본을 쓰는 이유: 미수집 조문이 1건이라도 남으면(예: 사람 승인 대기 중인
+    #   `KR-CITA-ENF-31`) 이 검사가 수집 상태에 따라 켜졌다 꺼졌다 한다. 원본은 건드리지 않는다.
     with tempfile.TemporaryDirectory() as td:
         fetched_db = Path(td) / "law_fetched.db"
         shutil.copy2(DB_PATH, fetched_db)

@@ -5,6 +5,20 @@
 실제 stdio 로 서버 프로세스를 띄우고 붙는다 (in-process 호출 아님) — D15 의
 "프로세스 분리"가 실제로 성립하는지를 봐야 하기 때문.
 
+## DB 격리 (MQ-704)
+
+이 스위트는 원래 실 `data/maintq.db` 를 자식 서버와 공유했다. 같은 파일을 WAL 로 쓰는
+다른 스위트(`s4_smoke`·`mcp_client_contract`)와 **연속 실행**하면, Windows 는 앞 스위트의
+자식 프로세스 핸들 해제가 비동기라 writer 락 경합으로 `busy_timeout` 이 만료된다.
+그래서 진입 시 DB 를 임시 디렉터리로 복사하고 `MAINTQ_DB` 로 그 사본을 가리킨다.
+
+  - 자식 stdio 서버에는 **`env={**os.environ}` 를 명시 전달**한다 — SDK 기본값(`env=None`)은
+    화이트리스트만 상속해 `MAINTQ_DB` 를 넘기지 않는다 (`backend/agent/mcp_client.py` §env 명시 상속).
+  - `check_write_isolation` 이 import 하는 `mcp_server.db` 는 **import 시점에** `MAINTQ_DB` 를
+    읽는다(`db.py:21`) → 환경변수를 심은 뒤에 import 해야 한다.
+  - 실 DB 는 mtime·size 를 전후 비교한다. 이건 검사 19건에 들어가지 않는 **격리 게이트**다 —
+    깨지면 계약 결과와 무관하게 중단시킨다.
+
 실행:  uv run python spikes/sp2_mcp_roundtrip.py
 """
 
@@ -12,7 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -20,6 +37,7 @@ from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parent.parent
 SERVER = ROOT / "mcp_server" / "server.py"
+SOURCE_DB = ROOT / "data" / "maintq.db"
 
 EXPECTED_TOOLS = {
     "rag_search_manual",
@@ -44,9 +62,27 @@ def payload(result) -> dict:
     return json.loads(result.content[0].text)
 
 
-async def run() -> None:
-    params = StdioServerParameters(command=sys.executable, args=[str(SERVER)])
+def copy_db(src: Path, dst: Path) -> Path:
+    """DB 를 사본으로 뜬다. WAL 사이드카가 있으면 함께 가져온다.
 
+    원본에 `wal_checkpoint` 를 걸지 않는다 — 그 순간 실 DB 의 mtime 이 변해
+    "원본을 건드리지 않았다"는 게이트가 자기 손으로 깨진다.
+    """
+    shutil.copy2(src, dst)
+    for suffix in ("-wal", "-shm"):
+        side = src.with_name(src.name + suffix)
+        if side.exists():
+            shutil.copy2(side, dst.with_name(dst.name + suffix))
+    return dst
+
+
+async def run() -> None:
+    # env 명시 — 기본값(None)이면 SDK 화이트리스트만 상속돼 MAINTQ_DB 가 자식에 안 닿는다.
+    # 그러면 자식은 실 DB 를 열고, 이 스위트는 "격리된 척" 통과한다.
+    params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env={**os.environ})
+
+    # `stdio_client` 는 컨텍스트 종료 시 stdin 을 닫고 `process.wait()` 로 자식 종료를
+    # **기다린다**(SDK stdio/__init__.py:205). sleep 으로 대체하지 않는다.
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -242,7 +278,11 @@ def check_write_isolation() -> None:
     커넥션 수준에서 막혀 있는지를 본다.
     """
     sys.path.insert(0, str(ROOT))
+    from mcp_server import db as mcp_db  # noqa: PLC0415
     from mcp_server.db import draft_writer, read_only  # noqa: PLC0415
+
+    # 격리 증명 — 이 커넥션들이 실 DB 가 아니라 사본을 여는지 눈으로 확인한다
+    print(f"[격리] mcp_server.db.DB_PATH = {mcp_db.DB_PATH}")
 
     try:
         with read_only() as con:
@@ -265,12 +305,43 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("SP2 — MCP 서버 ↔ 클라이언트 왕복 (stdio, 프로세스 분리)\n")
-    try:
-        asyncio.run(run())
-        check_write_isolation()
-    except Exception as e:  # noqa: BLE001
-        print(f"[중단] {type(e).__name__}: {e}")
-        raise SystemExit(1) from e
+    if not SOURCE_DB.exists():
+        raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+
+    before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+    print(f"[격리] 실 DB(before) mtime_ns={before[0]} size={before[1]}")
+
+    # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
+    # 정리 실패로 계약 검증 결과가 가려지지 않게 한다 (rules_db_load.py 선례)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        db = copy_db(SOURCE_DB, Path(td) / "sp2.db")
+        prev = os.environ.get("MAINTQ_DB")
+        os.environ["MAINTQ_DB"] = str(db)
+        print(f"[격리] MAINTQ_DB = {db}\n")
+        try:
+            asyncio.run(run())
+            check_write_isolation()
+        except Exception as e:  # noqa: BLE001
+            print(f"[중단] {type(e).__name__}: {e}")
+            raise SystemExit(1) from e
+        finally:
+            if prev is None:
+                os.environ.pop("MAINTQ_DB", None)
+            else:
+                os.environ["MAINTQ_DB"] = prev
+
+    after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+    print(f"[격리] 실 DB(after)  mtime_ns={after[0]} size={after[1]}\n")
+
+    # 격리를 **계수되는 검사**로 둔다 (MQ-704 판단 요청 1).
+    # 비계수 게이트로 두면 러너 출력에 격리 생존 여부가 안 나타나 매 회귀마다 확인이 안 된다.
+    # `s4_smoke`("DB 안전 …")·`mcp_client_contract` ⑨-c 와 같은 형태 — sp2 만 예외일 이유가 없다.
+    # 이 검사가 없던 시절 sp2 는 `env=None` 탓에 **실 DB 를 읽으면서 통과**하고 있었다.
+    check(
+        "⑳ 격리 · 실 data/maintq.db mtime·size 불변",
+        after == before,
+        f"변경={after != before}",
+    )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))
@@ -281,6 +352,7 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[SP2 실패] {len(failed)}건: {', '.join(failed)}")
+
     print(f"\nSP2 통과 ({len(results)}건) — 도구 등록·호출·status 왕복 확인")
 
 

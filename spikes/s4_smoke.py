@@ -24,12 +24,25 @@ DB 격리 (D50 승인 게이트 대비):
   - MCP stdio 자식에는 `env={"MAINTQ_DB": <사본>}` 을 명시 전달한다 (SDK 화이트리스트가
     MAINTQ_DB 를 안 넘기므로 — mcp_client_contract.py ⑨ 참조).
 
+DB 격리 보강 (MQ-704):
+  - `os.environ["MAINTQ_DB"]` 를 **backend import 전에** 사본으로 심는다. `backend/db.py:19`
+    는 import 시점에 이 값을 읽으므로, 심어두면 in-process 쪽에서 DB_PATH 로 새는 경로가
+    남아도 실 DB 가 아니라 사본을 연다 (안전망 — TraceWriter 등은 여전히 명시 경로를 쓴다).
+  - 임시 디렉터리 정리 실패는 **경고로 끝난다** (`ignore_cleanup_errors=True`). Windows 는
+    자식 핸들 해제가 비동기라 정리가 실패할 수 있고, 그게 예외로 터지면 이미 끝난 계약
+    검증 결과를 가린다 (rules_db_load.py 선례).
+  - 자식 종료는 `client.stop()` 이 워커 태스크를 await 하고 그 안에서 `process.wait()` 가
+    돈다 — sleep 으로 때우지 않는다.
+  - **마지막 게이트는 사본이 아니라 실 `data/maintq.db` 를 본다.** "테스트는 사본에서 돌고,
+    실 DB 는 손대지 않았다"가 이 게이트의 의미다.
+
 실행:  uv run python spikes/s4_smoke.py
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import sqlite3
 import sys
@@ -126,10 +139,23 @@ SCRIPT_KNOWN = [
 # ─────────────────────────────────────────────────────────────── DB 사본
 
 
+def copy_db(src: Path, dst: Path) -> Path:
+    """DB 를 사본으로 뜬다. WAL 사이드카가 있으면 함께 가져온다.
+
+    원본에 `wal_checkpoint` 를 걸어 해결하지 않는다 — 그 순간 실 DB 의 mtime 이 변해
+    마지막 게이트("실 DB 불변")가 자기 손으로 깨진다.
+    """
+    shutil.copy2(src, dst)
+    for suffix in ("-wal", "-shm"):
+        side = src.with_name(src.name + suffix)
+        if side.exists():
+            shutil.copy2(side, dst.with_name(dst.name + suffix))
+    return dst
+
+
 def make_loaded(td: Path) -> Path:
     """error_codes 에 정상 코드 1건(iG5A/OHT)을 넣은 사본."""
-    db = td / "loaded.db"
-    shutil.copy2(SOURCE_DB, db)
+    db = copy_db(SOURCE_DB, td / "loaded.db")
     con = sqlite3.connect(db)
     # OR REPLACE — iG5A 매핑 승인(2026-07-28) 후로는 복사한 실 DB 에 이미 (iG5A, OHT) 가
     # 있다. 아래 검사들이 이 고정 fixture 문구(causes·actions)를 그대로 기대하므로
@@ -148,8 +174,7 @@ def make_loaded(td: Path) -> Path:
 
 def make_empty(td: Path) -> Path:
     """error_codes 0행 사본 — D50 승인 게이트 상태 (⑨)."""
-    db = td / "empty.db"
-    shutil.copy2(SOURCE_DB, db)
+    db = copy_db(SOURCE_DB, td / "empty.db")
     con = sqlite3.connect(db)
     # 실 DB 는 이제 65행(iG5A 매핑 승인, 2026-07-28)이지만, 이 테스트는 승인 전 D50
     # 게이트 상태를 재현해야 하므로 사본에서 명시적으로 비운다 — 실 DB 상태와 무관하게 결정적
@@ -162,12 +187,9 @@ def make_empty(td: Path) -> Path:
 # ─────────────────────────────────────────────────────────────── 검사
 
 
-async def run_all(td: Path) -> None:
+async def run_all(db_loaded: Path, db_empty: Path) -> None:
     from backend.agent.mcp_client import McpClient
     from backend.agent.trace import read_trace
-
-    db_loaded = make_loaded(td)
-    db_empty = make_empty(td)
 
     # ── loaded DB (error_codes 적재됨) — 정상 흐름 검사 ①~⑧ ────────────────
     client = McpClient(env={"MAINTQ_DB": str(db_loaded)})
@@ -289,8 +311,23 @@ def main() -> None:
     before = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
     print(f"data/maintq.db mtime(before) = {before[0]:.6f}, size={before[1]}\n")
 
-    with tempfile.TemporaryDirectory() as td:
-        asyncio.run(run_all(Path(td)))
+    # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
+    # 정리 실패가 계약 검증 결과를 가리지 않게 한다 (rules_db_load.py 선례)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        db_loaded = make_loaded(Path(td))
+        db_empty = make_empty(Path(td))
+        # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
+        prev = os.environ.get("MAINTQ_DB")
+        os.environ["MAINTQ_DB"] = str(db_loaded)
+        print(f"[격리] MAINTQ_DB(loaded) = {db_loaded}")
+        print(f"[격리] MAINTQ_DB(empty)  = {db_empty}\n")
+        try:
+            asyncio.run(run_all(db_loaded, db_empty))
+        finally:
+            if prev is None:
+                os.environ.pop("MAINTQ_DB", None)
+            else:
+                os.environ["MAINTQ_DB"] = prev
 
     after = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
     print(f"\ndata/maintq.db mtime(after)  = {after[0]:.6f}, size={after[1]}")

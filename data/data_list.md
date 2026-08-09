@@ -80,7 +80,8 @@
 
 | 경로 | 내용 | 상태 |
 |---|---|---|
-| `laws/*.json` (6건) | 법령 스냅샷 (계층 1) — `KR-STTC-24`·`KR-STTC-146`·`KR-CIVIL-388`·`KR-KCC-652`·`KR-VAT-32`·`KR-OSHA-93` | 🔶 **`fetch_status: PENDING`** — 원문 수집 대기 |
+| `laws/*.json` (6건) | 법령 스냅샷 (계층 1) — `KR-STTC-24`·`KR-STTC-146`·`KR-CIVIL-388`·`KR-KCC-652`·`KR-VAT-32`·`KR-OSHA-93` | ✅ **`fetch_status: FETCHED`** — Sprint 7 MQ-701 실수집 (`analysis/law_fetch.md`) |
+| `laws/KR-CITA-ENF-31.json` | 법인세법 시행령 제31조 — `classify_expenditure` 전용 (처분 룰 인용 0건) | 🔶 **`PENDING`** — 등록 제목이 API 값(`즉시상각의 의제`)과 불일치 → **사람 승인 대기** |
 | `rules/*.json` (5건) | 해석 룰 (계층 2) — `TAX-CREDIT-2Y`·`LIEN-CONSENT`·`INSURANCE-NOTIFY`·`VAT-INVOICE`·`SAFETY-INSPECTION` | ✅ 엔진 + 테스트 19개 통과 |
 
 ---
@@ -110,12 +111,11 @@ https://www.law.go.kr/DRF/lawService.do
 - **기준내용연수** (법인세법 시행규칙 별표5·별표6) → 별표서식 API + 응답의 `별표번호`/`별표제목`/`별표내용`
 - **안전검사 대상 기계 12종** (크레인·프레스·전단기·압력용기·국소배기장치·원심기·롤러기·사출성형기·컨베이어·산업용로봇·리프트·곤돌라) → 산안법 시행령 제78조가 고시로 위임하므로 `target=admrul`(행정규칙). 검사주기 = 설치 후 3년, 이후 2년
 
-**소비처** — `data/rules/laws/*.json` 의 `text`·`effective_from`·`promulgation_no`·`text_hash` 빈 칸 6개
+**소비처** — `data/rules/laws/*.json` 의 `text`·`effective_from`·`promulgation_no`·`text_hash` (6건 채움 완료, 1건 미적용)
 
-**구현 남은 일** — ~~① 인증 환경변수 개명 → `LAW_API_OC` (인증값이 키가 아니라 ID다)~~ **✅ 완료 (Sprint 6 · MQ-602L)** — `fetch_laws.py`·`.env.example` 반영. 구 변수명 폴백은 `fetch_laws.py:41` 한 곳뿐이다
-② 법령명 → `MST` 조회 단계 추가 ③ `JO` 조번호 형식 실호출 확인 ④ 응답 `조문번호`·`조문제목` 을 JSON 과 대조, 불일치 시 중단(`verification_note` 요구사항)
-→ ②③④ 는 `fetch_from_api` 안에 남아 있고 **Sprint 7 Stage 1** 이다. ⛔ 추측한 URL 파라미터 형식을 코드에 박지 않는다 — `JO` 형식은 실호출로만 확인 가능하다.
-⚠ **선행: 활용신청·`LAW_API_OC` 발급 (사람)** — `TODO_직접할일.md`. 적용기(`apply_fetch`)는 이미 완료돼 있어(D75) 키만 들어오면 바로 이어진다.
+**구현 — ✅ 전부 완료 (Sprint 7 · MQ-701)**. ~~① 인증 환경변수 개명 → `LAW_API_OC`~~ (Sprint 6 · MQ-602L) ~~② 법령명 → `MST` 조회~~ ~~③ `JO` 조번호 형식 실호출 확인~~ ~~④ 응답 `조문번호`·`조문제목` 대조, 불일치 시 중단~~
+확정 형식(전부 실호출 확인, 추측값 없음): `MST` 조회는 `display=100`·`search=1` + 법령명 **완전일치**, 조문 조회는 `JO` **6자리**(조4+가지2). 응답은 `조문내용+항내용+호내용+목내용` 을 **평탄화**해야 한다 — `조문내용` 이 제목 한 줄뿐인 조문이 있어 그대로 쓰면 15자짜리 제목이 "조문 원문"으로 해시된다. 상세: `analysis/law_fetch.md`
+**결과: FETCHED 6 / MISMATCH 1 / FAILED 0.** `KR-CITA-ENF-31` 만 제목 불일치로 `apply_fetch` 가 파일을 손대기 전에 중단했고(사람 승인 대기), 이것이 D75 의 설계된 동작이다.
 
 > **조문 원문을 손으로 타이핑하지 않는다.** 그 순간 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1 의 존재 이유가 무너진다(`11 §8`).
 

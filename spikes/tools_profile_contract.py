@@ -197,6 +197,11 @@ def run_bad_profile(db: Path) -> None:
         env=child_env("bogus", db),
         capture_output=True,
         text=True,
+        # text=True 만 두면 자식 출력을 **로케일 기본 인코딩**으로 디코딩한다.
+        # 한국어 Windows(cp949)에서 자식이 UTF-8 로 쓰면 진단 메시지가 깨져
+        # 아래 문자열 대조가 위양성 FAIL 한다 (MQ-704 가 PYTHONIOENCODING=utf-8 로 재현).
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         input="",
     )

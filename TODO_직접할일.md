@@ -41,21 +41,34 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 특히 볼 것: 명세 열거 밖이라 **추측으로 분류한 9종**(히트싱크·키패드·센서 3종·접촉기·SPD·커플링·제동저항·케이블)
   - `FAN-IG5-01` = `CRITICAL` 은 S1 주인공이라 3지 판단 데모가 성립해야 해서 그렇게 뒀다 — 동의 여부 확인
 
-## Sprint 7 하드 선행 (지금 가장 급한 것)
+## Sprint 7 사람 판단 대기 (지금 가장 급한 것)
 
-- [ ] 🔴 **law.go.kr OPEN API 활용신청 → `.env` 의 `LAW_API_OC` 기입** ← **이거 없으면 Sprint 7 이 시작 자체가 안 된다**
-  - 신청: [law.go.kr/DRF/lawService.do](https://www.law.go.kr) — Open API 활용 신청(무료, 승인에 시간 걸릴 수 있음)
+> **외부 블로커는 해소됐다.** `LAW_API_OC` 발급·조문 실수집이 끝나 스프린트를 막는 항목은 없다.
+> 남은 것은 전부 **사람의 값 판단**이며, 미해결 상태로도 코드는 돈다(그 사실이 출력에 드러난다).
+
+- [x] ✅ **law.go.kr OPEN API 활용신청 → `.env` 의 `LAW_API_OC` 기입** — **완료.** 발급·실호출 검증까지 끝났고
+  Sprint 7 MQ-701 이 조문을 실수집했다 (`data/analysis/law_fetch.md`)
   - ⚠ **인증값은 API 키가 아니라 "신청 이메일 ID 앞부분"** 이다. 그래서 변수명에 "KEY" 가 들어가지 않고
     **`LAW_API_OC`** 다 (구 변수명 폴백은 `data/rules/fetch_laws.py:41` 한 곳에만 남아 있다)
-  - 기입 위치: `.env` (`.env.example §외부 데이터 원천` 참고). 값이 비면 법제처가
-    `필수입력요소 검증에 실패` 를 돌려준다
-  - **막히는 것**: 조문 원문 7건 수집 → `build_evidence_bundle`(현재 `law_text_unavailable` 로 항상 실패,
-    그게 정상 동작이다) → 계층 3 서명 → S10 전체
+  - 기입 위치: `.env` (`.env.example §외부 데이터 원천` 참고). ⛔ **값 자체는 저장소·로그·문서 어디에도 적지 않는다**
+    — 회귀 `spikes/law_fetch_contract.py ⓚ` 가 추적 파일에 평문이 없음을 단언한다
+  - **풀린 것**: 조문 6건 수집 완료 → `build_evidence_bundle` 이 9자산 × SALE/SCRAP **18조합 전부 `ok`**
+    (`law_text_unavailable` 0건) → 계층 3 서명·S10 의 하드 선행 조건이 사라졌다
+
+- [ ] 🟡 **`KR-CITA-ENF-31` 등록 제목 정정 승인** ← 계층 1 의 마지막 `PENDING` 1건
+  - 등록값 `즉시상각의제` vs 법제처 `조문제목` `즉시상각의 의제` (**공백 1칸 차이**)
+  - 수집기는 **자동 정정하지 않고 중단**했다(`LawMismatchError`, D75) — 파일 md5 불변. 조용히 덮어쓰면
+    다른 조문을 같은 조문으로 읽는 경로가 열리므로 **중단이 정상 동작**이다
+  - 사람이 판단할 것: 등록 제목을 API 값으로 고칠 것인가. 고치면 `data/rules/laws/KR-CITA-ENF-31.json` 의
+    `title` 만 정정 → `uv run python data/rules/fetch_laws.py --fetch-all` → `uv run python data/seed.py --with-error-codes`
+  - **막히는 것**: `classify_expenditure` 의 `evidence_completeness` 뿐이다. 처분 룰 5종은 이 조문을
+    **인용하지 않으므로**(참조 0건) S9·S10 영향은 없다
 - [ ] 🔴 **`N = 8`(제조업 기계장치 기준내용연수) 법령 원문 대조** — **잔가곡선 전체가 이 값 하나에 걸려 있다**
   - 근거 문서: `data/analysis/residual_curve.md §2-2` (현재 **미검증** 표시)
   - 대조 대상: 법인세법 시행규칙 **별표5·별표6**(기준내용연수 및 내용연수범위표). 내용연수범위 6~10년의 중앙값 8을 임시로 썼다
   - 값이 바뀌면 `residual_curve` 전 행이 바뀌고 `assess_repair_value` 의 `SELL_AS_IS`/`REPAIR_RECOMMENDED` 경계가 이동한다
-  - ⚠ 위 `LAW_API_OC` 가 있으면 별표서식 API 로 자동 대조 가능 — 그 전에는 사람이 원문을 확인해야 한다
+  - ⚠ `LAW_API_OC` 는 이제 있으므로 **별표서식 API 로 대조 시도가 가능**하다. 단 별표5·6 은 `data/rules/laws/`
+    에 등록된 조문 7건에 **포함되지 않는다**(조문 API 가 아니라 별표서식 API 대상) — **값 채택은 사람 판단**이다
 - [ ] **`RESIDUAL_AT_LIFE_END = 0.50` 가정 동의 여부** — N년 시점 잔가율을 50%로 뒀다
   - 세법 잔존가액 `0.05` 를 **그대로 쓰지 않은 이유**는 `residual_curve.md §2-3` 에 있다(세무상 상각 한도이지 시장가가 아니다)
   - 이건 **법령 근거가 없는 순수 가정**이다. 동의하지 않으면 값과 함께 `source` 문구를 고칠 것

@@ -54,12 +54,13 @@
 - `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
   ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **20종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **21종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
   llm_provider_contract · eval_replay_guard ·
-  **law_fetch_contract** · **rules_db_load** · **disposal_api_contract** · **asset_tools_contract**
+  law_fetch_contract · rules_db_load · disposal_api_contract · asset_tools_contract ·
+  **tools_profile_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.

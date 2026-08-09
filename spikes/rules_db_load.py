@@ -6,6 +6,7 @@
   ⓑ DB 사본이 무결성 게이트를 우회하지 못한다 — 근거 없는 룰·미등록 법령 참조 거부 (D61)
   ⓒ NULL 컬럼은 facts 키에서 빠진다 (D62)
   ⓓ 그 결과 판정이 INSUFFICIENT_FACTS 다 — **CLEAR 로 내려가지 않는다**
+  ⓔ 주입점(D82) — 넘긴 카탈로그로만 판정하고(파일 로더 미호출) `facts_used`·`laws_used` 를 싣는다
 
 **임시 DB 만 만든다.** `data/maintq.db` 를 열지 않는다 — 스키마·적재 경로는 `data/seed.py`
 의 것을 그대로 재사용해서(create_schema → seed_rule_catalog) 실 시드와 같은 경로를 밟는다.
@@ -15,6 +16,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import sqlite3
 import sys
 import tempfile
@@ -23,11 +25,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from data.rules import engine as _engine  # noqa: E402 — 로더 패치용 **모듈** 참조
 from data.rules.engine import (  # noqa: E402
     RuleIntegrityError,
     build_facts,
     check_disposal_blockers,
     evaluate_rule,
+    laws_all_fetched,
     load_laws,
     load_laws_from_db,
     load_rules,
@@ -329,6 +333,116 @@ def run(tmp: Path) -> None:
     )
     con.close()
 
+    # ── ⓔ 주입점 (D82)
+    #   `build_evidence_bundle` 은 **인용을 파일 로더 판정에서, `text_hash` 를 DB 사본에서**
+    #   가져온다 — "판정이 본 조문"과 "해시로 고정된 조문"이 다른 사본이다(W5). 주입점은
+    #   소비자가 **하나의 카탈로그 객체**로 둘을 만들 수 있게 하려고 연다. 여기서는 그
+    #   주입이 실제로 판정을 지배하는지(장식이 아닌지)를 DB 사본으로 확인한다.
+    inj = make_db(tmp / "inject.db")
+    db_laws = load_laws_from_db(inj)
+    db_rules = load_rules_from_db(inj, db_laws)
+    inj.close()
+
+    sale_facts = build_facts(lift, disposal_date="2028-02-17")
+    scrap_facts = build_facts(lift, disposal_mode="SCRAP", disposal_date="2028-02-17")
+
+    # 파일 로더를 폭탄으로 갈아 끼운다 — 주입했는데 파일을 다시 읽으면 여기서 터진다.
+    loader_calls: list[str] = []
+
+    def _boom_laws():
+        loader_calls.append("load_laws")
+        raise AssertionError("주입됐는데 load_laws() 가 호출됐다")
+
+    def _boom_rules(_laws):
+        loader_calls.append("load_rules")
+        raise AssertionError("주입됐는데 load_rules() 가 호출됐다")
+
+    original = (_engine.load_laws, _engine.load_rules)
+    _engine.load_laws, _engine.load_rules = _boom_laws, _boom_rules
+    try:
+        injected = check_disposal_blockers(sale_facts, laws=db_laws, rules=db_rules)
+        during_injection = list(loader_calls)  # ★ 아래 대조 호출이 섞이기 전에 찍는다
+        # 패치가 실제로 걸려 있는지 대조 — 이게 없으면 위 호출은 '아무 일도 없었다'로도 통과한다
+        try:
+            check_disposal_blockers(sale_facts)
+            patch_live = False
+        except AssertionError:
+            patch_live = True
+    finally:
+        _engine.load_laws, _engine.load_rules = original
+
+    from_file = check_disposal_blockers(sale_facts)  # 하위호환 — 인자 없이 현행 동작
+    check(
+        "㉑ 주입 시 파일 로더 미호출 · 미주입은 현행대로 (D82 하위호환)",
+        not during_injection and patch_live and injected == from_file,
+        f"주입 중 로더 호출 {during_injection or 0}건 · 패치 유효={patch_live} ·"
+        f" 주입 판정={injected['verdict']} / 파일 판정={from_file['verdict']}",
+    )
+
+    # 주입 카탈로그가 판정을 **지배**하는가 — `disposal_type` 1행만 올린다.
+    # (Sprint 6 실측: 이 변경은 blocker 가 이미 있는 자산에서는 verdict 로 드러나지 않는다.
+    #  그래서 blocker 0건인 자산을 고른다 — 픽스처가 검사력을 갖게 하는 조건이다.)
+    escalated = dict(db_rules)
+    escalated["VAT-INVOICE"] = dataclasses.replace(
+        db_rules["VAT-INVOICE"], disposal_type="BLOCKING"
+    )
+    mutated = check_disposal_blockers(sale_facts, laws=db_laws, rules=escalated)
+    dangling = dict(db_rules)
+    dangling["VAT-INVOICE"] = dataclasses.replace(
+        db_rules["VAT-INVOICE"], law_refs=["KR-NOT-REGISTERED-999"]
+    )
+    try:
+        check_disposal_blockers(sale_facts, laws=db_laws, rules=dangling)
+        gate = "게이트 통과해 버림"
+    except RuleIntegrityError as exc:
+        gate = str(exc)
+    check(
+        "㉒ 주입 카탈로그가 판정을 지배 · 미등록 참조는 주입 경로에서도 거부 (D61 불변식 2)",
+        injected["verdict"] == "CONDITIONAL"
+        and mutated["verdict"] == "BLOCKED"
+        and "미등록" in gate,
+        f"원본={injected['verdict']} → disposal_type 상향 시 {mutated['verdict']} · 게이트: {gate}",
+    )
+
+    # `facts_used` — 소비자가 사실을 **재조립하지 않게** 한다. 재조립하면 같은 이원화가
+    # facts 축에서 반복된다. 얕은 사본이라 호출자가 변형해도 엔진 입력이 안 흔들린다.
+    used = injected["facts_used"]
+    used["insured"] = "오염"
+    every_ref = sorted({ref for r in db_rules.values() for ref in r.law_refs})
+    clear = check_disposal_blockers(scrap_facts, laws=db_laws, rules=db_rules)
+    check(
+        "㉓ facts_used 는 입력의 얕은 사본 · laws_used 는 CLEAR 자산에서도 비지 않는다 (W7)",
+        injected["facts_used"] is not sale_facts
+        and sale_facts["insured"] is False
+        and check_disposal_blockers(sale_facts, laws=db_laws, rules=db_rules)["facts_used"]
+        == sale_facts
+        and clear["verdict"] == "CLEAR"
+        and clear["laws_used"] == every_ref
+        and len(every_ref) > 0,
+        f"facts_used {len(sale_facts)}키 · CLEAR 자산 laws_used={clear['laws_used']}",
+    )
+
+    # `laws_all_fetched` — Stage 2 이후 소비자(번들·서명)가 "조문 원문이 다 있는가"를
+    # 묻는 자리. **빈 dict 는 False** 다: 0건에 True 를 주면 "전부 수집"과 "아무것도 없음"이
+    # 같은 값이 되고, 그 순간 근거 없이 서명 경로가 열린다 (D50 과 같은 형태).
+    fetched_all = {
+        k: dataclasses.replace(v, fetch_status="FETCHED", text="조문 원문")
+        for k, v in db_laws.items()
+    }
+    one_pending = dict(fetched_all)
+    victim = sorted(one_pending)[0]
+    one_pending[victim] = dataclasses.replace(fetched_all[victim], fetch_status="PENDING")
+    check(
+        "㉔ laws_all_fetched — 빈 dict False · 전 건 FETCHED True · 1건 PENDING False",
+        laws_all_fetched({}) is False
+        and laws_all_fetched(fetched_all) is True
+        and laws_all_fetched(one_pending) is False,
+        # ⛔ 실 시드의 수집 상태는 단언하지 않는다 — MQ-701 이 지금 조문을 채우는 중이라
+        #    값이 바뀐다. 여기서 고정하면 남의 작업이 이 스위트를 깬다.
+        f"빈={laws_all_fetched({})} · 전건={laws_all_fetched(fetched_all)} ·"
+        f" {victim} PENDING={laws_all_fetched(one_pending)}",
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
@@ -345,7 +459,7 @@ def main() -> None:
         run(Path(td))
 
     after = real_db.stat().st_mtime_ns if real_db.exists() else None
-    check("⑳ 실 DB 불변 (mtime)", before == after, "data/maintq.db 를 열지도 않았다")
+    check("㉕ 실 DB 불변 (mtime)", before == after, "data/maintq.db 를 열지도 않았다")
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))

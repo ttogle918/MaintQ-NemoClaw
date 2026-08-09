@@ -7,6 +7,7 @@
 실행:  uv run python -m pytest data/rules/test_rules.py -q
 """
 
+import dataclasses
 import itertools
 import json
 import sys
@@ -650,3 +651,154 @@ def test_sale_is_at_least_conditional_but_scrap_can_be_clear():
     assert {p["rule_id"] for p in sale["preconditions"]} == {"VAT-INVOICE"}
     assert scrap["verdict"] == "CLEAR"
     assert not scrap["preconditions"] and not scrap["insufficient"]
+
+
+# ------------------------------------------------ 주입점 (D82)
+#
+# 왜 여는가: `build_evidence_bundle` 이 **인용 집합은 파일 로더 판정에서, `text_hash` 는 DB
+# 사본에서** 가져온다 — "판정이 본 조문"과 "해시로 고정된 조문"이 다른 사본이다(W5).
+# 서명 산출물이라 파급이 가장 크다. 주입점은 소비자가 **하나의 카탈로그 객체**로 둘을
+# 만들 수 있게 하고, `facts_used` 반환은 소비자가 사실을 재조립하지 않게 한다.
+
+
+_ONLY_LIEN = dict(months_since_acquisition=43)  # TAX-CREDIT-2Y 는 CLEAR → blocker 는 담보 1건뿐
+
+
+def test_injection_point_is_backward_compatible():
+    """주입하지 않으면 **현행 그대로**, 주입하면 그 카탈로그가 판정을 지배한다 (D82).
+
+    기존 호출자 3곳(MCP 도구·REST 서비스·`test_rules`)이 한 줄도 바뀌지 않는 것이 전제다.
+    """
+    facts = _full_facts(**_ONLY_LIEN)
+    laws, rules = load_laws(), load_rules(load_laws())
+
+    default = check_disposal_blockers(facts, at=date(2026, 8, 4))
+    injected = check_disposal_blockers(facts, at=date(2026, 8, 4), laws=laws, rules=rules)
+    assert default == injected, "같은 카탈로그를 주입하면 결과가 한 글자도 달라지면 안 된다"
+    assert default["verdict"] == "BLOCKED"
+
+    # ★ 주입된 카탈로그가 **실제로** 쓰인다 — 룰 1행의 `disposal_type` 만 내리면
+    #   BLOCKED → CONDITIONAL 로 갈린다. (자산에 blocker 가 2건이면 이 변경이 verdict 로
+    #   드러나지 않는다는 것이 Sprint 6 실측이라, 여기서는 blocker 1건 상태로 고정한다.)
+    downgraded = dict(rules)
+    downgraded["LIEN-CONSENT"] = dataclasses.replace(
+        rules["LIEN-CONSENT"], disposal_type="PRECONDITION"
+    )
+    out = check_disposal_blockers(facts, at=date(2026, 8, 4), laws=laws, rules=downgraded)
+    assert out["verdict"] == "CONDITIONAL"
+    assert {p["rule_id"] for p in out["preconditions"]} >= {"LIEN-CONSENT"}
+
+    # 주입 경로라고 D61 게이트를 낮추지 않는다 — 미등록 참조는 판정 시점이 아니라 진입에서 막는다
+    dangling = dict(rules)
+    dangling["LIEN-CONSENT"] = dataclasses.replace(
+        rules["LIEN-CONSENT"], law_refs=["KR-NOT-REGISTERED-999"]
+    )
+    with pytest.raises(RuleIntegrityError):
+        check_disposal_blockers(facts, at=date(2026, 8, 4), laws=laws, rules=dangling)
+
+
+def test_injection_does_not_touch_the_file_loaders():
+    """주입되면 `load_laws()`/`load_rules()` 를 **호출하지 않는다**.
+
+    이게 D82 의 핵심이다 — 소비자가 카탈로그를 넘겼는데 엔진이 파일을 다시 읽으면
+    "판정이 본 조문"이 또 갈라지고, 주입점은 장식이 된다.
+    """
+    import engine
+
+    laws, rules = load_laws(), load_rules(load_laws())
+    calls: list[str] = []
+
+    def boom_laws():
+        calls.append("load_laws")
+        raise AssertionError("주입됐는데 파일 로더가 호출됐다")
+
+    def boom_rules(_laws):
+        calls.append("load_rules")
+        raise AssertionError("주입됐는데 파일 로더가 호출됐다")
+
+    original = (engine.load_laws, engine.load_rules)
+    engine.load_laws, engine.load_rules = boom_laws, boom_rules
+    try:
+        out = check_disposal_blockers(_full_facts(), at=date(2026, 8, 4), laws=laws, rules=rules)
+        assert out["verdict"] == "BLOCKED"
+        assert calls == [], f"파일 로더가 호출됐다: {calls}"
+
+        # 패치가 실제로 걸려 있는지 대조 — 주입 없이 부르면 터져야 한다.
+        # (이게 없으면 위 단언은 '아무 일도 안 일어났다'로도 통과한다)
+        with pytest.raises(AssertionError):
+            check_disposal_blockers(_full_facts(), at=date(2026, 8, 4))
+    finally:
+        engine.load_laws, engine.load_rules = original
+
+
+def test_facts_used_is_a_shallow_copy_of_the_input():
+    """`facts_used` = 입력 facts 의 **얕은 사본**. 재조립·필터하지 않는다 (D82)."""
+    facts = _full_facts()
+    result = check_disposal_blockers(facts, at=date(2026, 8, 4))
+
+    assert result["facts_used"] == facts, "걸러 내면 '판정이 본 사실'과 '실린 사실'이 갈린다"
+    assert result["facts_used"] is not facts, "같은 객체면 호출자가 엔진 입력을 흔들 수 있다"
+
+    result["facts_used"]["has_lien"] = "오염"
+    result["facts_used"]["새_키"] = 1
+    assert facts["has_lien"] is True and "새_키" not in facts, "사본이 원본을 오염시켰다"
+
+    # 재호출해도 같은 판정이 나온다 — 위 변형이 엔진 내부에 남지 않았다는 뜻
+    assert check_disposal_blockers(facts, at=date(2026, 8, 4))["verdict"] == "BLOCKED"
+
+    # 빈 facts 도 그대로 싣는다 (전 룰 INSUFFICIENT_FACTS)
+    empty = check_disposal_blockers({}, at=date(2026, 8, 4))
+    assert empty["facts_used"] == {} and empty["verdict"] == "INSUFFICIENT_FACTS"
+
+
+def test_laws_used_covers_every_evaluated_rule():
+    """`laws_used` 는 **평가된 전 룰**의 참조 합집합 — 발화한 룰만 세지 않는다 (W7).
+
+    발화분만 실으면 전 룰이 CLEAR 인 자산에서 빈 목록이 되어, "근거를 조회한 결과 해당
+    없음"과 "근거를 아예 안 봤다"가 구분되지 않는다.
+    """
+    laws = load_laws()
+    every_ref = sorted({ref for r in load_rules(laws).values() for ref in r.law_refs})
+
+    blocked = check_disposal_blockers(_full_facts(), at=date(2026, 8, 4))
+    assert blocked["laws_used"] == every_ref
+    assert blocked["laws_used"] == sorted(set(blocked["laws_used"])), "정렬·중복 제거된 목록이다"
+
+    # ★ 아무 룰도 발화하지 않는 자산에서도 비지 않는다
+    lift = _asset_row(
+        asset_id="AST-L3-LIFT",
+        tax_credit_applied=0,
+        has_lien=0,
+        lien_creditor="",
+        lien_consent_ref="",
+        insured=0,
+        policy_id=None,
+        safety_inspection_target=0,
+        acquired_at="2023-02-17",
+    )
+    clear = check_disposal_blockers(
+        build_facts(lift, disposal_mode="SCRAP", disposal_date="2028-02-17")
+    )
+    assert clear["verdict"] == "CLEAR"
+    assert clear["laws_used"] == every_ref, "CLEAR 자산의 laws_used 가 비면 W7 이 그대로 남는다"
+
+
+def test_engine_is_the_single_source_of_not_considered_and_disclaimer():
+    """문구의 단일 출처는 엔진이다 (W2·D73).
+
+    소비자가 문자열을 복제하면 엔진이 문장을 고칠 때 그쪽만 조용히 옛 문구를 낸다.
+    출력은 상수에서 **직접** 와야 하고, 동시에 상수를 오염시킬 수 없어야 한다.
+    """
+    import engine
+
+    result = check_disposal_blockers(_full_facts(), at=date(2026, 8, 4))
+    assert result["disclaimer"] is engine.DISCLAIMER, "상수 자체가 실려야 복제가 불가능해진다"
+    assert tuple(result["not_considered"]) == engine.NOT_CONSIDERED
+    assert isinstance(engine.NOT_CONSIDERED, tuple), "상수는 불변형이어야 한다"
+
+    # 응답을 받은 쪽이 append 해도 엔진 상수가 프로세스 전역에서 오염되면 안 된다
+    result["not_considered"].append("오염")
+    assert len(engine.NOT_CONSIDERED) == 3
+    assert check_disposal_blockers(_full_facts(), at=date(2026, 8, 4))["not_considered"] == list(
+        engine.NOT_CONSIDERED
+    )

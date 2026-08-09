@@ -68,39 +68,47 @@ result = check_disposal_blockers({
 
 ---
 
-## ⚠️ 법령 원문은 아직 비어 있다
+## ⚠️ 법령 원문은 손으로 채우지 않는다
 
-`laws/*.json`의 `text`는 전부 `null`, `fetch_status`는 `PENDING`이다. **의도한 것이다.**
+`laws/*.json`의 `text`는 **API 로 받은 것만** 들어간다. 등록 직후에는 `text: null` · `fetch_status: PENDING` 이며 **그 상태로 두는 것이 의도**다.
 조문 원문을 손으로 타이핑하면 그 순간 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너진다. 각 파일의 `verification_note`에 확인 사항을 적어뒀다.
+
+> **현재값 (Sprint 7 MQ-701 실수집 이후)** — 7건 중 **6건 `FETCHED` · 1건 `PENDING`**.
+> `PENDING` 은 `KR-CITA-ENF-31` 하나이며 등록 제목(`즉시상각의제`)이 API 값(`즉시상각의 의제`)과
+> 달라 `apply_fetch` 가 중단했다 — **사람 승인 대기**. 실측 기록: `../analysis/law_fetch.md`
 
 **조문 번호와 제목도 검증 대상이다** — 개정으로 바뀌므로 수집 시 실제 응답과 대조해야 한다.
 이 대조는 문서상의 당부가 아니라 `apply_fetch` 가 코드로 강제한다 (불일치 → 파일 미수정 + `LawMismatchError`).
 
 ### 수집 파이프라인 — 지금 어디까지 되나
 
-`fetch_laws.py` 는 **수집기와 적용기를 분리**한다. 인증키가 필요한 건 수집기뿐이라
-적용기는 키 없이도 합성 픽스처로 검증돼 있다 (`spikes/law_fetch_contract.py`, **25건**).
+`fetch_laws.py` 는 **수집기와 적용기를 분리**한다. 인증값이 필요한 건 수집기뿐이라
+적용기는 키 없이도 합성 픽스처로 검증돼 있다 (`spikes/law_fetch_contract.py`, **28건 · 네트워크 미사용**).
 
 | 단계 | 함수 | 상태 |
 |---|---|---|
-| ① OPEN API 이용 신청 → `LAW_API_OC` 발급·설정 | — | ⛔ **미완료 — 사람이 해야 함** (`TODO_직접할일.md`) |
-| ② 실호출·응답 파싱 | `fetch_from_api` | ⛔ **미구현 — Sprint 7** (`NotImplementedError`) |
+| ① OPEN API 이용 신청 → `LAW_API_OC` 설정 | — | ✅ **완료** — 발급·실호출 검증까지 끝났다. ⛔ 값은 저장소 어디에도 적지 않는다 |
+| ② 실호출·응답 파싱 | `fetch_from_api` | ✅ **완료 (Sprint 7 · MQ-701)** — `MST` 조회 + `JO` 6자리 + `조문내용/항/호/목` 평탄화 |
 | ③ 조문번호·제목 대조 → 파일 기입 → 해시 | `apply_fetch` | ✅ **완료** (`FILLED`/`UNCHANGED`/`REVISION_PENDING`) |
-| ④ 개정 감지 → `pending_revisions` | `check_revisions` | ✅ 코드 완료 — 단 ②가 없어 실행하면 전부 `NOT_FETCHED`/`FETCH_FAILED` |
+| ④ 개정 감지 → `pending_revisions` | `check_revisions` | ✅ 완료 — 실행 시 6 `UNCHANGED` + 1 `NOT_FETCHED`(멱등) |
 | ⑤ `pending_revisions` 검토·서명 흐름 | — | ⛔ 미착수 (Sprint 7, 계층 3) |
 
-> ②를 지금 구현하지 않는 이유: `MST` 조회 단계와 `JO` 조번호 형식은 **실호출로만 확정된다.**
-> 추측한 URL 파라미터를 코드에 박아두면 "구현돼 있는데 안 되는" 상태가 되어 원인 추적이 더 어려워진다.
+> ②의 파라미터는 **전부 실호출로 확정한 값**이다 — `display=100`(기본 20 이면 `상법` exact match 가
+> 페이지 밖으로 밀린다) · `search=1`(2 는 본문 검색이라 법령명 exact 0건) · `JO` **6자리**
+> (`24` 나 `002400000` 은 HTTP 200 인데 조문이 **0건**으로 온다). 추측한 URL 파라미터를
+> 코드에 박으면 "구현돼 있는데 안 되는" 상태가 되므로, 이 4종은 회귀 ⓕ-2 가 잠근다.
 
 ### 남은 체크리스트
 
-- [ ] law.go.kr OPEN API 이용 신청 → `LAW_API_OC` 설정 (**사람**)
+- [ ] **`KR-CITA-ENF-31` 등록 제목 정정 승인 (사람)** — `즉시상각의제` vs API `즉시상각의 의제`(공백 1칸).
+      정체성 대조 실패로 `apply_fetch` 가 **파일을 손대기 전에** 중단했고 `fetch_status` 는 `PENDING` 이다.
+      자동 정정하지 않는 것이 D75 — 조용히 덮어쓰면 다른 조문을 같은 조문으로 읽는 경로가 열린다
+- [x] law.go.kr OPEN API 이용 신청 → `LAW_API_OC` 설정
       — 값은 API 키가 아니라 **신청 이메일 ID 앞부분**. 비어 있으면 응답이
       `{"result":"필수입력요소 검증에 실패하였습니다"}` 로 온다 (200 이라 조용히 넘어가기 쉽다)
-- [ ] `fetch_from_api` 구현 (①→ MST 조회 → `JO` 형식 실호출 확인 → 응답 스키마 확정)
-- [ ] 7개 조문 수집 → `text`·`effective_from`·`text_hash` 채우기 (`apply_fetch` 경유)
-- [ ] 조문 번호·제목 검증 결과 반영, 어긋나면 `law_ref_id` 정정
-      — 특히 `KR-CITA-ENF-31`(자본적 지출 정의가 실제 몇 조 몇 항인지 미확정)
+- [x] `fetch_from_api` 구현 (MST 조회 → `JO` 형식 실호출 확인 → 응답 스키마 확정)
+- [x] 6개 조문 수집 → `text`·`effective_from`·`text_hash` 채우기 (`apply_fetch` 경유)
+- [x] 조문 번호·제목 검증 결과 반영 — 6건 일치, 1건 불일치는 위 항목으로 이관
 - [ ] 하위 법령 추가 — 안전검사 대상 기계 목록(시행령·고시), 사후관리 기간(시행령)
 - [ ] `pending_revisions` 검토·서명 흐름 연결
 - [ ] MCP 도구 `check_disposal_blockers`로 래핑 (`mcp_server/tools/`)

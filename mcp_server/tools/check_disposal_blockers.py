@@ -55,6 +55,18 @@ _BUCKETS = ("blockers", "preconditions", "holds", "insufficient")
 
 _LAW_PENDING_NOTE = " 인용 조문의 원문은 아직 수집되지 않았으며 인용은 조문 번호·제목 기준이다."
 
+# 엔진 반환 중 **MCP 계약(`04 §8` output)에 싣는 키만** 화이트리스트로 고정한다.
+# 여기 없는 엔진 키(`facts_used`·`laws_used` 등 D82 산출물)는 MCP 출력에 나가지 않는다.
+# 새 키를 계약에 넣으려면 `04 §8` 을 먼저 고치고 이 목록에 추가한다 — 그 순서를 강제하는 것이 목적.
+_ENGINE_CONTRACT_KEYS = (
+    "asset_id",
+    "evaluated_at",
+    "verdict",
+    *_BUCKETS,
+    "not_considered",
+    "disclaimer",  # 아래에서 completeness 접미사를 붙여 덮어쓴다
+)
+
 # "문자열이 아닌 값이 들어왔다" 를 None(미지정)과 구분하기 위한 표식.
 # 둘을 뭉치면 `asset_id=123` 이 조용히 "asset_id 미지정" 이 된다.
 _NOT_TEXT = object()
@@ -123,7 +135,8 @@ def _resolve_asset_id(
 def _evidence_completeness(
     laws: dict[str, engine.LawRef], rules: dict[str, engine.Rule], result: dict
 ) -> str:
-    """인용 조문이 전부 수집됐는가. 현재는 7건 전부 `PENDING` 이라 `LAW_TEXT_PENDING` 이 정상값이다.
+    """인용 조문이 전부 수집됐는가. MQ-701 실수집 이후 실 DB 정상값은 `COMPLETE` 다
+    (7건 중 6건 `FETCHED`, 처분 룰이 인용하는 조문은 전부 포함).
 
     판정에 실제로 쓰인 **룰 카탈로그 전체의 법령 참조**를 본다. 출력에 드러난 인용만 세면
     전 룰이 `CLEAR` 인 자산에서 인용이 0건이 되어 `"COMPLETE"` 가 나오는데, 그건 조문을
@@ -198,9 +211,19 @@ def _run(
     if completeness == "LAW_TEXT_PENDING":
         disclaimer += _LAW_PENDING_NOTE
 
+    # ★ 엔진 반환을 `**result` 로 펼치지 않는다 (계약 고정, `04 §8`).
+    # 엔진에 키가 늘면 스프레드는 그것을 **조용히 MCP 계약으로 승격**시킨다.
+    # 실제로 `facts_used`·`laws_used`(D82) 가 그렇게 샜다 — 계약에 없는 키가 LLM 페이로드에
+    # 자산당 13키만큼 얹혔다. 두 값의 소비처(근거 번들·REST)는 엔진을 직접 호출하므로
+    # MCP 출력에 실을 이유가 없다. 계약을 넓히는 대신 좁게 유지한다.
+    missing = [k for k in _ENGINE_CONTRACT_KEYS if k not in result]
+    if missing:
+        # 엔진이 계약 키를 빠뜨렸다. 부분 응답을 정상으로 포장하지 않는다 (D9).
+        return _err("engine_error", f"룰 엔진 반환에 계약 키가 없습니다: {', '.join(missing)}")
+
     return {
         "status": "ok",
-        **result,
+        **{k: result[k] for k in _ENGINE_CONTRACT_KEYS},
         # 판정 조건을 결과에 함께 싣는다 — 같은 자산도 mode·날짜에 따라 판정이 갈리므로
         # (`AST-L3-LIFT`: SALE→CONDITIONAL / SCRAP→CLEAR) 이 두 값 없이는 결과를 재현·구분할 수 없다.
         "disposal_mode": disposal_mode,

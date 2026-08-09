@@ -500,12 +500,68 @@ def evaluate_rule(rule: Rule, facts: dict, laws: dict[str, LawRef]) -> Finding:
 #   양성 신호이고, 사실 누락은 판정 자체가 성립하지 않은 상태다 — 발화한 쪽이 더 구체적이다.
 VERDICTS = ("BLOCKED", "HOLD", "INSUFFICIENT_FACTS", "CONDITIONAL", "CLEAR")
 
+# 판정이 **보지 않은 축**. 여기 있는 문장은 엔진이 단일 출처다 (D73) —
+# REST·도구가 문자열로 복제하면 엔진이 고칠 때 그쪽만 조용히 옛 문구를 낸다.
+# 출력에는 `list(NOT_CONSIDERED)` 로 **새 리스트**를 실어 호출자가 상수를 변형하지 못하게 한다.
+NOT_CONSIDERED: tuple[str, ...] = (
+    "생산 계획·대체 설비 확보 여부",
+    "시장 상황 및 매각 타이밍",
+    "개별 계약의 특약 조항",
+)
 
-def check_disposal_blockers(facts: dict, at: date | None = None) -> dict:
-    """S9의 진입점. BLOCKING / PRECONDITION / HOLD / INSUFFICIENT_FACTS 를 분리해 반환한다."""
+DISCLAIMER = "본 판정은 통상 사례 기준 목업 룰에 근거한다. 실제 적용에는 전문가 검토가 필요하다."
+
+
+def laws_all_fetched(laws: dict[str, LawRef]) -> bool:
+    """계층 1 전 건의 조문 **원문**이 수집됐는가.
+
+    ★ 빈 dict 는 `False` 다. 0건에 `True` 를 주면 "전부 수집됐다"와 "아무것도 안 실렸다"가
+      같은 값이 되고, 그 순간 소비자는 근거 없이 서명 경로를 연다 (D50 이 `error_codes`
+      0행에서 막으려던 것과 같은 형태).
+    """
+    return bool(laws) and all(law.is_fetched for law in laws.values())
+
+
+def assert_rules_resolvable(rules: dict[str, Rule], laws: dict[str, LawRef]) -> None:
+    """주입된 카탈로그에도 로더와 **같은 불변식**을 적용한다 (D61 불변식 2).
+
+    주입 경로라고 게이트를 낮추면, 파일·DB 로더가 지키는 "근거 없는 룰은 존재할 수 없다"가
+    세 번째 입구로 우회된다. 미등록 참조는 `evaluate_rule` 의 `laws[r]` 에서 KeyError 로
+    터지기도 하지만, 그건 판정 시점이라 D61 이 정한 "로드 단계에서 막는다"보다 훨씬 뒤다.
+    """
+    for rule in rules.values():
+        if not rule.law_refs and not rule.contract_refs:
+            raise RuleIntegrityError(f"{rule.rule_id}: 근거 참조 없음")
+        for ref in rule.law_refs:
+            if ref not in laws:
+                raise RuleIntegrityError(f"{rule.rule_id}: 미등록 법령 참조 {ref}")
+
+
+def check_disposal_blockers(
+    facts: dict,
+    at: date | None = None,
+    *,
+    laws: dict[str, LawRef] | None = None,
+    rules: dict[str, Rule] | None = None,
+) -> dict:
+    """S9의 진입점. BLOCKING / PRECONDITION / HOLD / INSUFFICIENT_FACTS 를 분리해 반환한다.
+
+    **주입점 (D82).** `laws`/`rules` 가 `None` 이면 현행대로 파일 로더를 쓴다 —
+    기존 호출자 3곳(MCP 도구·REST 서비스·`test_rules`)은 한 줄도 바뀌지 않는다.
+    주입되면 `load_laws()`/`load_rules()` 를 **호출하지 않는다**: 소비자가
+    "판정이 본 조문"과 "해시로 고정한 조문"을 **같은 객체**로 만들 수 있어야 하기 때문이다
+    (W5 — 지금은 인용이 파일 사본, `text_hash` 가 DB 사본에서 와 서로 다른 사본이다).
+
+    반환 dict 의 `facts_used`·`laws_used` 는 **소비자가 판정 입력을 재조립하지 않게** 하려는
+    것이다. 재조립하면 같은 이원화가 `facts` 축에서 그대로 반복된다.
+    """
     at = at or date.today()
-    laws = load_laws()
-    rules = load_rules(laws)
+    if laws is None:
+        laws = load_laws()
+    if rules is None:
+        rules = load_rules(laws)  # 주입된 laws 로 로드 — 무결성 게이트가 같은 사본을 본다
+    else:
+        assert_rules_resolvable(rules, laws)
 
     findings = [evaluate_rule(r, facts, laws) for r in rules.values()]
 
@@ -536,10 +592,16 @@ def check_disposal_blockers(facts: dict, at: date | None = None) -> dict:
         "preconditions": [f.__dict__ for f in preconds],
         "holds": [f.__dict__ for f in holds],
         "insufficient": [f.__dict__ for f in insufficient],
-        "not_considered": [
-            "생산 계획·대체 설비 확보 여부",
-            "시장 상황 및 매각 타이밍",
-            "개별 계약의 특약 조항",
-        ],
-        "disclaimer": "본 판정은 통상 사례 기준 목업 룰에 근거한다. 실제 적용에는 전문가 검토가 필요하다.",
+        # ── D82 — 판정이 실제로 무엇을 보았는가
+        # `facts_used` 는 입력의 **얕은 사본**이다. 필터·재조립하지 않는다: 걸러 내면
+        # "판정이 본 사실"과 "번들에 실린 사실"이 또 갈린다. 사본인 이유는 호출자가
+        # 변형해도 엔진에 되돌아오지 않게 하기 위함이며, 중첩 값은 공유된다 —
+        # `build_facts` 가 스칼라만 만들기 때문에 실무상 문제가 되지 않는다.
+        "facts_used": dict(facts),
+        # 인용 여부와 무관하게 **평가된 전 룰**의 참조를 싣는다. 발화한 룰만 세면
+        # 전 룰 CLEAR 인 자산에서 빈 목록이 되어 "근거를 조회한 결과 해당 없음"과
+        # "근거를 아예 안 봤다"가 구분되지 않는다 (W7).
+        "laws_used": sorted({ref for r in rules.values() for ref in r.law_refs}),
+        "not_considered": list(NOT_CONSIDERED),
+        "disclaimer": DISCLAIMER,
     }

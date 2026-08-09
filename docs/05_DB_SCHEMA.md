@@ -409,9 +409,20 @@ CREATE TABLE law_refs (
 `RuleIntegrityError` 가 나면 시드는 **전체 중단**하고 만들던 DB 파일을 지운다 — 부분 적재된 DB는
 "룰이 몇 개 빠진 채로 전부 CLEAR" 를 만들어내므로 없는 것보다 나쁘다.
 
-현재 7건 전부 `fetch_status='PENDING'` 이다(`LAW_API_OC` 미발급). **판정과 조문 인용은 정상
-동작**하며, 도구는 `evidence_completeness:"LAW_TEXT_PENDING"` 으로 그 사실을 표시한다.
+**`fetch_status='PENDING'` 이어도 판정과 조문 인용은 정상 동작**한다 — 인용은 조문 번호·제목
+기준이기 때문이다. 도구는 `evidence_completeness:"LAW_TEXT_PENDING"` 으로 그 사실을 표시하고,
 `build_evidence_bundle` 만 의도적으로 거부한다 — `text_hash` 가 null 이면 해시할 사실이 없다.
+
+> **현재값 (Sprint 7 MQ-701 실수집 이후)** — 조문 7건 중 **6건 `FETCHED` · 1건 `PENDING`**
+> (`KR-CITA-ENF-31`, 등록 제목이 API 값과 불일치해 사람 승인 대기). 처분 룰 5종이 인용하는 조문은
+> 그 6건에 모두 포함되므로 **실 DB 의 `evidence_completeness` 정상값은 `COMPLETE`** 이고
+> `build_evidence_bundle` 은 9자산 × SALE/SCRAP 18조합 전부 `status:"ok"` 다. 근거: `../data/analysis/law_fetch.md`
+>
+> 위 문단의 `LAW_TEXT_PENDING`·번들 거부 서술은 **삭제하지 않는다** — 새 조문 등록 직후,
+> 개정 감지로 `pending_revisions` 가 열렸을 때, 정체성 대조 실패(`KR-CITA-ENF-31`) 때 다시 발화하는 계약이다.
+
+⚠ **JSON 을 채운 뒤 재시드가 필요하다** (`uv run python data/seed.py --with-error-codes`).
+이 테이블은 사본이라(D60) 빠뜨리면 파일만 바뀌고 도구·REST 는 옛 DB 를 본다.
 
 ## 13. rules — 계층 2 해석 룰 (조회용 사본)
 

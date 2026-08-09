@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
-"""apply_fetch 계약 검증 — 법령 수집 결과의 파일 적용 (MQ-602L).
+"""법령 수집·적용 계약 검증 (MQ-602L → MQ-701 확장).
 
 검증 대상: D60(append-only · 자동 덮어쓰기 금지) · D61(불변식 2 — 미등록 법령 참조 거부) ·
-          verification_note 요구(조문번호·제목 대조) · D59(룩업이지 RAG 아님 — 인덱싱 없음)
+          D75(2단계 기록 · 정체성 대조) · D59(룩업이지 RAG 아님 — 인덱싱 없음)
 
-**네트워크를 쓰지 않는다.** `fetch_from_api` 는 호출하지 않으며(키 미발급 · Sprint 7),
-수집기와 적용기를 분리해 둔 덕에 적용기만 합성 픽스처로 지금 검증한다.
+**네트워크를 쓰지 않는다.** MQ-701 이 `fetch_from_api` 를 실제로 구현한 뒤에도 그렇다 —
+응답 정규화(`parse_article_response`)를 **순수 함수로 분리**해 뒀기에 합성 응답으로 덮는다.
+실 API 호출은 회귀에 넣지 않는다(키·네트워크·법령 개정에 좌우되면 회귀가 아니다).
+
+**기대값을 하드코딩하지 않는다.** 조문 제목·수집 상태는 `data/rules/laws/*.json` 에서
+읽어 쓴다. `KR-STTC-146` 의 제목이 사람 승인으로 정정됐을 때(`세액공제액의 추징` →
+`감면세액의 추징`) 이 스위트가 **하드코딩 때문에 통째로 죽었던** 적이 있다.
 
 **정본을 건드리지 않는다.** `data/rules/laws/*.json` 은 tmp 로 복사해서 쓰고,
-마지막에 정본 디렉토리의 mtime·바이트를 대조한다.
+마지막에 정본 디렉토리의 내용 해시를 대조한다.
 
 실행:  uv run python spikes/law_fetch_contract.py
 """
@@ -17,7 +22,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -64,29 +71,62 @@ def sandbox(tmp: Path) -> tuple[Path, Path]:
     return laws, tmp / "pending_revisions"
 
 
+# 수집 결과로 채워지는 필드. `as_pending` 이 되돌리는 대상이자,
+# ⓪ 이 "FETCHED 인데 원문이 없는" 모순 행을 잡을 때 보는 필드이기도 하다.
+FETCH_FIELDS = ("text", "text_hash", "retrieved_at", "effective_from", "promulgation_no")
+
+
+def as_pending(path: Path) -> dict:
+    """tmp 사본 1건을 **수집 전 상태**로 되돌린다 (정본 미수정).
+
+    MQ-701 이 정본 6건을 실제로 채웠기 때문에, "최초 수집" 경로를 검증하려면
+    수집 전 상태가 필요하다. 정본의 수집 여부에 따라 검사 의미가 흔들리지 않게
+    **픽스처 쪽에서 상태를 만든다** — 기대값을 정본에 맞춰 바꾸는 게 아니다.
+    """
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    for key in FETCH_FIELDS:
+        raw[key] = None
+    raw["fetch_status"] = "PENDING"
+    path.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return raw
+
+
 def run(tmp: Path) -> None:
     laws, pending = sandbox(tmp)
+    # 정체성 불일치가 **사람 승인 전**이라 수집되지 않은 유일한 건이다
+    # (`즉시상각의제` vs API `즉시상각의 의제`). 그래서 "최초 수집" 경로의 대상이 된다.
     target = "KR-CITA-ENF-31"
     path = laws / f"{target}.json"
 
-    # ── ⓪ 전제: 등록된 7건이 전부 PENDING (수집 전 상태)
+    # ── ⓪ 전제: 등록 7건 · FETCHED 는 원문+해시를 갖고 해시가 실제로 맞는다 ·
+    #    미승인 정체성 불일치 건은 **여전히 PENDING** 이어야 한다 (자동 정정 금지, D75)
     files = sorted(laws.glob("*.json"))
     raws = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in files}
+    fetched_ids = sorted(k for k, r in raws.items() if r["fetch_status"] == "FETCHED")
+    broken = [
+        k
+        for k in fetched_ids
+        if not (raws[k]["text"] or "").strip()
+        or raws[k]["text_hash"] != engine.text_hash(raws[k]["text"])
+    ]
     check(
-        "⓪ laws/ 7건 · 전부 PENDING · text=null",
+        "⓪ laws/ 7건 · FETCHED 는 원문+해시 일치 · 미승인 건은 PENDING 유지",
         len(files) == 7
-        and all(r["fetch_status"] == "PENDING" for r in raws.values())
-        and all(r["text"] is None for r in raws.values())
-        and target in raws,
-        f"{len(files)}건, {target} 등록={target in raws}",
+        and not broken
+        and raws.get(target, {}).get("fetch_status") == "PENDING"
+        and raws.get(target, {}).get("text") is None,
+        f"{len(files)}건 · FETCHED {len(fetched_ids)}건 {fetched_ids} · "
+        f"해시 불일치 {broken or '없음'} · {target}=PENDING(사람 승인 대기)",
     )
+
+    # 정체성 키는 **파일에서 읽는다.** 기대값을 코드에 박으면 사람 승인 정정이 스위트를 죽인다.
+    ident = {"article": raws[target]["article"], "title": raws[target]["title"]}
 
     # ── ⓐ 최초 수집: PENDING → FETCHED. text_hash 가 파일에 기입된다
     before = digest(path)
     outcome = fl.apply_fetch(
         target,
-        {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT,
-         "effective_from": "2026-01-01"},
+        {**ident, "text": SYNTHETIC_TEXT, "effective_from": "2026-01-01"},
         laws_dir=laws,
         pending_dir=pending,
     )
@@ -117,7 +157,7 @@ def run(tmp: Path) -> None:
     try:
         fl.apply_fetch(
             "KR-STTC-24",
-            {"article": "24의2", "title": "통합투자세액공제", "text": SYNTHETIC_TEXT},
+            {"article": "24의2", "title": raws["KR-STTC-24"]["title"], "text": SYNTHETIC_TEXT},
             laws_dir=laws,
             pending_dir=pending,
         )
@@ -132,7 +172,10 @@ def run(tmp: Path) -> None:
         f"{raised or 'no-raise'} / 바이트 동일={victim.read_bytes() == v_before}",
     )
 
-    # ⓑ-2 제목 불일치도 같은 경로
+    # ⓑ-2 제목 불일치도 같은 경로. **이미 수집된 조문이라도** 개정 기록조차 남기지 않는다 —
+    #     "다른 조문이 왔다"와 "같은 조문이 개정됐다"는 서로 다른 사건이다.
+    vat_path = laws / "KR-VAT-32.json"
+    vat_before = vat_path.read_bytes()
     try:
         fl.apply_fetch(
             "KR-VAT-32",
@@ -143,11 +186,12 @@ def run(tmp: Path) -> None:
         raised2 = None
     except fl.LawMismatchError:
         raised2 = "LawMismatchError"
-    vat_raw = json.loads((laws / "KR-VAT-32.json").read_text(encoding="utf-8"))
     check(
-        "ⓑ-2 제목 불일치 → 중단 · PENDING 유지",
-        raised2 == "LawMismatchError" and vat_raw["fetch_status"] == "PENDING",
-        f"{raised2 or 'no-raise'} / status={vat_raw['fetch_status']}",
+        "ⓑ-2 제목 불일치 → 중단 · 파일 바이트 불변 · 개정 기록도 없음",
+        raised2 == "LawMismatchError"
+        and vat_path.read_bytes() == vat_before
+        and not sorted(pending.glob("KR-VAT-32.*.json")),
+        f"{raised2 or 'no-raise'} / 바이트 동일={vat_path.read_bytes() == vat_before} / pending 0건",
     )
 
     # ⓑ-W5-a article 키 자체가 없으면 → 중단. **누락은 통과가 아니다**
@@ -158,20 +202,18 @@ def run(tmp: Path) -> None:
     try:
         fl.apply_fetch(
             "KR-KCC-652",
-            {"title": "위험변경증가의 통지와 계약해지", "text": SYNTHETIC_TEXT},
+            {"title": raws["KR-KCC-652"]["title"], "text": SYNTHETIC_TEXT},
             laws_dir=laws,
             pending_dir=pending,
         )
         raised_a, msg_a = None, ""
     except fl.LawMismatchError as exc:
         raised_a, msg_a = "LawMismatchError", str(exc)
-    kcc_raw = json.loads(kcc.read_text(encoding="utf-8"))
     check(
         "ⓑ-W5-a article 키 누락 → 중단 · 파일 바이트 불변",
         raised_a == "LawMismatchError"
         and "article" in msg_a
-        and kcc.read_bytes() == k_before
-        and kcc_raw["fetch_status"] == "PENDING",
+        and kcc.read_bytes() == k_before,
         f"{raised_a or 'no-raise'} / 바이트 동일={kcc.read_bytes() == k_before} / msg에 'article' 포함",
     )
 
@@ -197,10 +239,15 @@ def run(tmp: Path) -> None:
         f"{raised_b or 'no-raise'} / 바이트 동일={civil.read_bytes() == c_before} / 누락 키만 지목",
     )
 
-    # ⓑ-W5-c 선택적 필드는 필수가 아니다 — 정체성 키만 대상 (과잉 게이트 방지)
+    # ⓑ-W5-c 선택적 필드는 필수가 아니다 — 정체성 키만 대상 (과잉 게이트 방지).
+    #   정본은 이미 수집됐으므로 tmp 사본을 수집 전으로 되돌려 "최초 수집" 경로를 만든다.
+    #   ⚠ 제목은 파일에서 읽는다 — 여기 하드코딩했다가 사람 승인 정정(`세액공제액의 추징`
+    #     → `감면세액의 추징`) 때 이 스위트가 통째로 죽었다.
+    sttc_pending = as_pending(laws / "KR-STTC-146.json")
     optional_ok = fl.apply_fetch(
         "KR-STTC-146",
-        {"article": "146", "title": "세액공제액의 추징", "text": SYNTHETIC_TEXT},
+        {"article": sttc_pending["article"], "title": sttc_pending["title"],
+         "text": SYNTHETIC_TEXT},
         laws_dir=laws,
         pending_dir=pending,
     )
@@ -229,7 +276,7 @@ def run(tmp: Path) -> None:
     fetched_bytes = path.read_bytes()
     outcome2 = fl.apply_fetch(
         target,
-        {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT_V2},
+        {**ident, "text": SYNTHETIC_TEXT_V2},
         laws_dir=laws,
         pending_dir=pending,
     )
@@ -249,7 +296,7 @@ def run(tmp: Path) -> None:
     # ⓒ-2 재호출해도 앞선 기록을 덮어쓰지 않는다 (append-only)
     fl.apply_fetch(
         target,
-        {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT_V2},
+        {**ident, "text": SYNTHETIC_TEXT_V2},
         laws_dir=laws,
         pending_dir=pending,
     )
@@ -263,7 +310,7 @@ def run(tmp: Path) -> None:
     # ⓒ-3 같은 원문 재적용 → UNCHANGED. 파일도 pending 도 늘지 않는다
     outcome3 = fl.apply_fetch(
         target,
-        {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT},
+        {**ident, "text": SYNTHETIC_TEXT},
         laws_dir=laws,
         pending_dir=pending,
     )
@@ -278,7 +325,7 @@ def run(tmp: Path) -> None:
     # ⓒ-4 force=True 는 반영하되 직전 스냅샷을 남긴다 (과거 원문을 지우지 않는다)
     outcome4 = fl.apply_fetch(
         target,
-        {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT_V2},
+        {**ident, "text": SYNTHETIC_TEXT_V2},
         force=True,
         laws_dir=laws,
         pending_dir=pending,
@@ -313,7 +360,7 @@ def run(tmp: Path) -> None:
     try:
         fl.apply_fetch(
             target,
-            {"article": "31", "title": "즉시상각의제", "text": SYNTHETIC_TEXT_V3},
+            {**ident, "text": SYNTHETIC_TEXT_V3},
             force=True,
             laws_dir=laws,
             pending_dir=pending,
@@ -406,21 +453,23 @@ def run(tmp: Path) -> None:
     )
 
     # ── ⓔ 빈 원문은 계층 1에 들어가지 않는다
+    osha_path = laws / "KR-OSHA-93.json"
+    osha_before = osha_path.read_bytes()
     try:
         fl.apply_fetch(
             "KR-OSHA-93",
-            {"article": "93", "title": "안전검사", "text": "   "},
+            {"article": raws["KR-OSHA-93"]["article"], "title": raws["KR-OSHA-93"]["title"],
+             "text": "   "},
             laws_dir=laws,
             pending_dir=pending,
         )
         raised5 = None
     except ValueError:
         raised5 = "ValueError"
-    osha = json.loads((laws / "KR-OSHA-93.json").read_text(encoding="utf-8"))
     check(
-        "ⓔ 빈 원문 거부 · PENDING 유지",
-        raised5 == "ValueError" and osha["fetch_status"] == "PENDING",
-        f"{raised5 or 'no-raise'} / status={osha['fetch_status']}",
+        "ⓔ 빈 원문 거부 · 파일 바이트 불변",
+        raised5 == "ValueError" and osha_path.read_bytes() == osha_before,
+        f"{raised5 or 'no-raise'} / 바이트 동일={osha_path.read_bytes() == osha_before}",
     )
 
     # ── ⓕ 키 미설정 시 fetch_from_api 는 RuntimeError (네트워크로 나가지 않는다)
@@ -441,19 +490,89 @@ def run(tmp: Path) -> None:
         f"{raised6}: {msg6[:40]}…",
     )
 
-    # ⓕ-2 키가 있어도 아직 미구현 — 추측한 URL 형식을 박아두지 않았다
-    fl.API_OC = "dummy-oc-not-used"
+    # ⓕ-2 `JO`·검색 파라미터가 **실호출로 확정된 형식** 그대로인가 (네트워크 미사용).
+    #   `24`·`002400000` 은 HTTP 200 인데 조문단위가 0건으로 조용히 돌아온다 — 그래서
+    #   "응답이 비었다"를 "조문이 없다"로 읽으면 안 되고, 조립점을 한 곳에 묶어 잠근다.
+    #   `display=100`(기본 20 이면 `상법` exact match 가 페이지 밖) ·
+    #   `search=1`(2 는 본문검색이라 법령명 매칭이 전 법령에서 실패) 도 함께 본다.
+    jo_ok = (
+        fl._jo_param("24") == "002400"
+        and fl._jo_param("146") == "014600"
+        and fl._jo_param("652") == "065200"
+        and fl._jo_param("24의2") == "002402"
+    )
     try:
-        fl.fetch_from_api("KR-CITA-ENF-31")
-        raised7, msg7 = None, ""
-    except NotImplementedError as exc:
-        raised7, msg7 = "NotImplementedError", str(exc)
-    finally:
-        fl.API_OC = saved
+        fl._jo_param("24", "1")
+        clause_guarded = False  # 항을 조용히 무시하면 다른 조문을 받아 놓고 모른다
+    except ValueError:
+        clause_guarded = True
+    search_params = '"display": 100' in src_fetch and '"search": 1' in src_fetch
     check(
-        "ⓕ-2 fetch_from_api 미구현 유지 (Sprint 7)",
-        raised7 == "NotImplementedError" and "Sprint 7" in msg7 and "MST" in msg7,
-        f"{raised7}: {msg7[:44]}…",
+        "ⓕ-2 JO 6자리(조4+가지2) · display=100 · search=1 — 실호출 확정 형식 고정",
+        jo_ok and clause_guarded and search_params,
+        f"JO 4종 일치={jo_ok} · 항 지정 차단={clause_guarded} · 검색 파라미터={search_params}",
+    )
+
+    # ── ⓘ ★MQ-701: `조문내용` 만 담긴 응답(=제목 한 줄)은 **수집 실패**로 거부한다.
+    #   법제처는 조문에 따라 `조문내용` 에 본문을 다 담기도 하고(`민법 388`) **제목만**
+    #   담기도 한다(`부가세법 32` — 15자). 후자를 그대로 text 로 쓰면 `apply_fetch` 의
+    #   비어있지 않음 검사를 **통과**해서 제목이 계층 1 원문으로 해시되고 서명 번들에 실린다.
+    #   `11 §2`("조문 원문을 손으로 타이핑하지 않는다")가 막으려던 실패의 자동화 판이다.
+    heading_only = {
+        "법령": {
+            "기본정보": {"법령명_한글": "부가가치세법", "공포번호": "21065", "시행일자": "20260102"},
+            "조문": {"조문단위": {
+                "조문여부": "조문", "조문번호": "32", "조문제목": "세금계산서 등",
+                "조문시행일자": "20260102", "조문내용": "제32조(세금계산서 등)",
+            }},
+        }
+    }
+    try:
+        fl.parse_article_response(heading_only, article="32", law_ref_id="KR-VAT-32")
+        raised_h, msg_h = None, ""
+    except fl.LawFetchError as exc:
+        raised_h, msg_h = "LawFetchError", str(exc)
+    # 같은 응답에 항을 한 줄만 붙이면 통과해야 한다 — 과잉 게이트가 아님을 함께 잠근다
+    with_body = json.loads(json.dumps(heading_only))
+    with_body["법령"]["조문"]["조문단위"]["항"] = [{"항내용": "① 사업자가 재화 또는 용역을 공급한다."}]
+    parsed = fl.parse_article_response(with_body, article="32", law_ref_id="KR-VAT-32")
+    check(
+        "ⓘ 제목만 담긴 응답 → 적용 거부 (본문 1줄만 있어도 통과)",
+        raised_h == "LawFetchError"
+        and "제목만" in msg_h
+        and len(parsed["text"]) > len("제32조(세금계산서 등)")
+        and "① 사업자가" in parsed["text"],
+        f"{raised_h or 'no-raise'} · 본문 있으면 text {len(parsed['text'])}자 (제목 15자)",
+    )
+
+    # ── ⓙ ★MQ-701: `'전문'`(절 제목)이 섞여 와도 `'조문'` 만 고른다.
+    #   `산업안전보건법 93`·`조특법 24` 는 실제로 2건이 온다. 첫 건을 집으면
+    #   `제4절 안전검사` 라는 **절 제목**이 조문 원문으로 들어간다.
+    mixed = {
+        "법령": {
+            "기본정보": {"법령명_한글": "산업안전보건법", "공포번호": "21374", "시행일자": "20260601"},
+            "조문": {"조문단위": [
+                {"조문여부": "전문", "조문번호": "93", "조문제목": None,
+                 "조문시행일자": "20260601", "조문내용": "          제4절 안전검사"},
+                {"조문여부": "조문", "조문번호": "93", "조문제목": "안전검사",
+                 "조문시행일자": "20260601", "조문내용": "제93조(안전검사)",
+                 "항": [{"항내용": "① 유해하거나 위험한 기계ㆍ기구ㆍ설비로서 대통령령으로 정하는 것",
+                         "호": [{"호내용": "1. 고용노동부장관이 정하는 검사"}]}]},
+            ]},
+        }
+    }
+    picked = fl.parse_article_response(mixed, article="93", law_ref_id="KR-OSHA-93")
+    check(
+        "ⓙ '전문'(절 제목) 섞인 응답에서 '조문' 만 선택 · 항·호까지 평탄화",
+        picked["title"] == "안전검사"
+        and "제4절" not in picked["text"]
+        and picked["text"].startswith("제93조(안전검사)")
+        and "① 유해하거나" in picked["text"]
+        and "1. 고용노동부장관이" in picked["text"]
+        and picked["effective_from"] == "2026-06-01"
+        and picked["promulgation_no"] == "21374",
+        f"text {len(picked['text'])}자 · '제4절' 배제 · effective_from={picked['effective_from']} "
+        f"(YYYYMMDD→ISO) · promulgation_no={picked['promulgation_no']} (기본정보 유래)",
     )
 
     # ── ⓖ D59: 법령은 룩업이다. 벡터 인덱싱 흔적이 없어야 한다
@@ -466,18 +585,66 @@ def run(tmp: Path) -> None:
     )
 
 
+def check_oc_not_committed() -> None:
+    """법제처 인증값(OC)이 추적 파일에 남지 않았는가.
+
+    `fetch_laws.py` docstring 이 "인증값은 저장소에 남기지 않는다 — 로그·문서·주석·source_url
+    어디에도" 라고 스스로 규정하는데, 그 규정을 지키는지 확인하는 장치가 없었다. 실제로
+    `.env.example` 과 세션 로그에 실값이 평문으로 들어갔고 **사람 리뷰가 잡을 때까지 3커밋을 살아남았다**.
+
+    ★ 기대값을 **하드코딩하지 않는다** — 스파이크에 값을 적는 순간 그 자체가 유출이다.
+      실행 환경의 `LAW_API_OC` 를 읽어 추적 파일과 대조한다. 키가 없으면 검사를 통과로
+      **위장하지 않고** 미검증임을 detail 에 남긴다(D62 — 모른다를 통과로 바꾸지 않는다).
+    """
+    oc = (os.environ.get("LAW_API_OC") or "").strip()
+    if not oc:
+        check(
+            "ⓚ 인증값(OC) 이 추적 파일에 없다",
+            True,
+            "LAW_API_OC 미설정 — 대조 미수행(키가 있는 환경에서만 유효한 검사)",
+        )
+        return
+
+    try:
+        tracked = subprocess.run(  # noqa: S603
+            ["git", "grep", "-l", "--fixed-strings", oc],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        check("ⓚ 인증값(OC) 이 추적 파일에 없다", False, f"git grep 실패 — {type(exc).__name__}: {exc}")
+        return
+
+    # git grep: 0=검출됨, 1=없음. 그 밖은 실행 실패이므로 통과로 읽지 않는다.
+    if tracked.returncode not in (0, 1):
+        check("ⓚ 인증값(OC) 이 추적 파일에 없다", False, f"git grep rc={tracked.returncode}")
+        return
+
+    hits = [ln for ln in tracked.stdout.splitlines() if ln.strip()]
+    check(
+        "ⓚ 인증값(OC) 이 추적 파일에 없다 (.env.example·세션 로그 평문 유출 재발 방지)",
+        not hits,
+        f"검출 {len(hits)}건: {', '.join(hits[:4])}" if hits else "추적 파일 0건",
+    )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    print("apply_fetch 계약 검증 — tmp 사본 + 합성 픽스처 (네트워크·정본 파일 미사용)\n")
+    print("법령 수집·적용 계약 검증 — tmp 사본 + 합성 픽스처 (네트워크·정본 파일 미사용)\n")
     before_real = dir_digest(REAL_LAWS)
     real_pending = ROOT / "data" / "rules" / "pending_revisions"
     pending_existed = real_pending.exists()
 
     with tempfile.TemporaryDirectory() as td:
         run(Path(td))
+
+    check_oc_not_committed()
 
     check(
         "ⓗ 정본 laws/ 불변 (내용 해시)",
@@ -500,9 +667,10 @@ def main() -> None:
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
     print(
-        f"\n통과 ({len(results)}건) — D59·D60·D61 준수. "
-        "법제처 API 미호출(키 미발급) · 실수집은 Sprint 7. "
-        "적용기를 수집기에서 분리했기에 키 없이도 계약이 검증된다."
+        f"\n통과 ({len(results)}건) — D59·D60·D61·D75 준수. "
+        "실수집은 MQ-701 이 완료했으나 **이 스위트는 법제처를 호출하지 않는다** — "
+        "응답 정규화를 순수 함수로 분리해 합성 응답으로 덮는다. "
+        "키·네트워크·법령 개정에 좌우되는 검사는 회귀가 아니다."
     )
 
 

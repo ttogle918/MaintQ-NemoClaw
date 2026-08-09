@@ -539,6 +539,24 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **변경 파일**: `mcp_server/tools/build_evidence_bundle.py` · `spikes/asset_tools_contract.py` · `spikes/bundle_integrity.py`(신규)
 - **선행**: MQ-701(조문 원문) · MQ-702(주입점·`facts_used`)
 
+> ### 🔴 Stage 1 인계 — 번들은 **엔진을 직접 호출**해야 한다 (반드시 읽을 것)
+>
+> `build_evidence_bundle.py:81` 은 현재 **MCP 도구**를 부른다:
+> `from .check_disposal_blockers import check_disposal_blockers as _judge`.
+> 그 뒤 `engine.load_laws_from_db(con)` 로 조문을 **다시** 읽고 `engine.build_facts(row, …)` 로
+> 사실을 **다시** 조립한다 — 즉 **D82 가 없애려던 W5(판정=파일 사본 / 해시=DB 사본)와 facts 재조립이 그대로 남아 있다.**
+> MQ-702 는 주입점만 열었고 **프로덕션 소비자는 0곳**이다(현재 사용처는 `test_rules.py`·`rules_db_load.py` 뿐).
+>
+> 게다가 Stage 1 에서 MCP 출력을 `04 §8` 13키로 **화이트리스트 고정**했다(`_ENGINE_CONTRACT_KEYS`).
+> `facts_used`·`laws_used` 는 계약 밖 키라 **MCP 도구 경유로는 받을 수 없다.**
+>
+> **→ MQ-705 는 `engine.check_disposal_blockers(facts, at, laws=laws, rules=rules)` 를 직접 호출하고
+> 반환된 `facts_used`·`laws_used` 를 그대로 쓴다. MCP 도구 경유 금지.**
+> 경유하면 두 값을 못 받아 W5 가 남고, 번들이 "판정과 다른 사본으로 해시한다"는 원래 결함으로 되돌아간다.
+>
+> **DoD 추가**: ⑰ `build_evidence_bundle` 이 `check_disposal_blockers`(MCP 도구)를 import 하지 않는다 ·
+> ⑱ 번들의 `facts_used` 가 판정에 실제로 쓰인 facts 와 동치다(재조립본이 아니다)
+
 - **인터페이스 — 번들 스키마 3키 → 5키 (D83)**
   ```json
   {

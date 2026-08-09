@@ -330,12 +330,15 @@ def precheck(
         "resolve_options": resolve_options,
         "missing_facts": missing_facts,
         "facts_used": dict(facts),
-        "not_considered": [
-            "생산 계획·대체 설비 확보 여부",
-            "시장 상황 및 매각 타이밍",
-            "개별 계약의 특약 조항",
-        ],
-        "disclaimer": "본 판정은 통상 사례 기준 목업 룰에 근거한다. 실제 적용에는 전문가 검토가 필요하다.",
+        # W2 — 문구를 복제하지 않는다. 엔진이 단일 출처다 (D73).
+        # 복제본을 두면 엔진이 문장을 고칠 때 **REST 만 조용히 옛 문구를 낸다** — 사용자는
+        # 같은 판정을 도구로 볼 때와 화면으로 볼 때 다른 한계 고지를 읽게 된다.
+        # `engine.X` 로 **모듈 참조**한다 — `from … import DISCLAIMER` 는 로드 시점에 값을
+        # 고정해 버려서, 이 파일이 다시 복제본을 갖는 것과 같아진다(Sprint 5 W1 유형).
+        # `list(...)` 로 새 리스트를 만드는 이유: 응답 객체를 받은 쪽이 append 하면
+        # 엔진 상수가 프로세스 전역에서 오염된다.
+        "not_considered": list(engine.NOT_CONSIDERED),
+        "disclaimer": engine.DISCLAIMER,
         "note": PRECHECK_NOTE,
     }
 

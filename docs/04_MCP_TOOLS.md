@@ -307,7 +307,12 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 파일과 DB 를 섞어 **판정을 조립하지 않는다.** 두 사본이 어긋나면 `data/seed.py` 자가검증 ⑬⑭ 가 먼저 잡는다.
 `LAW_TEXT_PENDING` 판정은 **판정에 실제로 쓰인 룰 카탈로그 전체의 법령 참조**를 본다 — 출력에 드러난 인용만 세면
 전 룰이 `CLEAR` 인 자산에서 인용이 0건이 되어 `"COMPLETE"` 가 나오는데, 그건 조문을 수집했다는 뜻이 아니라
-아무것도 발화하지 않았다는 뜻이다. 현재는 조문 7건이 전부 `PENDING` 이라 **`LAW_TEXT_PENDING` 이 정상값**이다.
+아무것도 발화하지 않았다는 뜻이다.
+
+> **현재값 (Sprint 7 MQ-701 실수집 이후)** — 조문 7건 중 **6건 `FETCHED` · 1건 `PENDING`**(`KR-CITA-ENF-31`,
+> 제목이 API 값과 불일치해 사람 승인 대기). 처분 룰 5종이 인용하는 조문은 그 6건에 모두 포함되므로
+> **실 DB 판정은 `COMPLETE` 가 정상값**이고 `_LAW_PENDING_NOTE` 접미사는 붙지 않는다.
+> **위** output 예시 블록의 `LAW_TEXT_PENDING`·disclaimer 접미사는 수집 **전** 상태를 보인 것이다.
 
 **status / reason**
 
@@ -648,8 +653,11 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 ### 미수집 조문이 하나라도 있으면 **의도적으로 거부**한다
 
-`data/rules/laws/*.json` 7건이 전부 `fetch_status:"PENDING"`·`text:null` 이므로(법제처 인증값 미발급 —
-실수집은 Sprint 7) **실 DB 에서 이 도구는 항상 `law_text_unavailable` 로 실패한다. 그게 정상 동작이다.**
+거부 자체는 **설계된 동작**이다 — 원문 없는 근거를 해시하면 해시할 사실이 없는 번들이 나온다.
+
+> **현재값 (MQ-701 실수집 이후)** — 조문 6건이 `FETCHED` 로 채워져 **9자산 × `SALE`/`SCRAP` 18조합이
+> 전부 `status:"ok"`, `law_text_unavailable` 0건**이다. 아래 예시는 수집 **전** 응답이며,
+> 이 경로는 남은 1건(`KR-CITA-ENF-31`)을 인용하는 룰이 생기거나 조문이 재수집 대기로 돌아갈 때 다시 발화한다.
 
 ```json
 { "status": "error", "reason": "law_text_unavailable",
@@ -691,7 +699,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | `rule_integrity` | 8·14 | 근거 없는 룰 (D61) |
 | `law_ref_missing` | 12 | 근거 조문 미등록 → 판정 자체를 하지 않음 |
 | `law_not_effective` | 12 | 시점 밖 조문. 최신본 대체 금지 |
-| `law_text_unavailable` | 14 | 조문 원문 미수집 → 번들 생성 거부 (**현재 정상값**) |
+| `law_text_unavailable` | 14 | 조문 원문 미수집 → 번들 생성 거부 (MQ-701 수집 후 **실 DB 에서는 미발화**) |
 | `asset_disappeared` | 14 | 판정 직후 자산 행 소실 |
 | `engine_error` | 8 | 엔진 예외·계약 밖 verdict |
 | `db_missing` | 9·14 | DB 파일 없음 |
