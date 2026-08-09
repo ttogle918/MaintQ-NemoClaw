@@ -26,9 +26,16 @@ class ErrorRecord(BaseModel):
 
 @router.get("")
 def list_equipment(c: Caller = Depends(caller)) -> dict:
+    """장비 목록.
+
+    `asset_id` 는 **가산 필드**다 (D68) — 인버터가 어느 호스트 설비에 속하는지.
+    `INV-L1-01`(분전반)처럼 거래 가능한 기계에 속하지 않는 장비는 **null** 이고,
+    그 null 을 지어낸 값으로 메우지 않는다(S9 의 "호스트 자산 없음" 케이스 재료).
+    기존 키는 그대로 두므로 이 응답을 읽던 쪽은 영향받지 않는다.
+    """
     with connect() as con:
         rows = con.execute(
-            "SELECT equipment_id, line_id, model, installed_at, location"
+            "SELECT equipment_id, line_id, model, installed_at, location, asset_id"
             " FROM equipment ORDER BY line_id, equipment_id"
         ).fetchall()
     return {"items": [dict(r) for r in rows]}

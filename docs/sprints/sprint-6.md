@@ -933,7 +933,9 @@ def classify_expenditure(
 | `AST-L4-WRAP` 하위 | `SELL_AS_IS` |
 | `AST-L3-LIFT` 하위 (`acquisition_cost` NULL) | `HOLD` + 사유 문장 |
 
-  - `residual_curve` 를 비우고 재호출 → **전 자산 `HOLD`** (잔가 원천 없음). **값을 지어내지 않음을 증명**
+  - `residual_curve` 를 비우고 재호출 → **반복 고장 자산을 제외한 8자산 전부 `HOLD`** (잔가 원천 없음). **값을 지어내지 않음을 증명**
+    ⚠ `INV-L3-01`(반복 고장)은 이때도 **`ROOT_CAUSE_FIRST`** 다 — 최우선 분기가 잔가 조회보다 먼저다.
+    "전 자산 HOLD" 라고 쓰면 최우선 규약과 모순된다(Stage 5 에서 실제로 충돌해 문구를 정정했다).
   - 출력에 `estimates[]` 존재 · `oee` 키 부재 · `repair_cost ≤ 0` → `invalid_input`
   - 하위 도구가 `status != "ok"` 면 그 status·reason 그대로 전파 · `ruff check`
 
@@ -1453,4 +1455,88 @@ writer 락을 잡으면 `busy_timeout` 만료가 산발적으로 난다. **경�
    안 하면 미문서 status 가 된다
 5. `spikes/asset_tools_contract.py` 가 `data.seed._shift_months`(**private**)를 import 한다 —
    `seed.py` 소유자가 공개 승격하는 편이 낫다(커밋 게이트는 아님)
+
+---
+
+## Stage 5 완료 (2026-08-09)
+
+**태스크**: MQ-609·610·611 (3병렬) · 신규 결정 없음
+
+### 산출
+
+| 태스크 | 핵심 |
+|---|---|
+| **MQ-609** `assess_repair_value` | 5종 verdict 재현 · `ROOT_CAUSE_FIRST` 가 **잔가 조회 전에** 즉시 반환 · 퍼징 1,444회 누출 0 |
+| **MQ-610** `build_evidence_bundle` | 실 DB 에서 **항상 `law_text_unavailable`(정상)** · 합성 픽스처로 해시 안정성 검증 · 저장 0건 |
+| **MQ-611** S9 REST | D71 매핑 5종 + 503/404/422 · `X-Role` 무관 · 무저장 · `spikes/disposal_api_contract.py` 24건 |
+
+### reviewer 판정 — PASS (블로커 0 · 경고 10)
+
+자진 신고 **10건 중 9건 승인**. 특히 MQ-609 의 verdict 순서 재정렬은 **대수적으로 검증**됐다 —
+`mv_before ≥ 0` ⇒ `value_recovery ≤ mv_after`, `recovery_ratio ≥ 1` ⇒ `repair_cost ≤ mv_after`
+⇒ SELL 조건(`repair_cost > mv_after`) 부정. **SELL·REPAIR 는 동시에 참일 수 없다.**
+그리고 명세 §5 의 나열 순서와 엣지케이스·DoD 가 서로 모순이었고 **충돌한 쪽은 명세**였다.
+
+### 커밋 전 닫은 경고 3건 (코디네이터 직접 수정 — 세션 한도로 에이전트 사용 불가)
+
+| ID | 내용 |
+|---|---|
+| **W1** | `backend/services/disposal.py` docstring 이 *"권한을 코드 수준에서 아예 주지 않는다"* 고 썼으나 **사실이 아니었다** — `backend.db.connect()` 는 쓰기 가능 커넥션이고 종료 시 `commit()` 한다. **Stage 4 B-1 과 같은 유형**(사실이 아닌 것을 문서가 단언). `mode=ro` URI 로 전환해 **주장을 사실로** 만들었다. 검증: `INSERT` 시도 → `attempt to write a readonly database` |
+| **W3** | 서비스에 MCP 도구의 `if not laws` 게이트가 없었다. 계약 전용 룰만 남는 구성에서 **법령 0행인데 판정이 진행**된다(D50 이 막으려던 형태). 게이트 추가 · 검증: 계약 전용 픽스처 → `rule_catalog_not_loaded` |
+| **W8** | `build_evidence_bundle` 이 `verdict` 를 최상위에 싣는 이상 소비자에겐 판정 결과로 읽힌다 → `judgment["not_considered"]` **그대로 전달**(새 문장 금지). **번들 밖**에 둔다 — 안에 넣으면 문구 변경이 `bundle_hash` 를 흔들어 "변조됐다"는 오탐이 난다 |
+
+### ⚠ W1 수정이 만든 회귀와 그 교훈
+
+`from backend.db import DB_PATH` 로 받으면 **모듈 로드 시점 값이 고정**된다.
+회귀가 `backend.db.DB_PATH` 를 임시 DB 로 갈아끼워도 서비스는 계속 실 DB 를 봐서
+`rules 0행 → 503` 검사가 **200 을 받고 FAIL** 했다.
+
+**무서운 건 반대 경우다** — 검사가 통과했다면 **엉뚱한 대상을 보고 통과**한 것이었다.
+`import backend.db as _backend_db` 로 바꿔 **호출 시점에 읽게** 했고 근거를 docstring 에 남겼다.
+
+### 검증
+
+- 회귀 **390건** — spikes **372**(20스위트) + seed **18**. 감소 0, **플래키 재시도 0회**
+- `pytest data/rules/test_rules.py` **41 passed** · `ruff check` clean
+- 신규 도구 2종 직접 확인: `ROOT_CAUSE_FIRST` 즉시 반환(`alternatives`·`estimates` 빈 배열, 시장가 `None`) ·
+  `law_text_unavailable` + `missing_law_refs` 합집합 일치 · **CLEAR 자산 빈 번들도 해시 산출**(2회 동일) ·
+  `decisions` 행 수 불변
+- 프론트 무변경(`tsc` 는 MQ-611 이 exit 0 확인)
+
+---
+
+## 🔴 Stage 6 착수 전 필수 (reviewer 지정)
+
+1. **`asset_tools_contract.py` 를 7종으로 확장** — 현재 5종이다. **확장하지 않으면 MQ-612 DoD 가 거짓 통과**한다
+2. **MCP verdict ↔ REST verdict 직접 대조 회귀 1건 추가** — 지금은 각자 파일 경로와 간접 대조만 한다
+3. **⑳ 방어선 생존 확인** — DB 룰 1행을 일부러 어긋나게 한 픽스처로 ⑳ 이 **실제 FAIL 하는지**.
+   reviewer 평: *"지금 ⑳ 은 '항상 통과하는 검사'일 가능성이 검증되지 않았다"* (Stage 4 W-a 와 같은 공허한 PASS 위험)
+4. **W2 이월** — `backend/services/disposal.py:289-294` 가 엔진의 `not_considered`·`disclaimer` 를
+   **문자열로 복제**한다. 엔진이 바꾸면 REST 만 조용히 옛 문구를 낸다(D73 이 기각한 복제 유형).
+   → spike 에 드리프트 검사 추가 권고
+5. **미문서 status** — 신규 reason 을 `04_MCP_TOOLS §8~§14` 에 전부 명기:
+   `law_text_unavailable` · `asset_disappeared` · `rule_integrity` · `db_missing` · `internal_error` ·
+   `part_class_not_set` · `part_class_invalid` · `no_host_asset` · `rule_catalog_not_loaded`
+6. **MQ-609 판정 순서를 계약으로** — 코드는 "순서가 계약"이라 주장하는데 `04_MCP_TOOLS` 는 다른 순서를 나열 중
+
+## 🔴 Sprint 7 서명 착수 선행 조건 (번들이 실제로 무엇을 보장하는가)
+
+reviewer 가 **판정 원천 이원화**로 어긋날 수 있는 조건 **5개**를 특정했다:
+① 파일 수정 후 미재시드 ② 룰 파일 신규 추가(파일은 glob 즉시 반영, DB 는 재시드 전까지 미반영)
+③ **`rule_version` 공존** — DB 는 `MAX(rule_version)`, 파일은 딕셔너리 마지막 승자.
+**Sprint 7 개정 반영 흐름이 정확히 이 지점을 건드린다** ④ `build_evidence_bundle` 내부 혼합
+⑤ MCP 도구 응답 내부 혼합(fail-safe 방향이라 위험도 낮음)
+
+| | 내용 |
+|---|---|
+| **W5** | 인용 집합은 **파일 로더** 판정에서, `text_hash`·`effective_from` 은 **DB 사본**에서 온다 → *"판정이 본 조문"* ≠ *"해시로 고정된 조문"*. **서명 산출물이라 파급이 가장 크다** |
+| **W6** | `rules[]` 가 `rule_id`+`rule_version` 만 싣는다 → **같은 버전 안에서 룰 본문이 in-place 로 바뀌면 해시가 변하지 않는다.** 계층 1은 `text_hash` 로 잠겼는데 **계층 2는 버전 번호로만** |
+| **W7** | CLEAR 자산은 `laws`·`rules` 가 빈 배열 → **"어떤 룰을 평가해서 CLEAR 였는지"가 번들에 남지 않는다** |
+| **계약 근거** | `laws[]` 는 `contract_refs` 를 담지 않는다(담으면 `LIEN-CONSENT` 자산 번들이 구조적으로 불가능). **계약 조항 원문은 해시로 고정되지 않는다** — 의도된 한계인지 명시 결정 필요 |
+| **N1** | `engine.text_hash()` 가 NFKC + 공백 정규화를 직렬화 결과에 적용 → `"한빛은행  여신부"` ↔ `"한빛은행 여신부"` **동일 해시**. **"변조 없음"의 기준이 바이트 동일이 아니라 정규화 후 동일**이다 |
+| **N2** | TOCTOU — 자산 **소멸**은 `asset_disappeared` 로 잡지만 **수정**은 못 잡는다 |
+
+**근본 해소**: `engine.check_disposal_blockers(facts, *, laws=, rules=)` 주입점 + `facts` 반환.
+`engine.py` 는 MQ-601b 소유였고 Stage 5 범위 밖이라 하지 않았다 —
+reviewer 평: *"커밋 게이트 단계에서 소유자 격리를 깨면 이번 스프린트가 병렬 안전성을 주장해 온 근거가 사라진다."*
 
