@@ -23,9 +23,9 @@
   "disclosure": "법정 기준내용연수 기반 정률법 목업 추정치이며 실거래가·시세가 아니다. 취득원가 대비 비율이며, 표본 통계가 아니므로 n_samples/base_n/p25/p75 는 null 이다 (D65·D74).",
   "empirical_note": "중진공 자산거래중개장터 호가 데이터는 값 원천이 아니라 한계 실증으로만 쓴다 — 호가는 연차가 아니라 기계 규격이 지배해 감가를 식별할 수 없다. 근거: data/analysis/residual_curve.md §4",
   "counts": {
-    "categories": 6,
+    "categories": 7,
     "buckets": 6,
-    "rows": 36
+    "rows": 42
   },
   "rows": [
     {
@@ -380,6 +380,66 @@
     },
     {
       "category": "환경  설비",
+      "age_bucket": "21-30",
+      "residual_ratio": 0.1146,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
+      "age_bucket": "0-2",
+      "residual_ratio": 0.917,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
+      "age_bucket": "3-5",
+      "residual_ratio": 0.7071,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
+      "age_bucket": "6-10",
+      "residual_ratio": 0.5,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
+      "age_bucket": "11-15",
+      "residual_ratio": 0.3242,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
+      "age_bucket": "16-20",
+      "residual_ratio": 0.2102,
+      "n_samples": null,
+      "p25_ratio": null,
+      "p75_ratio": null,
+      "base_n": null,
+      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+    },
+    {
+      "category": "공조냉각유공압",
       "age_bucket": "21-30",
       "residual_ratio": 0.1146,
       "n_samples": null,

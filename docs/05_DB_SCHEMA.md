@@ -1,20 +1,31 @@
-# 목업 DB 스키마 v0.2
+# 목업 DB 스키마 v0.3
 SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 PostgreSQL 치환 가능)
 
 도구가 읽는 테이블 — 설계하며 6개 → 8개(`error_codes`·`equipment` 추가, D11)
 → 구현 정합화에서 **9개**로 확정: `traces`(실행 로그 영속화, D21) 추가.
+→ **Sprint 6 (F1·F2·F4)에서 7개 추가** — `assets`·`law_refs`·`rules`·`decisions`·`flags`·
+`repair_records`·`residual_curve` (§11~§17).
 
 > **세는 단위 주의:** 위 숫자는 아래 **절(§) 개수**다. §7이 `suppliers`와 `supplier_parts`
-> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 **11개**다 — D41로 `users`가 추가됐다
-> (`data/seed.py` 기준).
+> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 코어 **11개** + Sprint 6 **7개 = 18개**다
+> (`data/seed.py` 기준). 절 번호는 `§1`~`§9`(+`§1-B`)로 10절, Sprint 6 이 `§11`부터 이어받는다
+> — **`§10`은 존재하지 않는다**(`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
+> `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
 
 ---
 
 ## ERD 개요
 
 ```
-equipment ──< error_history >── error_codes
-                                    │ (model+code 복합키)
+assets ──< equipment ──< error_history >── error_codes        ← assets 는 D68 의 호스트 설비
+  │           │                                 │ (model+code 복합키)
+  │           └──< repair_records >─────────────┘             ← 수리는 인버터 단위 (D68 ⓑ)
+  ├──< decisions            ← 계층 3 서명 (쓰기는 Sprint 7)
+  ├──< flags                ← 법정 조건 상태 (발생→이행→해소)
+  └── category ──> residual_curve                             ← (category, age_bucket) 조인
+
+law_refs (계층 1) ──< rules (계층 2)     ← 정본은 data/rules/{laws,rules}/*.json, DB는 사본 (D60)
+
 parts ──< inventory
   │
   ├──< part_alternatives (self-ref)
@@ -88,9 +99,16 @@ CREATE TABLE equipment (
   line_id      INTEGER NOT NULL,       -- 3
   model        TEXT NOT NULL,          -- 'iG5A'
   installed_at DATE,
-  location     TEXT                    -- '3번 조립라인 분전반'
+  location     TEXT,                   -- '3번 조립라인 분전반'
+  asset_id     TEXT REFERENCES assets  -- 호스트 설비 (D68). NULL 허용
 );
 ```
+
+**`asset_id` 확장 (D68, Sprint 6).** 인버터는 **자산의 부품**이지 거래 단위가 아니다 —
+처분·감가·시장가는 호스트 설비(`assets`)에 붙고, 고장·수리 판정은 인버터에 붙는다(D68 ⓑ).
+시드 10대 중 **`INV-L1-01`(1번 조립라인 분전반)만 `asset_id` NULL** 이다. 배전 위치이지
+거래 가능한 기계가 아니라서, 확장 도구 전체의 `status:"not_found", reason:"no_host_asset"`
+경로가 이 한 행으로 검증된다.
 
 ## 3. error_history — 에러 발생 이력 (확정 기능 ①의 원천)
 
@@ -120,9 +138,21 @@ CREATE TABLE parts (
   name         TEXT NOT NULL,          -- '냉각팬'
   category     TEXT,                   -- '냉각' | '제어' | '전원' ...
   compatible_models TEXT NOT NULL,     -- JSON array ['iG5A']
-  discontinued BOOLEAN DEFAULT 0       -- 단종 → 대체품 분기 재료
+  discontinued BOOLEAN DEFAULT 0,      -- 단종 → 대체품 분기 재료
+  part_class   TEXT                    -- 'CONSUMABLE' | 'CRITICAL' (Sprint 6)
 );
 ```
+
+**`part_class` 확장 (Sprint 6).** `assess_repair_value` 의 3지 판단이 이 값에 걸린다 —
+소모품 교체는 시장가에 반영되지 않고(`12 §1`), 핵심 부품 교체만 잔존수명 회복분을 낸다.
+**40종 전부 `data/seed.py`의 `PART_CLASS` 에 명시**하며 누락되면 시드가 중단된다 —
+`classify_part_criticality` 는 NULL 이면 `error/part_class_not_set` 을 돌려주고 **추론하지 않는다**
+(D12 가 `related_parts` 에서 세운 태도 그대로).
+현재 분포는 `CONSUMABLE 14 / CRITICAL 26`, **`FAN-IG5-01` 은 `CRITICAL`**(S1 주인공).
+
+> ⚠ **사람 미검수 초안이다.** `seed.py` 의 `part_class_caveat()` 가 매 실행 말미에 경고를 찍는다.
+> **게이트가 아니다** — 막으면 스프린트가 선다(`prompts.py` 안전 문구 미검수를 런타임에서
+> 막지 않는 것과 같은 태도). 검수 항목은 `TODO_직접할일.md`.
 
 ## 5. part_alternatives — 호환 대체품 (self-reference)
 
@@ -255,7 +285,8 @@ CREATE TABLE traces (
   seq          INTEGER NOT NULL,       -- 세션 내 이벤트 순번 (시퀀스 판정용)
   event_type   TEXT NOT NULL,          -- 'tool_call' | 'tool_result' | 'block'
   tool         TEXT,                   -- 도구명 (block 이벤트는 NULL 가능)
-  payload      TEXT NOT NULL,          -- JSON 원문 (입력/출력/elapsed 등)
+  payload      TEXT NOT NULL,          -- SSE data 와 **바이트 동일** (D30)
+  tool_payload TEXT,                   -- 도구 결과 원본 JSON. tool_result 행만 (D77-2)
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
   -- 깨진 걸 아무도 모른다 (D41)
@@ -264,7 +295,252 @@ CREATE TABLE traces (
 CREATE INDEX idx_traces_session ON traces(session_id, seq);
 ```
 
+**`payload` 와 `tool_payload` 를 나눈 이유 (D77-2).** `payload` 는 **SSE 로 흘려보낸 `data` 와
+바이트 동일**이 계약이고(D30), `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로
+대조한다. 도구 결과 **원본**은 화면·평가가 요약본이 아닌 원문을 봐야 할 때 필요한데, 이걸
+`payload` 에 섞으면 "발행한 것과 저장한 것이 같다"는 대조가 조용히 깨진다. 그래서 컬럼을 따로 둔다.
+`tool_result` 행에만 값이 있으므로 **nullable** 이며, `tool_call`·`block` 행에는 NULL 이다.
+
+> ⚠ **Sprint 6 은 컬럼만 만든다.** 값을 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은
+> D77-2 담당이 별도로 처리한다. 시드는 `traces` 에 행을 넣지 않는다.
+
 **테이블로 두지 않는 것:** 제조사 A/S 연락처(S4 안내용)는 데이터가 아니라 **설정(config) 상수** — 공급사(suppliers.contact)와 성격이 다르고 기종당 1개뿐이라 테이블이 과함.
+
+---
+
+# Sprint 6 확장 — 근거 계층·처분 판정·자산가치 (F1·F2·F4)
+
+> `docs/11_ASSET_LIFECYCLE.md` §7~§8 · `docs/12_*` 의 도구 명세가 읽는 테이블 7종.
+> **§10은 없다** — 위 "세는 단위 주의" 참조.
+
+## 11. assets — 호스트 설비 (D68)
+
+> 확장 기능 6종의 **판정 대상**. `equipment`(인버터)는 이 자산의 부품이다.
+
+```sql
+CREATE TABLE assets (
+  asset_id      TEXT PRIMARY KEY,          -- 'AST-L3-CONV'
+  name          TEXT NOT NULL,
+  category      TEXT NOT NULL,             -- residual_curve 조인 키 (원본 CSV 바이트 그대로)
+  line_id       INTEGER NOT NULL,
+  building_id   TEXT,                      -- risk_profile(F6) 자리. 참조 테이블 없으므로 FK 없음
+  acquired_at   DATE,
+  acquisition_cost INTEGER,
+  book_value    INTEGER,
+  status        TEXT NOT NULL DEFAULT 'IN_USE',
+  -- 법정 조건 사실 (11 §7). NULL = "모른다" → 엔진의 INSUFFICIENT_FACTS 경로 (D62)
+  tax_credit_applied       BOOLEAN,
+  has_lien                 BOOLEAN,
+  lien_creditor            TEXT,
+  lien_consent_ref         TEXT,
+  policy_id                TEXT,
+  safety_inspection_target BOOLEAN,
+  last_inspection_date     DATE,
+  inspection_valid_until   DATE,
+  -- 자산가치 (12 §9)
+  cumulative_repair_cost INTEGER NOT NULL DEFAULT 0,
+  last_overhaul_at       DATE,
+  controller_generation  TEXT,
+  parts_eol_flag         BOOLEAN NOT NULL DEFAULT 0,
+  CHECK (status IN ('IN_USE','IDLE','DISPOSAL_PENDING','DISPOSED'))
+);
+```
+
+**법정 조건 사실이 `equipment` 가 아니라 여기 있는 이유 (D68).** `11 §7` 은 "equipment 확장"이라
+썼지만 D68이 대상을 호스트 설비로 바꿨다. 담보·세액공제·안전검사는 **거래 단위**에 붙는 사실이고,
+인버터 한 대만 따로 처분하는 일은 없다.
+
+**`NULL`은 `CLEAR`가 아니다 (D62).** 이 절의 사실 컬럼이 NULL 이면 룰 엔진의
+`required_facts` 검사에서 누락으로 잡혀 `INSUFFICIENT_FACTS` 가 된다. 시드는 이 경로를
+`AST-L4-DUST`(`tax_credit_applied = NULL`)로 재현한다. **"모른다"를 0/false 로 채우지 않는다.**
+
+**안전검사 이력은 대상 기계에만 채운다.** `last_inspection_date`·`inspection_valid_until` 은
+`safety_inspection_target = 1` 인 `AST-L2-SPDL` 1건만 값이 있고 **나머지 8건은 NULL** 이다.
+비대상 기계에는 검사 자체가 존재하지 않으므로 날짜를 넣으면 **없는 법정 사실을 지어내는 것**이다
+(D62·D65). `SAFETY-INSPECTION.required_facts` 가 트리거가 읽지도 않는 이 두 필드를 요구해
+비대상까지 `INSUFFICIENT_FACTS` 가 되지만, **그건 룰의 결함이고 시드가 데이터로 덮을 일이 아니다** —
+`required_facts` 정합은 **D77 로 Stage 3(MQ-601b)** 이 처리한다. 데이터로 덮으면 검증 ⑮
+("룰 카탈로그가 실제로 5종 판정을 내는가")가 거짓 통과한다.
+
+`lien_creditor`·`lien_consent_ref` 는 반대다 — 담보가 **없다**는 건 확인된 사실이므로
+"해당 없음"(빈 문자열)이 맞고 NULL 이 아니다. **없음과 모름을 구분하는 게 D62의 요지다.**
+
+**`acquired_at` 은 실행 연도 기준 상대값이다.** `assess_repair_value` 가
+`age = 오늘연도 - year(acquired_at)` 으로 잔가 버킷을 잡으므로, 날짜를 고정하면 해가 바뀔 때
+버킷이 조용히 밀린다(반복 고장 상대 날짜와 같은 이유).
+
+## 12. law_refs — 계층 1 법령 스냅샷 (조회용 사본)
+
+> **정본은 `data/rules/laws/*.json` 이다 (D60).** 이 테이블은 조인·조회 편의를 위한 사본이며,
+> 개정 반영은 파일에서 일어난다.
+
+```sql
+CREATE TABLE law_refs (
+  law_ref_id TEXT PRIMARY KEY,
+  law_name TEXT NOT NULL, article TEXT NOT NULL, clause TEXT,
+  title TEXT NOT NULL, text TEXT,
+  fetch_status TEXT NOT NULL,
+  effective_from DATE, effective_to DATE,
+  promulgation_no TEXT, source_url TEXT, retrieved_at DATETIME,
+  text_hash TEXT, supersedes TEXT, verification_note TEXT,
+  CHECK (fetch_status IN ('PENDING','FETCHED','FAILED'))
+);
+```
+
+**적재는 반드시 `engine.load_laws()` → `engine.load_rules(laws)` 를 경유한다 (D61).**
+파일을 직접 파싱해 INSERT 하면 **근거 없는 룰이 DB 로 들어가는 우회로**가 생긴다.
+`RuleIntegrityError` 가 나면 시드는 **전체 중단**하고 만들던 DB 파일을 지운다 — 부분 적재된 DB는
+"룰이 몇 개 빠진 채로 전부 CLEAR" 를 만들어내므로 없는 것보다 나쁘다.
+
+현재 7건 전부 `fetch_status='PENDING'` 이다(`LAW_API_OC` 미발급). **판정과 조문 인용은 정상
+동작**하며, 도구는 `evidence_completeness:"LAW_TEXT_PENDING"` 으로 그 사실을 표시한다.
+`build_evidence_bundle` 만 의도적으로 거부한다 — `text_hash` 가 null 이면 해시할 사실이 없다.
+
+## 13. rules — 계층 2 해석 룰 (조회용 사본)
+
+```sql
+CREATE TABLE rules (
+  rule_id TEXT NOT NULL, rule_version INTEGER NOT NULL,
+  label TEXT NOT NULL, category TEXT NOT NULL,
+  disposal_type TEXT NOT NULL, source_type TEXT NOT NULL,
+  law_refs TEXT NOT NULL, contract_refs TEXT NOT NULL,   -- JSON array
+  interpretation TEXT NOT NULL, required_facts TEXT NOT NULL,
+  trigger TEXT NOT NULL, boundary TEXT,
+  message TEXT NOT NULL, resolve_options TEXT NOT NULL,
+  confidence TEXT NOT NULL, requires_expert_review BOOLEAN NOT NULL,
+  PRIMARY KEY (rule_id, rule_version),
+  CHECK (disposal_type IN ('BLOCKING','PRECONDITION','AUTO_CLOSE')),
+  CHECK (source_type IN ('LAW','CONTRACT')),
+  CHECK (json_valid(law_refs) AND json_valid(contract_refs) AND json_valid(trigger))
+);
+```
+
+**`(rule_id, rule_version)` 복합 PK = "해석은 개정된다".** 같은 룰의 옛 버전을 지우면
+과거 결정이 어떤 해석 아래 내려졌는지 재현할 수 없다 — `decisions.evidence_bundle` 이
+`rule_version` 을 박아 두는 것과 짝이다.
+
+정본은 `data/rules/rules/*.json`(5건). **지출 판정 룰을 이 디렉토리에 넣지 말 것** —
+`check_disposal_blockers` 가 디렉토리 전체를 로드하므로 처분 판정에 섞여 들어간다.
+
+## 14. decisions — 계층 3 서명
+
+> **쓰기 경로는 Sprint 7의 사람 전용 API.** MCP 도구는 이 테이블에 손대지 않는다 (D10 태도).
+
+```sql
+CREATE TABLE decisions (
+  decision_id TEXT PRIMARY KEY,
+  asset_id  TEXT NOT NULL REFERENCES assets,
+  decision_type TEXT NOT NULL,           -- 'DISPOSAL' | 'REPAIR'
+  evidence_bundle TEXT NOT NULL,         -- JSON: {laws[], rules[], facts{}}
+  bundle_hash TEXT NOT NULL,
+  verdict_at_signing TEXT NOT NULL,
+  override BOOLEAN NOT NULL DEFAULT 0,
+  override_reason TEXT,
+  reviewed_by TEXT REFERENCES users,
+  signed_at DATETIME,
+  state TEXT NOT NULL DEFAULT 'draft',
+  -- D63 을 스키마로 잠근다 — 사유 없는 override 는 저장 자체가 불가
+  CHECK (override = 0 OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
+  CHECK (json_valid(evidence_bundle)),
+  CHECK (state IN ('draft','pending','signed','rejected'))
+);
+```
+
+**D63을 문서가 아니라 스키마로 잠갔다.** "override 하려면 사유를 쓰라"를 애플리케이션 검증에만
+두면 경로 하나만 빠뜨려도 사유 없는 무시가 저장된다. 시드 검증 **⑰** 이 실제로 INSERT 를
+시도해 CHECK 가 거부하는지 확인한다(⑩ FK 프로브와 같은 이유 — 한 번도 실행되지 않는 제약은
+있는 셈 치기 쉽다).
+
+## 15. flags — 법정 조건 상태
+
+```sql
+CREATE TABLE flags (
+  flag_id INTEGER PRIMARY KEY,
+  asset_id TEXT NOT NULL REFERENCES assets,
+  rule_id TEXT NOT NULL, rule_version INTEGER NOT NULL,
+  disposal_type TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'OPEN',
+  raised_at DATETIME NOT NULL, resolved_at DATETIME,
+  resolved_by TEXT REFERENCES users, evidence_ref TEXT,
+  CHECK (state IN ('OPEN','IN_PROGRESS','RESOLVED','WAIVED'))
+);
+```
+
+발생 → 이행 → 해소의 **상태**를 남긴다. 기한 추적(`deadlines`, F5)과 성격이 다르다 —
+이쪽은 "무엇이 걸렸고 누가 어떻게 풀었는가"이고 저쪽은 "언제까지"다. **Sprint 6 시드는 0행**
+(쓰기 경로가 Sprint 7이므로 지어낸 이력을 넣지 않는다).
+
+## 16. repair_records — 수리 증빙
+
+```sql
+CREATE TABLE repair_records (
+  repair_id TEXT PRIMARY KEY,
+  equipment_id TEXT NOT NULL REFERENCES equipment,   -- 수리는 인버터 단위 (D68 ⓑ)
+  model TEXT, error_code TEXT,
+  part_class TEXT,
+  work_type TEXT NOT NULL,               -- PLANNED | UNPLANNED  ★미기재 거부 (12 §7)
+  expenditure_class TEXT,                -- CAPITAL | REVENUE | HOLD
+  cost INTEGER NOT NULL,
+  downtime_hours REAL,                   -- MTTR 산식의 유일한 원천
+  parts TEXT,                            -- JSON array
+  performed_by TEXT REFERENCES users, verified_by TEXT REFERENCES users,
+  signed_at DATETIME, record_hash TEXT,
+  state TEXT NOT NULL DEFAULT 'draft',
+  FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),  -- D13·D33
+  CHECK (work_type IN ('PLANNED','UNPLANNED')),
+  CHECK ((model IS NULL) = (error_code IS NULL)),
+  CHECK (parts IS NULL OR json_valid(parts)),
+  CHECK (expenditure_class IS NULL OR expenditure_class IN ('CAPITAL','REVENUE','HOLD'))
+);
+```
+
+**`downtime_hours` 는 `12 §9` 에 없는 컬럼이다.** `12 §2` 가 MTTR 을 요구하는데 저장소에
+수리 시간 원천이 전혀 없어 추가했다. (`12 §9` 본문 반영은 MQ-613.)
+
+**`signed_at IS NULL` 인 레코드는 지표에서 제외된다 (`12 §11`).** 시드 12건 중
+**`RPR-2403`(INV-L3-01) 1건이 미서명**이며, `get_maintenance_metrics` 의 `excluded[]` 문장과
+`planned_ratio` 분모 제외가 이 한 행으로 검증된다. `assets.cumulative_repair_cost` 도
+**서명분만** 합산한다.
+
+**`(model, error_code)` 는 짝이거나 둘 다 NULL 이다 (D13·D33).** `--with-error-codes` 없이
+시드하면 `error_codes` 가 0행이라 복합 FK 를 만족시킬 수 없어 둘 다 NULL 로 넣는다
+(`po_drafts` 와 같은 처리). 계획 정비(`PLANNED`)는 애초에 에러코드가 없어 항상 NULL 이다.
+
+**`record_hash` 는 시드 전량 NULL 이다.** 서명 해시 규약(키 정렬·구분자 고정)은 Sprint 7의
+서명 API 와 `build_evidence_bundle` 의 `bundle_hash` 가 함께 정한다 — 지금 임의 규약을 심으면
+나중 검증이 조용히 어긋난다.
+
+## 17. residual_curve — 잔가율 격자 (D65·D74)
+
+> 정본은 `data/extracted/residual_curve.json`(`data/build_residual_curve.py` 산출).
+
+```sql
+CREATE TABLE residual_curve (
+  category   TEXT NOT NULL,
+  age_bucket TEXT NOT NULL,          -- '0-2'|'3-5'|'6-10'|'11-15'|'16-20'|'21-30'
+  residual_ratio REAL NOT NULL,
+  n_samples INTEGER,                 -- 목업이면 NULL (D74)
+  p25_ratio REAL, p75_ratio REAL,    -- 목업이면 NULL
+  base_n    INTEGER,                 -- 목업이면 NULL (D74)
+  source TEXT NOT NULL,              -- 목업임이 이 필드에 명시된다
+  PRIMARY KEY (category, age_bucket)
+);
+```
+
+**표본 필드 4종이 nullable 인 이유 (D74).** 값 원천이 호가 중앙값에서 **목업 정률 공식**으로
+바뀌면서 표본 개념 자체가 사라졌다. `NOT NULL` 을 걸면 "표본이 없는데 표본 수를 채우는"
+거짓말을 스키마가 강제하게 된다.
+
+**현재 42행 = 카테고리 7 × 버킷 6, 격자 공백 없음.** 검증 ⑯ 은 행 수를 하드코딩하지 않고
+`총행수 == 카테고리수 × 버킷수` 로 본다 — 검사해야 할 성질은 "36행"이 아니라 **격자에 구멍이
+없는가**이고, 카테고리가 늘 때마다 상수를 고치면 그 사이 위양성 FAIL 이 난다.
+
+**`category` 문자열은 원본 CSV 바이트 그대로다.** `'환경  설비'` 는 **공백 2칸**이며
+`data/data_list.md §6-1` 의 `환경설비` 표기가 오기다. 문서에서 베끼지 말 것.
+카테고리 선정 기준은 `data/analysis/residual_curve.md §2-6`.
+
+**곡선이 없으면 시드는 0행으로 성공한다.** 소비 측(`assess_repair_value`)이 `HOLD` 를 내는 게
+정답이지, 시드가 죽어 DB 자체가 없어지는 건 과잉이다.
 
 ---
 
@@ -280,7 +556,58 @@ CREATE INDEX idx_traces_session ON traces(session_id, seq);
 | 미확인 호환 | 대체품 1건 compat_confirmed=false | 제안 금지 검증 |
 | 규모감 | 부품 ~40종, 설비 ~10대, 공급사 4곳, 이력 ~200건 | 데모 현실감 |
 
+### Sprint 6 확장 케이스 맵 (assets 9건)
+
+`age` 는 **실행 연도 기준 상대 연차**다. `disposal_date` 는 시드 컬럼이 아니라 **도구
+파라미터**이며, 잔가 버킷 요구(연 단위)와 처분 룰 요구(취득 후 개월)가 같은 자산에 동시에
+걸리므로 `acquired_at` 은 잔가 기준으로 고정하고 `months_since_acquisition` 은 이 값으로 만든다.
+`seed.py` 실행 시 자산별 프로브 날짜를 출력한다.
+
+| asset_id | category | age→bucket | 처분 사실 | 기대 (처분) | 기대 (assess_repair_value) |
+|---|---|---|---|---|---|
+| `AST-L1-CONV` | `일반산업` | 5 → `3-5` | 무해당 | — | — |
+| `AST-L2-SPDL` | `공작 기계` | 16 → `16-20` | `has_lien=0`, `safety_inspection_target=1` | CONDITIONAL | REPAIR_RECOMMENDED |
+| `AST-L2-CLNT` | `공조냉각유공압` | 9 → `6-10` | 무해당 | — | — |
+| `AST-L3-CONV` | `일반산업` | 6 → `6-10` | `tax_credit_applied=1`, `has_lien=1`, `lien_consent_ref=NULL`, 취득 후 17개월 | BLOCKED | ROOT_CAUSE_FIRST |
+| `AST-L3-EXFAN` | `공조냉각유공압` | 8 → `6-10` | 무해당 | — | — |
+| `AST-L3-LIFT` | `일반산업` | 3 → `3-5` | 전 사실 채움·무해당 | CLEAR | HOLD (`acquisition_cost` NULL) |
+| `AST-L4-CONV` | `일반산업` | 4 → `3-5` | 무해당 | — | — |
+| `AST-L4-WRAP` | `기타` | 20 → `16-20` | 취득 후 **23개월**(경계 22~26) | HOLD | SELL_AS_IS |
+| `AST-L4-DUST` | `환경  설비` | 12 → `11-15` | `tax_credit_applied=NULL` | INSUFFICIENT_FACTS | REPLACE_RECOMMENDED (`parts_eol_flag=1`) |
+
+`error_history` 는 두 대를 손으로 형상화해 MTBF 추세를 결정론적으로 만든다 —
+`INV-L2-01`(90일 등간격 → `stable`) · `INV-L4-02`(직전 12M 140일 → 최근 12M 46일 → `declining`).
+잡음 생성에서 이 둘을 제외하고, **다른 설비가 우연히 30일 3회를 채우지 못하게 막는다** —
+`repeat_failure` 가 켜지면 `assess_repair_value` 가 전부 `ROOT_CAUSE_FIRST` 로 수렴해
+3지 판단 데모가 사라진다. 반복 고장은 `INV-L3-01` 전용이다.
+
+> ⚠ **처분 기대 verdict 중 CONDITIONAL·CLEAR 는 현재 룰 카탈로그로 재현되지 않는다.**
+> `VAT-INVOICE.required_facts` 의 `sale_amount`·`buyer_biz_no` 와
+> `INSURANCE-NOTIFY.required_facts` 의 `risk_grade_before`·`risk_grade_after` 에
+> **원천이 없어**(전자는 컬럼도 도구 파라미터도 없고, 후자는 F6 `risk_profile` 이 범위 밖)
+> 전 자산이 최소 2건의 `INSUFFICIENT_FACTS` 를 얻고, 엔진의 우선순위
+> `blockers > (holds|insufficient) > preconds > CLEAR` 때문에 `HOLD` 로 수렴한다.
+> 같은 이유로 `LIEN-CONSENT` 는 `required_facts` 에 `lien_consent_ref` 를 넣고 트리거는
+> `is_null` 을 보므로, "None 키는 facts 에 넣지 않는다"(D62) 아래에서 **구조적으로 트리거될 수
+> 없다** — `AST-L3-CONV` 의 BLOCKED 는 `TAX-CREDIT-2Y` 단독으로 성립한다(기대 2건 중 1건).
+> `SAFETY-INSPECTION` 도 같은 유형이 하나 더 있다(트리거가 읽지 않는 2필드를 요구).
+> **시드로 덮지 않았다** — 덮으면 ⑮ 가 거짓 통과한다. 해소는 **D77 / Stage 3** 소관이다.
+
 ## 다음 단계 (M1 착수 순서)
 1. LS 매뉴얼 2종(iG5A, S100) 다운로드 → 에러코드 표 추출 → `error_codes` 적재 (최대 리스크 구간)
 2. 시드 생성 스크립트 (`seed.py`) — 위 케이스 맵 그대로
 3. MCP 서버 골격 + 도구 7종(읽기 6+쓰기 1) 연결
+
+## 자가 검증 목록 (`uv run python data/seed.py`)
+
+| # | 검사 | 근거 |
+|---|---|---|
+| ①~⑦ | 시드 케이스 맵 7종 | 위 표 |
+| ⑧ | `error_codes` 적재 (`--with-error-codes` 시 65건, 기본 0건) | 사람 승인 게이트 |
+| ⑨~⑪ | `users` 3행 · 미등록 user_id FK 거부 · `display_name` DB 조회 | D41 |
+| ⑫ | `assets` 9행 · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`) | D68 |
+| ⑬ | `law_refs` 사본 == `data/rules/laws/*.json` **파일 목록** (하드코딩 금지) | D60 |
+| ⑭ | `rules` 5행 · 근거(`law_refs`+`contract_refs`) 없는 룰 0건 | D61 |
+| ⑮ | 처분 5자산의 `check_disposal_blockers` verdict 일치 | **MQ-601b 소유 — 아직 없음** |
+| ⑯ | `parts.part_class` NULL 0건 · 잔가 격자 공백 0 · 단조 감소 · 목업 표기 | D12·D74 |
+| ⑰ | 사유 없는 `override` INSERT → CHECK 거부 | D63 |

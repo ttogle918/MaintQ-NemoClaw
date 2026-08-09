@@ -4,6 +4,12 @@
 
 **사용자 지시**: "성능 튜닝(3차 평가·지표 개선)은 나중으로 미루고, **기능 구현을 싹 다 먼저** 한다."
 
+> 🔀 **이 스프린트는 병행 세션과 같은 저장소에서 돌았다.** 상대 세션(`4dc6448`·`c3a46c8`)이
+> **D76(도구 결과 구조 보존)** 을 먼저 가져갔고, 이쪽에서 D76 으로 기입했던 룰 정합 결정은
+> **D77 로 재번호**했다. 회귀 기준선도 상대 세션의 `agent_loop_contract` +5 를 반영해
+> **303건**(273 + `law_fetch` 25 + `agent_loop` 5)이 정본이다.
+> 파일 교집합은 없었다 — 상대는 `backend/agent/`·`spikes/`, 이쪽은 `data/`.
+
 **선행 상태**: M1~M4 완료. Sprint 5 종료(`sprint-5.md`) — 회귀 **273건(17스위트)** + 정적 3종 통과.
 > ⚠ 계획 수립 시 인용한 "257건(16스위트)"은 **오집계였다**(Sprint 4 기준선 248 + 9 로 계산하며 `eval_replay_guard` 16건을 누락). `sprint-5.md:554-577` 의 2026-08-08 실측 정정치 **273건 · 17스위트**가 정본이다. Stage 1 실측으로 재확인됨.
 S1~S4 파이프라인은 실 서버·실 LLM·실 MCP로 20문항 2회 완주 확인됨. 완료 기준 5지표 중 3개 미달이나
@@ -282,7 +288,7 @@ MQ-602L ────────────────────────
   - `uv run python data/build_residual_curve.py` → (A) 파라미터·곡선·카테고리 `repr()` 출력 → (B) 3단 근거 출력
   - **CSV 를 치운 상태에서도 exit 0** 이고 JSON md5 가 동일할 것 (곡선의 외부 무의존 증명)
   - **카테고리 유일값을 `repr()` 로 출력**하고 `residual_curve.md` 와 일치 (`환경  설비` 공백 2칸이 보일 것)
-  - `residual_curve.json` **36행**(카테고리 6 × 버킷 6, 격자 공백 없음) · 전 행 `0 < residual_ratio ≤ 1` ·
+  - `residual_curve.json` **42행**(카테고리 7 × 버킷 6, 격자 공백 없음 — N-12 로 `공조냉각유공압` 추가) · 전 행 `0 < residual_ratio ≤ 1` ·
     **버킷 순 단조 감소** · **표본 필드 4종 전부 `null`** · `source` 에 목업 표기
   - **연차 격자표를 `residual_curve.md` 에 남긴다 — MQ-601a 의 시드 설계 입력이다**
   - 멱등성(연속 2회 json·md md5 동일) · `ruff check` 통과
@@ -297,7 +303,7 @@ MQ-602L ────────────────────────
 - **변경 파일**: `data/seed.py` · `docs/05_DB_SCHEMA.md`
 - ⛔ `engine.py`·`test_rules.py`·`data/rules/laws/` 접근 금지 (MQ-601b·MQ-602L 소유)
 
-> ### 🔗 D76-2 편입 (2026-08-09 추가 — 별개 작업에서 인계)
+> ### 🔗 D77-2 편입 (2026-08-09 추가 — 별개 작업에서 인계)
 >
 > **`traces` 에 `tool_payload TEXT` 컬럼을 함께 추가한다.** `data/seed.py` 가 이 태스크의
 > 단독 소유라 여기서 처리해야 충돌이 없다.
@@ -310,9 +316,9 @@ MQ-602L ────────────────────────
 >   계약이고(D30) `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로 검증한다.
 >   여기에 도구 원본을 넣으면 평가의 두 소스 대조가 깨진다.
 > - `tool_payload` 는 **nullable** — `tool_call`·`block` 행에는 없다.
-> - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D76-2 담당자가 별도로** 처리한다.
+> - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D77-2 담당자가 별도로** 처리한다.
 >   이 태스크는 **컬럼 추가와 `05_DB_SCHEMA` 반영까지만**.
-> - 근거·전체 맥락: **D76**
+> - 근거·전체 맥락: **D77**
 
 - **DDL — 신규 7테이블**
 
@@ -516,7 +522,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   - ⑫ `assets` **9행** · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`)
   - ⑬ `law_refs` 행 수 == `data/rules/laws/*.json` 파일 수 (**하드코딩 금지** — MQ-602L 이 파일을 추가하므로 동적 비교)
   - ⑭ `rules` 5행, 전 행 `law_refs`+`contract_refs` 비어있지 않음
-  - ⑯ `parts.part_class` NULL 0건 · `residual_curve` 적재 시 **36행**(카테고리 6 × 버킷 6, 격자 공백 없음) ·
+  - ⑯ `parts.part_class` NULL 0건 · `residual_curve` 적재 시 **42행**(카테고리 7 × 버킷 6, 격자 공백 없음) ·
     전 행 `0 < residual_ratio ≤ 1` · **버킷 순서대로 단조 감소** · `source` 에 목업 표기 존재
     (⚠ `base_n ≥ 30` 검사는 **폐기** — D74 로 표본 개념이 사라졌다)
 
@@ -544,8 +550,36 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
 #### MQ-601b — 근거계층 DB 로더 · `build_facts` · `asset_id` 전환
 
 - **복무 시나리오**: S9·S10·S18 (전 확장 도구의 공통 진입)
-- **변경 파일**: `data/rules/engine.py` · `data/rules/test_rules.py` · `spikes/rules_db_load.py`(신규) ·
-  `data/seed.py`(⑮ 1건만 추가 — MQ-601a 완료 후이므로 순차 편집, 충돌 없음)
+- **변경 파일**: `data/rules/engine.py` · `data/rules/test_rules.py` · **`data/rules/rules/*.json`(신규 소유 — D77)** ·
+  `spikes/rules_db_load.py`(신규) · `data/seed.py`(⑮ 1건만 추가 — MQ-601a 완료 후이므로 순차 편집, 충돌 없음)
+
+- **🔴 선행 과제 — 룰 카탈로그 정합 (D77, Stage 2 실측으로 발견)**
+
+  **현재 처분 판정 5종 중 `CONDITIONAL`·`CLEAR` 가 어떤 시드로도 도달 불가다.** 룰 5종 중 3종의
+  `required_facts` 가 자기 트리거와 어긋나 **모든 자산에서 항상 `INSUFFICIENT_FACTS`** 를 만들기 때문이다.
+  이걸 먼저 고치지 않으면 **이 태스크의 verify ⑮ 와 MQ-604 DoD 가 구조적으로 통과할 수 없다.**
+
+  | 룰 | `required_facts` 수정 | 근거 |
+  |---|---|---|
+  | `LIEN-CONSENT` | `lien_consent_ref` **제거** → `["has_lien","lien_creditor"]` | 부재가 곧 트리거 조건(`is_null`)이라 선언하면 논리적으로 발화 불가 |
+  | `INSURANCE-NOTIFY` | `building_id`·`risk_grade_before`·`risk_grade_after` **제거** → `["policy_id"]` | 원천이 F6 `risk_profile`(범위 밖). 트리거 `any_of` 의 `policy_id is_not_null` 분기로 정상 발화한다 |
+  | `VAT-INVOICE` | `sale_amount`·`buyer_biz_no` **제거**, `vat_invoice_issued` **추가** → `["disposal_mode","vat_invoice_issued"]` | 거래 사실은 자산 사실이 아니다. 트리거가 실제 읽는 것은 `vat_invoice_issued` 인데 선언돼 있지 않았다 |
+  | **`SAFETY-INSPECTION`** (Stage 2 추가 발견) | `last_inspection_date`·`inspection_valid_until` **제거** → `["safety_inspection_target","disposal_mode"]` | 트리거가 `safety_inspection_target` 만 읽는다. 두 날짜는 메시지·체크리스트용이라 D77 원칙 ③ 대상. **이 4번째 룰을 안 고치면 3종만 고쳐도 `CONDITIONAL`·`CLEAR` 는 여전히 미도달**(eval-runner 실측: 5자산 전부 `missing=['disposal_mode']`) |
+
+  > ⚠ **Stage 2 에서 시드가 이 결함을 데이터로 덮었다가 되돌렸다** — 안전검사 **비대상** 자산 8건에
+  > `last_inspection_date` 를 채워 넣었던 것을 reviewer 가 D62·D65 위반으로 잡았다(없는 법정 사실 생성).
+  > 되돌린 결과 **비대상 자산은 NULL** 이므로, 이 룰을 고치기 전에는 `verify ⑮` 가 정직하게 실패한다.
+  > **그게 정상이다** — 허위 데이터로 GREEN 을 만들지 않는다.
+
+  - ⛔ **`trigger`·`boundary`·`interpretation`·`law_refs` 는 건드리지 마라.** `required_facts` 만 고친다
+  - ⛔ **`rule_version` 을 올려라** — 해석이 바뀐 게 아니라 선언 오류 정정이지만, `rules` 테이블이
+    `(rule_id, rule_version)` 복합 PK 이고 D60 이 "해석은 개정된다"를 전제한다. 변경 사유를 파일에 남길 것
+  - **`build_facts` 가 `vat_invoice_issued` 를 채운다** — precheck 는 **거래 성립 전**이므로 `False` 가 확정 사실이다.
+    ⚠ 지어내는 게 아니라 **판정 시점의 정의**이며, 그 근거를 docstring 에 남겨라. 다른 거래 사실은 채우지 마라
+  - **`risk_score_delta_pct` 경계 확인** — `INSURANCE-NOTIFY.boundary` 가 이 필드를 읽는데 원천이 없다.
+    **키 부재 시 경계 검사가 예외를 내거나 잘못 `HOLD` 로 빠지지 않는지** 실제로 확인하고, 문제가 있으면 보고해라
+  - **`test_rules.py` 에 발화 가능성(satisfiability) 회귀 추가 (D77)** — 룰 5종 **각각**에 대해
+    "`TRIGGERED` 를 만드는 사실 조합이 존재한다"를 검사한다. 지금의 `LIEN-CONSENT` 가 이 테스트에 걸려야 정상이다
 
 - **인터페이스**
 
@@ -582,13 +616,18 @@ def build_facts(
 
 - **`verify` ⑮ 추가**: 처분 시나리오 5자산의 `check_disposal_blockers(build_facts(row))` verdict 가
   MQ-601a 시드의 기대값과 일치
-- **지켜야 할 결정**: D61 · D62 · D68 · D60
+- **지켜야 할 결정**: D61 · D62 · **D77** · D68 · D60
 - **DoD**
   - `uv run --with pytest python -m pytest data/rules/test_rules.py -q` → **19 passed** (`asset_id` 전환 후 개수 유지)
   - `uv run python spikes/rules_db_load.py` 통과 — ⓐ 파일 로더 == DB 로더(`LawRef`/`Rule` dataclass 동치)
     ⓑ DB 에 근거 없는 룰 행을 심으면 `RuleIntegrityError` ⓒ NULL 컬럼이 facts 키에서 빠짐
     (`"tax_credit_applied" not in facts`) ⓓ 그 결과 verdict 가 `INSUFFICIENT_FACTS`(**≠`CLEAR`**)
   - `uv run python data/seed.py` → ⑮ 포함 전부 PASS · `ruff check`
+  - **처분 판정 5종이 전부 재현된다** — `AST-L3-CONV`→BLOCKED(**blockers 2건**: TAX-CREDIT-2Y + LIEN-CONSENT) ·
+    `AST-L4-WRAP`→HOLD · `AST-L2-SPDL`→**CONDITIONAL** · `AST-L4-DUST`→INSUFFICIENT_FACTS · `AST-L3-LIFT`→**CLEAR**
+    (뒤 두 종은 D77 수정 전에는 도달 불가였다 — 이게 이 태스크의 실질 관문이다)
+  - `data/rules/rules/*.json` **5개 유지**(파일 추가·삭제 없음), 전 룰 `rule_version` 증가, `trigger` 무변경
+  - **발화 가능성 회귀**가 5종 전부에 대해 통과 (D77)
 
 ---
 
@@ -1005,6 +1044,14 @@ def build_system_prompt(
   타입을 좁히면 스키마 검증이 예외를 던져 도구가 `status` 로 실패를 못 돌려준다(D9 위반).
   `asset_id`·`equipment_id`·`disposal_date` 는 전부 `str | None`, `repair_cost`·`amount` 는 `int | str` 로 넓게 받는다.
 
+> 🔀 **병행 세션의 D76(커밋 `4dc6448`) 영향 — Stage 6 착수 전 재확인 필수.**
+> 도구 결과가 프로즈 요약 대신 **원본 dict** 로 LLM 에 가고, `PRESERVE_FIELDS` 화이트리스트가
+> **블랙리스트로 뒤집혔다**. `summarize_result` 는 살아 있으나 역할이 바뀌었다 —
+> `loop.py:124` 가 이를 `_summary` 로 **trimmed dict 안에 넣어 LLM 입력에도 싣는다**(이전엔 trace·SSE 전용).
+> 따라서 신규 7종 분기는 **화면 문자열이자 LLM 이 읽는 요약**이 된다. 더더욱 **결과에 있는 값만** 써야 한다.
+> D76 ⓑ(`traces.tool_payload` 컬럼)는 **아직 미구현**이며 `data/seed.py` SCHEMA 를 건드리므로
+> **MQ-601a 산출물과 충돌 가능** — Stage 6 착수 전 `git log` 로 진행 여부를 확인할 것.
+
 - **`mcp_client.summarize_result` 7종 분기 추가** — 화면·`traces` 에 그대로 저장되므로 **결과에 있는 값만** 쓴다:
   `check_disposal_blockers` → `"BLOCKED · 차단 2건 (TAX-CREDIT-2Y, LIEN-CONSENT)"` /
   `verify_ownership` → `"PARTIAL · 확인 4 / 미확인 5"` / `get_maintenance_metrics` → `"MTBF 41일(달력) · 예방보전 33%"` /
@@ -1028,8 +1075,8 @@ def build_system_prompt(
   - `uv run python spikes/asset_tools_contract.py` 통과 — 도구 7종 × (정상/잘못된 입력/없는 대상)
     **전부 예외 없이 `status` 반환** · `verify_ownership` 이 `VERIFIED` 를 내지 않음 ·
     사실 부족이 `CLEAR` 가 아님 · `assess_repair_value` 에 `estimates` 존재 · **MQ-610 해시 안정성 픽스처 흡수**
-  - **회귀 전량**: 기존 **273건** + 신규 4스위트(`law_fetch_contract` **25** · `rules_db_load` · `disposal_api_contract` ·
-    `asset_tools_contract`) → **298건(Stage 1 종료 실측) 미만이면 실패 판정.** `ruff check` · `tsc --noEmit` · `next build`
+  - **회귀 전량**: 기존 **303건**(273 + law_fetch 25 + agent_loop 5) + 신규 3스위트(`law_fetch_contract` **25** · `rules_db_load` · `disposal_api_contract` ·
+    `asset_tools_contract`) → **303건(병행 세션 4dc6448 의 agent_loop +5 반영) 미만이면 실패 판정.** `ruff check` · `tsc --noEmit` · `next build`
 
 #### MQ-613 — 계약 문서 정합
 
@@ -1050,15 +1097,16 @@ def build_system_prompt(
      `fetch_from_api` 미구현(Sprint 7), `apply_fetch` 완료).
   4. `12_MAINT_VALUE` — §3 3지 판단 JSON 에 `asset_id` 추가, §9 `repair_records` 에 `downtime_hours` 추가,
      §2 MTBF 산식에 **D70 각주**(달력 기준·가동시간 원천 부재).
-  5. `10_DECISIONS` — **D69~D75 는 이미 기입돼 있다**(D69~D74 는 Stage 1 착수 전, D75 는 Stage 1 reviewer 반영분)(승인 문안 그대로). MQ-613 은 **기입이 아니라 전파**를 담당한다 —
-     특히 **D74(D72 supersede)** 와 **D75(계층 1 2단계 기록)** 가 `11`·`12`·`00_MVP_SCOPE`·`07_BACKLOG` 어디에도 아직 반영되지 않았다.
+  5. `10_DECISIONS` — **D69~D77 은 이미 기입돼 있다**(D69~D74 Stage 1 착수 전 · D75 Stage 1 reviewer 반영 · D77 Stage 2 실측 반영)(승인 문안 그대로). MQ-613 은 **기입이 아니라 전파**를 담당한다 —
+     특히 **D74(D72 supersede)** · **D75(계층 1 2단계 기록)** · **D77(룰 `required_facts` 정합)** 이
+     `11`·`12`·`00_MVP_SCOPE`·`07_BACKLOG` 어디에도 아직 반영되지 않았다. **D77 은 `11 §3` 룰 5종 표의 근거 서술과 직결된다.**
   6. `00_MVP_SCOPE` — §범위 확장 표의 기능 7~12 에 **구현 상태 열** 추가(어느 부분이 Sprint 6/7인지).
      **완료 기준 5개는 손대지 않는다**(D67: 범위를 넓히는 것과 품질 기준을 느슨하게 하는 것은 다른 일).
   7. `07_BACKLOG` — P22~P27 진행 표시. **P28 은 ⓑ만 해소로 표시하고 ⓐⓒ 는 열어 둔다.**
      **P28 본문 오기 정정** — "`data/rules/README.md`·`11 §7` 이 SQLite 적재라고 쓴다"에서
      **`data/rules/README.md` 를 뺀다**(실제로 그 문장은 `11 §7` 261행에만 있다). P29 는 손대지 않는다.
   8. **D 범위 표기 4곳** (`CLAUDE.md`·`docs/README.md`·`.claude/agents/reviewer.md`·`docs/00_MVP_SCOPE.md`)
-     → **`D1~D75`** (현재 전부 `D1~D68`). ⚠ 최종 D 번호는 커밋 시점에 `10_DECISIONS.md` 마지막 행으로 재확인할 것 —
+     → **`D1~D77`** (현재 전부 `D1~D68`). ⚠ 최종 D 번호는 커밋 시점에 `10_DECISIONS.md` 마지막 행으로 재확인할 것 —
      Stage 1 처럼 스테이지 도중 결정이 추가될 수 있다.
   9. **`CLAUDE.md` 회귀 스위트 목록을 실제와 맞춘다** — 현재 15개인데 `spikes/` 는 **16파일**
      (`eval_replay_guard.py` 누락). 신규 4종을 더해 **20개**로 갱신.
@@ -1072,7 +1120,7 @@ def build_system_prompt(
       **MQ-602L 에서 완료됐으므로** 완료 표시 ⓒ `A2`(취득원가 없어 잔가율 산출 불가)·`A7`(조달청 분모 조건부 유보)
       항목에 **D74 로 결론이 났음**을 링크. 이 파일은 지금까지 어느 태스크 소유도 아니어서 낡은 채 남아 있었다.
 - **엣지 케이스**: D 번호가 사람 승인 과정에서 바뀜 → 코드 주석의 D 참조도 함께 정정
-- **지켜야 할 결정**: D67(완료 기준 불변) · D68 · 신규 **D69~D75**
+- **지켜야 할 결정**: D67(완료 기준 불변) · D68 · 신규 **D69~D77**
 - **DoD**: `git grep -n "D1~D68\|D1~D73"` → **0건** (제외: `docs/sessions/`·`docs/sprints/` — 이력 문서) ·
   `git grep -n LAW_API_KEY` → `data/rules/fetch_laws.py` 폴백 1곳 외 **0건** (같은 제외 범위 적용) ·
   `git grep -n "equipment_id" docs/11_ASSET_LIFECYCLE.md docs/12_MAINT_VALUE.md` → 남은 건 전부 "인버터 단위" 문맥 ·
@@ -1172,6 +1220,8 @@ Sprint 6 안에 프론트·서명·큐 계약이 들어와 위 1·3번 문제가
 ### 검증
 
 - 회귀 **298건 / 18스위트** 전건 통과 (기준선 273 + `law_fetch_contract` 25). 감소 0
+  > 🔀 커밋 직후 병행 세션의 `4dc6448` 이 `agent_loop_contract` 를 24→29 로 올려 **직전값은 303건**이 됐다.
+  > Stage 2 는 그 위에서 시작한다.
 - `ruff check` clean · `data/rules/test_rules.py` 19 passed · 정본 `laws/*.json` 7파일 md5 불변
 - 프론트 무변경이라 `tsc --noEmit`·`next build` 생략
 - reviewer: 1차 **FAIL**(블로커 B1 — D74 인용 수치가 산출물과 불일치) → 수정 후 2차 **PASS**(블로커 0)
