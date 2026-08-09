@@ -112,18 +112,64 @@ LLM 응답 자체는 근거가 될 수 없다. 세 계층으로 분리한다.
 **`override`가 핵심이다.** 추징을 감수하고 파는 건 정당한 경영 판단이다. 시스템은 막지 않는다 — **막았다는 사실과 뚫은 사람을 기록할 뿐이다.** 사유 미기재는 서명 거부(422). → **D63**
 
 번들 해시 하나로 "이 결정이 참조한 모든 근거가 변조되지 않았다"가 검증된다. 법이 나중에 개정돼도 서명 시점 스냅샷이 그대로 재현된다.
+번들 조립·해시 산출의 정확한 규약(정준 직렬화 4조건, `built_at` 을 번들 밖에 두는 이유)은 `04_MCP_TOOLS §14` 가 정본이다.
+
+### 계층 1 기입은 2단계로 기록한다 (D75)
+
+계층 1은 append-only라 **잃은 원문을 복구할 방법이 없다.** 그래서 개정본 덮어쓰기(`force=True`)는
+**기입하기 전에** `pending_revisions/` 에 직전 원문 스냅샷을 먼저 확보한다.
+
+| `applied` | 뜻 |
+|---|---|
+| `null` | 반영 시도 없음 (개정 감지만 됨) |
+| `"intent"` | **기입 직전** — 스냅샷은 확보됐고 파일 기입은 아직 |
+| `"confirmed"` | 기입 성공 후 승격 |
+
+기입 성공 후 `_confirm_pending_revision` 이 **상태 3필드만** 전이한다(스냅샷 payload 불변).
+Sprint 7 서명 큐는 **`requires_signature == true`** 로 필터한다.
+
+- **순서를 반전하면(기입 후 기록)** 그 사이에 죽었을 때 **덮어쓴 원문의 직전 스냅샷이 통째로 사라진다.** "적용됨이라고만 남은 거짓 기록"보다 **원본 소실이 나쁘다.** 2단계는 기록이 항상 먼저 남고 상태만 정직하지 않은 채 멈춘다 — D55(재생본에 `replay` 표식)와 같은 "실패 사실도 남긴다" 태도다.
+- **정체성 대조 키(`article`·`title`)가 응답에 없거나 비어 있으면 불일치와 동일하게 중단**한다. 한 문장으로 줄이면 **"대조할 값이 없는 것은 대조를 통과한 것이 아니다."** 단 선택적 필드(`effective_from`·`promulgation_no` 등)는 대상이 아니다 — 과잉 게이트면 Sprint 7 수집이 통째로 막힌다.
 
 ---
 
 ## 3. 룰 5종
 
-| rule_id | 유형 | 근거 유형 | 판정 대상 |
-|---|---|---|---|
-| `TAX-CREDIT-2Y` | BLOCKING | LAW | 사후관리 기간 내 처분 → 추징 |
-| `LIEN-CONSENT` | BLOCKING | **CONTRACT** | 채권자 동의 없는 담보물 처분 |
-| `INSURANCE-NOTIFY` | PRECONDITION | LAW | 부보 목적물 변동 통지 |
-| `VAT-INVOICE` | PRECONDITION | LAW | 매각 시 세금계산서 (폐기는 제외) |
-| `SAFETY-INSPECTION` | PRECONDITION | LAW | 이전 후 재검사 |
+> 🔄 **D77·D78 정합 반영분.** `required_facts` 는 **트리거·경계가 실제로 읽는 필드만** 담는다.
+> 정합 전에는 5종 중 3종이 자기 트리거와 어긋나 있었고, 그 결과 처분 판정 5종 중
+> `CONDITIONAL`·`CLEAR` 가 **어떤 시드로도 도달 불가**였다. 아래 `rule_version` 은 그 개정의 흔적이다.
+
+| rule_id | 유형 | 근거 유형 | 판정 대상 | `required_facts` (현행) | `rule_version` |
+|---|---|---|---|---|---|
+| `TAX-CREDIT-2Y` | BLOCKING | LAW | 사후관리 기간 내 처분 → 추징 | `tax_credit_applied` · `acquired_at` · `disposal_date` | 1 |
+| `LIEN-CONSENT` | BLOCKING | **CONTRACT** | 채권자 동의 없는 담보물 처분 | `has_lien` · `lien_creditor` | **2** |
+| `INSURANCE-NOTIFY` | PRECONDITION | LAW | 부보 목적물 변동 통지 | **`insured`** | **3** |
+| `VAT-INVOICE` | PRECONDITION | LAW | 매각 시 세금계산서 (폐기는 제외) | `disposal_mode` · **`vat_invoice_issued`** | **2** |
+| `SAFETY-INSPECTION` | PRECONDITION | LAW | 이전 후 재검사 | `safety_inspection_target` · `disposal_mode` | **2** |
+
+**무엇이 바뀌었나 (4종)**
+
+| rule_id | 무엇이 틀려 있었나 | 어떻게 고쳤나 |
+|---|---|---|
+| `LIEN-CONSENT` | `lien_consent_ref` 를 `required_facts` 에 넣고 **동시에 `is_null` 로 트리거**했다 — 값이 없으면 `INSUFFICIENT_FACTS`, 있으면 트리거 안 함. **논리적으로 절대 발화하지 않는 룰** | `required_facts` 에서 빼고 `has_lien` **불리언**으로 판정 (D77 ⓐ) |
+| `INSURANCE-NOTIFY` | 트리거가 읽는 `risk_grade_changed` 를 선언하지 않은 채, 원천이 F6 `risk_profile`(범위 밖)인 `risk_grade_before/after` 를 요구했다 | `assets.insured` 신설 + 트리거 첫 분기를 `policy_id is_not_null` → **`insured eq true`** (D78) |
+| `VAT-INVOICE` | 트리거가 읽는 `vat_invoice_issued` 를 선언하지 않고, 자산 사실이 아닌 **거래 사실**(`sale_amount`·`buyer_biz_no`)을 요구했다 | 거래 사실을 빼고 `vat_invoice_issued` 를 선언. 이 값은 `build_facts` 가 **명시적 근거와 함께** 채운다(precheck 는 거래 성립 전이므로 미발행) |
+| `SAFETY-INSPECTION` | — (트리거 정합) | `disposal_mode` 를 명시 선언 |
+
+**세 원칙 (D77)**: ① **부재 자체가 트리거 조건인 필드는 선언하지 않는다**(선언하면 논리적으로 발화 불가)
+② **시스템에 원천이 없는 사실은 요구하지 않는다** ③ 트리거가 읽지 않고 메시지·체크리스트에만 쓰는 사실도 요구하지 않는다.
+
+**`evaluate_rule` 은 `required_facts` 미충족을 가장 먼저 `INSUFFICIENT_FACTS` 로 반환**하므로,
+어긋난 룰 3종이 **모든 자산에서 항상 발동**해 우선순위상 자산 전체의 판정을 마비시켰다.
+**D61 이 못 잡는 구멍**이다 — D61 은 "근거(법령)가 있는가"만 보고 **"요구하는 사실에 원천이 있는가"는 보지 않는다.**
+D62 가 지키려던 것은 *실제로 모르는 사실*이지 **애초에 알 수 없게 설계된 사실**이 아니다 — 후자는 정직이 아니라 결함이다.
+
+**회귀 2종을 `test_rules.py` 에 함께 둔다:**
+- **발화 가능성(satisfiability, D77)** — 어떤 사실 조합으로도 `TRIGGERED` 될 수 없는 룰은 실패
+- **해제 가능성(clearability, D78)** — 어떤 사실 조합으로도 해제될 수 없는 룰은 실패
+
+로드 시점 검사가 아니라 회귀인 이유: "부재가 트리거인 필드"는 정당하게 미선언되므로 `load_rules()` 가
+기계적으로 판별할 수 없다 — 발화 가능성은 사실 조합을 실제로 넣어 봐야 안다.
 
 **`LIEN-CONSENT`만 `source_type: CONTRACT`인 이유:** 법령이 담보물 처분을 금지하는 게 아니라 여신거래약관이 기한이익 상실 사유로 정하는 구조다. 근거의 성격이 섞여 있다는 걸 필드로 드러냈다. 뭉뚱그리면 근거가 부정확해진다.
 
@@ -136,6 +182,19 @@ LLM 응답 자체는 근거가 될 수 없다. 세 계층으로 분리한다.
 | **AUTO_CLOSE** | 처분과 함께 자동 closed |
 
 `409`를 쓰는 이유는 D38과 같다 — "권한이 없다(403)"와 "지금 상태에선 안 된다(409)"는 사용자가 할 행동이 다르고, 평가에서 권한 위반 판정에 법정 조건 미충족이 섞이면 안 된다.
+
+### verdict 5종 → HTTP (D79·D71)
+
+`BLOCKED` · `HOLD` · `INSUFFICIENT_FACTS` → **409** / `CONDITIONAL` · `CLEAR` → **200** /
+룰 카탈로그 미적재 → **503** / 없는 자산 → 404 / enum 위반 → 422.
+우선순위는 `blockers > holds > insufficient > preconds > CLEAR`.
+엔드포인트는 `POST /api/assets/{id}/disposal/precheck`(**무저장**)이고 **역할 게이트가 없다** —
+전체 계약은 `06_REPO_API §2.5` 가 정본이다.
+
+**★ `CLEAR` 는 `SCRAP`·`TRANSFER` 에서만 나온다 (D78 부수 확정).**
+`VAT-INVOICE` 가 `disposal_mode == "SALE"` 에서 `vat_invoice_issued=False` 를 확정 사실로 받으므로
+**매각 precheck 은 정의상 최소 `CONDITIONAL`** 이다. 실측(`AST-L3-LIFT`): `SALE=CONDITIONAL` / `SCRAP=CLEAR` / `TRANSFER=CLEAR`.
+**결함이 아니라 도메인 사실이다** — 이걸 버그로 보고 `VAT-INVOICE` 를 손대면 세금계산서 발행 의무가 판정에서 사라진다.
 
 ---
 
@@ -154,38 +213,57 @@ LLM 응답 자체는 근거가 될 수 없다. 세 계층으로 분리한다.
 
 ---
 
-## 5. 도구 (Phase 2 추가분)
+## 5. 도구 (확장분)
 
-MVP 7종은 그대로 두고 아래를 더한다. `04_MCP_TOOLS`의 status 계약(D9·D46)을 따른다.
+코어 7종은 그대로 두고 아래를 더한다. `04_MCP_TOOLS`의 status 계약(D9·D46)을 따르며,
+**입출력 계약의 정본은 `04_MCP_TOOLS §8~§14`** 다(여기서 복제하지 않는다).
+노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만 (D69).
 
-| 도구 | 성격 | 설명 |
-|---|---|---|
-| `check_disposal_blockers` | 읽기 | 처분 가능 여부 + 체크리스트 + 근거. **S9 진입점** |
-| `build_evidence_bundle` | 읽기 | 법령·룰·사실 묶고 해시 산출 |
-| `verify_ownership` | 읽기 | 권리관계 확인 항목별 상태 + 잔여 리스크 |
-| `generate_disposal_document` | **쓰기** | 처분 승인서·진술보장서 draft. 근거 각주 자동 삽입 |
+| 도구 | 성격 | 설명 | 계약 |
+|---|---|---|---|
+| `check_disposal_blockers` | 읽기 | 처분 가능 여부 + 체크리스트 + 근거. **S9 진입점** | `04 §8` |
+| `verify_ownership` | 읽기 | 실사 9카테고리 항목별 상태 + 잔여 리스크 | `04 §9` |
+| `build_evidence_bundle` | 읽기 | 법령·룰·사실 묶고 해시 산출 | `04 §14` |
+| `generate_disposal_document` | **쓰기** | 처분 승인서·진술보장서 draft. 근거 각주 자동 삽입. **미구현 — Sprint 7 (F3)** | — |
 
 `generate_disposal_document`는 `create_po_draft`와 **완전히 같은 패턴**이다 — draft만 생성, 확정은 승인 큐에서만, 신원은 서버 주입(D23·D37). 쓰기 도구가 2종이 되지만 **승인 큐는 공유**한다(발주서·처분서·수리 증빙이 한 큐).
+**현재 구현된 확장 7종에는 쓰기가 하나도 없다** — `build_evidence_bundle` 조차 `decisions` 를 INSERT 하지 않는다 (D10).
 
 ### `check_disposal_blockers` 출력
 
 ```json
 {
-  "equipment_id": "INV-L3-01",
-  "verdict": "BLOCKED",              // BLOCKED | HOLD | CONDITIONAL | CLEAR
+  "status": "ok",
+  "asset_id": "AST-L3-CONV",          // ★ 대상은 인버터가 아니라 호스트 설비다 (D68)
+  "evaluated_at": "2026-08-09",
+  "verdict": "BLOCKED",               // BLOCKED | HOLD | INSUFFICIENT_FACTS | CONDITIONAL | CLEAR (D79)
   "blockers": [{
-    "rule_id": "TAX-CREDIT-2Y",
+    "rule_id": "TAX-CREDIT-2Y", "rule_version": 1,
+    "label": "세액공제 사후관리 기간",
+    "verdict": "TRIGGERED", "disposal_type": "BLOCKING",
     "citations": ["조세특례제한법 제24조(통합투자세액공제)"],
     "law_refs": ["KR-STTC-24"],
+    "message": "…",
     "reasoning": "취득일 2025-03-01, 처분예정 2026-08-10 → 17개월, 24개월 미충족",
     "resolve_options": ["기간 경과 대기", "추징 감수 결정(override, 사유 필수)"],
-    "requires_expert_review": true
+    "requires_expert_review": true,
+    "missing_facts": []
   }],
   "preconditions": [ … ], "holds": [ … ], "insufficient": [ … ],
+  "disposal_mode": "SALE", "disposal_date": "2026-08-10",   // 판정 조건을 되싣는다 —
+                                                            //   같은 자산도 mode·날짜로 판정이 갈린다
+  "evidence_completeness": "LAW_TEXT_PENDING",              // COMPLETE | LAW_TEXT_PENDING
   "not_considered": ["생산 계획·대체 설비 확보", "시장 상황·매각 타이밍", "개별 계약 특약"],
-  "disclaimer": "통상 사례 기준 목업 룰. 실제 적용에는 전문가 검토가 필요하다."
+  "disclaimer": "통상 사례 기준 목업 룰. 실제 적용에는 전문가 검토가 필요하다. 인용 조문의 원문은 아직 수집되지 않았으며 인용은 조문 번호·제목 기준이다."
 }
 ```
+
+**입력은 `asset_id` 또는 `equipment_id` 둘 중 하나**다. `equipment_id` 는 `equipment.asset_id` 로
+해석되는 **입력 편의**일 뿐 판정 대상은 언제나 자산이다 — 호스트 자산이 없는 인버터(`INV-L1-01` 분전반)는
+`no_host_asset` 이며 **"판정 결과 문제 없음"이 아니다.**
+
+**`evidence_completeness` 는 원천이 둘이다** — `verdict`·버킷·인용은 **정본 파일**(`data/rules/{laws,rules}/*.json`)에서,
+완전성 판정과 카탈로그 적재 게이트는 **DB 사본**에서 온다 (D60). 파일과 DB 를 섞어 판정을 조립하지 않는다.
 
 ---
 
@@ -241,24 +319,56 @@ MVP 7종은 그대로 두고 아래를 더한다. `04_MCP_TOOLS`의 status 계�
 
 ---
 
-## 7. 데이터 (Phase 2 추가분)
+## 7. 데이터 (확장분)
 
-`05_DB_SCHEMA`의 11개 테이블에 더한다.
+기존 코어 11개 테이블에 **7개를 더해 총 18개**다 (`05_DB_SCHEMA §11~§17` 이 정본).
 
 ```
-equipment 확장
-  tax_credit_applied, acquired_at, has_lien, lien_creditor,
-  lien_consent_ref, policy_id, safety_inspection_target,
-  last_inspection_date, status
+assets  신규 ★ — 법정 조건 사실은 설비(인버터)가 아니라 자산에 붙는다 (D68)
+  asset_id, name, category, line_id, building_id, status,
+  acquired_at, acquisition_cost, book_value, cumulative_repair_cost,
+  tax_credit_applied, has_lien, lien_creditor, lien_consent_ref,
+  insured ★, policy_id, safety_inspection_target,
+  last_inspection_date, inspection_valid_until,
+  last_overhaul_at, controller_generation, parts_eol_flag
+
+equipment 확장 — `asset_id` 1개뿐 (nullable FK)
+  asset_id      ← 이 인버터가 구동하는 호스트 설비. NULL = 호스트 없음(분전반 등)
 
 신규 테이블
-  law_refs     법령 스냅샷 (append-only)      ※ 파일(git) + SQLite 적재
-  rules        해석 룰 (rule_version 관리)
-  decisions    서명 레코드 (bundle_hash, override, override_reason)
-  flags        법정 조건 플래그 (발생 → 이행 → 해소)
+  law_refs        법령 스냅샷 (append-only)      ※ 파일(git)이 정본 + SQLite 조회용 사본
+  rules           해석 룰 (rule_version 관리)     ※ 위와 동일
+  decisions       서명 레코드 (bundle_hash, override, override_reason)
+  flags           법정 조건 플래그 (발생 → 이행 → 해소)
+  repair_records  수리 증빙 (서명, append-only) — `12 §9`
+  residual_curve  연차 버킷별 잔가율 (목업, D65·D74) — `12 §4`
 ```
 
-`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. 실행 시 SQLite에 적재해 조회한다. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
+> 🔄 **당초 "equipment 확장"이라 썼던 것을 D68 이 바로잡았다.**
+> 처분·취득·자산가치의 대상은 인버터가 아니라 **인버터가 구동하는 호스트 설비**다 — 실측(중진공
+> 중고설비 16,011건 중 인버터 **4건** / 공작기계 7,048건). `§1` 이 처분 서사의 근거로 든
+> "수명 20~30년 · 신품 납기 수개월~1년"도 공작기계 특성이지 인버터가 아니다.
+> **`equipment` 에 붙는 것은 `asset_id` 하나뿐**이고, 법정 조건 사실 컬럼은 전부 `assets` 로 갔다.
+> 제약 3가지: ⓐ **기존 도구 7종의 계약·`equipment_id` 는 불변** ⓑ S3 반복고장 판정은 **인버터 단위 유지**
+> (에러코드가 인버터의 것이므로 — 자산 단위는 *집계*만) ⓒ 호스트가 없는 인버터는 `asset_id` **NULL 허용**.
+
+### `assets.insured` — 한 컬럼이 두 질문을 겸하면 안 된다 (D78)
+
+`policy_id` 한 컬럼이 "부보돼 있는가"와 "증권 번호가 무엇인가"를 겸하고 있었다.
+그래서 **"확인된 미부보"를 표현할 자리가 없었다** — 값이 있으면 항상 `TRIGGERED`, 없으면
+`required_facts` 누락으로 `INSUFFICIENT_FACTS`. 즉 **`CLEAR` 가 어떤 사실 조합으로도 도달 불가**였다.
+
+| `insured` | 뜻 | 판정 |
+|---|---|---|
+| `NULL` | **모름** | `INSUFFICIENT_FACTS` (미부보로 읽지 않는다 — D62) |
+| `0` | **확인된 미부보** | 룰 미발화. 단 `verify_ownership` 은 무보험 위험을 `residual_risk` 에 남긴다 |
+| `1` | 부보 | `INSURANCE-NOTIFY` 발화 (통지 의무) |
+
+`policy_id` 는 **증권 식별자로만** 남는다.
+`required_facts=[]` 로 비우는 안을 버린 이유: 키 부재를 "미부보"로 읽게 되어 "모른다"와 "없다"가 다시 섞인다.
+이건 D77 ⓐ(`LIEN-CONSENT` 가 `has_lien` 불리언을 따로 둔 것)의 **거울상**이다.
+
+`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. **파일이 정본이고 SQLite 는 조회용 사본**이다 (D60) — 판정(`verdict`·인용)은 파일에서, 적재 게이트와 `fetch_status` 조회는 DB 사본에서 온다. 두 사본이 어긋나면 `data/seed.py` 자가검증 ⑬⑭ 가 먼저 잡는다. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
 
 `decisions.reviewed_by`는 `users` FK (D41), ID 저장 (D36), 시각은 UTC (D39).
 
@@ -283,13 +393,27 @@ equipment 확장
 
 F1이 가장 크고 나머지는 그 위에 얇게 얹힌다. **F1만 해도 "근거를 남기는 에이전트"라는 서사는 성립한다.**
 
-### 법령 수집 체크리스트
+### 법령 수집 체크리스트 (실제 상태 — Sprint 6 종료 시점)
 
-- [ ] law.go.kr OPEN API 이용 신청 → `LAW_API_KEY`
-- [ ] 6개 조문 수집 → `text`·`effective_from`·`text_hash` 채우기
-- [ ] **조문 번호·제목 검증** — 개정으로 바뀌므로 응답과 대조
+- [ ] law.go.kr OPEN API 이용 **신청 미완료 (사람이 해야 할 일)** → `.env` 의 **`LAW_API_OC`**
+  ⚠ 변수명에 "KEY" 가 들어가지 않는 이유 — 인증값은 API 키가 아니라 **신청 이메일 ID 앞부분**이다.
+  구 변수명 폴백은 `data/rules/fetch_laws.py:41` **한 곳뿐**이며 문서·설정에는 남기지 않는다.
+  값이 비어 있으면 법제처가 `필수입력요소 검증에 실패` 를 돌려준다.
+  **이것이 Sprint 7 의 하드 선행 조건**이다 — `TODO_직접할일.md` 참조
+- [ ] **수집기(`fetch_from_api`)는 미구현 — Sprint 7 Stage 1.** 순서는
+  `MST` 조회 → `JO` 형식 실호출 확인 → 조문번호·제목 대조.
+  ⛔ **추측한 URL 파라미터 형식을 코드에 박지 않는다** — `JO` 형식은 실호출로만 확인 가능하다
+- [x] **적용기(`apply_fetch`)는 완료** — 수집기(실호출)와 적용기(파일 조작)를 분리했으므로
+  후자는 합성 픽스처로 지금 검증된다. `'FILLED' | 'UNCHANGED' | 'REVISION_PENDING'`.
+  최초 PENDING→FETCHED 는 in-place 기입, 이미 FETCHED 인데 해시가 다르면 **덮어쓰지 않고**
+  `pending_revisions/`(append-only, D60·**D75**). 회귀: `spikes/law_fetch_contract.py`
+- [x] **조문 참조 7건 등록 완료** — 전부 `fetch_status:"PENDING"`·`text:null`
+  (`KR-CITA-ENF-31` 포함. 손으로 원문을 채우지 않는다)
+- [ ] 7개 조문 **원문** 수집 → `text`·`effective_from`·`text_hash` 채우기 (키 발급 후)
+- [x] **조문 번호·제목 검증 로직 완료** — `IDENTITY_KEYS = ("article","title")` 누락 검사를
+  불일치 검사보다 **먼저** 수행. `None`·`""`·공백 전부 누락으로 보고 중단 (D75)
 - [ ] 하위 법령 추가 — 안전검사 대상 기계 목록(시행령·고시), 사후관리 기간(시행령)
-- [ ] 개정 감지 → 영향 룰 역추적 → 사람 서명 흐름
+- [ ] 개정 감지 → 영향 룰 역추적 → 사람 서명 흐름 (Sprint 7 서명 큐는 `requires_signature == true` 필터)
 
 > **조문 원문을 손으로 타이핑하지 않는다.** 그 순간 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너진다.
 
@@ -382,6 +506,9 @@ risk_profile       건물 단위 속성
 | 목적 | 문서 |
 |---|---|
 | 보전지표 · 수리 이력 · 중고 거래 배경 | `12_MAINT_VALUE` |
-| 왜 이렇게 정했는가 | `10_DECISIONS` D58~D65 · **D67** |
-| 지금 만들지 않는 것 | `07_BACKLOG` P22~P27 (순서 제약) |
+| **확장 7종의 입출력 계약 (정본)** | **`04_MCP_TOOLS §8~§14`** |
+| **`/api/assets` REST · HTTP 매핑 (정본)** | **`06_REPO_API §2.5`** |
+| **테이블 DDL (정본)** | **`05_DB_SCHEMA §11~§17`** |
+| 왜 이렇게 정했는가 | `10_DECISIONS` D58~D65 · **D67~D69 · D71 · D73 · D75 · D77~D80** |
+| 지금 만들지 않는 것 | `07_BACKLOG` P22~P28 (순서 제약) |
 | 선행 범위 | `00_MVP_SCOPE` |

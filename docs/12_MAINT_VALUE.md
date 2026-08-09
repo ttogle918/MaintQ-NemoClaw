@@ -33,12 +33,22 @@
 
 | 지표 | 산식 | 거래 시 의미 |
 |---|---|---|
-| MTBF (평균 고장 간격) | 총 가동시간 ÷ 고장 횟수 | **절대값보다 추세** |
-| MTTR (평균 수리 시간) | 총 수리시간 ÷ 수리 횟수 | 부품 조달 난이도의 대리지표 |
-| 가용도 | MTBF ÷ (MTBF + MTTR) | 실질 가동 가능성 |
-| 예방보전 비율 | 계획정비 ÷ 전체정비 | **매수자가 가장 신뢰하는 지표** |
-| 누적 수리비 / 취득원가 | — | 높으면 교체 신호 |
+| MTBF (평균 고장 간격) | ~~총 가동시간 ÷ 고장 횟수~~ → **인접 고장 간격(일)의 평균** ※ | **절대값보다 추세** |
+| MTTR (평균 수리 시간) | 총 수리시간 ÷ 수리 횟수 (`repair_records.downtime_hours`, **서명분만**) | 부품 조달 난이도의 대리지표 |
+| 가용도 | MTBF[일] ÷ (MTBF[일] + MTTR[시간]/24) | 실질 가동 가능성 |
+| 예방보전 비율 | 계획정비 ÷ 전체정비 (**서명분만**) | **매수자가 가장 신뢰하는 지표** |
+| 누적 수리비 / 취득원가 | `assets.cumulative_repair_cost` ÷ `assets.acquisition_cost` | 높으면 교체 신호 |
 | 부품별 경과 주기 | 최근 교체일 ~ 현재 | 다음 교체 시점 예측 |
+
+> ※ **MTBF 는 달력 기준이다 (D70).** 위 표의 원래 문언(총 가동시간 ÷ 고장 횟수)은 **쓸 수 없다** —
+> **저장소에 가동시간 원천이 하나도 없다**(`equipment`·`error_history` 어디에도 없고 컨트롤러 로그도 없다, 실측 확인).
+> 시드로 지어내면 D65 가 막으려던 것과 **같은 종류의 가짜 정밀도**가 되고, 그 값으로 산출한 MTBF 가
+> 매각 증빙(S10)에 실린다. 달력 기준은 실재하는 `error_history` 만 쓰므로 조작 여지가 없다.
+> 그래서 `get_maintenance_metrics` 출력에 **`mtbf_basis: "calendar_days"` 고지를 강제**한다 —
+> 산식이 문서와 다르다는 사실을 **필드로 드러내면** 나중에 원천이 생겼을 때 교체 지점이 명확하다.
+> 같은 이유로 **OEE 원재료(누적 가동시간·스핀들 시간)도 원천 확보 전까지 쓰지 않는다.**
+> 이벤트가 2건 미만이면 간격 자체가 없으므로 `null` 이고, 추세 비교가 불가하면 `"insufficient_data"` 다 —
+> 0 이나 `"stable"` 로 메우지 않는다.
 
 **MTBF 추세** — 최근 1년이 이전 대비 하락 중이면 마모 가속 구간 진입. 유지되면 안정 구간. 잔존 수명을 가장 직접적으로 말한다.
 
@@ -62,11 +72,14 @@ MVP의 S1은 "진단 → 부품 특정 → 발주"로 끝난다. Phase 2에서 �
 
 ```json
 {
-  "equipment_id": "INV-L3-01",
+  "asset_id": "AST-L3-CONV",             // ★ 판정 단위는 호스트 설비다 (D68)
+  "equipment_id": "INV-L3-01",           //   입력은 인버터로 받아 equipment.asset_id 로 해석
   "failed_part": "FAN-IG5-01",
   "part_class": "CRITICAL",              // CONSUMABLE | CRITICAL
   "repair_cost": 8500000,
+  "repair_scope": "RESTORE",             // RESTORE | UPGRADE | OVERHAUL | REPLACE_UNIT
   "book_value": 63333333,
+  "age_years": 12, "age_bucket": "11-15", "residual_ratio": 0.29,
   "market_value_before": 42000000,
   "market_value_after": 51000000,
   "value_recovery": 9000000,
@@ -74,16 +87,39 @@ MVP의 S1은 "진단 → 부품 특정 → 발주"로 끝난다. Phase 2에서 �
   "mtbf_trend": "declining",
   "repeat_failure": false,               // get_error_history 재사용
   "cumulative_repair_ratio": 0.21,
+  "parts_eol_flag": false,
   "verdict": "REPAIR_RECOMMENDED",
   "alternatives": [
-    {"option": "REPLACE",     "cost": 120000000, "note": "신규 취득 + 기존 매각"},
-    {"option": "SELL_AS_IS",  "proceeds": 42000000, "note": "수리 없이 현상 매각"}
+    {"option": "REPLACE",     "cost": null,         "note": "신규 취득 단가 원천 없음 — 견적으로 확인할 것"},
+    {"option": "SELL_AS_IS",  "proceeds": 42000000, "note": "수리 없이 현상 매각했을 때의 추정 대금"}
   ],
-  "disclaimer": "시장가는 목업 잔가곡선 기반 추정치. 실거래가와 다를 수 있음"
+  "estimates":   ["market_value_before", "market_value_after", "value_recovery", "recovery_ratio"],
+  "assumptions": ["잔가율 0.29 = residual_curve(…) · 목업 정률법 산출물이며 실거래 데이터가 아니다 (D74)", …],
+  "not_considered": [ … ],
+  "disclaimer": "시장가는 법정 기준내용연수 기반 목업 잔가곡선(D74) 추정치이며 실거래가가 아니다. …"
 }
 ```
 
 **`repeat_failure == true`면 3지 판단보다 근본원인 점검이 먼저다** — S3 우선순위 유지(D2). 발주 보류(`po_card` variant:`hold`, D35)가 그대로 적용된다.
+
+### ★ 판정 순서가 계약이다
+
+```
+0. repeat_failure == true                       → ROOT_CAUSE_FIRST   (다른 계산 전에 즉시 닫는다)
+1. market_value_before is null                  → HOLD
+2. parts_eol_flag == 1 또는 누적수리비비율 ≥ 0.5  → REPLACE_RECOMMENDED
+3. mtbf_trend == "declining" ∧ 수리비 > 수리후시장가 → SELL_AS_IS
+4. recovery_ratio ≥ 1.0                         → REPAIR_RECOMMENDED
+5. 어느 규칙도 발화하지 않음                     → HOLD
+```
+
+- **0번**: 3지 선택지를 함께 주면 에이전트가 그중 하나를 고른다. 그래서 시장가·회복분을 **계산조차 하지 않고** `alternatives: []` 로 닫는다.
+- **1번이 2번보다 앞인 이유** ⚠ — 잔가 원천이 없는 상태에서 "교체하라"고 권하는 것도 근거 없는 판단이다. 이 순서 덕분에 **`residual_curve` 를 비우면 전 자산이 `HOLD`** 가 된다 (값을 지어내지 않음의 기계적 증명). 반대 순서면 곡선을 비웠을 때 도구가 값을 지어낸다.
+- **2번이 회복 계산보다 앞인 이유**: 부품이 EOL 이면 이번 수리가 회수돼도 다음 수리를 못 한다.
+- **5번에서 가까운 쪽으로 반올림하지 않는다.** 규칙이 침묵한 것을 결론으로 바꾸면 그게 지어내기다.
+- **`HOLD` 는 "문제 없음"이 아니라 "판단 근거 부족"이다.**
+
+전체 입출력 계약은 `04_MCP_TOOLS §13` 이 정본이다.
 
 ### 회계 처리 연결
 
@@ -99,11 +135,37 @@ classify_expenditure(part_class, repair_scope, amount)
 
 ---
 
-## 4. 시장가 추정의 한계 (D65)
+## 4. 시장가 추정의 한계 (D65 · **D74**)
 
 기종별 잔가 곡선의 공개 데이터가 부족하다. **목업 테이블로 두고 추정치임을 반드시 고지한다.**
 
 D31이 `unit_price`를 도구 입력이 아닌 `supplier_parts` 조회 스냅샷으로 만든 것과 같은 논리다 — LLM이 금액을 지어낼 경로를 만들지 않는다. 다만 잔가는 조회할 원천 자체가 없으므로, **없는 정확도를 있는 척하지 않는 것**이 유일한 정직한 처리다.
+
+### 실데이터(중진공 호가)로 시도했고, 실측이 그 전제를 반증했다 (D72 → **D74**)
+
+중진공 중고설비 매물의 `제조년월`+`희망가격` 으로 연차 버킷별 상대 잔가율을 산출했더니
+**5종 카테고리가 전부 우상향**했다 — `'전기전자계측'` 0-2 → 16-20 이 `0.714 → 8.381`.
+즉 "20년 된 설비가 신품보다 비싸다"가 나온다.
+
+| 확인한 것 | 결과 |
+|---|---|
+| `카테고리2`(세부분류) 층화 | **사라지지 않음** (`머시닝센터` 0-2 4,750만 vs 11-15 5,800만) |
+| 동일 `모델명` 안의 연차-가격 상관 (모델 고정효과 제거) | `r = -0.17 / -0.08 / -0.04` — **감가가 실재하면 나와야 할 강한 음의 상관이 없다** |
+| 모델을 고정하지 않은 단순 상관 | **오히려 양수** `+0.13 / +0.23 / +0.06` |
+
+**중고 매물 호가는 연차가 아니라 기계 규격(용량·크기)이 지배한다.** 신형은 소형기기·구형은 대형기계가
+올라오는 **구성 편향이 층화로 제거되지 않는다.** 대리변수가 없어 회귀도 식별에 실패했다.
+
+→ **값의 원천을 "법정 기준내용연수 기반 정률 감가 목업 공식"으로 교체**한다.
+D72 가 정한 **격자 규격(연차 버킷 6종)·평활 금지·D65 고지 강제는 그대로** 유지하고 **값을 만드는 방법만** 바꾼다.
+
+- **표본 문턱(버킷 <10 · base <30)은 곡선에서 사라진다** — 목업 공식은 표본에서 나오지 않으므로 문턱을 걸 대상 자체가 없다. 같은 이유로 표본 필드 4종(`n_samples`·`base_n`·`p25_ratio`·`p75_ratio`)은 **전부 NULL 이 정상**이다. 스키마가 `NOT NULL` 을 강제하면 "표본이 없는데 표본 수를 채우는" 거짓말을 만든다.
+- **중진공 CSV 분석은 폐기하지 않는다.** `data/analysis/residual_curve.md §4` 에 **"호가 데이터로는 감가를 식별할 수 없다"는 한계 실증**으로 보존한다. **실데이터를 버리는 게 아니라 실데이터가 무엇을 말할 수 없는지를 근거로 남기는 것**이다.
+- `residual_curve.source` 에 목업임을 명시한다.
+- ⚠ **목업 곡선은 전 카테고리 값이 동일하다** — `category` 는 조인 키일 뿐 판정에 영향을 주지 않는다. 데모에서 카테고리별 잔가 차이는 보여줄 수 없고, 이 사실을 `assess_repair_value` 의 `not_considered`·`disclaimer` 에 드러낸다.
+- **잔가 축 자체를 폐기하지 않은 이유**: `SELL_AS_IS` verdict 가 사장되어 3지 판단이 반쪽이 된다. **곡선을 그대로 쓰지 않은 이유**: "20년 된 설비가 신품보다 2.5배 비싸다"는 경고 문구로 덮을 수 있는 종류가 아니다. **억지로 단조 감소를 만들지 않은 이유**: 그게 바로 D65 가 금지한 "없는 정확도"다.
+- **D68 이 "대상을 호스트 설비로 바로잡으면 목업 잔가곡선이 근거 있는 추정치가 된다"고 한 부분은 이로써 철회된다.** 단 D68 의 본체(`assets` 신설·기수 분리)는 실측과 무관하게 유효하다.
+- ⚠ 공식의 앵커인 **기준내용연수 `N=8` 은 아직 법령 원문 대조 전**이다 (`TODO_직접할일.md`). 잔가곡선 전체가 이 값에 걸려 있다.
 
 가격 영향 요인 중 **기술적 진부화가 경과연수보다 클 때가 많다** — 제어기 세대, 부품 단종, 통신 규격, 제조사 존속. 상태가 멀쩡해도 부품이 단종이면 값이 급락한다. `parts.discontinued`(D20)가 이미 있으므로 설비 단위로 올리면 된다.
 
@@ -166,6 +228,7 @@ D31이 `unit_price`를 도구 입력이 아닌 `supplier_parts` 조회 스냅샷
   "work_type": "PLANNED",                      // PLANNED | UNPLANNED — 필수
   "expenditure_class": "CAPITAL",
   "cost": 8500000,
+  "downtime_hours": 6.5,                       // ★ MTTR 의 유일한 원천 (§9)
   "performed_by": "tech-01", "verified_by": "mgr-01",   // users FK (D41), ID (D36)
   "signed_at": "2026-08-02T10:14:00Z",         // UTC (D39)
   "record_hash": "sha256:7c4a…"
@@ -197,17 +260,23 @@ D31이 `unit_price`를 도구 입력이 아닌 `supplier_parts` 조회 스냅샷
 신규 테이블
   repair_records    수리 증빙 (서명, append-only)
                     {repair_id, equipment_id, model, error_code, part_class,
-                     work_type, expenditure_class, cost, parts JSON,
+                     work_type, expenditure_class, cost, downtime_hours ★, parts JSON,
                      performed_by, verified_by, signed_at, record_hash}
-  residual_curve    기종·경과연수별 잔가율 (목업, 추정치 고지 대상)
+  residual_curve    카테고리·연차 버킷별 잔가율 (목업 정률 공식, D65·D74)
 
 parts 확장
-  part_class        CONSUMABLE | CRITICAL
+  part_class        CONSUMABLE | CRITICAL     ※ 미검수 초안 (reviewed=false, D12 와 같은 성격)
 
-equipment 확장
+assets (신규 테이블) — ⚠ 당초 "equipment 확장"이라 썼으나 D68 이 자산으로 옮겼다
   cumulative_repair_cost, last_overhaul_at,
-  controller_generation, parts_eol_flag
+  controller_generation, parts_eol_flag,
+  acquisition_cost, book_value, category, acquired_at …   (전체는 05_DB_SCHEMA §11)
 ```
+
+**★ `downtime_hours` 는 MTTR 의 유일한 원천이다.** 이 컬럼이 없으면 `§2` 의 MTTR·가용도가
+산출 불가(`null`)로 남는다. `repair_records` 에는 **수리 시각 컬럼이 없다** — `signed_at` 은
+'서명 시각'이지 '수리 시각'이 아니라 기간 절단 근거로 쓸 수 없다. 그래서 MTTR·예방보전 비율·누적 수리비는
+`window_months` 로 자르지 못하는 **전 기간 집계**이고, 그 사실이 `get_maintenance_metrics.excluded[]` 에 실린다.
 
 `repair_records`의 `(model, error_code)`는 `po_drafts`와 같은 복합키 FK 규칙을 따른다(D13·D33) — 지어낸 코드가 정비 이력에 남을 경로를 막는다.
 
@@ -215,13 +284,15 @@ equipment 확장
 
 ## 10. 도구 (Phase 2 추가분)
 
-| 도구 | 성격 |
-|---|---|
-| `classify_part_criticality` | 읽기 — 부품 → 등급 |
-| `assess_repair_value` | 읽기 — 수리비 대비 가치 회복분 + 3지 대안 |
-| `get_maintenance_metrics` | 읽기 — 보전지표 |
-| `classify_expenditure` | 읽기 — 자본적/수익적 판정 + 근거 |
-| `create_repair_record` | **쓰기** — 증빙 draft |
+| 도구 | 성격 | 계약 | 상태 |
+|---|---|---|---|
+| `classify_part_criticality` | 읽기 — 부품 → 등급 | `04 §10` | ✅ |
+| `assess_repair_value` | 읽기 — 수리비 대비 가치 회복분 + 3지 대안 | `04 §13` | ✅ |
+| `get_maintenance_metrics` | 읽기 — 보전지표 | `04 §11` | ✅ |
+| `classify_expenditure` | 읽기 — 자본적/수익적 판정 + 근거 | `04 §12` | ✅ |
+| `create_repair_record` | **쓰기** — 증빙 draft | — | 미구현 (Sprint 7, F3) |
+
+노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만 (D69). **입출력 계약의 정본은 `04_MCP_TOOLS`** 이며 여기서 복제하지 않는다.
 
 ---
 
@@ -241,5 +312,8 @@ equipment 확장
 | 목적 | 문서 |
 |---|---|
 | 처분 법정 조건 · 근거 3계층 | `11_ASSET_LIFECYCLE` |
-| 왜 이렇게 정했는가 | `10_DECISIONS` D58~D65 |
-| 지금 만들지 않는 것 | `07_BACKLOG` P22~P27 |
+| **확장 도구의 입출력 계약 (정본)** | **`04_MCP_TOOLS §8~§14`** |
+| **테이블 DDL (정본)** | **`05_DB_SCHEMA §11·§16·§17`** |
+| 잔가곡선 산출 근거 · 호가 데이터 한계 실증 | `data/analysis/residual_curve.md` |
+| 왜 이렇게 정했는가 | `10_DECISIONS` D58~D65 · **D68 · D70 · D72 · D74 · D80** |
+| 지금 만들지 않는 것 | `07_BACKLOG` P22~P28 |

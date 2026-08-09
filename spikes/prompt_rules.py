@@ -1,23 +1,44 @@
 # -*- coding: utf-8 -*-
-"""시스템 프롬프트·안전 상수 정적 검사 (MQ-303 DoD).
+"""시스템 프롬프트·안전 상수 정적 검사 (MQ-303 DoD · MQ-612 확장).
 
 **LLM 을 호출하지 않는다.** 여기서 보는 건 "모델이 잘 따르는가"가 아니라
 **"규칙과 기준값이 프롬프트에 실제로 들어 있는가"** 다. 문구가 조용히 사라지거나
 방전 대기 기준값이 축소되면(safety-guardrail 규칙 3) 여기서 먼저 깨진다.
+
+MQ-612 가 더한 것 (⑰~㉑, D69):
+  - 확장 규칙 3개(12·13·14)는 **전제 도구가 실제로 등록됐을 때만** 붙는다
+  - `prompts.py` 는 `MAINTQ_TOOLS_PROFILE` 을 **읽지 않는다** — env 를 바꿔도 출력이
+    바뀌지 않음을 실제로 확인한다. 등록(자식 프로세스)과 지시(백엔드)가 같은 env 를
+    각자 해석하면 어긋나기 때문이다
+  - 규칙 번호는 **위치로 고정** — 확장 도구가 일부만 등록돼도 번호가 밀리지 않는다
 
 실행:  uv run python spikes/prompt_rules.py
 """
 
 from __future__ import annotations
 
+import importlib
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# ★ DoD — **env 를 설정하지 않은 상태**에서 개수 고정을 본다.
+#
+# 다만 셸에 `MAINTQ_TOOLS_PROFILE=full` 이 export 돼 있다고 **FAIL 시키지 않는다.**
+# 데모·평가 세션에서 그 값을 export 한 채 회귀를 돌리는 일이 실제로 있고, 그때 나는
+# 빨간 줄은 결함이 아니라 **환경 잡음**이다 — 잡음에 무뎌지면 진짜 실패도 같이 흘려보낸다.
+# 그래서 여기서 **직접 걷어내고(pop) 그 사실을 detail 에 남긴다.** 프롬프트 모듈은 이
+# 값을 애초에 읽지 않으므로(⑳ 이 그것을 증명한다) 걷어내도 검사 대상은 달라지지 않는다.
+_ENV_AT_IMPORT = os.environ.pop("MAINTQ_TOOLS_PROFILE", None)
+
 from backend.agent.prompts import (  # noqa: E402
+    CORE_TOOLS,
     DANGER_KEYWORDS,
+    EXT_RULES,
+    EXT_TOOLS,
     MODELS,
     RULES,
     SAFETY_BASELINE,
@@ -191,6 +212,89 @@ def run() -> None:
         "⑯ model=None → '미확정' + 확인 질문 지시",
         "미확정" in unknown and "확인하는 질문" in unknown,
         "폴백으로 한쪽 기종을 고르지 않음",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # MQ-612 (D69) — 도구 프로파일과 프롬프트의 분리
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── ⑰ 개수 고정 — **env 미설정 상태**에서 규칙 11 + 확장 3
+    env_note = (
+        "env 미설정"
+        if _ENV_AT_IMPORT is None
+        else f"env {_ENV_AT_IMPORT!r} 를 스파이크 진입 시 제거함(검사 대상 아님)"
+    )
+    check(
+        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 3개 고정 (D69)",
+        len(RULES) == 11
+        and len(EXT_RULES) == 3
+        and os.environ.get("MAINTQ_TOOLS_PROFILE") is None
+        and len(CORE_TOOLS) == 7
+        and len(EXT_TOOLS) == 7,
+        f"RULES={len(RULES)} EXT_RULES={len(EXT_RULES)} "
+        f"CORE={len(CORE_TOOLS)} EXT={len(EXT_TOOLS)} · {env_note}",
+    )
+
+    # ── ⑱ 코어 7종만 등록된 실행 → 확장 규칙·확장 도구명이 **한 글자도** 없다
+    core_prompt = build_system_prompt("iG5A", tool_names=list(CORE_TOOLS))
+    ext_rule_leak = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] in core_prompt]
+    ext_tool_leak = [t for t in EXT_TOOLS if t in core_prompt]
+    check(
+        "⑱ tool_names=코어7 → EXT 규칙·확장 도구명 부재 (없는 도구 사용법 지시 금지)",
+        not ext_rule_leak and not ext_tool_leak and "사용 가능한 도구 (7종)" in core_prompt,
+        f"규칙 누출={ext_rule_leak or '없음'} · 도구명 누출={ext_tool_leak or '없음'}",
+    )
+
+    # ── ⑲ 확장 14종 등록 → EXT 규칙 3개 + 각 근거 D 태그
+    all_tools = [*CORE_TOOLS, *EXT_TOOLS]
+    full_prompt = build_system_prompt("iG5A", tool_names=all_tools)
+    ext_missing = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] not in full_prompt]
+    # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3
+    ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3")
+    tag_missing = [t for t in ext_tags if t not in full_prompt]
+    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14))
+    check(
+        "⑲ tool_names=전체14 → EXT 규칙 3개 + D 태그 전건 · 규칙 번호 12·13·14",
+        not ext_missing
+        and not tag_missing
+        and numbered
+        and "사용 가능한 도구 (14종)" in full_prompt
+        and all(t in full_prompt for t in EXT_TOOLS),
+        f"규칙 누락={ext_missing or '없음'} · 태그 누락={tag_missing or '없음'} · 번호={numbered}",
+    )
+
+    # ── ⑳ 프롬프트는 env 를 읽지 않는다 (D69 의 핵심) — **실제로 바꿔 본다**
+    #    소스 grep 만으로는 간접 참조를 못 잡으므로 재임포트 후 출력 동일성까지 본다.
+    src = (ROOT / "backend" / "agent" / "prompts.py").read_text(encoding="utf-8")
+    src_clean = "MAINTQ_TOOLS_PROFILE" not in src.replace(
+        "`MAINTQ_TOOLS_PROFILE`", ""
+    ) and "os.environ" not in src
+    os.environ["MAINTQ_TOOLS_PROFILE"] = "full"
+    try:
+        reloaded = importlib.reload(importlib.import_module("backend.agent.prompts"))
+        same_default = reloaded.build_system_prompt("iG5A", equipment_id="INV-L3-01") == build_system_prompt(
+            "iG5A", equipment_id="INV-L3-01"
+        )
+        env_ext_leak = [t for t in EXT_TOOLS if t in reloaded.SYSTEM_PROMPT]
+    finally:
+        # 진입 시 pop 한 상태로 되돌린다 — 원래 값을 복원하지 않는 게 의도다(⑰ 참조).
+        os.environ.pop("MAINTQ_TOOLS_PROFILE", None)
+        importlib.reload(importlib.import_module("backend.agent.prompts"))
+    check(
+        "⑳ MAINTQ_TOOLS_PROFILE=full 로 재임포트해도 프롬프트 불변 (env 를 읽지 않는다)",
+        src_clean and same_default and not env_ext_leak,
+        f"소스에 env 참조 없음={src_clean} · 출력 동일={same_default} · 누출={env_ext_leak or '없음'}",
+    )
+
+    # ── ㉑ 부분 등록 — 번호는 위치로 고정된다(규칙 14 만 붙어도 "14.")
+    partial = build_system_prompt("iG5A", tool_names=[*CORE_TOOLS, "assess_repair_value"])
+    present = {n: f"\n{n}. " in partial for n in (12, 13, 14)}
+    check(
+        "㉑ 확장 도구 일부만 등록 → 해당 규칙만 · 번호 밀림 없음",
+        present == {12: False, 13: True, 14: True}
+        and "check_disposal_blockers" not in partial
+        and "규칙 (13개" in partial,
+        f"규칙 존재={present} · 헤더 13개={'규칙 (13개' in partial}",
     )
 
 

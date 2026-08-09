@@ -95,7 +95,18 @@ app.include_router(disposal.router)
 
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:
     # mcp 는 **추가 필드**다 — 기존 `status: ok` 계약은 그대로 둔다 (sp3 가 이 경로로 기동을 기다린다).
     mcp: McpClient | None = getattr(app.state, "mcp", None)
-    return {"status": "ok", "mcp": bool(mcp and mcp.ready)}
+    ready = bool(mcp and mcp.ready)
+    # ★ `tools` 가 정본이다 (D69). 프로파일은 **자식 프로세스(MCP 서버)** 가 해석하므로
+    #   backend 가 읽은 env 값은 "실제로 무엇이 등록됐는가"의 답이 아니다 — 자식에게
+    #   env 가 안 넘어갔거나 서버가 구버전이면 두 값이 갈린다. 그래서 실측을 싣고
+    #   `tools_profile` 은 **참고값**으로만 둔다. 미기동이면 개수를 0 이 아니라 null 로
+    #   준다 — 0 은 "도구가 없다"는 사실 주장이 되고, 실제로는 모르는 상태다.
+    return {
+        "status": "ok",
+        "mcp": ready,
+        "tools": len(await mcp.list_tools()) if ready else None,
+        "tools_profile": os.environ.get("MAINTQ_TOOLS_PROFILE") or "core",
+    }

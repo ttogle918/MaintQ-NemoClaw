@@ -41,18 +41,33 @@ MaintQ/
 │   ├── extracted/             # error_codes.json (표 추출 결과) + ig5a_code_map.json (비트명↔한글명 매핑, D24)
 │   ├── analysis/              # manual_eda.md (EDA 산출물) + ig5a_code_mapping.md (사람 검수표)
 │   ├── extract_error_codes.py # 표 추출 파이프라인 (멱등 재실행, manifest 해시 검증 — D19)
-│   └── seed.py                # 목업 DB 시드 (케이스 맵 구현)
+│   ├── seed.py                # 목업 DB 시드 (케이스 맵 구현)
+│   ├── rules/                 # ★ 근거 계층 — 두 프로세스가 공유해도 되는 데이터 계층 (D73)
+│   │   ├── laws/*.json        #   계층 1 법령 스냅샷 (파일이 정본, append-only — D60)
+│   │   ├── rules/*.json       #   계층 2 해석 룰 (처분 플래그 전용, disposal_type 필수)
+│   │   ├── pending_revisions/ #   개정본 대기 (applied: null|intent|confirmed — D75)
+│   │   ├── engine.py          #   룰 엔진 (build_facts·evaluate_rule·check_disposal_blockers)
+│   │   ├── fetch_laws.py      #   법령 수집기 (LAW_API_OC. fetch_from_api 는 Sprint 7)
+│   │   └── test_rules.py      #   pytest — 발화 가능성·해제 가능성 회귀 (D77·D78)
+│   └── analysis/residual_curve.md  # 잔가곡선 산출 근거 + 호가 데이터 한계 실증 (D72→D74)
 │
 ├── mcp_server/
-│   ├── server.py              # MCP 엔트리포인트
+│   ├── server.py              # MCP 엔트리포인트 (MAINTQ_TOOLS_PROFILE=core|full 게이트 — D69)
 │   ├── tools/                 # 도구 (파일당 1도구)
-│   │   ├── lookup_error_code.py
-│   │   ├── rag_search_manual.py
-│   │   ├── get_error_history.py
-│   │   ├── search_inventory.py
-│   │   ├── find_alternative_parts.py
-│   │   ├── get_supplier_quotes.py
-│   │   └── create_po_draft.py
+│   │   ├── lookup_error_code.py          ┐
+│   │   ├── rag_search_manual.py          │
+│   │   ├── get_error_history.py          │ 코어 7종 (프로파일 무관, 항상 등록)
+│   │   ├── search_inventory.py           │
+│   │   ├── find_alternative_parts.py     │
+│   │   ├── get_supplier_quotes.py        │
+│   │   ├── create_po_draft.py            ┘ ← 유일한 쓰기 도구 (D10)
+│   │   ├── check_disposal_blockers.py    ┐
+│   │   ├── verify_ownership.py           │
+│   │   ├── classify_part_criticality.py  │ 확장 7종 (`full` 에서만 등록 — D69)
+│   │   ├── get_maintenance_metrics.py    │ 전부 읽기. 대상은 asset_id (D68)
+│   │   ├── classify_expenditure.py       │
+│   │   ├── assess_repair_value.py        │
+│   │   └── build_evidence_bundle.py      ┘
 │   └── db.py                  # 읽기 전용 커넥션 / draft INSERT 전용 분리
 │
 ├── backend/
@@ -61,7 +76,8 @@ MaintQ/
 │   ├── db.py                  # 백엔드 DB 커넥션 (mcp_server 와 코드 공유 안 함 — D15)
 │   ├── deps.py                # X-Role/X-User 파싱 + 403 강제
 │   ├── services/
-│   │   └── po.py              # 신원 stamp(D37) · 상태 전이 · 표시명 매핑(D36)
+│   │   ├── po.py              # 신원 stamp(D37) · 상태 전이 · 표시명 매핑(D36)
+│   │   └── disposal.py        # 자산 조회 + 처분 사전판정 (data.rules.engine 직접 사용 — D73)
 │   ├── agent/
 │   │   ├── loop.py            # 에이전트 루프 (도구 호출 오케스트레이션)
 │   │   ├── prompts.py         # 시스템 프롬프트 (안전 가드레일 규칙 포함)
@@ -69,7 +85,8 @@ MaintQ/
 │   ├── routers/
 │   │   ├── chat.py            # 대화 (SSE)
 │   │   ├── po.py              # 발주 승인 워크플로우
-│   │   └── equipment.py       # 라인/장비 컨텍스트
+│   │   ├── equipment.py       # 라인/장비 컨텍스트
+│   │   └── disposal.py        # /api/assets — 목록·상세·처분 사전판정 (D71 HTTP 매핑)
 │   └── rag/
 │       ├── ingest.py          # 매뉴얼 청킹·임베딩 (model 메타데이터 부착)
 │       └── retriever.py
@@ -179,6 +196,12 @@ POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {
 
 ```
 GET  /api/equipment                  # 라인/장비 목록 (헤더 선택기 데이터)
+                                     # 응답 항목: {equipment_id, line_id, model, installed_at, location,
+                                     #             asset_id}
+                                     #   asset_id 는 **nullable 가산 필드** (D68) — 이 인버터가 어느
+                                     #   호스트 설비에 속하는지. NULL 이면 호스트 자산이 없다는 뜻이며
+                                     #   (INV-L1-01 분전반), 확장 도구는 이 경우 no_host_asset 을 낸다.
+                                     #   기존 6종 도구·화면의 계약은 무변경 — 가산일 뿐이다
 GET  /api/equipment/{id}/history     # 장비별 에러 이력 (이력 탭)
 POST /api/equipment/{id}/errors      # 에러 발생 이력 기록 (D29) — body: {code, occurred_at?, action_taken?, part_replaced?}
                                      #   error_history INSERT. technician만. requested 주체는 X-User에서 주입
@@ -186,6 +209,65 @@ POST /api/equipment/{id}/errors      # 에러 발생 이력 기록 (D29) — bod
 
 **D29 — 이력 기록은 명시적 액션이다.** 채팅 진입 시 자동 기록하지 않는다. 자동 기록하면 `get_error_history`의 `count`가 실제 고장 횟수가 아니라 **질문 횟수**가 되어, 같은 에러를 세 번 물어본 것만으로 `repeated=true`(S3 근본원인 모드)가 잘못 켜진다. 화면 A에 "이 고장 이력에 기록" 액션이 필요하다 — 와이어프레임 반영 대상.
 MCP 도구가 아니라 백엔드 쓰기이므로 D10("도구는 po_drafts draft INSERT만")은 그대로 유지된다.
+
+### 2.5 자산 · 처분 사전판정 (확장 범위 — S9)
+
+```
+GET  /api/assets                     # 자산 목록. query: line_id? · status?
+                                     #   각 항목에 equipment_count 가산. 모르는 status 는 0건
+                                     #   (허용값은 스키마 CHECK 가 정본 — 코드에 사본을 만들지 않는다)
+GET  /api/assets/{asset_id}          # 자산 상세 + 하위 equipment 목록 (D68 — 처분의 단위는 호스트 설비)
+POST /api/assets/{asset_id}/disposal/precheck
+                                     # 처분 사전판정 — **아무것도 저장하지 않는다** (D71)
+                                     #   body: { disposal_mode: "SALE"|"SCRAP"|"TRANSFER",
+                                     #           disposal_date: "2026-09-01" | null }
+```
+
+**경로 이름이 `/disposal` 이 아닌 이유**: 이 POST 는 `decisions`·`flags` 를 건드리지 않는다.
+저장하지 않는 POST 를 `/disposal` 로 부르면 **계약이 거짓말이 된다.** 처분 요청 생성·서명은 별도 경로다(Sprint 7).
+
+**응답 본문** (200·409 **같은 형태**, 409 만 `detail` 한 줄이 더 붙는다):
+
+```
+asset_id · asset_name · disposal_mode · disposal_date · evaluated_at(판정 기준일) ·
+generated_at(응답 시각, UTC ISO-8601 — D39) · verdict ·
+blockers[] · preconditions[] · holds[] · insufficient[] ·
+checklist[] · resolve_options[] · missing_facts[] · facts_used{} ·
+not_considered[] · disclaimer · note      (+ 409 일 때만 detail)
+```
+
+409 본문을 200 과 같은 형태로 주는 이유: 클라이언트가 **차단 시에도** blockers·holds·insufficient·
+resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로 끝내지 않는 건 S4(미지 코드 → A/S 안내)와 같은 태도다.
+
+#### HTTP 매핑 (D71)
+
+| 상황 | HTTP | 근거 |
+|---|---|---|
+| `verdict: BLOCKED` | **409** | 차단 사유를 해소하거나 override(서명·사유 필수) |
+| `verdict: HOLD` | **409** | 경계 구간 — 전문가 검토가 필요 |
+| `verdict: INSUFFICIENT_FACTS` | **409** | 누락된 사실을 입력해야 판정이 성립 |
+| `verdict: CONDITIONAL` · `CLEAR` | **200** | 체크리스트 이행 후 진행 |
+| 룰 카탈로그 미적재 | **503** | 서버 **설정** 문제 — 클라이언트가 할 행동(재시도·관리자 문의)이 일반 500 과 다르다 |
+| 없는 `asset_id` | **404** | — |
+| `disposal_mode` enum 밖 · `disposal_date` 판독 불가 | **422** | 요청 본문 검증 (반려 사유 누락이 422 인 것과 같은 층위) |
+
+- **`HOLD`·`INSUFFICIENT_FACTS` 를 200 으로 주지 않는 이유**: 클라이언트는 200 을 "진행 가능"으로 읽는다. 그러면 D62("알 수 없다 ≠ 통과")가 **API 경계에서 무너진다** — 엔진이 애써 구분해 둔 셋이 HTTP 한 칸에서 뭉개진다.
+- **셋을 HTTP 로 나누지 않는 이유**: 셋 다 "지금 상태로는 처분 불가"라 409 가 맞다. 구분은 본문 `verdict` 가 한다 — **HTTP 코드는 행동 유형을, 본문은 사유를 말한다.**
+- 매핑표는 코드에서 `set(HTTP_BY_VERDICT) == set(engine.VERDICTS)` 로 **기동 시점에 검증**한다. 새 verdict 가 생겼는데 매핑을 빠뜨리면 런타임 KeyError(500)로 늦게 발견된다.
+
+#### ⚠ precheck 에는 역할 게이트가 없다 (403 이 나오지 않는다)
+
+`require()` 를 호출하지 않는다. **읽기 판정에 403 을 만들면 "권한 위반 403 차단 100%" 지표에
+법정 조건 미충족이 섞인다** — D38 이 403(권한)과 409(상태)를 나눈 바로 그 이유다.
+처분을 실제로 **확정**하는 경로(서명·문서 생성)에는 역할 게이트가 붙지만, 그건 Sprint 7 이다.
+
+#### `core` 프로파일에서도 살아 있다 (D73)
+
+이 엔드포인트는 MCP 도구를 호출하지 않고 `data.rules.engine` 을 직접 import 한다.
+`MAINTQ_TOOLS_PROFILE=core`(기본값)에서 `check_disposal_blockers` 도구가 등록되지 않아도 REST 판정은 동작한다 —
+**사람용 API 가 에이전트 도구 노출 설정에 종속되면 안 된다.**
+D15(백엔드 ↔ MCP 프로세스 분리) 위반이 아니다: 금지되는 것은 `backend` ↔ `mcp_server` **상호 import** 이며
+`data/` 는 두 프로세스가 공유해도 되는 데이터 계층이다.
 
 ### 2.4 상태 전이 다이어그램
 

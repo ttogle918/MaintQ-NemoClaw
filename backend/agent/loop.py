@@ -252,8 +252,13 @@ async def run_turn(
         return
 
     st = _TurnState(_model_for(equipment_id))
-    system = prompts.build_system_prompt(st.model, equipment_id=equipment_id)
+    # 도구 목록을 **먼저** 받아 프롬프트에 넘긴다 (D69). 프롬프트가 `MAINTQ_TOOLS_PROFILE`
+    # 을 따로 읽으면 등록(자식 프로세스)과 지시(백엔드)가 어긋날 수 있다 —
+    # 실제 목록을 넘기면 "없는 도구의 사용법을 지시"하는 상태가 구조적으로 불가능해진다.
     tools = await client.list_tools()
+    system = prompts.build_system_prompt(
+        st.model, equipment_id=equipment_id, tool_names=[t["name"] for t in tools]
+    )
 
     store.append(session_id, {"role": "user", "content": message})
     messages = store.history(session_id)

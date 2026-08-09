@@ -8,8 +8,14 @@
 
 담당 범위 (`docs/sprints/sprint-3.md` §4 MQ-303):
 - `SYSTEM_PROMPT` — 규칙 11개. 각 규칙은 결정 번호와 1:1 대응하며 **하나도 뺄 수 없다**
+- `EXT_RULES` — 확장 도구가 실제로 등록됐을 때만 붙는 규칙 12·13·14 (Sprint 6, D69)
 - `SAFETY_BASELINE` — 안전 블록의 확정 문구·근거 페이지. LLM 이 생성하지 않는다
-- `build_system_prompt(model, ...)` — 장비 컨텍스트 주입 (09_RUNTIME §2 "컨텍스트 주입")
+- `build_system_prompt(model, ..., tool_names=…)` — 장비 컨텍스트 주입 (09_RUNTIME §2)
+
+★ **이 모듈은 `MAINTQ_TOOLS_PROFILE` 을 읽지 않는다 (D69).** 도구 등록은 자식 프로세스(MCP)가,
+프롬프트는 백엔드가 만든다 — 두 곳이 같은 env 를 각자 해석하면 어긋난다. 루프가
+`client.list_tools()` 로 받은 **실제 목록**을 `tool_names` 로 넘기므로, "목록에 없는 도구의
+사용법을 지시하는" 상태가 구조적으로 불가능하다. env 를 여기서 읽는 코드를 추가하지 말 것.
 
 경계 (이 모듈이 하지 않는 것):
 - **페이지 환산 금지** — `SAFETY_BASELINE["pages"]` 는 PDF 물리 페이지 원본이다 (D26).
@@ -24,6 +30,8 @@
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 기종 enum — D6(기종 2종) · D13((model, code) 복합키)
@@ -238,15 +246,67 @@ RULES: tuple[str, ...] = (
     " 마라.",
 )
 
-_TOOL_MAP = """\
-사용 가능한 도구 (7종)
-- `lookup_error_code`  — 에러코드의 정의·원인·조치·`related_parts`·근거 페이지 (exact match)
-- `rag_search_manual`  — 매뉴얼 본문의 절차·배경 서술 검색 (model 필터 필수)
-- `get_error_history`  — 최근 고장 이력·`repeated` 판정
-- `search_inventory`   — 재고·안전재고·단종 여부
-- `find_alternative_parts` — 호환 대체품 (`compat_confirmed` 확인)
-- `get_supplier_quotes`— 공급사별 리드타임·단가·MOQ
-- `create_po_draft`    — 발주서 **초안**만 생성. 확정·승인은 사람의 승인 큐에서만 이뤄진다"""
+# ─────────────────────────────────────────────────────────────────────────────
+# 확장 규칙 3개 — 규칙 12·13·14 (Sprint 6). **번호는 위치로 고정**한다.
+# 확장 도구가 등록되지 않은 실행에서는 붙지 않으며, 그때도 남은 규칙의 번호는 안 밀린다
+# (규칙 13만 붙어도 "규칙 13"이다) — 회고·리뷰에서 규칙 번호로 대화하기 때문이다.
+# ─────────────────────────────────────────────────────────────────────────────
+EXT_RULES: tuple[str, ...] = (
+    # 12 — 처분 판정 경계
+    "**처분 판정의 경계를 옮기지 마라 (D59·D62·D79).** 법령 조문의 번호·내용을 네가 적지"
+    " 마라 — 조문 인용은 `check_disposal_blockers` 결과의 `citations` 에 있는 것만 쓴다."
+    " `verdict` 는 `BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS`·`CONDITIONAL`·`CLEAR` 5종이며"
+    ' **`HOLD` 와 `INSUFFICIENT_FACTS` 를 "문제 없음"으로 옮기지 마라** — `HOLD` 는'
+    ' "경계 구간이라 사람 검토가 필요하다", `INSUFFICIENT_FACTS` 는 "확인되지 않은 사실이'
+    ' 있다"로 말한다. 해소 경로가 서로 다르다(전문가 검토 / 데이터 입력). `BLOCKED` 면'
+    " 처분을 진행하지 말고 결과의 해소 경로를 그대로 안내한다.",
+    # 13 — 추정치
+    "**추정치는 추정치로 (D65).** 결과의 `estimates[]` 에 나열된 필드(시장가·회복액·잔가율"
+    ' 등)는 단정적 금액으로 쓰지 마라. "추정 약 N원"으로 말하고 결과의 `disclaimer` 를 함께'
+    " 전한다. 시장가·잔존가치를 네가 계산하거나 보정하지 마라 — 값이 `null` 이면 없는 것이고,"
+    " 그 공백을 네 지식으로 메우지 않는다.",
+    # 14 — 반복 고장이면 근본원인 먼저
+    "**반복 고장이면 3지 판단보다 근본원인이 먼저다 (D2·S3).** `assess_repair_value` 가"
+    " `ROOT_CAUSE_FIRST` 를 반환하면 수리·교체·매각 선택지를 제시하지 마라. 같은 고장이"
+    " 반복되고 있다는 뜻이므로 근본원인 점검을 먼저 안내하고 발주는 보류한다 (규칙 5 가"
+    " 그대로 이어진다).",
+)
+
+# 각 확장 규칙이 **전제하는 도구**. 그 도구가 등록되지 않은 실행에서는 규칙도 붙지 않는다 —
+# 없는 도구의 결과 필드를 해석하라고 지시하면 규칙 자체가 환각의 씨앗이 된다.
+_EXT_RULE_TOOLS: tuple[tuple[str, ...], ...] = (
+    ("check_disposal_blockers",),
+    ("assess_repair_value",),
+    ("assess_repair_value",),
+)
+assert len(EXT_RULES) == len(_EXT_RULE_TOOLS)
+
+# 도구 한 줄 설명 — **등록된 도구만** 프롬프트에 실린다 (D69).
+_CORE_TOOL_LINES: dict[str, str] = {
+    "lookup_error_code": "- `lookup_error_code`  — 에러코드의 정의·원인·조치·`related_parts`·근거 페이지 (exact match)",
+    "rag_search_manual": "- `rag_search_manual`  — 매뉴얼 본문의 절차·배경 서술 검색 (model 필터 필수)",
+    "get_error_history": "- `get_error_history`  — 최근 고장 이력·`repeated` 판정",
+    "search_inventory": "- `search_inventory`   — 재고·안전재고·단종 여부",
+    "find_alternative_parts": "- `find_alternative_parts` — 호환 대체품 (`compat_confirmed` 확인)",
+    "get_supplier_quotes": "- `get_supplier_quotes`— 공급사별 리드타임·단가·MOQ",
+    "create_po_draft": "- `create_po_draft`    — 발주서 **초안**만 생성. 확정·승인은 사람의 승인 큐에서만 이뤄진다",
+}
+
+_EXT_TOOL_LINES: dict[str, str] = {
+    "check_disposal_blockers": "- `check_disposal_blockers` — 자산 처분의 법정 조건 판정 (조문 근거·해소 경로 포함)",
+    "verify_ownership": "- `verify_ownership`   — 중고 거래 실사 9카테고리. `PARTIAL` 은 어떤 확인으로도 승격되지 않는다",
+    "classify_part_criticality": "- `classify_part_criticality` — 부품 등급 **조회** (추론이 아니다)",
+    "get_maintenance_metrics": "- `get_maintenance_metrics` — MTBF(달력 기준)·MTTR·예방보전 비율·누적 수리비",
+    "classify_expenditure": "- `classify_expenditure` — 지출의 자본적/수익적 분류 (`part_class`·`repair_scope`·`amount` 필수)",
+    "assess_repair_value": "- `assess_repair_value` — 수리/교체/매각 3지 판단. 금액은 전부 추정치다",
+    "build_evidence_bundle": "- `build_evidence_bundle` — 처분 판정의 근거를 묶어 해시로 고정 (저장·판정은 하지 않는다)",
+}
+
+CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)
+EXT_TOOLS: tuple[str, ...] = tuple(_EXT_TOOL_LINES)
+
+_TOOL_MAP_CORE: str = "\n".join(_CORE_TOOL_LINES.values())
+_TOOL_MAP_EXT: str = "\n".join(_EXT_TOOL_LINES.values())
 
 _STYLE = """\
 응답 방식
@@ -258,8 +318,41 @@ _STYLE = """\
   "재고를 확인해 드릴까요?"로 턴을 끝내지 말고, 조회한 뒤 그 결과로 답한다."""
 
 
-def _render_rules() -> str:
-    return "\n".join(f"{i}. {rule}" for i, rule in enumerate(RULES, start=1))
+def _selected(tool_names: Sequence[str] | None) -> tuple[str, ...]:
+    """프롬프트에 실을 도구 목록. `None` 이면 코어 7종으로 간주한다 (D69).
+
+    빈 목록은 코어로 되돌리지 **않는다** — "도구가 하나도 등록되지 않았다"는 실측이고,
+    그걸 코어 7종으로 메우면 없는 도구의 사용법을 지시하게 된다 (09_RUNTIME §3 원칙).
+    """
+    if tool_names is None:
+        return CORE_TOOLS
+    known = (*CORE_TOOLS, *EXT_TOOLS)
+    # 모르는 이름은 설명할 방법이 없으므로 목록에서 뺀다 — 지어내지 않는다.
+    return tuple(n for n in known if n in set(tool_names))
+
+
+def _render_tool_map(selected: Sequence[str]) -> str:
+    lines = [
+        line
+        for name, line in (*_CORE_TOOL_LINES.items(), *_EXT_TOOL_LINES.items())
+        if name in set(selected)
+    ]
+    if not lines:
+        # 도구 서버가 죽은 상태. 있지도 않은 도구 목록을 보여 주지 않는다.
+        return "사용 가능한 도구 (0종)\n- 없음 — 도구 서버에 연결되지 않았다. 조회가 필요한 질문에는 추측으로 답하지 말고 연결 실패를 알린다."
+    return f"사용 가능한 도구 ({len(lines)}종)\n" + "\n".join(lines)
+
+
+def _render_rules(selected: Sequence[str] = CORE_TOOLS) -> str:
+    """규칙 11개 + (전제 도구가 등록된) 확장 규칙. **번호는 위치로 고정**된다."""
+    picked = set(selected)
+    lines = [f"{i}. {rule}" for i, rule in enumerate(RULES, start=1)]
+    lines += [
+        f"{len(RULES) + i + 1}. {rule}"
+        for i, rule in enumerate(EXT_RULES)
+        if all(t in picked for t in _EXT_RULE_TOOLS[i])
+    ]
+    return "\n".join(lines)
 
 
 _SAFETY_SECTION = f"""\
@@ -274,32 +367,46 @@ S100 매뉴얼 p.{SAFETY_BASELINE["pages"]["S100"]} (PDF 물리 페이지)
 {QUALIFIED_WORKER_NOTE["text"]}"""
 
 
-SYSTEM_PROMPT = f"""\
+def _compose(selected: Sequence[str]) -> str:
+    rules = _render_rules(selected)
+    n_rules = rules.count("\n") + 1 if rules else 0
+    return f"""\
 너는 MaintQ 의 설비보전 어시스턴트다. 공장 정비사가 인버터·PLC 고장을 진단하고
 필요한 부품을 발주 초안까지 연결하도록 돕는다. 판단의 근거는 **매뉴얼과 도구 결과**이며,
 너의 사전 지식으로 그 공백을 메우지 않는다.
 
-{_TOOL_MAP}
+{_render_tool_map(selected)}
 
-규칙 (11개 — 전부 지킨다)
-{_render_rules()}
+규칙 ({n_rules}개 — 전부 지킨다)
+{rules}
 
 {_SAFETY_SECTION}
 
 {_STYLE}"""
 
 
+# 코어 프로파일(D69 기본값)의 프롬프트. 정적 검사·기존 소비자가 참조하는 상수라 유지한다 —
+# 실행 시 실제로 쓰이는 문자열은 `build_system_prompt(tool_names=…)` 이 조립한 것이다.
+SYSTEM_PROMPT = _compose(CORE_TOOLS)
+
+
 def build_system_prompt(
     model: str | None = None,
     *,
     equipment_id: str | None = None,
+    tool_names: Sequence[str] | None = None,
 ) -> str:
-    """`SYSTEM_PROMPT` 에 장비 컨텍스트를 덧붙여 반환한다 (09_RUNTIME §2 "컨텍스트 주입").
+    """시스템 프롬프트에 장비 컨텍스트를 덧붙여 반환한다 (09_RUNTIME §2 "컨텍스트 주입").
 
     Args:
         model: `equipment` 테이블에서 조회한 기종. `None` 이면 "미확정"으로 주입되고
             규칙 9 에 따라 에이전트가 확인 질문을 하게 된다.
         equipment_id: 설비 ID (예: `INV-L3-01`). 표시용.
+        tool_names: 루프가 `await client.list_tools()` 로 받은 **실제** 도구 이름 목록.
+            `None` 이면 코어 7종으로 간주한다. 이 인자가 env(`MAINTQ_TOOLS_PROFILE`)를
+            대신하는 것이 D69 의 핵심이다 — 등록은 자식 프로세스가, 프롬프트는 백엔드가
+            만들기 때문에 같은 env 를 두 곳에서 해석하면 어긋난다. 실제 목록을 넘기면
+            "목록에 없는 도구 사용법을 지시"하는 상태가 **구조적으로 불가능**해진다.
 
     Raises:
         ValueError: `model` 이 `MODELS` enum 밖의 값일 때. **폴백하지 않는다** —
@@ -318,4 +425,5 @@ def build_system_prompt(
     else:
         lines.append(f"- 기종(model): {model} — 도구의 `model` 파라미터에 이 값을 쓴다")
 
-    return f"{SYSTEM_PROMPT}\n\n" + "\n".join(lines)
+    prompt = SYSTEM_PROMPT if tool_names is None else _compose(_selected(tool_names))
+    return f"{prompt}\n\n" + "\n".join(lines)

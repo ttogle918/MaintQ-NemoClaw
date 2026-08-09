@@ -11,8 +11,10 @@
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
 - `docs/10_DECISIONS.md` — 설계 결정 D1~D80. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약. 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 10절(실제 11개) + 시드 케이스 맵
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + 확장 7종 §8~§14). 임의 변경 금지
+- `docs/05_DB_SCHEMA.md` — 테이블 **17절(실제 18개)** + 시드 케이스 맵
+  (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받는다 — **`§10` 은 존재하지 않는다**.
+   `§7` 이 `suppliers`·`supplier_parts` 두 테이블을 함께 다뤄 절 수보다 테이블이 1개 많다)
 - `docs/06_REPO_API.md` — 폴더 구조·API·SSE 이벤트 규격
 - `docs/09_RUNTIME.md` — 시퀀스·루프 상한·장애 모드
 
@@ -30,6 +32,8 @@
 - Python 3.11+, FastAPI, SQLite(목업), MCP 서버는 backend와 프로세스 분리 (D15)
 - 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
+  - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
+  - 확장 7종은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
 
@@ -47,13 +51,19 @@
 계약이 깨지면 여기서 먼저 잡힌다. 코드 변경 후 반드시 실행 (`/stage`가 자동 호출).
 
 - `data/seed.py` — 시드 케이스 맵 자가 검증
-- `spikes/` — sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
+- `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
+  (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
+- `spikes/` — **20종** (`ls spikes/*.py` 와 일치해야 한다):
+  sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
-  llm_provider_contract
+  llm_provider_contract · eval_replay_guard ·
+  **law_fetch_contract** · **rules_db_load** · **disposal_api_contract** · **asset_tools_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
+스위트 **개수**도 같다 — 위 목록과 `ls spikes/*.py` 가 어긋나면 목록이 낡은 것이다.
 
 ## 마일스톤
 

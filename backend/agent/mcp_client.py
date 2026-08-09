@@ -210,6 +210,77 @@ def summarize_result(tool: str, result: dict) -> str:
     if tool == "create_po_draft":
         return f"{result.get('po_id', '?')} {result.get('state', 'draft')} · {_won(result.get('total'))}"
 
+    # ── 확장 7종 (D69 `full` 프로파일에서만 호출된다) ─────────────────────────
+    # ⚠ D76 이후 이 문자열은 화면·traces 뿐 아니라 **LLM 입력**에도 실린다
+    #   (`loop.py` 가 `_summary` 로 trimmed dict 안에 넣는다). 그래서 더더욱
+    #   **결과에 있는 값만** 쓴다 — 여기서 판정을 요약하다 어휘를 바꾸면
+    #   ("HOLD" → "문제 없음") 규칙 12 가 막으려는 오독을 코드가 먼저 저지른다.
+
+    if tool == "check_disposal_blockers":
+        verdict = result.get("verdict") or "?"
+        blockers = result.get("blockers") or []
+        bits = [str(verdict)]
+        if blockers:
+            ids = ", ".join(str(b.get("rule_id")) for b in blockers if b.get("rule_id"))
+            bits.append(f"차단 {len(blockers)}건" + (f" ({ids})" if ids else ""))
+        for key, label in (("holds", "경계"), ("insufficient", "사실부족")):
+            items = result.get(key) or []
+            if items:
+                bits.append(f"{label} {len(items)}건")
+        preconds = result.get("preconditions") or []
+        if preconds:
+            bits.append(f"선결 {len(preconds)}건")
+        return " · ".join(bits)
+
+    if tool == "verify_ownership":
+        verdict = result.get("verdict") or "?"
+        v, u = len(result.get("verified") or []), len(result.get("unverified") or [])
+        return f"{verdict} · 확인 {v} / 미확인 {u}"
+
+    if tool == "classify_part_criticality":
+        return str(result.get("part_class") or "?")
+
+    if tool == "get_maintenance_metrics":
+        bits = []
+        mtbf = result.get("mtbf_days")
+        if mtbf is not None:
+            # 단위를 반드시 붙인다 — D70 은 이 값이 **달력 기준**임을 계약으로 못 박았고,
+            # 요약에서 기준이 사라지면 가동시간 MTBF 로 읽힌다.
+            bits.append(f"MTBF {mtbf}일(달력)")
+        planned = result.get("planned_ratio")
+        if planned is not None:
+            bits.append(f"예방보전 {round(planned * 100)}%")
+        if result.get("repeat_failure"):
+            bits.append("반복 고장")
+        if not bits:
+            bits.append(f"수리 이력 {result.get('n_repairs_signed', 0)}건")
+        return " · ".join(bits)
+
+    if tool == "classify_expenditure":
+        verdict = result.get("verdict") or "?"
+        if result.get("requires_expert_review"):
+            return f"{verdict} · 전문가 확인 필요"
+        return f"{verdict} · {result.get('basis') or '-'}"
+
+    if tool == "assess_repair_value":
+        verdict = result.get("verdict") or "?"
+        ratio = result.get("recovery_ratio")
+        # `recovery_ratio` 는 금액이 아니라 **수리비 대비 배수**다 (도구 자신도
+        # "수리비의 N배"라고 쓴다). D76 이후 이 문자열은 trace·화면뿐 아니라
+        # `_summary` 로 **LLM 입력에도** 실리므로, "회수비 1.06" 처럼 금액으로 읽힐
+        # 여지가 있는 표기를 쓰지 않는다 — 단위를 잃은 숫자가 환각의 씨앗이다.
+        # 추정치임도 요약에서 밝힌다 (D65·규칙 13). 값이 없으면 지어내지 않는다.
+        return f"{verdict} · 회수비율 {ratio}배 (추정)" if ratio is not None else str(verdict)
+
+    if tool == "build_evidence_bundle":
+        digest = str(result.get("bundle_hash") or "")
+        short = digest[:18] + "…" if len(digest) > 18 else digest or "-"
+        bundle = result.get("evidence_bundle") or {}
+        return (
+            f"번들 해시 {short} · 조문 {len(bundle.get('laws') or [])}건 "
+            f"· 룰 {len(bundle.get('rules') or [])}건"
+        )
+
     return str(status or "ok")
 
 

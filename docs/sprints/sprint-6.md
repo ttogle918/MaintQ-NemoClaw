@@ -1540,3 +1540,110 @@ reviewer 가 **판정 원천 이원화**로 어긋날 수 있는 조건 **5개**
 `engine.py` 는 MQ-601b 소유였고 Stage 5 범위 밖이라 하지 않았다 —
 reviewer 평: *"커밋 게이트 단계에서 소유자 격리를 깨면 이번 스프린트가 병렬 안전성을 주장해 온 근거가 사라진다."*
 
+---
+
+## Stage 6 완료 (2026-08-09) — **Sprint 6 종료**
+
+**태스크**: MQ-612(배선) · MQ-613(문서 정합) · 신규 결정 없음
+
+### MQ-612 — 확장 7종이 에이전트에게 보이는 지점
+
+| 프로파일 | `/health` |
+|---|---|
+| `core`(기본) | `{"tools":7,"tools_profile":"core"}` · `sp2` 19건 기존과 동일 |
+| `full` | `{"tools":14,"tools_profile":"full"}` |
+| enum 밖 | 자식 `SystemExit(1)` → `{"mcp":false,"tools":null}` (0 이 아니라 **null**) |
+
+**프롬프트가 env 를 읽지 않음을 실증**했다 — `MAINTQ_TOOLS_PROFILE=full` 로 재임포트해도 출력 불변,
+`prompts.py` 는 `os` 를 import 조차 하지 않는다. `tool_names=CORE_7` 이면 확장 도구명 **0건 누출**.
+EXT 규칙을 **도구별로 게이트**(규칙 12↔`check_disposal_blockers`, 13·14↔`assess_repair_value`)해
+"없는 도구의 결과 필드를 해석하라"는 지시가 남지 않게 했고, 번호는 **위치로 고정**했다.
+
+### MQ-613 — 문서가 주장하던 값이 실제와 달랐다 (5건)
+
+| 항목 | 문서 | 실측 |
+|---|---|---|
+| spikes | 15종 | **21종** (명세는 "신규 4종"이라 했으나 `eval_replay_guard` 도 빠져 있었다) |
+| 테이블 | "10절(실제 11개)" | **17절 / 18개** |
+| status/reason | 명세 15개 | **16개** — 명세 밖 2건 발견(`engine_error`·`law_not_effective`) |
+| P28 본문 | `data/rules/README.md`·`11 §7` | `README.md` 에 그 문장 **없음** → 제거 |
+| 루트 `README`·status HTML | 도구 7종 · 회귀 248 · D1~D57 | 14종 · 408 · D1~D80 (범위 밖이라 코디네이터가 정정) |
+
+**코드와 46개 단언으로 대조**했고, 그중 **시드 9자산 × 3모드 전수**로
+**`CLEAR` 는 `SCRAP`·`TRANSFER` 에서만 나오고 `SALE` 은 0건**(D78 부수 확정)임을 실증했다.
+
+### ⭐ reviewer 가 찾은 가장 큰 공백 — `full` 프로파일 회귀가 0건이었다
+
+`sp2_mcp_roundtrip:59`·`mcp_client_contract:84` 가 둘 다 `EXPECTED_TOOLS <= names` **부분집합** 비교라
+**core 에서도 full 에서도 통과**했다. 확장 등록 블록 전체(import 7 + 데코레이터 7)와
+D80 `required` 노출·타입 폭이 **수동 체크리스트에만 의존**하고 있었다.
+
+→ **`spikes/tools_profile_contract.py` 신설(6건)**. `asset_tools_contract`(도구 **로직**을 in-process)와
+분리한 이유는 이건 **등록·스키마**를 stdio 로 보기 때문 — 실패 시 원인이 섞이면 안 된다.
+`MAINTQ_DB` 로 임시 사본을 가리키고 **도구를 한 번도 호출하지 않아** 실 DB 경합 표면이 없다.
+
+**뮤턴트 4종으로 먼저 깨뜨려 확인**했다(전부 원복):
+
+| 뮤턴트 | 신규 스위트 | 기존 스위트 |
+|---|---|---|
+| `build_evidence_bundle` 등록 제거 | **FAIL 2건** | `sp2` **통과 19건** ← **공백이 실재했다는 증거** |
+| `amount` 에 기본값 `= 0` | FAIL(required 집합) | — |
+| `repair_cost: int` 로 축소 | FAIL(`['integer'] ≠ ['integer','string']`) | — |
+| enum 밖 → `core` 폴백 | FAIL(`exit=0`) | — |
+
+### 함께 닫은 경고 3건
+
+- **LLM 오독** — `"회수비 1.06"` → **`"회수비율 1.06배 (추정)"`**. `recovery_ratio` 는 **배수**인데
+  D76 이후 이 문자열이 `loop.py:124` 를 통해 **LLM 입력에도 실린다**. 도구 자신은 "수리비의 1.06배"라고 쓴다
+- **회귀 취성** — `prompt_rules` 가 `MAINTQ_TOOLS_PROFILE=full` 을 export 한 셸에서 **결함 없이 FAIL** 했다.
+  진입 시 env 를 `pop` 하고 그 사실을 detail 에 기록. reviewer 평: *"빨간 결과에 무뎌지게 만든다"*
+- **인덱스 하드코딩** — `CASES[5][2]` → label 조회. 같은 파일이 *"손으로 인덱스를 박으면 밀린다"* 고
+  경고해 놓고 위반하던 자리
+
+### 검증
+
+- 회귀 **414건** — spikes **396**(21스위트) + seed **18**. 감소 0, **플래키 재시도 0회**
+- `pytest data/rules/test_rules.py` 41 passed · `ruff` clean · `tsc --noEmit` exit 0 · `next build` 성공
+- `loop.py` 변경은 **한 곳**(3줄이 주석) — 판정 소스 `_pages_from`·`_parts_from` 은 diff 에 없다
+- reviewer PASS(블로커 0)
+
+---
+
+# Sprint 6 종료 상태
+
+| 스테이지 | 커밋 | 내용 |
+|---|---|---|
+| Stage 1 | `ec3a854` | 법령 참조 등록 · 잔가곡선 (D69~D75) |
+| Stage 2 | `5d2bebf` | 스키마 7테이블 · 시드 (D77) |
+| Stage 3 | `ddb4e71` | 룰 정합 · **처분 판정 5종 관통** (D78·D79) |
+| Stage 4 | `05422e1` | 읽기 도구 5종 (D80) |
+| Stage 5 | `9ecc405` | 3지 판단 · 근거 번들 · S9 REST 409 |
+| Stage 6 | (이 커밋) | MCP 등록 · 프로파일 · 문서 정합 |
+
+**회귀 273 → 414건.** 한 번도 줄지 않았다.
+**결정 D69~D80 (12건).**
+
+## 완료된 것 / 남은 것
+
+| 기능 | 상태 |
+|---|---|
+| 11 — 근거 3계층 | **계층 1·2 완료**(DB 적재·무결성 게이트). 계층 3(서명)은 Sprint 7 |
+| 10 — 처분 법정 조건 검사 (S9) | **완료** — 도구 + REST 409 |
+| 12 — 중고 취득 검증 (S18) | **완료** — 도구 (UI 는 Sprint 7) |
+| 7 — 수리/교체/매각 3지 판단 | **완료** — 도구 |
+| 8 — 보전지표 | **완료** — 도구 |
+| 9 — 수리 증빙 서명 (S19) | **Sprint 7** — 쓰기 도구·서명 |
+| S10 — 근거 번들 → 서명 확정 | **재료만 완료**. 서명은 Sprint 7 + `LAW_API_OC` 필요 |
+
+## Sprint 7 착수 전 필수
+
+1. 🔴 **`LAW_API_OC` 발급** — 없으면 계층 1 이 영구 `PENDING` 이고 **S10 이 성립하지 않는다**
+2. 🔴 **번들이 실제로 무엇을 보장하는가** — W5(파일/DB 혼합) · W6(룰 본문 미고정) · W7(CLEAR 근거 부재) ·
+   계약 조항 미고정 · N1(정규화 해시) · N2(TOCTOU). 근본 해소는
+   `engine.check_disposal_blockers(facts, *, laws=, rules=)` 주입점 + `facts` 반환
+3. **MCP↔REST 대조를 버킷·`law_ref_id` 집합까지 확장** — 지금은 `verdict` 만 본다.
+   근거: MQ-612 의 첫 뮤턴트(`disposal_type` 드리프트)가 **verdict 로는 안 보였다**
+4. **플래키 3스위트** — stdio 스위트에 `MAINTQ_DB` per-suite 사본
+5. **W2 이월** — `backend/services/disposal.py` 가 엔진 문구를 복제. 드리프트 검사는 spike 에 있으나
+   복제 자체는 남아 있다
+
