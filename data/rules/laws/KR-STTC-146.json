@@ -3,7 +3,7 @@
   "law_name": "조세특례제한법",
   "article": "146",
   "clause": null,
-  "title": "세액공제액의 추징",
+  "title": "감면세액의 추징",
   "text": null,
   "fetch_status": "PENDING",
   "effective_from": null,
@@ -13,5 +13,5 @@
   "retrieved_at": null,
   "text_hash": null,
   "supersedes": null,
-  "verification_note": "사후관리 기간(2년)의 구체적 근거는 시행령에 있을 수 있음. 시행령 조문도 함께 수집할 것."
+  "verification_note": "사후관리 기간(2년)의 구체적 근거는 시행령에 있을 수 있음. 시행령 조문도 함께 수집할 것. [2026-08-09 사람 승인] title 을 '세액공제액의 추징' → '감면세액의 추징' 으로 정정. 법제처 OPEN API 실호출로 확인된 실제 조문 제목이며, 등록값이 오기였다. 이 정정 없이는 apply_fetch 의 정체성 대조(D75)가 LawMismatchError 로 막아 TAX-CREDIT-2Y 인용 자산 3건의 번들·서명이 전부 불가능했다."
 }
