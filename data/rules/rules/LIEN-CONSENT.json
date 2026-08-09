@@ -6,8 +6,8 @@
   "source_type": "CONTRACT",
   "law_refs": ["KR-CIVIL-388"],
   "contract_refs": ["여신거래기본약관", "근저당권설정계약서"],
-  "interpretation": "담보로 제공된 설비를 채권자 동의 없이 처분하면 여신거래약관상 기한이익 상실 사유에 해당할 수 있다. 법령이 처분을 금지하는 것이 아니라 계약이 제한하는 구조다.",
-  "required_facts": ["has_lien", "lien_creditor", "lien_consent_ref"],
+  "interpretation": "담보로 제공된 설비를 채권자 동의 없이 처분하면 여신거래약관상 기한이익 상실 사유에 해당할 수 있다. 법령이 처분을 금지하는 것이 아니라 계약이 제한하는 구조다. ★ 사실 표기 규약: lien_creditor·lien_consent_ref 는 빈 문자열('')이 '확인된 해당 없음', NULL(키 부재)이 '모름'이다. 담보가 설정된 자산(has_lien=true)인데 lien_consent_ref 가 ''이면 '동의서가 없음이 확인됐다'가 아니라 데이터 입력 누락일 가능성이 크고, 그 경우 이 룰의 is_null 트리거가 발화하지 않는다 — 시드 불변식(seed.py verify ⑱)이 그 조합을 0건으로 잠근다.",
+  "required_facts": ["has_lien", "lien_creditor"],
   "trigger": {
     "all_of": [
       {"field": "has_lien", "op": "eq", "value": true},
@@ -22,7 +22,8 @@
   "confidence": "HIGH",
   "confidence_note": "근거가 법령이 아니라 개별 계약이므로, 실제 약관 조항을 contract_refs에 등록해야 근거가 완성된다",
   "requires_expert_review": false,
-  "rule_version": 1,
+  "rule_version": 2,
+  "revision_note": "v2 (2026-08-09, D77): required_facts 에서 lien_consent_ref 제거. 동의서 **부재**가 곧 트리거 조건(is_null)인데 같은 필드를 필수 사실로 선언해, 값이 없으면 INSUFFICIENT_FACTS·값이 있으면 미발화 — 어떤 사실 조합으로도 발화하지 않는 룰이었다. trigger·근거는 무변경. interpretation 에는 ''(확인된 해당 없음) vs NULL(모름) 표기 규약을 명시했다 — 이 룰이 required_facts 가드를 잃은 대가로 '' 오입력이 조용한 미발화가 되므로, 규약이 룰 밖(seed.py 주석)에만 있으면 안 된다.",
   "authored_by": null,
   "reviewed_at": null
 }

@@ -286,7 +286,7 @@ CREATE TABLE traces (
   event_type   TEXT NOT NULL,          -- 'tool_call' | 'tool_result' | 'block'
   tool         TEXT,                   -- 도구명 (block 이벤트는 NULL 가능)
   payload      TEXT NOT NULL,          -- SSE data 와 **바이트 동일** (D30)
-  tool_payload TEXT,                   -- 도구 결과 원본 JSON. tool_result 행만 (D77-2)
+  tool_payload TEXT,                   -- 도구 결과 원본 JSON. tool_result 행만 (D76-2)
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
   -- 깨진 걸 아무도 모른다 (D41)
@@ -295,14 +295,14 @@ CREATE TABLE traces (
 CREATE INDEX idx_traces_session ON traces(session_id, seq);
 ```
 
-**`payload` 와 `tool_payload` 를 나눈 이유 (D77-2).** `payload` 는 **SSE 로 흘려보낸 `data` 와
+**`payload` 와 `tool_payload` 를 나눈 이유 (D76-2).** `payload` 는 **SSE 로 흘려보낸 `data` 와
 바이트 동일**이 계약이고(D30), `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로
 대조한다. 도구 결과 **원본**은 화면·평가가 요약본이 아닌 원문을 봐야 할 때 필요한데, 이걸
 `payload` 에 섞으면 "발행한 것과 저장한 것이 같다"는 대조가 조용히 깨진다. 그래서 컬럼을 따로 둔다.
 `tool_result` 행에만 값이 있으므로 **nullable** 이며, `tool_call`·`block` 행에는 NULL 이다.
 
 > ⚠ **Sprint 6 은 컬럼만 만든다.** 값을 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은
-> D77-2 담당이 별도로 처리한다. 시드는 `traces` 에 행을 넣지 않는다.
+> D76-2 담당이 별도로 처리한다. 시드는 `traces` 에 행을 넣지 않는다.
 
 **테이블로 두지 않는 것:** 제조사 A/S 연락처(S4 안내용)는 데이터가 아니라 **설정(config) 상수** — 공급사(suppliers.contact)와 성격이 다르고 기종당 1개뿐이라 테이블이 과함.
 
@@ -333,7 +333,8 @@ CREATE TABLE assets (
   has_lien                 BOOLEAN,
   lien_creditor            TEXT,
   lien_consent_ref         TEXT,
-  policy_id                TEXT,
+  insured                  BOOLEAN,        -- D78. NULL=모름 / 0=확인된 미부보 / 1=부보
+  policy_id                TEXT,           -- 증권 식별자 전용. 판정은 insured 가 한다 (D78)
   safety_inspection_target BOOLEAN,
   last_inspection_date     DATE,
   inspection_valid_until   DATE,
@@ -354,13 +355,29 @@ CREATE TABLE assets (
 `required_facts` 검사에서 누락으로 잡혀 `INSUFFICIENT_FACTS` 가 된다. 시드는 이 경로를
 `AST-L4-DUST`(`tax_credit_applied = NULL`)로 재현한다. **"모른다"를 0/false 로 채우지 않는다.**
 
+> ⚠ 정확히는 **엔진이 아니라 `engine.build_facts` 가** 이 성질을 만든다. `evaluate_rule` 의
+> 누락 검사는 `f not in facts` 로 **키 존재만** 보므로 `{"tax_credit_applied": None}` 을 그대로
+> 넘기면 "값이 있다"로 읽혀 조용히 `CLEAR` 가 된다. `build_facts` 가 NULL 컬럼의 **키를 빼기
+> 때문에** NULL→`INSUFFICIENT_FACTS` 가 성립한다. 도구는 `dict(row)` 를 판정기에 직접
+> 넘기지 말고 반드시 `build_facts` 를 경유할 것 (`test_rules.py` 가 이 계약을 고정한다).
+> 같은 이유로 **판독 불가한 날짜**(`acquired_at='2025/03/01'` 등)도 키째 빠진다 — 원천만 남기면
+> `months_since_acquisition` 파생이 실패한 채 `lt` 비교가 False 를 내어 `TAX-CREDIT-2Y` 가
+> 조용히 `CLEAR` 로 통과한다.
+
+**`insured` 와 `policy_id` 를 나눈 이유 (D78).** `policy_id` 한 컬럼이 "부보돼 있는가"와
+"증권 번호가 무엇인가" 두 질문을 겸하면 **"확인된 미부보"를 적을 자리가 없다** — 값이 있으면
+`INSURANCE-NOTIFY` 가 항상 발화하고, 없으면 `required_facts` 누락으로 `INSUFFICIENT_FACTS` 라
+**어떤 사실 조합으로도 해제되지 않는 룰**이 된다. `has_lien`/`lien_creditor` 와 같은 꼴로
+불리언을 분리해 **NULL=모름 / 0=확인된 미부보 / 1=부보** 세 상태를 전부 표현한다.
+시드 9건 중 `AST-L3-LIFT` 만 `insured=0`·`policy_id=NULL` 이고, 이 자산이 유일한 `CLEAR` 재료다.
+
 **안전검사 이력은 대상 기계에만 채운다.** `last_inspection_date`·`inspection_valid_until` 은
 `safety_inspection_target = 1` 인 `AST-L2-SPDL` 1건만 값이 있고 **나머지 8건은 NULL** 이다.
 비대상 기계에는 검사 자체가 존재하지 않으므로 날짜를 넣으면 **없는 법정 사실을 지어내는 것**이다
-(D62·D65). `SAFETY-INSPECTION.required_facts` 가 트리거가 읽지도 않는 이 두 필드를 요구해
-비대상까지 `INSUFFICIENT_FACTS` 가 되지만, **그건 룰의 결함이고 시드가 데이터로 덮을 일이 아니다** —
-`required_facts` 정합은 **D77 로 Stage 3(MQ-601b)** 이 처리한다. 데이터로 덮으면 검증 ⑮
-("룰 카탈로그가 실제로 5종 판정을 내는가")가 거짓 통과한다.
+(D62·D65). 한때 `SAFETY-INSPECTION.required_facts` 가 트리거가 읽지도 않는 이 두 필드를 요구해
+비대상까지 `INSUFFICIENT_FACTS` 가 됐지만, **그건 룰의 결함이었지 시드가 데이터로 덮을 일이 아니었다** —
+`required_facts` 정합은 **D77 이 Stage 3(MQ-601b)에서 처리했다**(해당 룰 v2). 데이터로 덮었다면 검증 ⑮
+("룰 카탈로그가 실제로 5종 판정을 내는가")가 거짓 통과했을 것이다.
 
 `lien_creditor`·`lien_consent_ref` 는 반대다 — 담보가 **없다**는 건 확인된 사실이므로
 "해당 없음"(빈 문자열)이 맞고 NULL 이 아니다. **없음과 모름을 구분하는 게 D62의 요지다.**
@@ -581,17 +598,17 @@ CREATE TABLE residual_curve (
 `repeat_failure` 가 켜지면 `assess_repair_value` 가 전부 `ROOT_CAUSE_FIRST` 로 수렴해
 3지 판단 데모가 사라진다. 반복 고장은 `INV-L3-01` 전용이다.
 
-> ⚠ **처분 기대 verdict 중 CONDITIONAL·CLEAR 는 현재 룰 카탈로그로 재현되지 않는다.**
-> `VAT-INVOICE.required_facts` 의 `sale_amount`·`buyer_biz_no` 와
-> `INSURANCE-NOTIFY.required_facts` 의 `risk_grade_before`·`risk_grade_after` 에
-> **원천이 없어**(전자는 컬럼도 도구 파라미터도 없고, 후자는 F6 `risk_profile` 이 범위 밖)
-> 전 자산이 최소 2건의 `INSUFFICIENT_FACTS` 를 얻고, 엔진의 우선순위
-> `blockers > (holds|insufficient) > preconds > CLEAR` 때문에 `HOLD` 로 수렴한다.
-> 같은 이유로 `LIEN-CONSENT` 는 `required_facts` 에 `lien_consent_ref` 를 넣고 트리거는
-> `is_null` 을 보므로, "None 키는 facts 에 넣지 않는다"(D62) 아래에서 **구조적으로 트리거될 수
-> 없다** — `AST-L3-CONV` 의 BLOCKED 는 `TAX-CREDIT-2Y` 단독으로 성립한다(기대 2건 중 1건).
-> `SAFETY-INSPECTION` 도 같은 유형이 하나 더 있다(트리거가 읽지 않는 2필드를 요구).
-> **시드로 덮지 않았다** — 덮으면 ⑮ 가 거짓 통과한다. 해소는 **D77 / Stage 3** 소관이다.
+> ✅ **위 5종은 Stage 3(MQ-601b)에서 전부 재현됐다** — D77(룰 `required_facts` 정합) ·
+> D78(`assets.insured` 분리) · D79(`verdict` 5종) 을 거친 결과다. 그전에는
+> `CONDITIONAL`·`CLEAR` 가 **어떤 시드로도 도달 불가**였다: 룰 4종이 원천 없는 사실을
+> 요구하거나(`sale_amount`·`risk_grade_*`) 부재가 곧 트리거인 필드를 선언해
+> (`lien_consent_ref`) 전 자산이 `INSUFFICIENT_FACTS` 로 수렴했다.
+>
+> ⚠ **`AST-L3-LIFT` 의 `CLEAR` 는 `disposal_mode='SCRAP'` 에서만 나온다.** `VAT-INVOICE` 가
+> `disposal_mode='SALE' ∧ vat_invoice_issued=false` 로 발화하는데 precheck 은 거래 성립 전이라
+> `vat_invoice_issued` 는 **항상 false** 이므로, **매각 판정은 정의상 최소 `CONDITIONAL`** 이다
+> (세금계산서 발급이 언제나 남아 있다). 결함이 아니라 도메인 사실이며 D78 이 명시했다.
+> 같은 자산을 `SALE` 로 부르면 `CONDITIONAL` 이 정답이고, 검증 ⑮ 가 두 경우를 함께 잠근다.
 
 ## 다음 단계 (M1 착수 순서)
 1. LS 매뉴얼 2종(iG5A, S100) 다운로드 → 에러코드 표 추출 → `error_codes` 적재 (최대 리스크 구간)
@@ -608,6 +625,7 @@ CREATE TABLE residual_curve (
 | ⑫ | `assets` 9행 · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`) | D68 |
 | ⑬ | `law_refs` 사본 == `data/rules/laws/*.json` **파일 목록** (하드코딩 금지) | D60 |
 | ⑭ | `rules` 5행 · 근거(`law_refs`+`contract_refs`) 없는 룰 0건 | D61 |
-| ⑮ | 처분 5자산의 `check_disposal_blockers` verdict 일치 | **MQ-601b 소유 — 아직 없음** |
+| ⑮ | 처분 5자산의 `check_disposal_blockers` verdict + 버킷 건수 일치 · `LIFT` 의 SALE/SCRAP 대조 | D77·D78·D79 |
 | ⑯ | `parts.part_class` NULL 0건 · 잔가 격자 공백 0 · 단조 감소 · 목업 표기 | D12·D74 |
 | ⑰ | 사유 없는 `override` INSERT → CHECK 거부 | D63 |
+| ⑱ | `has_lien=1` 인데 `lien_consent_ref=''` 인 자산 0건 | D62·D77 |

@@ -4,18 +4,33 @@
   "category": "INSURANCE",
   "disposal_type": "PRECONDITION",
   "source_type": "LAW",
-  "law_refs": ["KR-KCC-652"],
+  "law_refs": [
+    "KR-KCC-652"
+  ],
   "interpretation": "부보 목적물에 포함된 설비를 반출하거나 신규 설비를 반입해 위험이 현저히 변경·증가하면 보험자에게 지체 없이 통지해야 한다. 미이행 시 계약 해지 또는 보험금 감액 위험이 있다.",
-  "required_facts": ["policy_id", "building_id", "risk_grade_before", "risk_grade_after"],
+  "required_facts": [
+    "insured"
+  ],
   "trigger": {
     "any_of": [
-      {"field": "policy_id", "op": "is_not_null"},
-      {"field": "risk_grade_changed", "op": "eq", "value": true}
+      {
+        "field": "insured",
+        "op": "eq",
+        "value": true
+      },
+      {
+        "field": "risk_grade_changed",
+        "op": "eq",
+        "value": true
+      }
     ]
   },
   "boundary": {
     "field": "risk_score_delta_pct",
-    "review_band": [-10, 10],
+    "review_band": [
+      -10,
+      10
+    ],
     "on_boundary": "HOLD",
     "note": "법문의 '현저히'는 해석 영역. 임계값은 시스템이 명시적으로 선언하고 경계는 사람에게 넘긴다"
   },
@@ -27,7 +42,8 @@
   "confidence": "HIGH",
   "confidence_note": "통지 의무 자체는 명확하나, '현저성' 판단은 사안별로 갈린다",
   "requires_expert_review": true,
-  "rule_version": 1,
+  "rule_version": 3,
+  "revision_note": "v2 (2026-08-09, D77): required_facts 에서 building_id·risk_grade_before·risk_grade_after 제거 → ['policy_id']. 세 사실의 원천은 F6 risk_profile 로 이번 범위 밖이라 시스템이 영원히 채울 수 없었고, 그 결과 전 자산이 INSUFFICIENT_FACTS 였다. / v3 (2026-08-09, **D78**): required_facts=['insured'] 로 바꾸고 trigger 첫 분기를 policy_id is_not_null → insured eq true 로 **개정**. v2 는 발화는 되나 **해제가 불가능**했다 — policy_id 한 컬럼이 '부보돼 있는가'와 '증권 번호가 무엇인가' 두 질문을 겸해 '확인된 미부보'를 표현할 자리가 없었고(값 있으면 TRIGGERED·없으면 INSUFFICIENT_FACTS), 그 결과 어떤 자산도 CLEAR 를 받지 못했다. D77 ⓐ(LIEN-CONSENT)의 거울상이며 해법도 같다(has_lien 처럼 불리언을 분리). ⚠ 이 개정은 D78 이 명시적으로 허가한 trigger 변경이다. 두 번째 분기(risk_grade_changed)·boundary·law_refs 는 무변경. ⚠ F6 경고: 두 번째 분기(risk_grade_changed)는 원천 부재로 현재 항상 False 다. F6(risk_profile)로 이 사실이 채워지면 insured=false 인 자산이 any_of 로 발화해 **증권 없는 자산에 통지 의무를 선언한다** — F6 착수 시 all_of 로 재구조화가 필요하며 trigger 변경이므로 새 결정을 받아야 한다.",
   "authored_by": null,
   "reviewed_at": null
 }

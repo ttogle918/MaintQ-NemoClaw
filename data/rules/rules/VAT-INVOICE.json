@@ -6,7 +6,7 @@
   "source_type": "LAW",
   "law_refs": ["KR-VAT-32"],
   "interpretation": "사업용 고정자산의 매각은 재화의 공급에 해당하여 부가가치세 과세 대상이며 세금계산서를 발급해야 한다. 폐기는 공급이 아니므로 해당하지 않는다.",
-  "required_facts": ["disposal_mode", "sale_amount", "buyer_biz_no"],
+  "required_facts": ["disposal_mode", "vat_invoice_issued"],
   "trigger": {
     "all_of": [
       {"field": "disposal_mode", "op": "eq", "value": "SALE"},
@@ -20,7 +20,8 @@
   "confidence": "HIGH",
   "confidence_note": "면세사업자·간이과세 등 예외 상황은 별도 검토 필요",
   "requires_expert_review": false,
-  "rule_version": 1,
+  "rule_version": 2,
+  "revision_note": "v2 (2026-08-09, D77): required_facts 에서 sale_amount·buyer_biz_no 제거하고 vat_invoice_issued 추가. 매각가액·매수인 사업자번호는 자산 사실이 아니라 **거래 사실**이라 자산 행에 원천이 없다(도구 입력으로 받으면 에이전트가 지어낼 경로가 생긴다 — D31). 정작 trigger 가 읽는 vat_invoice_issued 는 선언돼 있지 않았다. trigger·근거는 무변경.",
   "authored_by": null,
   "reviewed_at": null
 }

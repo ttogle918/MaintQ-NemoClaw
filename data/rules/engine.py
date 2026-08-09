@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
@@ -73,6 +74,48 @@ def load_laws() -> dict[str, LawRef]:
             source_url=raw.get("source_url", ""),
             text_hash=raw.get("text_hash"),
             verification_note=raw.get("verification_note"),
+        )
+    return laws
+
+
+LAW_COLUMNS = (
+    "law_ref_id",
+    "law_name",
+    "article",
+    "title",
+    "text",
+    "fetch_status",
+    "effective_from",
+    "effective_to",
+    "source_url",
+    "text_hash",
+    "verification_note",
+)
+
+
+def load_laws_from_db(con: sqlite3.Connection) -> dict[str, LawRef]:
+    """계층 1 **사본**을 DB에서 읽는다. 정본은 `data/rules/laws/*.json` 이다 (D60).
+
+    파일 로더(`load_laws`)와 같은 dataclass 를 만든다 — 두 경로가 어긋나면
+    `spikes/rules_db_load.py` ⓐ 가 잡는다. `source_url` 이 NULL 인 행은
+    파일 로더의 기본값(`""`)과 맞춘다.
+    """
+    sql = f"SELECT {', '.join(LAW_COLUMNS)} FROM law_refs ORDER BY law_ref_id"  # noqa: S608
+    laws: dict[str, LawRef] = {}
+    for row in con.execute(sql).fetchall():
+        raw = dict(zip(LAW_COLUMNS, row))
+        laws[raw["law_ref_id"]] = LawRef(
+            law_ref_id=raw["law_ref_id"],
+            law_name=raw["law_name"],
+            article=raw["article"],
+            title=raw["title"],
+            text=raw["text"],
+            fetch_status=raw["fetch_status"] or "PENDING",
+            effective_from=raw["effective_from"],
+            effective_to=raw["effective_to"],
+            source_url=raw["source_url"] or "",
+            text_hash=raw["text_hash"],
+            verification_note=raw["verification_note"],
         )
     return laws
 
@@ -151,6 +194,205 @@ def load_rules(laws: dict[str, LawRef]) -> dict[str, Rule]:
     return rules
 
 
+RULE_COLUMNS = (
+    "rule_id",
+    "rule_version",
+    "label",
+    "category",
+    "disposal_type",
+    "source_type",
+    "law_refs",
+    "contract_refs",
+    "interpretation",
+    "required_facts",
+    "trigger",
+    "boundary",
+    "message",
+    "resolve_options",
+    "confidence",
+    "requires_expert_review",
+)
+
+
+def _json_col(rule_id: str, column: str, value: str | None, default: Any) -> Any:
+    """DB의 JSON 컬럼 파싱. 깨진 JSON을 조용히 기본값으로 넘기지 않는다."""
+    if value is None:
+        return default
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise RuleIntegrityError(f"{rule_id}: {column} JSON 파싱 실패 — {exc}") from exc
+
+
+def load_rules_from_db(con: sqlite3.Connection, laws: dict[str, LawRef]) -> dict[str, Rule]:
+    """계층 2 **사본**을 DB에서 읽는다. 정본은 `data/rules/rules/*.json` 이다 (D60).
+
+    ★ 파일 로더(`load_rules`)와 **완전히 같은 불변식**을 적용한다 — 근거 없는 룰 거부(D61),
+      미등록 법령 참조 거부. DB 사본이 무결성 검사를 우회하는 경로가 되면
+      `seed_rule_catalog` 가 `load_rules` 를 경유하도록 만든 게이트가 무의미해진다.
+
+    `(rule_id, rule_version)` 복합 PK 라 같은 룰의 여러 개정본이 공존할 수 있다 (D60).
+    판정에는 **rule_id 별 최신 버전 1행만** 쓴다 — 구 버전은 서명 시점 재현용으로 남는다.
+    """
+    sql = (  # noqa: S608
+        f"SELECT {', '.join('r.' + c for c in RULE_COLUMNS)} FROM rules r"
+        " JOIN (SELECT rule_id, MAX(rule_version) AS v FROM rules GROUP BY rule_id) m"
+        " ON m.rule_id = r.rule_id AND m.v = r.rule_version"
+        " ORDER BY r.rule_id"
+    )
+    rules: dict[str, Rule] = {}
+    for row in con.execute(sql).fetchall():
+        raw = dict(zip(RULE_COLUMNS, row))
+        rule_id = raw["rule_id"]
+        law_refs = _json_col(rule_id, "law_refs", raw["law_refs"], [])
+        contract_refs = _json_col(rule_id, "contract_refs", raw["contract_refs"], [])
+
+        # 파일 로더 127~131행과 같은 게이트 (D61)
+        if not law_refs and not contract_refs:
+            raise RuleIntegrityError(f"{rule_id}: 근거 참조 없음")
+        for ref in law_refs:
+            if ref not in laws:
+                raise RuleIntegrityError(f"{rule_id}: 미등록 법령 참조 {ref}")
+
+        rules[rule_id] = Rule(
+            rule_id=rule_id,
+            label=raw["label"],
+            category=raw["category"],
+            disposal_type=raw["disposal_type"],
+            source_type=raw["source_type"],
+            law_refs=law_refs,
+            contract_refs=contract_refs,
+            interpretation=raw["interpretation"],
+            required_facts=_json_col(rule_id, "required_facts", raw["required_facts"], []),
+            trigger=_json_col(rule_id, "trigger", raw["trigger"], None),
+            boundary=_json_col(rule_id, "boundary", raw["boundary"], None),
+            message=raw["message"],
+            resolve_options=_json_col(rule_id, "resolve_options", raw["resolve_options"], []),
+            confidence=raw["confidence"] or "MEDIUM",
+            requires_expert_review=bool(raw["requires_expert_review"]),
+            rule_version=raw["rule_version"],
+        )
+    return rules
+
+
+# ---------------------------------------------------------------- 사실 조립
+
+# `assets` 에서 그대로 옮겨오는 법정 조건 사실 (11 §7 · D68).
+# 여기에 없는 컬럼은 facts 에 들어가지 않는다 — 룰이 읽지 않는 값을 섞으면
+# "이 판정이 무엇을 봤는가"가 흐려진다.
+ASSET_FACT_COLUMNS = (
+    "asset_id",
+    "building_id",
+    "status",
+    "acquired_at",
+    "tax_credit_applied",
+    "has_lien",
+    "lien_creditor",
+    "lien_consent_ref",
+    "insured",  # D78 — 부보 여부. policy_id 는 증권 식별자일 뿐 판정 근거가 아니다
+    "policy_id",
+    "safety_inspection_target",
+    "last_inspection_date",
+    "inspection_valid_until",
+)
+
+# SQLite BOOLEAN 은 0/1 정수로 돌아온다. 룰의 `eq true` 와 맞추려면 bool 로 캐스팅해야 한다.
+_BOOL_FACT_COLUMNS = frozenset(
+    {"tax_credit_applied", "has_lien", "insured", "safety_inspection_target"}
+)
+
+# 날짜 사실. **판독 불가하면 키를 만들지 않는다** (아래 build_facts docstring 참조)
+_DATE_FACT_COLUMNS = frozenset({"acquired_at", "last_inspection_date", "inspection_valid_until"})
+
+DISPOSAL_MODES = ("SALE", "SCRAP", "TRANSFER")
+
+
+def _as_date(value: object) -> date | None:
+    """ISO 날짜로 읽히지 않으면 None. 판독 실패를 0/오늘로 메우지 않는다 (D62)."""
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _months_between(start: date, end: date) -> int:
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        months -= 1
+    return months
+
+
+def build_facts(
+    asset_row: sqlite3.Row | dict,
+    *,
+    disposal_mode: str | None = None,
+    disposal_date: str | None = None,
+    at: date | None = None,
+) -> dict:
+    """`assets` 한 행 → 룰 엔진 facts.
+
+    ★ 가장 중요한 규칙: **값이 None 인 키는 dict 에 넣지 않는다.**
+      `evaluate_rule`(216행)이 `f not in facts` 로 사실 누락을 판정하므로, None 을 넣으면
+      "모른다"가 "조건 미해당(CLEAR)"으로 조용히 바뀐다 — 불변식 4(D62)가 통째로
+      무너지는 단 하나의 지점이다. **False·0 은 값이므로 반드시 포함**한다.
+      (반대로 시드가 "해당 없음"을 빈 문자열로 적은 컬럼은 값이 있는 것이다 —
+       담보 없는 자산의 `lien_creditor=''` 는 누락이 아니다.)
+
+    파생·판정시점 사실:
+      disposal_mode         — 도구 파라미터라 **항상 알 수 있다.** 기본값 'SALE'
+      vat_invoice_issued    — precheck 는 **거래 성립 전**이므로 `False` 가 확정 사실이다 (D77).
+                              지어낸 값이 아니라 *판정 시점의 정의*다. 발급 여부를 아직 모르는
+                              게 아니라, 아직 발급될 수 없는 시점에서 판정하는 것이다.
+                              같은 이유로 `sale_amount`·`buyer_biz_no` 같은 **다른 거래 사실은
+                              채우지 않는다** — 그건 실제로 모르는 값이고 지어내면 D31 위반이다.
+      months_since_acquisition — `acquired_at`·`disposal_date` **둘 다 판독됐을 때만** 계산.
+                              ★ 날짜가 ISO 로 읽히지 않으면 **그 원천 키 자체를 빼 버린다.**
+                                원천은 남기고 파생만 조용히 건너뛰면 TAX-CREDIT-2Y 가
+                                `required_facts`(acquired_at·disposal_date)는 충족한 채
+                                `months_since_acquisition` 이 없는 상태로 트리거를 타는데,
+                                `lt` 가 `a is not None and a < b` 라 **False → CLEAR** 가 된다.
+                                "사실은 충분한데 조건 미해당"이라는 가장 나쁜 형태의 조용한 통과다.
+                                키를 빼면 `INSUFFICIENT_FACTS` + `missing_facts` 에 범인이 찍힌다.
+                                → 결과적으로 "원천 2개가 facts 에 있으면 파생도 반드시 있다"가
+                                  **구조적으로 보장**된다(검사로 막는 게 아니라 만들어질 수 없다).
+      risk_grade_before/after · risk_score_delta_pct · risk_grade_changed
+                            — 원천이 F6 `risk_profile`(범위 밖). **키를 넣지 않는다.**
+                              INSURANCE-NOTIFY 의 경계 검사(`risk_score_delta_pct`)는
+                              `facts.get()` 가 None 을 주면 `value is not None` 에서 건너뛰므로
+                              예외도 나지 않고 잘못된 HOLD 로도 빠지지 않는다 (실측 확인).
+
+    `at`(판정 기준일)은 파생 필드에 쓰지 않는다 — `disposal_date` 가 없을 때 `at` 으로
+    대체하면 "처분일을 모른다"가 조용히 "오늘 처분한다"가 된다 (D62와 같은 유형).
+    """
+    row = dict(asset_row) if not isinstance(asset_row, dict) else asset_row
+    facts: dict[str, Any] = {}
+
+    for col in ASSET_FACT_COLUMNS:
+        value = row.get(col)
+        if value is None:
+            continue  # ★ NULL 은 "모른다" — 키를 만들지 않는다 (D62)
+        if col in _DATE_FACT_COLUMNS and _as_date(value) is None:
+            continue  # 판독 불가한 날짜는 "모른다"다 — 원문을 남기면 파생 실패가 숨는다
+        facts[col] = bool(value) if col in _BOOL_FACT_COLUMNS else value
+
+    facts["disposal_mode"] = disposal_mode or "SALE"
+    facts["vat_invoice_issued"] = False
+
+    if disposal_date is not None and _as_date(disposal_date) is not None:
+        facts["disposal_date"] = disposal_date
+        acquired = _as_date(facts.get("acquired_at"))
+        if acquired is not None:
+            facts["months_since_acquisition"] = _months_between(acquired, _as_date(disposal_date))
+
+    assert None not in facts.values(), "build_facts 는 None 값 키를 만들지 않는다 (D62)"
+    assert not ({"acquired_at", "disposal_date"} <= facts.keys()) or (
+        "months_since_acquisition" in facts
+    ), "원천 2개가 있는데 파생이 없으면 트리거가 조용히 CLEAR 를 낸다"
+    return facts
+
+
 # ---------------------------------------------------------------- 판정
 
 _OPS = {
@@ -213,6 +455,10 @@ def evaluate_rule(rule: Rule, facts: dict, laws: dict[str, LawRef]) -> Finding:
             missing_facts=missing or [],
         )
 
+    # ★ 이 검사는 **값이 아니라 키 존재**를 본다. `{"tax_credit_applied": None}` 은 여기서
+    #   누락으로 잡히지 않는다 — NULL 을 "모른다"로 만드는 책임은 `build_facts` 가 키를
+    #   **빼 주는** 데 있다. 엔진에서 `None` 을 누락 취급하면 "값이 없음이 확정된 사실"
+    #   (담보 없는 자산의 `lien_creditor=''` 같은)과 구분이 불가능해진다.
     missing = [f for f in rule.required_facts if f not in facts]
     if missing:
         return build("INSUFFICIENT_FACTS", f"필수 사실 누락: {', '.join(missing)}", missing)
@@ -229,13 +475,25 @@ def evaluate_rule(rule: Rule, facts: dict, laws: dict[str, LawRef]) -> Finding:
             )
 
     triggered = _eval_trigger(rule.trigger, facts)
-    used = {c["field"]: facts.get(c["field"]) for c in rule.trigger.get("all_of", rule.trigger.get("any_of", []))}
+    used = {
+        c["field"]: facts.get(c["field"])
+        for c in rule.trigger.get("all_of", rule.trigger.get("any_of", []))
+    }
     detail = ", ".join(f"{k}={v}" for k, v in used.items())
     return build("TRIGGERED" if triggered else "CLEAR", f"조건 평가: {detail}")
 
 
+# 최상위 판정 어휘 5종 (D79). 우선순위 = 이 순서.
+# `HOLD` 와 `INSUFFICIENT_FACTS` 를 합치지 않는 이유: **해소 경로가 정반대**다 —
+#   HOLD = 경계 구간이라 *전문가 검토*가 필요 / INSUFFICIENT_FACTS = 사실이 없어 *데이터 입력*이 필요.
+#   HTTP 는 셋 다 409 지만(D71) 사용자가 할 행동이 다르므로 본문 verdict 는 구분해야 한다.
+# `holds` 를 `insufficient` 보다 앞에 두는 이유: 경계에 걸렸다는 건 룰이 **실제로 발동한**
+#   양성 신호이고, 사실 누락은 판정 자체가 성립하지 않은 상태다 — 발화한 쪽이 더 구체적이다.
+VERDICTS = ("BLOCKED", "HOLD", "INSUFFICIENT_FACTS", "CONDITIONAL", "CLEAR")
+
+
 def check_disposal_blockers(facts: dict, at: date | None = None) -> dict:
-    """S9의 진입점. BLOCKING / PRECONDITION / HOLD를 분리해 반환한다."""
+    """S9의 진입점. BLOCKING / PRECONDITION / HOLD / INSUFFICIENT_FACTS 를 분리해 반환한다."""
     at = at or date.today()
     laws = load_laws()
     rules = load_rules(laws)
@@ -243,21 +501,26 @@ def check_disposal_blockers(facts: dict, at: date | None = None) -> dict:
     findings = [evaluate_rule(r, facts, laws) for r in rules.values()]
 
     blockers = [f for f in findings if f.verdict == "TRIGGERED" and f.disposal_type == "BLOCKING"]
-    preconds = [f for f in findings if f.verdict == "TRIGGERED" and f.disposal_type == "PRECONDITION"]
+    preconds = [
+        f for f in findings if f.verdict == "TRIGGERED" and f.disposal_type == "PRECONDITION"
+    ]
     holds = [f for f in findings if f.verdict == "HOLD"]
     insufficient = [f for f in findings if f.verdict == "INSUFFICIENT_FACTS"]
 
     if blockers:
         verdict = "BLOCKED"
-    elif holds or insufficient:
+    elif holds:
         verdict = "HOLD"
+    elif insufficient:
+        verdict = "INSUFFICIENT_FACTS"  # D79 — 'HOLD' 에 흡수하지 않는다
     elif preconds:
         verdict = "CONDITIONAL"
     else:
         verdict = "CLEAR"
 
     return {
-        "equipment_id": facts.get("equipment_id"),
+        # 처분 판정의 대상은 인버터가 아니라 **호스트 설비**다 (D68)
+        "asset_id": facts.get("asset_id"),
         "evaluated_at": at.isoformat(),
         "verdict": verdict,
         "blockers": [f.__dict__ for f in blockers],

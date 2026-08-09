@@ -96,7 +96,13 @@ CREATE TABLE assets (
   has_lien                 BOOLEAN,
   lien_creditor            TEXT,
   lien_consent_ref         TEXT,
-  policy_id                TEXT,
+  -- ★ 부보 여부와 증권 식별자를 **분리**한다 (D78). policy_id 한 컬럼이 "부보돼 있는가"와
+  --   "증권 번호가 무엇인가" 두 질문을 겸하면 **"확인된 미부보"를 적을 자리가 없다** —
+  --   값이 있으면 항상 TRIGGERED, 없으면 required_facts 누락으로 INSUFFICIENT_FACTS 라
+  --   INSURANCE-NOTIFY 가 어떤 사실 조합으로도 해제되지 않았다. has_lien/lien_creditor 와 같은 꼴.
+  --   NULL = 모름 / 0 = 확인된 미부보 / 1 = 부보
+  insured                  BOOLEAN,
+  policy_id                TEXT,   -- 증권 식별자 전용. 판정은 insured 가 한다 (D78)
   safety_inspection_target BOOLEAN,
   last_inspection_date     DATE,
   inspection_valid_until   DATE,
@@ -204,11 +210,11 @@ CREATE TABLE traces (
   event_type   TEXT NOT NULL,
   tool         TEXT,
   payload      TEXT NOT NULL,
-  -- 도구 결과 **원본** JSON (D77-2). `tool_result` 행에만 들어가므로 nullable.
+  -- 도구 결과 **원본** JSON (D76-2). `tool_result` 행에만 들어가므로 nullable.
   -- ⛔ payload 를 재사용하지 않는 이유: payload 는 **SSE data 와 바이트 동일**이 계약이고
   --    (D30) trace_persist ② · sp3_sse_events ⑬ 이 바이트 단위로 대조한다. 여기에 원본을
   --    섞으면 평가의 두 소스 대조가 조용히 깨진다.
-  -- ⚠ 이 스프린트는 **컬럼만** 만든다. 값을 쓰는 쪽(backend/agent/trace.py)은 D77-2 담당.
+  -- ⚠ 이 스프린트는 **컬럼만** 만든다. 값을 쓰는 쪽(backend/agent/trace.py)은 D76-2 담당.
   tool_payload TEXT,
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
@@ -510,6 +516,7 @@ ASSETS: list[dict] = [
         "status": "IN_USE",
         "tax_credit_applied": 0,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
@@ -529,6 +536,7 @@ ASSETS: list[dict] = [
         # 처분 시나리오: 담보 없음 + 안전검사 대상 → PRECONDITION 만 → CONDITIONAL 기대
         "tax_credit_applied": 0,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 1,
         "controller_generation": "S100/2018",
@@ -547,6 +555,7 @@ ASSETS: list[dict] = [
         "status": "IN_USE",
         "tax_credit_applied": 0,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2018",
@@ -568,6 +577,7 @@ ASSETS: list[dict] = [
         "has_lien": 1,
         "lien_creditor": "한빛은행 여신부",
         "lien_consent_ref": None,  # 동의서 없음 → LIEN-CONSENT trigger 재료
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
@@ -586,6 +596,7 @@ ASSETS: list[dict] = [
         "status": "IN_USE",
         "tax_credit_applied": 0,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
@@ -604,10 +615,17 @@ ASSETS: list[dict] = [
         #   0 이 아니라 NULL 이다. "모른다"를 0 으로 적으면 값이 생겨버린다 (D62)
         "acquisition_cost": None,
         "status": "IN_USE",
-        # 처분 시나리오: 전 사실 채움·무해당 → CLEAR 기대
+        # 처분 시나리오: 전 사실 채움·무해당 → CLEAR 기대.
+        # ★ 9자산 중 **유일하게 미부보**다 (D78) — 전 자산이 부보돼 있으면 INSURANCE-NOTIFY 가
+        #   항상 발화해 CLEAR 가 어떤 조합으로도 나오지 않는다. `insured=0` 은 "모름"(NULL)이
+        #   아니라 **확인된 미부보**이고, 그래서 policy_id 도 NULL 이다(증권이 없으니까).
+        # ⚠ 그래도 `disposal_mode='SALE'` 이면 VAT-INVOICE 가 발화해 CONDITIONAL 이다 —
+        #   매각 precheck 이 최소 CONDITIONAL 인 건 도메인 사실이라(D78 부수 확정),
+        #   이 자산의 CLEAR 는 **SCRAP·TRANSFER 에서만** 나온다.
         "tax_credit_applied": 0,
         "has_lien": 0,
-        "policy_id": "POL-2026-FIRE-01",
+        "insured": 0,
+        "policy_id": None,
         "safety_inspection_target": 0,
         "controller_generation": "S100/2022",
         "overhaul_years_ago": None,
@@ -625,6 +643,7 @@ ASSETS: list[dict] = [
         "status": "IN_USE",
         "tax_credit_applied": 0,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2022",
@@ -645,6 +664,7 @@ ASSETS: list[dict] = [
         # 처분 시나리오: months_since_acquisition 경계(22~26) → HOLD 기대
         "tax_credit_applied": 1,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2012",
@@ -664,6 +684,7 @@ ASSETS: list[dict] = [
         # 처분 시나리오: 세액공제 적용 여부 **미상** → INSUFFICIENT_FACTS 기대 (CLEAR 아님, D62)
         "tax_credit_applied": None,
         "has_lien": 0,
+        "insured": 1,
         "policy_id": "POL-2026-FIRE-01",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2014",
@@ -684,6 +705,61 @@ DISPOSAL_PROBE_MONTHS: dict[str, int] = {
     "AST-L4-DUST": 60,
     "AST-L3-LIFT": 60,
 }
+
+# ⑮ 의 기대값 (MQ-601b · D77·D78·D79). **검사할 성질만** 적는다 —
+# `blockers`/`holds`/`insufficient` 개수를 함께 잠그는 이유: verdict 만 보면 룰이 **엉뚱한
+# 이유로 같은 답**을 내도 통과한다(경계 때문인지 사실 부족 때문인지가 안 보인다).
+#
+# ★ `AST-L3-LIFT` 만 `SCRAP` 으로 프로브한다 — 매각 precheck 은 VAT-INVOICE 때문에
+#   **정의상 최소 CONDITIONAL** 이므로(D78 부수 확정) `CLEAR` 는 SCRAP·TRANSFER 에서만 나온다.
+#   같은 자산을 SALE 로 부르면 CONDITIONAL 이 정답이고, 그것도 아래서 함께 잠근다.
+DISPOSAL_EXPECTATIONS: dict[str, dict] = {
+    # 세액공제 사후관리 기간 내 + 무동의 담보 → BLOCKING 2종
+    "AST-L3-CONV": {
+        "mode": "SALE",
+        "verdict": "BLOCKED",
+        "n_blockers": 2,
+        "n_insufficient": 0,
+    },
+    # months=23 이 경계(22~26) 안 → 단정하지 않는다 (D62)
+    "AST-L4-WRAP": {
+        "mode": "SALE",
+        "verdict": "HOLD",
+        "n_blockers": 0,
+        "n_holds": 1,
+        "n_insufficient": 0,
+    },
+    # BLOCKING 없음 · 사실 부족 없음 · PRECONDITION 만 → D77 수정 전에는 도달 불가였다
+    "AST-L2-SPDL": {
+        "mode": "SALE",
+        "verdict": "CONDITIONAL",
+        "n_blockers": 0,
+        "n_insufficient": 0,
+    },
+    # tax_credit_applied 가 NULL → 사실 부족. **CLEAR 로 내려가면 안 된다** (D62).
+    # D79 로 INSUFFICIENT_FACTS 가 최상위 verdict 로 승격됐다 — HOLD 와 해소 경로가 다르다
+    # (HOLD=전문가 검토 / INSUFFICIENT_FACTS=데이터 입력). n_holds=0 으로 둘을 갈라 둔다
+    "AST-L4-DUST": {
+        "mode": "SALE",
+        "verdict": "INSUFFICIENT_FACTS",
+        "n_blockers": 0,
+        "n_holds": 0,
+        "n_insufficient": 1,
+    },
+    # 법정 조건 전부 무해당 + 확인된 미부보(insured=0, D78) + SCRAP → 유일한 CLEAR
+    "AST-L3-LIFT": {
+        "mode": "SCRAP",
+        "verdict": "CLEAR",
+        "n_blockers": 0,
+        "n_holds": 0,
+        "n_insufficient": 0,
+        "n_preconditions": 0,
+    },
+}
+
+# 같은 자산·같은 날짜인데 `disposal_mode` 만 다르면 판정이 갈린다는 **도메인 사실**을 잠근다.
+# 이게 없으면 "LIFT 는 CLEAR"만 남아, 나중에 누가 VAT-INVOICE 를 잘못 손봐도 안 걸린다.
+DISPOSAL_MODE_CONTRAST = ("AST-L3-LIFT", "SALE", "CONDITIONAL")
 
 # ── repair_records 12건 (12 §9) ───────────────────────────────────────────
 # `AST-L3-CONV` 에 몰지 않는다 — 4자산에 분산해야 MTTR·planned_ratio·누적수리비가
@@ -1044,6 +1120,7 @@ def seed_assets(con: sqlite3.Connection, today: date) -> dict[str, str]:
                 a["has_lien"],
                 a.get("lien_creditor", ""),
                 a.get("lien_consent_ref", ""),
+                a["insured"],
                 a["policy_id"],
                 a["safety_inspection_target"],
                 last_insp,
@@ -1059,10 +1136,10 @@ def seed_assets(con: sqlite3.Connection, today: date) -> dict[str, str]:
     con.executemany(
         "INSERT INTO assets (asset_id, name, category, line_id, building_id, acquired_at,"
         " acquisition_cost, book_value, status, tax_credit_applied, has_lien, lien_creditor,"
-        " lien_consent_ref, policy_id, safety_inspection_target, last_inspection_date,"
+        " lien_consent_ref, insured, policy_id, safety_inspection_target, last_inspection_date,"
         " inspection_valid_until, cumulative_repair_cost, last_overhaul_at,"
         " controller_generation, parts_eol_flag)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
     return acquired
@@ -1535,6 +1612,53 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
 # ────────────────────────────────────────────────────────────── 검증
 
 
+def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
+    """처분 시나리오 자산 5종을 **실제 판정기에 통과시켜** 결과를 모은다 (⑮).
+
+    DB 사본(`load_*_from_db`)으로 로드한다 — 파일 로더로 돌리면 "시드가 적재한 사본이
+    판정에 쓸 수 있는 상태인가"를 검증하지 못한다. `disposal_date`·`disposal_mode` 는
+    시드 컬럼이 아니라 도구 파라미터이므로 `DISPOSAL_PROBE_MONTHS` 로 만든다.
+
+    반환 키가 `(asset_id, disposal_mode)` 인 이유: 같은 자산도 매각/폐기에 따라 판정이
+    갈리는 게 **도메인 사실**이라(D78) 자산 하나에 답이 하나가 아니다.
+    """
+    sys.path.insert(0, str(ROOT.parent))
+    from data.rules import engine  # noqa: PLC0415
+
+    prev_factory = con.row_factory
+    con.row_factory = sqlite3.Row
+    probes = {(a, e["mode"]) for a, e in DISPOSAL_EXPECTATIONS.items()}
+    probes.add(DISPOSAL_MODE_CONTRAST[:2])
+    try:
+        laws = engine.load_laws_from_db(con)
+        rules = engine.load_rules_from_db(con, laws)
+        out: dict[tuple[str, str], dict] = {}
+        for asset_id, mode in sorted(probes):
+            row = con.execute("SELECT * FROM assets WHERE asset_id=?", (asset_id,)).fetchone()
+            months = DISPOSAL_PROBE_MONTHS[asset_id]
+            probe = _shift_months(date.fromisoformat(row["acquired_at"]), months)
+            facts = engine.build_facts(row, disposal_mode=mode, disposal_date=probe)
+            findings = [engine.evaluate_rule(r, facts, laws) for r in rules.values()]
+            buckets = {
+                "n_blockers": sum(
+                    f.verdict == "TRIGGERED" and f.disposal_type == "BLOCKING" for f in findings
+                ),
+                "n_preconditions": sum(
+                    f.verdict == "TRIGGERED" and f.disposal_type == "PRECONDITION" for f in findings
+                ),
+                "n_holds": sum(f.verdict == "HOLD" for f in findings),
+                "n_insufficient": sum(f.verdict == "INSUFFICIENT_FACTS" for f in findings),
+            }
+            out[(asset_id, mode)] = {
+                "verdict": engine.check_disposal_blockers(facts)["verdict"],
+                "disposal_date": probe,
+                **buckets,
+            }
+        return out
+    finally:
+        con.row_factory = prev_factory
+
+
 def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
     """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증."""
     q = lambda sql, *a: con.execute(sql, a).fetchone()  # noqa: E731
@@ -1687,6 +1811,32 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"{len(rule_rows)}행, 근거 없는 룰 {evidenceless}",
     )
 
+    # ⑮ 룰 카탈로그가 **실제로 5종 판정을 내는가** (MQ-601b · D77).
+    #    ⑭ 는 룰이 적재됐는지만 본다 — 적재된 룰이 어떤 사실 조합에도 발동하지 않아도 통과한다.
+    #    그 구멍이 D77 이 잡은 결함이라, 여기서는 시드 자산에 실제로 판정을 돌린다.
+    actual, expect_detail = _disposal_verdicts(con), []
+    verdict_ok = True
+    for asset_id, expected in DISPOSAL_EXPECTATIONS.items():
+        mode = expected["mode"]
+        got = actual[(asset_id, mode)]
+        ok = all(got[k] == v for k, v in expected.items() if k != "mode")
+        verdict_ok = verdict_ok and ok
+        expect_detail.append(
+            f"{asset_id}/{mode}={got['verdict']}" + ("" if ok else f"(≠{expected})")
+        )
+    # 같은 자산·다른 mode → 다른 판정 (도메인 사실, D78)
+    c_asset, c_mode, c_expected = DISPOSAL_MODE_CONTRAST
+    contrast = actual[(c_asset, c_mode)]
+    contrast_ok = contrast["verdict"] == c_expected
+    check(
+        "⑮ 처분 판정 5종 재현 (D77·D78·D79)",
+        verdict_ok and contrast_ok,
+        " · ".join(expect_detail)
+        + f" · [대조] {c_asset}/{c_mode}={contrast['verdict']}"
+        + ("" if contrast_ok else f"(≠{c_expected})")
+        + " (매각은 VAT-INVOICE 때문에 최소 CONDITIONAL — CLEAR 는 SCRAP·TRANSFER 에서만)",
+    )
+
     # ⑯ part_class 전량 + 잔가곡선 격자. 행 수를 하드코딩하지 않는다 —
     #    MQ-603 이 카테고리를 늘리면(N-12 로 6→7종) 하드코딩은 위양성 FAIL 이 된다.
     #    검사해야 할 성질은 "격자에 공백이 없다"이지 "36행"이 아니다
@@ -1758,6 +1908,28 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         con.execute("RELEASE d63_probe")
         con.commit()
     check("⑰ 사유 없는 override → CHECK 거부 (D63)", d63_rejected, d63_detail)
+
+    # ⑱ 담보 자산의 동의서 표기 규약 (W2). `''` = 확인된 해당 없음 / NULL = 모름.
+    #    D77 로 `lien_consent_ref` 가 LIEN-CONSENT.required_facts 에서 빠지면서
+    #    **마지막 안전망이 사라졌다** — has_lien=1 인 자산에 동의서 필드를 깜빡 잊어 `''` 가
+    #    채워지면 `is_null`(a is None)이 False 라 BLOCKING 룰이 조용히 미발화하고,
+    #    required_facts 가드도 없어 verdict 가 CLEAR/CONDITIONAL 로 떨어진다.
+    #    = "담보 있는 자산을 동의서 없이 처분 가능" — 키 하나 빠뜨림으로 나는 최악의 오판.
+    #    룰로는 막을 수 없으므로(그 조합을 표현할 필드가 없다) **데이터 불변식으로 잠근다.**
+    lien_blind = con.execute(
+        "SELECT asset_id FROM assets WHERE has_lien = 1"
+        " AND lien_consent_ref IS NOT NULL AND trim(lien_consent_ref) = ''"
+        " ORDER BY asset_id"
+    ).fetchall()
+    lien_total = q("SELECT count(*) FROM assets WHERE has_lien = 1")[0]
+    check(
+        "⑱ 담보 자산의 동의서 공백 표기 0건 (W2)",
+        not lien_blind,
+        f"has_lien=1 {lien_total}건 중 lien_consent_ref='' {len(lien_blind)}건"
+        + (
+            f" {[r[0] for r in lien_blind]} — BLOCKING 룰이 조용히 미발화한다" if lien_blind else ""
+        ),
+    )
     return results
 
 

@@ -28,6 +28,7 @@
   "confidence_note": "중고자산 취득은 애초에 공제 대상에서 제외되는 경우가 있어, 중고 매입 설비에는 이 룰이 걸리지 않을 수 있음",
   "requires_expert_review": true,
   "rule_version": 1,
+  "revision_note": "Sprint 6 정합 검토(D77·D78) 대상이었으나 **변경 없음** — 그래서 v1 을 유지한다. 판정이 달라지지 않는 룰에 버전만 올리면 rule_version 이 '해석이 개정됐다'는 신호로서 무의미해진다(D60 취지). 검토 중 발견된 파생 실패 구멍(acquired_at·disposal_date 는 있는데 months_since_acquisition 파생이 실패하면 lt 연산이 조용히 CLEAR 를 낸다)은 **룰이 아니라 build_facts 에서** 닫았다 — 판독 불가한 날짜는 facts 키를 만들지 않으므로 required_facts 검사에서 누락으로 잡힌다.",
   "authored_by": null,
   "reviewed_at": null
 }

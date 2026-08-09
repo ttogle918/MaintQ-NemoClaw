@@ -303,7 +303,7 @@ MQ-602L ────────────────────────
 - **변경 파일**: `data/seed.py` · `docs/05_DB_SCHEMA.md`
 - ⛔ `engine.py`·`test_rules.py`·`data/rules/laws/` 접근 금지 (MQ-601b·MQ-602L 소유)
 
-> ### 🔗 D77-2 편입 (2026-08-09 추가 — 별개 작업에서 인계)
+> ### 🔗 D76-2 편입 (2026-08-09 추가 — 병행 세션에서 인계)
 >
 > **`traces` 에 `tool_payload TEXT` 컬럼을 함께 추가한다.** `data/seed.py` 가 이 태스크의
 > 단독 소유라 여기서 처리해야 충돌이 없다.
@@ -316,9 +316,10 @@ MQ-602L ────────────────────────
 >   계약이고(D30) `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로 검증한다.
 >   여기에 도구 원본을 넣으면 평가의 두 소스 대조가 깨진다.
 > - `tool_payload` 는 **nullable** — `tool_call`·`block` 행에는 없다.
-> - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D77-2 담당자가 별도로** 처리한다.
+> - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D76-2 담당자가 별도로** 처리한다.
 >   이 태스크는 **컬럼 추가와 `05_DB_SCHEMA` 반영까지만**.
-> - 근거·전체 맥락: **D77**
+> - 근거·전체 맥락: **D76**(도구 결과 구조 보존 — 병행 세션 결정). ⚠ **D77 이 아니다** —
+>   D77 은 룰 `required_facts` 정합이며 무관하다
 
 - **DDL — 신규 7테이블**
 
@@ -562,7 +563,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   | 룰 | `required_facts` 수정 | 근거 |
   |---|---|---|
   | `LIEN-CONSENT` | `lien_consent_ref` **제거** → `["has_lien","lien_creditor"]` | 부재가 곧 트리거 조건(`is_null`)이라 선언하면 논리적으로 발화 불가 |
-  | `INSURANCE-NOTIFY` | `building_id`·`risk_grade_before`·`risk_grade_after` **제거** → `["policy_id"]` | 원천이 F6 `risk_profile`(범위 밖). 트리거 `any_of` 의 `policy_id is_not_null` 분기로 정상 발화한다 |
+  | `INSURANCE-NOTIFY` | **최종: `["insured"]`** (D78). 중간 단계로 `["policy_id"]` 를 거쳤으나 그 상태로는 `CLEAR` 가 도달 불가여서 D78 로 `assets.insured` 를 신설하고 트리거 첫 분기를 `insured eq true` 로 개정했다 | `risk_grade_*` 는 F6 원천 부재. `policy_id` 한 컬럼이 "부보 여부"와 "증권 번호"를 겸해 **"확인된 미부보"를 표현할 자리가 없었다** |
   | `VAT-INVOICE` | `sale_amount`·`buyer_biz_no` **제거**, `vat_invoice_issued` **추가** → `["disposal_mode","vat_invoice_issued"]` | 거래 사실은 자산 사실이 아니다. 트리거가 실제 읽는 것은 `vat_invoice_issued` 인데 선언돼 있지 않았다 |
   | **`SAFETY-INSPECTION`** (Stage 2 추가 발견) | `last_inspection_date`·`inspection_valid_until` **제거** → `["safety_inspection_target","disposal_mode"]` | 트리거가 `safety_inspection_target` 만 읽는다. 두 날짜는 메시지·체크리스트용이라 D77 원칙 ③ 대상. **이 4번째 룰을 안 고치면 3종만 고쳐도 `CONDITIONAL`·`CLEAR` 는 여전히 미도달**(eval-runner 실측: 5자산 전부 `missing=['disposal_mode']`) |
 
@@ -572,6 +573,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   > **그게 정상이다** — 허위 데이터로 GREEN 을 만들지 않는다.
 
   - ⛔ **`trigger`·`boundary`·`interpretation`·`law_refs` 는 건드리지 마라.** `required_facts` 만 고친다
+    — **예외 1건**: `INSURANCE-NOTIFY.trigger` 첫 분기는 **D78 이 명시적으로 허가**했다. 그 외에는 결정 없이 열지 말 것
   - ⛔ **`rule_version` 을 올려라** — 해석이 바뀐 게 아니라 선언 오류 정정이지만, `rules` 테이블이
     `(rule_id, rule_version)` 복합 PK 이고 D60 이 "해석은 개정된다"를 전제한다. 변경 사유를 파일에 남길 것
   - **`build_facts` 가 `vat_invoice_issued` 를 채운다** — precheck 는 **거래 성립 전**이므로 `False` 가 확정 사실이다.
@@ -626,7 +628,10 @@ def build_facts(
   - **처분 판정 5종이 전부 재현된다** — `AST-L3-CONV`→BLOCKED(**blockers 2건**: TAX-CREDIT-2Y + LIEN-CONSENT) ·
     `AST-L4-WRAP`→HOLD · `AST-L2-SPDL`→**CONDITIONAL** · `AST-L4-DUST`→INSUFFICIENT_FACTS · `AST-L3-LIFT`→**CLEAR**
     (뒤 두 종은 D77 수정 전에는 도달 불가였다 — 이게 이 태스크의 실질 관문이다)
-  - `data/rules/rules/*.json` **5개 유지**(파일 추가·삭제 없음), 전 룰 `rule_version` 증가, `trigger` 무변경
+  - `data/rules/rules/*.json` **5개 유지**(파일 추가·삭제 없음).
+    `rule_version` 은 **판정이 실제로 달라지는 룰만** 올린다 — `TAX-CREDIT-2Y` 는 변경이 없으므로 **v1 유지**가 맞다
+    (판정 불변인 룰에 버전만 올리면 `rule_version` 이 개정 신호로서 무의미해진다, D60 취지).
+    `trigger` 는 **`INSURANCE-NOTIFY` 만** 변경(D78), 나머지 4종 무변경
   - **발화 가능성 회귀**가 5종 전부에 대해 통과 (D77)
 
 ---
@@ -642,6 +647,13 @@ def build_facts(
 > - `mcp_server` 가 `backend` 를 import 하지 않는다 (D15). **`data.rules.engine` import 는 허용 (D73)** —
 >   `server.py:28` 이 레포 루트를 `sys.path` 에 넣으므로 `from data.rules.engine import ...` 가 동작한다
 > - 판정 결과에는 **항상** `not_considered[]` 와 `disclaimer` 를 싣는다 (불변식 6)
+> - 🔴 **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 를 경유한다 (D62).**
+>   `evaluate_rule` 은 **키 존재**만 보므로 `dict(row)` 를 그대로 넘기면 **NULL 이 "값 있음"으로 읽혀 조용히 `CLEAR`** 가 된다.
+>   "모른다"를 "조건 미해당"으로 바꾸는 단 하나의 지점이다. 상세: `05_DB_SCHEMA §11` 경고 블록
+> - **`disposal_mode` 는 `engine.DISPOSAL_MODES` 를 단일 출처로 import 해 검증**한다. enum 밖 값(`"SELL"`·`"sale"`)을
+>   그대로 흘리면 `VAT-INVOICE` 트리거(`eq "SALE"`)를 빗나가 **오타 하나가 `CONDITIONAL` 을 `CLEAR` 로 만든다**
+> - **`engine` 은 예외를 던진다**(`RuleIntegrityError`·`KeyError`·`TypeError` 등). 도구는 `RuleIntegrityError` 하나만
+>   잡지 말고 **광범위하게 포착해 `status:"error"` 로 닫아야** "어떤 입력에도 예외가 새어나오지 않음" DoD 를 만족한다
 > - ⛔ **공유 파일(`server.py`·`prompts.py`·`mcp_client.py`) 일절 접근 금지** — MQ-612 소유
 
 #### MQ-604 — `check_disposal_blockers` (S9 진입점)
@@ -667,7 +679,7 @@ def check_disposal_blockers(
 ```
 ```jsonc
 {"status":"ok","asset_id":"AST-L3-CONV","evaluated_at":"2026-08-09",
- "verdict":"BLOCKED",              // BLOCKED | HOLD | CONDITIONAL | CLEAR
+ "verdict":"BLOCKED",              // BLOCKED | HOLD | INSUFFICIENT_FACTS | CONDITIONAL | CLEAR  (5종, D79)
  "blockers":[{"rule_id","label","citations","law_refs","reasoning","resolve_options",
               "requires_expert_review","rule_version"}],
  "preconditions":[…],"holds":[…],"insufficient":[…],
@@ -684,7 +696,8 @@ def check_disposal_blockers(
   4. **`evidence_completeness`** — 인용된 법령 중 `fetch_status != 'FETCHED'` 가 하나라도 있으면
      `"LAW_TEXT_PENDING"` + `disclaimer` 에 "조문 원문 미수집 상태이며 인용은 조문 번호·제목 기준이다" 덧붙임.
      **판정 자체는 막지 않는다** — 근거 참조 무결성(불변식 1·2)은 파일 존재로 이미 보장된다.
-  5. `verdict` 우선순위는 엔진 기존 로직 그대로: blockers > (holds|insufficient) > preconds > CLEAR.
+  5. `verdict` 우선순위 (**D79 — 5종**): `blockers > holds > insufficient > preconds > CLEAR`.
+     ⚠ `insufficient` 를 `HOLD` 에 흡수하던 구 4종 로직으로 되돌리지 마라 — D71 의 HTTP 매핑이 깨진다.
   6. `RuleIntegrityError` → `status:"error", reason:"rule_integrity"` (도구는 예외를 던지지 않는다).
 
 - **엣지 케이스**
@@ -694,13 +707,15 @@ def check_disposal_blockers(
 | `asset_id`·`equipment_id` 둘 다 없음 | `error`/`invalid_input` |
 | `equipment.asset_id` NULL (`INV-L1-01`) | `not_found`/`no_host_asset` |
 | `disposal_mode` enum 밖 | `error`/`invalid_input` (폴백 금지) |
-| 사실 전부 NULL | `verdict:"HOLD"` + `insufficient` 다건. **CLEAR 로 내려가면 안 된다** |
+| 사실 전부 NULL | `verdict:"INSUFFICIENT_FACTS"`(D79) + `insufficient` 다건. **CLEAR 로 내려가면 안 된다** |
 | `law_refs`/`rules` 0행 | `error`/`rule_catalog_not_loaded` |
 
 - **지켜야 할 결정**: D61 · D62 · D59 · D50 · D68 · D9·D46
 - **DoD**
   - `AST-L3-CONV` → `verdict:"BLOCKED"`, blockers 2건, 전 항목 `citations` 비어있지 않음
-  - `AST-L4-WRAP`→`HOLD` · `AST-L2-SPDL`→`CONDITIONAL` · `AST-L4-DUST`→`HOLD`+insufficient · `AST-L3-LIFT`→`CLEAR`
+  - `AST-L4-WRAP`→`HOLD` · `AST-L2-SPDL`→`CONDITIONAL` · `AST-L4-DUST`→**`INSUFFICIENT_FACTS`**+insufficient(D79) ·
+    `AST-L3-LIFT`→**`disposal_mode='SCRAP'` 일 때만 `CLEAR`**, `SALE` 이면 `CONDITIONAL`(D78 부수 확정 —
+    매각은 `VAT-INVOICE` 때문에 정의상 최소 `CONDITIONAL`)
   - `equipment_id='INV-L1-01'` → `no_host_asset`
   - **`evidence_completeness` 는 `"LAW_TEXT_PENDING"` 을 단언**한다 (조문 미수집이 현재 정상 상태 —
     `"COMPLETE"` 를 기대하지 않는다)
@@ -1252,3 +1267,82 @@ Sprint 6 안에 프론트·서명·큐 계약이 들어와 위 1·3번 문제가
 | N-10 | `build_residual_curve.py` 자가검증 assert 가 표본 4종 중 2종만 검사 | Stage 5 전 |
 | N-11 | `카테고리1` **전량 유일값 표가 stdout 에 없다**(md §4-1 뿐) → CSV 부재 시 확인 불가 | Stage 5 전 |
 | N-12 | 곡선 카테고리 6종의 선정 근거가 **폐기된 표본 문턱**(`base_n≥30`)이다. `'식품관련'`(원본 3위 1,282건)이 빠져 D74 문언과 어긋난다. 전 카테고리 동일값이라 정보 손실은 0 | Stage 2 착수 시 함께 판단 |
+
+---
+
+## Stage 3 완료 (2026-08-09)
+
+**태스크**: MQ-601b (단독) · **결정 신규**: D77(Stage 2 도출) · **D78** · **D79**
+
+### 관문 통과 — 처분 판정 5종이 전부 재현된다
+
+Stage 2 종료 시점엔 5종 중 3종만 나왔고 `CONDITIONAL`·`CLEAR` 는 **구조적으로 도달 불가**였다.
+
+| 자산 | mode | verdict | 근거 |
+|---|---|---|---|
+| `AST-L3-CONV` | SALE | **BLOCKED** | blockers 2건 (`LIEN-CONSENT` 부활 + `TAX-CREDIT-2Y`) |
+| `AST-L4-WRAP` | SALE | **HOLD** | 경계 23개월 |
+| `AST-L4-DUST` | SALE | **INSUFFICIENT_FACTS** | D79 승격 |
+| `AST-L2-SPDL` | SALE | **CONDITIONAL** | D77 수정 전 미도달 |
+| `AST-L3-LIFT` | SALE / **SCRAP** | **CONDITIONAL** / **CLEAR** | D78 + 도메인 사실 |
+
+**`CLEAR` 는 `SCRAP`·`TRANSFER` 에서만 나온다** — `VAT-INVOICE` 가 매각 precheck 을 정의상 최소
+`CONDITIONAL` 로 만들기 때문이며, 이는 결함이 아니라 도메인 사실이다(D78 부수 확정).
+이 대조를 **3중으로 고정**했다: pytest · 시드 ⑮(`DISPOSAL_MODE_CONTRAST`) · `spikes/rules_db_load ⑱⑲`.
+"CLEAR 가 안 나온다"는 회귀도, **"SALE 인데 CLEAR 가 나온다"는 회귀도** 잡힌다.
+
+### 도입된 개념 한 쌍 — 발화 가능성 / 해제 가능성
+
+| 회귀 | 막는 것 | 수정 전 실패 확인 |
+|---|---|---|
+| **satisfiability** | 어떤 사실 조합으로도 `TRIGGERED` 될 수 없는 룰 | `LIEN-CONSENT` 1건 단독 실패 ✅ |
+| **clearability** | 어떤 사실 조합으로도 `CLEAR` 될 수 없는 룰 | `INSURANCE-NOTIFY` 1건 단독 실패 ✅ |
+
+둘 다 **고치기 전에 실패를 먼저 확인**했다 — 테스트가 실제로 무언가를 잡는다는 증명이다.
+`_candidate_space` 가 **룰 파일에서 필드·연산자·경계를 읽어** 후보를 생성하므로 기대 조합이 하드코딩돼 있지 않다.
+
+**`HOLD`·`INSUFFICIENT_FACTS` 를 해제로 세지 않는다** — 사실을 빼서 트리거를 피하는 건 해제가 아니라 **회피**이고,
+그걸 성공으로 세면 D78 이 잡으려던 결함(있으면 TRIGGERED / 없으면 INSUFFICIENT)이 그대로 통과한다.
+reviewer 판정: *"완화가 아니라 테스트를 강하게 만드는 방향. 이게 없으면 회귀가 D62 를 검사하면서 스스로 D62 를 위반한다."*
+
+### `TAX-CREDIT-2Y` 파생 실패 — 검사가 아니라 구조로 닫았다
+
+판독 불가한 날짜는 **원천 키 자체를 facts 에서 뺀다.** 그러면 "원천 2개가 있는데 파생이 없는" 상태가
+**구성상 불가능**해진다. 결과는 `INSUFFICIENT_FACTS` + `missing_facts=['acquired_at']` 로 **범인이 찍힌다.**
+
+기각한 대안 3가지: ⓐ 예외 → D9 위반이고 나머지 4룰의 정상 판정까지 버린다
+ⓑ 원천은 남기고 파생만 건너뛴다 → `required_facts` 충족 + `lt` 가 False → **`CLEAR`**(추징 대상이 무표시 통과)
+ⓒ 파생을 오늘로 메운다 → "모른다"가 "오늘 처분"이 된다
+
+### `rule_version` 최종
+
+`INSURANCE-NOTIFY` **3**(D78, trigger 개정) · `LIEN-CONSENT`·`SAFETY-INSPECTION`·`VAT-INVOICE` **2** ·
+`TAX-CREDIT-2Y` **1 유지** — 판정 불변인 룰에 버전만 올리면 개정 신호로서 무의미해진다(D60 취지).
+
+### 검증
+
+- 회귀 **330건** — spikes 18스위트 **312**(기존 292 + `rules_db_load` 20) + seed **18**
+- `pytest data/rules/test_rules.py` **41 passed** (19 → +22)
+- `ruff` clean · `mcp_server/`·`backend/`·`frontend/` 참조 0건(기존 도구 7종 무영향)
+- reviewer 1차 **FAIL**(블로커 1건 — MQ-604 계약 스케치가 D79 이전 상태) → **문서 2줄 수정 후 해소**
+
+### Stage 4 인계 사항 (⚠ 공통 규약에 반영 완료)
+
+1. 🔴 **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 경유 (D62).**
+   `evaluate_rule` 은 **키 존재**만 보므로 `dict(row)` 를 그대로 넘기면 **NULL 이 "값 있음"으로 읽혀 조용히 `CLEAR`** 가 된다.
+   Stage 4 도구 5종이 전부 이 경로를 탄다
+2. **`disposal_mode` 는 `engine.DISPOSAL_MODES` 를 단일 출처로 import 해 검증** — 오타 하나가 `CONDITIONAL` 을 `CLEAR` 로 만든다
+3. **`engine` 은 예외를 던진다** — `RuleIntegrityError` 하나만 잡지 말고 광범위 포착 후 `status:"error"`
+4. **⑮ 프로브 키가 `(asset_id, disposal_mode)` 튜플**이다. 도구도 같은 전제를 따라야 한다 —
+   같은 자산에 mode 별로 다른 판정을 캐시하거나 섞으면 안 된다
+
+### 이월 (Stage 3 reviewer 경고)
+
+| 내용 | 처리 시점 |
+|---|---|
+| **DB 로더가 `trigger = NULL` 을 조용히 통과** — 파일 로더는 `KeyError` 를 내는데 DB 로더는 기본값 `None` 을 준다. 실 스키마는 `NOT NULL` 이라 막히지만 `LOOSE_DDL`(ERP 사본) 픽스처에서는 뚫리고, `RuleIntegrityError` 가 아니라 `_eval_trigger` 의 `TypeError` 로 **D61 이 막겠다던 지점보다 훨씬 뒤에서** 터진다 | Stage 4 전 |
+| `INSURANCE-NOTIFY` 두 번째 분기(`risk_grade_changed`)가 **"죽은 게 아니라 뒤집혀" 있다** — F6 로 이 사실이 채워지면 `insured=false` 자산이 발화해 **증권 없는 자산에 통지 의무를 선언**한다. `all_of` 재구조화 필요(trigger 변경이라 새 결정 필요). `revision_note` 에 경고 기록 완료 | F5·F6 착수 시 |
+| `SAFETY-INSPECTION.required_facts` 에 `disposal_mode` 잔존 — 트리거가 안 읽으므로 엄밀히 D77 원칙 ③ 대상. `build_facts` 가 항상 채워 실 경로 무해 | 다음 룰 정합 |
+| ⑮ docstring 이 "DB 사본으로 로드한다"고 하는데 `verdict` 는 파일 로더에서 온다(버킷 4종만 DB 룰) | Stage 5 전 |
+| `engine.py:389-392` 의 `assert` 2개는 `python -O` 에서 사라진다(실제 방어선은 원천 키 제거라 무해) | 참고 |
+
