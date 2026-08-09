@@ -254,6 +254,15 @@ def load_rules_from_db(con: sqlite3.Connection, laws: dict[str, LawRef]) -> dict
             if ref not in laws:
                 raise RuleIntegrityError(f"{rule_id}: 미등록 법령 참조 {ref}")
 
+        # 필수 컬럼 NULL 거부 — 파일 로더는 raw["trigger"] 로 KeyError 를 내는데
+        # DB 로더는 _json_col 이 기본값 None 을 돌려주어 **조용히 통과**하던 구멍이었다.
+        # 실 스키마에는 NOT NULL 이 걸려 있으나 CHECK 없는 ERP 사본에서는 뚫리고,
+        # 그때 터지는 곳은 로드 시점이 아니라 _eval_trigger 의 TypeError 다 —
+        # D61 이 "로드 단계에서 막는다"고 한 지점보다 훨씬 뒤다.
+        for col in ("label", "message", "trigger"):
+            if raw[col] is None:
+                raise RuleIntegrityError(f"{rule_id}: 필수 컬럼 {col} 이 NULL")
+
         rules[rule_id] = Rule(
             rule_id=rule_id,
             label=raw["label"],

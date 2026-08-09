@@ -71,6 +71,10 @@ BAD_ROWS = {
     "unknown_law": ("BAD-UNKNOWN-LAW", '["KR-NOT-REGISTERED-999"]', "[]", '{"all_of": []}'),
     # 근거는 계약 참조로 채우고(D61 통과) trigger 만 깨뜨린다 — JSON 파싱 게이트를 고립 검증
     "broken_json": ("BAD-JSON", "[]", '["여신거래기본약관"]', "{not json"),
+    # trigger 가 통째로 NULL — 파일 로더는 KeyError 를 내지만 DB 로더는 _json_col 의
+    # 기본값 None 으로 **조용히 통과**하던 구멍(Stage 3 reviewer 경고).
+    # 실 스키마는 NOT NULL 이라 막히므로 CHECK 없는 사본에서만 재현된다.
+    "null_trigger": ("BAD-NULL-TRIGGER", "[]", '["여신거래기본약관"]', None),
 }
 
 
@@ -167,6 +171,19 @@ def run(tmp: Path) -> None:
         "⑦ CHECK 없는 사본에서도 로더가 거부 (조용한 기본값 금지)",
         msg is not None,
         msg or "로드가 통과해 버림 — 게이트가 스키마 CHECK 에 업혀 있다",
+    )
+    con.close()
+
+    # trigger = NULL — 파일 로더는 KeyError, DB 로더는 기본값 None 으로 새던 자리.
+    # 로드 시점에 막지 못하면 훨씬 뒤 _eval_trigger 의 TypeError 로 터진다 (D61 취지 위반).
+    con = sqlite3.connect(tmp / "null_trigger.db")
+    con.executescript(LOOSE_DDL)
+    insert_bad_rule(con, "null_trigger")
+    msg = raises_integrity(con)
+    check(
+        "⑦-2 trigger = NULL → 로드 단계에서 RuleIntegrityError",
+        msg is not None and "trigger" in msg,
+        msg or "로드가 통과해 버림 — 판정 시점 TypeError 로 미뤄진다",
     )
     con.close()
 

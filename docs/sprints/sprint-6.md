@@ -650,6 +650,10 @@ def build_facts(
 > - 🔴 **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 를 경유한다 (D62).**
 >   `evaluate_rule` 은 **키 존재**만 보므로 `dict(row)` 를 그대로 넘기면 **NULL 이 "값 있음"으로 읽혀 조용히 `CLEAR`** 가 된다.
 >   "모른다"를 "조건 미해당"으로 바꾸는 단 하나의 지점이다. 상세: `05_DB_SCHEMA §11` 경고 블록
+> - 🔴 **`check_disposal_blockers` 를 `disposal_date` 없이 부르면 `TAX-CREDIT-2Y` 가 항상 `INSUFFICIENT_FACTS`** 다
+>   (오늘로 메우지 않는다 — D62). 즉 에이전트가 날짜 없이 부르면 **verdict 가 늘 `INSUFFICIENT_FACTS` 로 수렴**한다.
+>   `DESCRIPTION` 은 명세 고정 문안이라 도구 쪽에서 못 고친다 — **MQ-612 가 파라미터 스키마 설명에서**
+>   **"처분 예정일을 알면 `disposal_date` 를 함께 넘길 것"을 유도**해야 한다. 안 하면 S9 데모가 전부 INSUFFICIENT 로 죽는다
 > - **`disposal_mode` 는 `engine.DISPOSAL_MODES` 를 단일 출처로 import 해 검증**한다. enum 밖 값(`"SELL"`·`"sale"`)을
 >   그대로 흘리면 `VAT-INVOICE` 트리거(`eq "SALE"`)를 빗나가 **오타 하나가 `CONDITIONAL` 을 `CLEAR` 로 만든다**
 > - **`engine` 은 예외를 던진다**(`RuleIntegrityError`·`KeyError`·`TypeError` 등). 도구는 `RuleIntegrityError` 하나만
@@ -799,6 +803,9 @@ def check_disposal_blockers(
 ```jsonc
 {"status":"ok","asset_id":"AST-L3-CONV","window_months":24,
  "mtbf_days":41.2,"mtbf_basis":"calendar_days","mtbf_trend":"declining",
+ // 형식 예시일 뿐이다 — AST-L3-CONV 는 직전 12개월 창에 이벤트가 0건이라
+ //   실제로는 "insufficient_data" 가 정답이다. 추세가 실제로 나오는 자산:
+ //   INV-L2-01 -> stable · INV-L4-02 -> declining (시드가 형상화해 둠)
  "mttr_hours":3.8,"availability":null,
  "planned_ratio":0.33,"n_repairs_signed":11,"n_repairs_unsigned":1,
  "cumulative_repair_cost":18400000,"acquisition_cost":120000000,
@@ -814,6 +821,9 @@ def check_disposal_blockers(
      이벤트 <2건이면 `null`(**0으로 채우지 않는다**). `mtbf_basis:"calendar_days"` 필수.
   3. **추세**: 최근 12개월 MTBF vs 이전 12개월. 어느 쪽이든 이벤트 <2건이면
      `mtbf_trend:"insufficient_data"` — **`"stable"` 로 대체하지 않는다.**
+     지침: 값은 **4종**이다 — `declining` / `stable` / **`improving`** / `insufficient_data`.
+     개선을 `stable` 로 접으면 **잘못 라벨링**된다 — MTBF 가 늘었다는 건 정보이지 "변화 없음"이 아니다.
+     밴드 상수는 한 곳(`TREND_BAND`)에 둔다.
   4. **MTTR**: `signed_at IS NOT NULL` 인 `repair_records.downtime_hours` 평균. 전부 NULL 이면 `null`.
   5. **가용도**: MTBF 는 일, MTTR 은 시간이라 **단위가 다르다.** MTTR 을 일로 환산해 계산하되
      `mtbf_days` 가 `null` 이면 `availability:null`. **단위를 코드 주석에 명시**(단위 혼동은 지표를 조용히 틀리게 하는 대표 사례).
@@ -844,7 +854,8 @@ def classify_expenditure(
 {"status":"ok","verdict":"CAPITAL",       // CAPITAL | REVENUE | HOLD
  "law_refs":["KR-CITA-ENF-31"],
  "citations":["법인세법 시행령 제31조(즉시상각의제)"],
- "reasoning":"…","requires_expert_review":true,
+ "reasoning":"…","requires_expert_review":false,
+ // requires_expert_review 는 HOLD 일 때만 true — 항상 true 면 필드가 정보를 못 싣는다
  "evidence_completeness":"LAW_TEXT_PENDING",
  "not_considered":[…],"disclaimer":"…"}
 ```
@@ -1011,7 +1022,7 @@ GET  /api/equipment  (수정)                     # 응답에 asset_id 추가 (n
 #### MQ-612 — MCP 등록 · 도구 프로파일 · 프롬프트 확장 · trace 요약
 
 - **변경 파일**: `mcp_server/server.py` · `backend/agent/prompts.py` · `backend/agent/mcp_client.py` ·
-  `spikes/prompt_rules.py`(수정) · `spikes/asset_tools_contract.py`(신규)
+  `spikes/prompt_rules.py`(수정) · `spikes/asset_tools_contract.py`(**확장** — Stage 4 에서 5종으로 선행 생성됨)
 - **선행**: MQ-604~610 전부
 
 - **도구 프로파일 (D69)**
@@ -1087,11 +1098,14 @@ def build_system_prompt(
     `len(RULES)==11 and len(EXT_RULES)==3` 고정 검사(기존 52행 단언 **유지**) ·
     `build_system_prompt(tool_names=CORE_7)` → EXT 규칙·확장 도구명 **부재** ·
     `build_system_prompt(tool_names=ALL_14)` → EXT 규칙 3개 존재 + 각 D 태그 존재
+  - ⚠ **이 파일은 Stage 4 에서 이미 만들어졌고 도구 5종만 덮는다.** MQ-612 는 Stage 5 산출물
+    (`assess_repair_value`·`build_evidence_bundle`) **2종을 더해 7종으로 확장**해야 한다 —
+    확장하지 않으면 **5종짜리 파일로 이 DoD 가 거짓 통과**한다. 확장 전 건수를 먼저 적어 두고 대조할 것
   - `uv run python spikes/asset_tools_contract.py` 통과 — 도구 7종 × (정상/잘못된 입력/없는 대상)
     **전부 예외 없이 `status` 반환** · `verify_ownership` 이 `VERIFIED` 를 내지 않음 ·
     사실 부족이 `CLEAR` 가 아님 · `assess_repair_value` 에 `estimates` 존재 · **MQ-610 해시 안정성 픽스처 흡수**
   - **회귀 전량**: 기존 **303건**(273 + law_fetch 25 + agent_loop 5) + 신규 3스위트(`law_fetch_contract` **25** · `rules_db_load` · `disposal_api_contract` ·
-    `asset_tools_contract`) → **303건(병행 세션 4dc6448 의 agent_loop +5 반영) 미만이면 실패 판정.** `ruff check` · `tsc --noEmit` · `next build`
+    `asset_tools_contract`) → **366건(Stage 4 종료 실측: spikes 348 + seed 18) 미만이면 실패 판정.** `ruff check` · `tsc --noEmit` · `next build`
 
 #### MQ-613 — 계약 문서 정합
 
@@ -1345,4 +1359,98 @@ reviewer 판정: *"완화가 아니라 테스트를 강하게 만드는 방향. 
 | `SAFETY-INSPECTION.required_facts` 에 `disposal_mode` 잔존 — 트리거가 안 읽으므로 엄밀히 D77 원칙 ③ 대상. `build_facts` 가 항상 채워 실 경로 무해 | 다음 룰 정합 |
 | ⑮ docstring 이 "DB 사본으로 로드한다"고 하는데 `verdict` 는 파일 로더에서 온다(버킷 4종만 DB 룰) | Stage 5 전 |
 | `engine.py:389-392` 의 `assert` 2개는 `python -O` 에서 사라진다(실제 방어선은 원천 키 제거라 무해) | 참고 |
+
+---
+
+## Stage 4 완료 (2026-08-09)
+
+**태스크**: MQ-604·605·606·607·608 (5병렬) · **결정 신규**: **D80**
+
+### 산출 — `mcp_server/tools/` 신규 5파일
+
+| 도구 | 핵심 |
+|---|---|
+| `check_disposal_blockers` | **5종 verdict 전부 재현** · 퍼징 19입력 예외 누출 0 |
+| `verify_ownership` | 9자산 전부 `PARTIAL`, `VERIFIED` 0건 · 자산당 38항목 |
+| `classify_part_criticality` | 추론 금지 · `reviewed:false` |
+| `get_maintenance_metrics` | MTBF 달력 기준(D70) · `oee` 키 부재(D64) · 가용도 단위 환산 |
+| `classify_expenditure` | 근거 검증이 판정보다 먼저(D61) · 20% 격상 |
+
+`spikes/asset_tools_contract.py` **35건 신규** — 원래 MQ-612(Stage 6) 소유였으나
+**Stage 4 에 전용 회귀가 없어 B-1 이 MQ-612 까지 살아남을 뻔한 것을 계기로 앞당겨 생성**했다.
+
+### D80 — MCP 도구의 필수 파라미터에는 기본값을 두지 않는다
+
+**같은 배치의 두 도구가 정반대로 구현돼 드러난 공백이다.** `classify_part_criticality` 는
+인자 없는 호출에 `TypeError` 를, `classify_expenditure` 는 `= None` 기본값으로 `invalid_input` 을 냈다.
+**기존 등록 도구 3종도 전자와 같아** 관행은 이미 "기본값 없음"이었고 문서화만 안 돼 있었다.
+
+**실측 근거**: 같은 시그니처를 FastMCP 에 등록해 `schema required: ['part_no']` ·
+인자 누락 → `ToolError ... Field required [type=missing]` 로 **본체 진입 전 pydantic 이 막음**을 확인.
+→ D9(예외 금지)는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
+
+### reviewer 1차 FAIL → 해소
+
+| ID | 내용 |
+|---|---|
+| **B-1**(블로커) | `verify_ownership` 이 `facts.get("last_overhaul_at")` 를 읽는데 **`build_facts` 가 만들지 않는 키**였다. DB 에 값이 있는 `AST-L2-SPDL`·`AST-L4-WRAP` 까지 "기록 없음"으로 서술 → **있는 근거를 없다고 말하는 코드**. `row` 에서 읽도록 수정 |
+| W-1 | `classify_expenditure` docstring 의 `LAW_API_OC` 문자열이 MQ-605 의 grep DoD 를 깼다 |
+| W-2 | → **D80** 으로 해소 |
+| W-3 | `classify_part_criticality` 예외 포착이 DB 블록에만 한정 → 얇은 래퍼로 |
+
+**B-1 의 뿌리는 판정 원천 이원화**(`ASSET_FACT_COLUMNS` 안은 `facts`, 밖은 `row`)였다.
+주석만으로는 재발을 막지 못한다고 보고 **접근자로 강제**했다 —
+`_assert_fact_column()` 이 허용 집합 밖 컬럼을 `facts` 에서 읽으려 하면 즉시 실패시키고,
+원시 `facts[...]` 접근은 **0건**으로 봉인했다(reviewer 검증: 판정부 14곳 전부 접근자 경유).
+
+### reviewer 2차 PASS 후 추가로 닫은 경고 3건
+
+- **W-a** ⑰ 의 잠금이 `FIXED_UNVERIFIED` 26항목에 대해 `>= 5` 만 검사 →
+  **카테고리 3종을 통째로 지워도 통과**했다. 카테고리 집합·빈 카테고리·총량 **셋으로 분리 고정**하고,
+  **⑱(동적 방어선)** 을 신설해 `FIXED_UNVERIFIED` 를 통째로 비워도 `VERIFIED` 가 새지 않음을 별도로 잠갔다.
+  주석의 *"이 검사가 유일한 방어선"* 은 **사실이 아니었으므로** 정정
+- **W-b** 가드 메시지가 *"`ASSET_FACT_COLUMNS` 밖이라 facts 에 절대 안 들어온다"* 고 단정했으나
+  **engine 이 목록 밖에서 4개 키를 추가**한다(`disposal_mode`·`vat_invoice_issued`·`disposal_date`·
+  `months_since_acquisition`). 허용 집합을 `ASSET_FACT_COLUMNS ∪ 엔진 파생 키` 로 정정
+- **W-c** spike 가 실패 시 **KeyError 로 죽어 표가 통째로 사라졌다** → `.get()` + 명시적 FAIL 행.
+  검증 중 ㉒ 가 **공허하게 PASS** 하던 것(빈 문자열이라 "포함 안 함"이 참)도 함께 발견·수정
+
+### 검증
+
+- 회귀 **366건** — spikes **348**(19스위트) + seed **18**. 감소 0
+- `pytest data/rules/test_rules.py` **41 passed** · `ruff check` clean
+- 실 DB mtime·size 불변 · `po_drafts`/`decisions`/`flags` 행 수 불변
+- 퍼징 **126회 호출 예외 누출 0**
+- 프론트 무변경이라 `tsc`·`next build` 생략
+
+### ⚠ 알려진 플래키 (이번 변경과 무관 — Sprint 6 잔여 태스크)
+
+`s4_smoke`·`mcp_client_contract`·`sp2_mcp_roundtrip` 이 **연속 실행 시 산발적으로 실패**한다.
+**개별 실행은 항상 통과**하고 실패 조합이 매 실행 다르다.
+
+공통점은 **MCP 서버를 서브프로세스로 띄우고 같은 `data/maintq.db` 를 WAL 로 공유**한다는 것.
+Windows 는 프로세스 종료·핸들 해제가 비동기라, 앞 스위트의 서버가 살아 있는 채 다음 스위트가
+writer 락을 잡으면 `busy_timeout` 만료가 산발적으로 난다. **경합의 교과서적 증상**이다.
+
+권고(reviewer): ① 러너가 스위트 사이에 서브프로세스 **완전 종료를 기다린다**(sleep 아니라 `wait()`)
+② stdio 스위트 3종을 **`MAINTQ_DB` 로 per-suite DB 사본**을 가리켜 실행(`mcp_server/db.py:21` 이 이미 지원)
+③ 연속 20회 재현 스크립트로 실패율 기록
+
+> **방치하면 "빨간 줄이 나와도 다시 돌리면 된다"가 관행이 되어
+> CLAUDE.md 의 "건수는 러너 출력이 기준" 규약이 무력해진다 — 이게 이 플래키의 진짜 비용이다.**
+
+### Stage 5 인계 사항
+
+1. **`MQ-612` 의 `asset_tools_contract.py` 는 이제 "신규"가 아니라 "확장"** 이다(명세 정정 완료).
+   Stage 5 산출물 2종(`assess_repair_value`·`build_evidence_bundle`)을 더해 **7종으로 확장**해야 한다 —
+   안 하면 **5종짜리 파일로 DoD 가 거짓 통과**한다
+2. **`check_disposal_blockers` 를 `disposal_date` 없이 부르면 `TAX-CREDIT-2Y` 가 항상 `INSUFFICIENT_FACTS`**.
+   MQ-612 가 파라미터 스키마 설명에서 유도해야 S9 데모가 죽지 않는다
+3. **D80 의 either-or 공백** — `verify_ownership`·`check_disposal_blockers`·`get_maintenance_metrics` 는
+   "둘 중 하나 필수"라 MCP 스키마상 전부 optional 이다. 방어는 `DESCRIPTION` 문안뿐
+   (`verify_ownership` 은 이번에 한 줄 추가 완료, 나머지 2종은 미처리)
+4. **`internal_error` status 가 3종에 추가**됐다 — MQ-613 이 `04_MCP_TOOLS §8~§14` 에 명기할 것.
+   안 하면 미문서 status 가 된다
+5. `spikes/asset_tools_contract.py` 가 `data.seed._shift_months`(**private**)를 import 한다 —
+   `seed.py` 소유자가 공개 승격하는 편이 낫다(커밋 게이트는 아님)
 

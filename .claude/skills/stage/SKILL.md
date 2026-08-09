@@ -53,10 +53,13 @@ description: 스프린트의 특정 스테이지를 실행한다. 병렬 구현 
 MaintQ의 회귀 스위트는 고정이다. 전부 통과해야 한다.
 
 ```bash
-uv run python data/seed.py --with-error-codes --today 2026-07-23  # 시드 케이스 맵 11건
-                                                    # --with-error-codes 필수 (iG5A 매핑
-                                                    # 승인 완료, 2026-07-28) — 빼면 error_codes
-                                                    # 가 다시 0행으로 리셋된다
+uv run python data/seed.py --with-error-codes                     # 시드 자가검증 (건수는 러너 출력 기준)
+                                                    # --with-error-codes 필수 (iG5A 매핑 승인 완료)
+                                                    #   빼면 error_codes 가 0행으로 리셋되고
+                                                    #   api_contract ②-b 가 PO-0117.model 을 못 읽어 FAIL
+                                                    # ⛔ --today 로 고정 날짜를 핀하지 말 것 — 시드는 실행일
+                                                    #   기준 상대일인데 검증 쿼리(seed.py:644)는 벽시계를 써서
+                                                    #   검사 ⑤(반복 고장)가 위양성 FAIL 한다
 uv run python spikes/sp2_mcp_roundtrip.py          # MCP 왕복 15건
 uv run python spikes/write_tool_contract.py        # 쓰기 도구 경계 14건
 uv run python spikes/api_contract.py               # 권한·전이·D57 28건
