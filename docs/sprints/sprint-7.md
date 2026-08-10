@@ -1367,3 +1367,48 @@ reviewer 가 **같은 구조가 `db_concurrency` ⑩⑪ 에도 남아 있음**�
 | 4 | `K==0` 이면 `StopIteration` 으로 **표가 통째로 사라졌다** → 가드 + `run()` 예외 방어 |
 | 5 | 조합 탐색이 **파일 사본**으로 판정 — 제품은 DB 사본이다. W5 를 테스트 쪽에 다시 들여오는 구조 → 카탈로그 주입 |
 | + | **캐치올 ㉕ 신설** — 실패 분류가 문자열 부분일치라, 문구를 고치면 실패가 어느 검사에도 안 걸릴 수 있었다 |
+
+### Stage 5 완료 (2026-08-10)
+
+**커밋**: `5611b74` — `[F1] Sprint 7 Stage 5 — 승인 큐 계약 전환 (poId → id + kind)`
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-709a** | `lib/{types,mappers,api}.ts` · `lib/queueState.ts`(신규) · `components/queue/{QueueList,PoDetail,StatusLegend}.tsx` · `components/ui/Badge.tsx` · `ApprovalQueueScreen.tsx` · `lib/mock/queue.tsx` · `manager/{page,po/[poId]/page}.tsx` · `manager/decision/[decisionId]/page.tsx`(스텁) · `frontend/README.md` |
+
+**회귀**: `tsc` exit 0 · `next build` 성공(라우트 6→7) · seed 21 · 스파이크 **524건/26스위트** ·
+pytest 46 · ruff 통과 · **`.poId` 잔재 0건** · **백엔드 tracked 변경 0건**
+
+#### 지어내지 않는 축 (D87·D65) — 소스로 확인
+
+UI 는 자동 회귀가 얇아 `tsc` 가 통과해도 화면이 도는지는 모른다. 아래는 **소스를 읽어** 확인한 것:
+
+| 축 | 구현 |
+|---|---|
+| 모르는 `state`·`kind` | `⚠ 원문` + 전용 `unknown` 톤. **절대 초록(`ok`)으로 안 떨어진다** |
+| `urgency: null` | `UrgencyBadge` 가 `return null` — `"일반"` 으로 채우면 처분서에 없는 긴급도가 생긴다 |
+| 모르는 `kind` | 목록에서 **지우지 않는다** — 지우면 "그런 승인 건이 없다"는 거짓말이 된다 |
+| `state` 정규화 | **없다.** 발주 `approved` 와 처분 `signed` 는 다른 사건이다 (D85·D63) |
+| 오렌지 규율 | `kind` 배지 중립 고정. 모르는 어휘는 오렌지를 빌리지 않고 `unknown` 톤 |
+| 목업 폴백 | 배너 유지 + **"백엔드는 살았는데 그 ID 가 없다"를 "목업 모드"와 구분** |
+
+#### 🔴 MQ-709b 인계 — `/manager/decision/[decisionId]/page.tsx` 스텁이 **이미 있다**
+
+`detailHref()` 가 `disposal` 을 그 경로로 보내는데 Stage 5 빌드에 라우트가 없어 **누르면 404** 였다.
+목업에 처분서 2건이 있어 수동 확인에서 바로 부딪힌다. 같은 코드가
+*"빈 링크를 주면 '눌렀는데 아무 일도 안 난다'가 된다 — 사실을 감춘다"* 라고 적어 뒀는데 **404 도 같은 유형**이다.
+
+→ **MQ-709b 는 이 파일을 통째로 교체한다.** `params.decisionId` → `getDecision()` → `DecisionDetail`,
+서명은 `SignBar`. 파일 안에 인계 주석이 있다.
+
+#### Stage 6 를 위한 선행 배치
+
+`lib/api.ts` 에 **Stage 6 용 fetcher 를 전부 미리** 넣었다 —
+`getApprovals`·`getDecision`·`submitDecision`·`signDecision`·`rejectDecision`·`getAssets`·`getAsset`·
+`precheckDisposal`·`getOwnership`. Stage 6 세 태스크(709b·710·711)는 `api.ts` 를 **읽기만** 한다.
+이번 스테이지에서 쓰이지 않는 코드가 일부 들어온 대가로 3병렬 충돌이 사라진다.
+
+#### ⚠ 실행 사고 2건 (작업 자체는 무영향)
+
+두 에이전트가 API 오류·세션 한도로 중단됐다(구현 에이전트는 "실 백엔드 응답 대조" 직전, reviewer 는 착수 직후).
+중단 지점부터 직접 이어받아 게이트(`tsc`·`build`·실 API 키집합 대조)와 설계 검토를 수행했다.
