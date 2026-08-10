@@ -452,14 +452,21 @@ CREATE TABLE rules (
 
 ## 14. decisions — 계층 3 서명
 
-> **쓰기 경로는 Sprint 7의 사람 전용 API.** MCP 도구는 이 테이블에 손대지 않는다 (D10 태도).
+> **상태 전이는 Sprint 7의 사람 전용 API.** MCP 도구는 **`state='draft'` INSERT 만** 할 수 있고
+> UPDATE·DELETE 는 TEMP TRIGGER 로 물리 차단된다 (`mcp_server/db.py:decision_writer`, D10·D81).
+> `po_drafts` 와 **정확히 같은 태도**다 — 도구는 초안을 올릴 뿐, 확정은 사람이 서명한다.
+
+> ⚠ **아래 DDL 은 Sprint 7 Stage 3(MQ-707) 이전 형태다.** 정본은 `data/seed.py` 의 `SCHEMA` 이며
+> 현재는 컬럼 5개(`reason`·`requested_by`·`session_id`·`decision_note`·`created_at`)와
+> **CHECK 2종**(서명 없는 확정 차단 · BLOCKING 우회 차단)이 더 있다. `evidence_bundle` 도
+> 3키가 아니라 **5키**다(D83). 이 절의 갱신은 **MQ-712 소유**.
 
 ```sql
 CREATE TABLE decisions (
   decision_id TEXT PRIMARY KEY,
   asset_id  TEXT NOT NULL REFERENCES assets,
   decision_type TEXT NOT NULL,           -- 'DISPOSAL' | 'REPAIR'
-  evidence_bundle TEXT NOT NULL,         -- JSON: {laws[], rules[], facts{}}
+  evidence_bundle TEXT NOT NULL,         -- JSON 5키 (D83): {laws[], rules[], evaluated[], contracts[], facts{}}
   bundle_hash TEXT NOT NULL,
   verdict_at_signing TEXT NOT NULL,
   override BOOLEAN NOT NULL DEFAULT 0,
@@ -471,6 +478,11 @@ CREATE TABLE decisions (
   CHECK (override = 0 OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
   CHECK (json_valid(evidence_bundle)),
   CHECK (state IN ('draft','pending','signed','rejected'))
+  -- ↓ MQ-707 이 추가한 2종 (여기 없음 — data/seed.py 참조)
+  -- CHECK (state <> 'signed' OR (signed_at IS NOT NULL AND reviewed_by IS NOT NULL
+  --                              AND length(trim(bundle_hash)) > 0))   -- 서명 없는 확정 0건
+  -- CHECK (state <> 'signed' OR override = 1
+  --        OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))           -- BLOCKING 우회 0건
 );
 ```
 

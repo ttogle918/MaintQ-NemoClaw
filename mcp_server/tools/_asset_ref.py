@@ -32,7 +32,7 @@
 `mcp_server/tools/` 는 "파일당 도구 1개" 규약이라, 도구가 아닌 파일은 언더스코어로 구분한다.
 등록은 `server.py` 가 `@mcp.tool` 로 **명시**하므로 디렉터리 스캔이 없고 이 파일은 애초에
 등록 후보가 아니다. 그 사실은 추측이 아니라 `spikes/tools_profile_contract.py` ① 이
-core 7종·full 14종을 단언해 실측으로 잠근다.
+core 7종·full 15종을 단언해 실측으로 잠근다.
 
 예외를 던지지 않는다 (D9). `mcp_server` 는 `backend` 를 import 하지 않는다 (D15).
 `data.rules.engine` 은 데이터 계층이라 허용된다 (D73).

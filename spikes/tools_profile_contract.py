@@ -13,10 +13,12 @@
 
 ## 무엇을 보는가
 
-  ① `full` 기동 → 도구 **14종**(코어 7 + 확장 7). 부분집합이 아니라 **집합 동일**
-  ② D80 — `classify_expenditure`·`assess_repair_value` 의 `inputSchema.required` 집합.
-     기본값을 두는 순간 optional 로 노출되어 LLM 이 인자 없이 호출 → `invalid_input`
-     → 재시도하는 낭비 루프가 생긴다
+  ① `full` 기동 → 도구 **15종**(코어 7 + 확장 8). 부분집합이 아니라 **집합 동일**
+  ② D80 — `classify_expenditure`·`assess_repair_value`·`generate_disposal_document` 의
+     `inputSchema.required` 집합. 기본값을 두는 순간 optional 로 노출되어 LLM 이 인자 없이
+     호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다.
+     `generate_disposal_document.reason` 은 여기에 더해 **D81 의 방어선**이기도 하다 —
+     사유 없는 처분 초안은 승인자가 판단 근거를 되짚을 수 없다
   ③ D9 — `amount`·`repair_cost` 가 `int|str` **유니온으로 남아 있는가**. 타입을 좁히면
      LLM 이 문자열을 넣은 순간 pydantic 이 본체 진입 전에 예외를 던져 도구가 `status` 로
      실패를 못 돌려준다 (`server.py` 의 `line_id` 주석과 같은 이유)
@@ -68,6 +70,7 @@ EXT_TOOLS = {
     "classify_expenditure",
     "assess_repair_value",
     "build_evidence_bundle",
+    "generate_disposal_document",
 }
 
 # D80 — 필수 파라미터에 기본값을 두지 않는다. 이 집합이 **정확히** 일치해야 한다:
@@ -76,7 +79,16 @@ EXT_TOOLS = {
 EXPECTED_REQUIRED = {
     "classify_expenditure": {"part_class", "repair_scope", "amount"},
     "assess_repair_value": {"equipment_id", "failed_part", "repair_cost"},
+    # `asset_id`·`equipment_id` 는 either-or 라 스키마상 optional 이다 (D80 의 공백).
+    # 따라서 required 는 `reason` **하나뿐**이어야 한다.
+    "generate_disposal_document": {"reason"},
 }
+
+# D81 — 이 키들이 **어느 도구 스키마에도 없어야** 한다. LLM 이 BLOCKING 우회를 요청하거나
+# 신원을 위조하는 호출 자체가 구조적으로 불가능해야 하기 때문이다 (D10 태도의 복제).
+# `write_tool_contract` ⑮ 가 `generate_disposal_document` 를 직접 보지만, 여기서는
+# **전 도구**를 훑는다 — 새 도구가 조용히 이 키를 열고 들어오는 경로를 닫는다.
+FORBIDDEN_PARAMS = {"override", "override_reason", "reviewed_by", "requested_by", "session_id"}
 
 # D9 — 넓게 받아 도구 안에서 판정한다. 좁히면 스키마가 예외를 던져 status 를 못 돌려준다.
 EXPECTED_UNION = {
@@ -131,7 +143,7 @@ async def run(db: Path) -> None:
     # ─ ① 집합 동일 — 부분집합이 아니다 (이 스위트의 존재 이유)
     names = set(full)
     check(
-        "full 프로파일 → 도구 14종 (코어 7 + 확장 7, 집합 동일)",
+        "full 프로파일 → 도구 15종 (코어 7 + 확장 8, 집합 동일)",
         names == CORE_TOOLS | EXT_TOOLS,
         f"{len(names)}종 · 누락={sorted((CORE_TOOLS | EXT_TOOLS) - names) or '없음'} "
         f"· 초과={sorted(names - (CORE_TOOLS | EXT_TOOLS)) or '없음'}",
@@ -147,7 +159,20 @@ async def run(db: Path) -> None:
     check(
         "D80 — 필수 파라미터가 스키마 required 로 노출 (기본값을 두면 optional 이 된다)",
         not bad_required,
-        "; ".join(bad_required) or "classify_expenditure 3종 · assess_repair_value 3종 일치",
+        "; ".join(bad_required)
+        or "classify_expenditure 3종 · assess_repair_value 3종 · generate_disposal_document reason 일치",
+    )
+
+    # ─ D81 — 우회·신원 파라미터가 **전 도구** 스키마에 없는가 (미래의 도구까지 잠근다)
+    leaked_params = sorted(
+        f"{tool}.{p}"
+        for tool, (schema, _) in full.items()
+        for p in FORBIDDEN_PARAMS & set(schema.get("properties") or {})
+    )
+    check(
+        "D81·D23 — override·override_reason·reviewed_by·requested_by·session_id 가 전 도구 스키마에 부재",
+        not leaked_params,
+        f"누출={leaked_params or '없음'} · 검사 대상 {len(full)}종",
     )
 
     # ─ ③ D9 — 타입 폭을 좁히지 않았는가
@@ -162,7 +187,7 @@ async def run(db: Path) -> None:
         "; ".join(narrowed) or "amount·repair_cost·window_months 전부 유니온",
     )
 
-    # ─ ④ 확장 7종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
+    # ─ 확장 8종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
     empty_desc = sorted(t for t in EXT_TOOLS if not full.get(t, ({}, ""))[1].strip())
     # 처분 판정은 `disposal_date` 없이 부르면 늘 INSUFFICIENT_FACTS 로 수렴하므로(D62),
     # 도구 DESCRIPTION 이 말하지 않는 몫을 **파라미터 스키마 설명**이 유도해야 한다.
@@ -172,10 +197,10 @@ async def run(db: Path) -> None:
                 (full.get(t, ({}, ""))[0].get("properties") or {}).get("disposal_date") or {}
             ).get("description")
         )
-        for t in ("check_disposal_blockers", "build_evidence_bundle")
+        for t in ("check_disposal_blockers", "build_evidence_bundle", "generate_disposal_document")
     }
     check(
-        "확장 7종 description 존재 · disposal_date 파라미터에 유도 문구 (S9 데모 방어)",
+        "확장 8종 description 존재 · disposal_date 파라미터에 유도 문구 (S9·S10 데모 방어)",
         not empty_desc and all(hinted.values()),
         f"빈 description={empty_desc or '없음'} · disposal_date 설명={hinted}",
     )

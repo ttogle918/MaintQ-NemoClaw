@@ -8,7 +8,7 @@
 
 담당 범위 (`docs/sprints/sprint-3.md` §4 MQ-303):
 - `SYSTEM_PROMPT` — 규칙 11개. 각 규칙은 결정 번호와 1:1 대응하며 **하나도 뺄 수 없다**
-- `EXT_RULES` — 확장 도구가 실제로 등록됐을 때만 붙는 규칙 12·13·14 (Sprint 6, D69)
+- `EXT_RULES` — 확장 도구가 실제로 등록됐을 때만 붙는 규칙 12·13·14·15 (Sprint 6~7, D69)
 - `SAFETY_BASELINE` — 안전 블록의 확정 문구·근거 페이지. LLM 이 생성하지 않는다
 - `build_system_prompt(model, ..., tool_names=…)` — 장비 컨텍스트 주입 (09_RUNTIME §2)
 
@@ -247,9 +247,16 @@ RULES: tuple[str, ...] = (
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 규칙 3개 — 규칙 12·13·14 (Sprint 6). **번호는 위치로 고정**한다.
+# 확장 규칙 4개 — 규칙 12·13·14 (Sprint 6) + 15 (Sprint 7). **번호는 위치로 고정**한다.
 # 확장 도구가 등록되지 않은 실행에서는 붙지 않으며, 그때도 남은 규칙의 번호는 안 밀린다
 # (규칙 13만 붙어도 "규칙 13"이다) — 회고·리뷰에서 규칙 번호로 대화하기 때문이다.
+#
+# ★ 규칙 15 를 `RULES`(코어 11개)에 넣지 않은 이유: `generate_disposal_document` 는
+#   `full` 프로파일에서만 등록되는 확장 도구다. 코어 프로파일 프롬프트에 그 사용법이
+#   실리면 **없는 도구의 호출 규칙을 지시**하게 되고, 그게 D69·MQ-612 가 도구별 게이트를
+#   만든 이유다(⑱ 이 "코어에서 확장 도구명 0글자"를 단언한다).
+#   → sprint-7 MQ-706 DoD 의 `len(RULES)==12` 는 이 구조와 양립할 수 없어 `len(EXT_RULES)==4`
+#     로 구현했다. 규칙 총량은 같고(11+4=15), 게이트 요구("core 에서 0건 누출")를 지킨다.
 # ─────────────────────────────────────────────────────────────────────────────
 EXT_RULES: tuple[str, ...] = (
     # 12 — 처분 판정 경계
@@ -270,6 +277,15 @@ EXT_RULES: tuple[str, ...] = (
     " `ROOT_CAUSE_FIRST` 를 반환하면 수리·교체·매각 선택지를 제시하지 마라. 같은 고장이"
     " 반복되고 있다는 뜻이므로 근본원인 점검을 먼저 안내하고 발주는 보류한다 (규칙 5 가"
     " 그대로 이어진다).",
+    # 15 — 처분 서류는 초안까지 (D81·D63·D10)
+    "**처분 서류는 초안까지다 (D81·D63·D10).** `generate_disposal_document` 는 승인서·"
+    ' 진술보장서의 **초안만** 만든다. 사용자에게 "처분이 완료됐다"·"승인됐다"고 말하지'
+    " 마라 — 확정은 팀장이 승인 큐에서 서명할 때만 이뤄진다. 결과의 `next_step` 을 그대로"
+    " 전한다. **`override` 는 네 권한이 아니다** — 그 파라미터는 존재하지 않으며, 판정이"
+    " `BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS` 여도 초안은 만들어지고 차단 사실이 초안에"
+    " 기록된 채 결재에 올라간다. 예외를 적용할지와 그 사유는 승인자가 정한다. 사유를"
+    " 대신 지어내지 마라. `law_text_unavailable` 로 거부되면 근거 조문 원문이 아직"
+    " 수집되지 않았다는 뜻이며, 초안은 **만들어지지 않았다** — 만들어진 것처럼 말하지 마라.",
 )
 
 # 각 확장 규칙이 **전제하는 도구**. 그 도구가 등록되지 않은 실행에서는 규칙도 붙지 않는다 —
@@ -278,6 +294,7 @@ _EXT_RULE_TOOLS: tuple[tuple[str, ...], ...] = (
     ("check_disposal_blockers",),
     ("assess_repair_value",),
     ("assess_repair_value",),
+    ("generate_disposal_document",),
 )
 assert len(EXT_RULES) == len(_EXT_RULE_TOOLS)
 
@@ -300,6 +317,7 @@ _EXT_TOOL_LINES: dict[str, str] = {
     "classify_expenditure": "- `classify_expenditure` — 지출의 자본적/수익적 분류 (`part_class`·`repair_scope`·`amount` 필수)",
     "assess_repair_value": "- `assess_repair_value` — 수리/교체/매각 3지 판단. 금액은 전부 추정치다",
     "build_evidence_bundle": "- `build_evidence_bundle` — 처분 판정의 근거를 묶어 해시로 고정 (저장·판정은 하지 않는다)",
+    "generate_disposal_document": "- `generate_disposal_document` — 처분 승인서·진술보장서 **초안**만 생성. 확정은 승인 큐의 서명뿐이다",
 }
 
 CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)

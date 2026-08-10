@@ -251,6 +251,13 @@ def run(db: Path) -> None:
     )
 
     # ── ⑩ draft_writer UPDATE 차단 트리거 유지 (D10)
+    #
+    # ★ 예외가 났다는 것만으로 통과시키지 않는다 — **트리거 문구까지 대조**한다.
+    #   MQ-706 이 `decisions` 쪽에서 정확히 이 함정에 빠졌다: `sqlite3.Error` 를 통째로 잡으면
+    #   트리거를 지워도 **다른 층(CHECK 제약)이 대신 IntegrityError 를 내면서 PASS** 한다.
+    #   `po_drafts` 에는 아직 상태 CHECK 가 없어 지금은 마스킹되지 않지만, 나중에 하나만
+    #   추가되면 이 검사는 조용히 방어선이 아니게 된다 (reviewer W-8).
+    _TRIGGER_MARK = "MCP 도구는 po_drafts 를"
     with mdb.read_only() as con:
         before = con.execute("SELECT state FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
     try:
@@ -258,11 +265,11 @@ def run(db: Path) -> None:
             con.execute("UPDATE po_drafts SET state='approved' WHERE po_id='PO-0117'")
         blocked_update, msg_u = False, "UPDATE 가 통과했다"
     except sqlite3.Error as exc:
-        blocked_update, msg_u = True, str(exc)
+        blocked_update, msg_u = _TRIGGER_MARK in str(exc), str(exc)
     with mdb.read_only() as con:
         after = con.execute("SELECT state FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
     check(
-        "⑩ draft_writer UPDATE 차단 트리거 유지 (D10)",
+        "⑩ draft_writer UPDATE 차단 트리거 유지 (D10 · 트리거 문구까지 대조)",
         blocked_update and before == after,
         f"{msg_u} / state {before}→{after}",
     )
@@ -273,7 +280,7 @@ def run(db: Path) -> None:
             con.execute("DELETE FROM po_drafts WHERE po_id='PO-0117'")
         blocked_delete, msg_d = False, "DELETE 가 통과했다"
     except sqlite3.Error as exc:
-        blocked_delete, msg_d = True, str(exc)
+        blocked_delete, msg_d = _TRIGGER_MARK in str(exc), str(exc)  # ⑩ 과 같은 이유
     with mdb.read_only() as con:
         alive = con.execute("SELECT count(*) FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
     check(

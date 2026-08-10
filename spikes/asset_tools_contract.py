@@ -59,6 +59,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import mcp_server.db as mcp_db  # noqa: E402
+import data.ownership as own_mod  # noqa: E402  — 판정 정본 (⑱ 이 여기를 갈아끼운다)
 import mcp_server.tools.verify_ownership as vo_mod  # noqa: E402
 
 # 처분 프로브(`disposal_date`)는 **시드 컬럼이 아니라 도구 파라미터**다 (`seed.py:696`).
@@ -340,12 +341,30 @@ def main() -> None:
     # ─ ⑱ 동적 방어선 — 상수를 통째로 비워도 VERIFIED 에 도달하지 못한다 ──────
     # `_market_items` 가 "동일 기종 거래가"를 **무조건** UNVERIFIED 로 낸다는 사실 자체를 잠근다.
     # 상수(⑰)와 동적(⑱)을 따로 잠가야 한 쪽을 지울 때 다른 쪽이 가려주지 못한다.
-    saved = vo_mod.FIXED_UNVERIFIED
+    # ★ **정본(`data.ownership`)을 갈아끼운다.** 도구 모듈의 별칭(`vo_mod.FIXED_UNVERIFIED`)이
+    #   아니다 — `_own.verify` 가 호출 시점에 자기 모듈 전역을 읽으므로 그래야 실제로 효과가 있다.
+    #   별칭을 갈아끼우면 아무 일도 안 일어난 채 이 검사가 **여전히 PASS 한다**(공허한 통과).
+    #
+    # ★★ 그래서 **갈아끼우기가 먹었다는 것 자체를 단언한다** (reviewer W-1).
+    #   `not slipped and bool(survivors)` 만 보면 아무 일도 안 일어난 상태에서도 참이다 —
+    #   즉 "동적 방어선이 있다"가 아니라 "상수 방어선이 아직 있다"를 재확인할 뿐인 검사가 된다.
+    #   비운 뒤 항목 수가 **실제로 줄었는지**를 함께 봐야 이 검사가 자기 전제를 검증한다.
+    #   (실측: 상수 표 사용 38항목 → 정본 비움 12항목 / 별칭만 비움 38항목=무효)
+    def _item_count(results: dict) -> int:
+        return sum(
+            len((c or {}).get("items") or [])
+            for r in results.values()
+            for c in r.get("categories") or []
+        )
+
+    baseline_items = _item_count(vo)
+    saved = own_mod.FIXED_UNVERIFIED
     try:
-        vo_mod.FIXED_UNVERIFIED = {}
+        own_mod.FIXED_UNVERIFIED = {}
         stripped = {a: call(verify_ownership, asset_id=a) for a in assets}
     finally:
-        vo_mod.FIXED_UNVERIFIED = saved
+        own_mod.FIXED_UNVERIFIED = saved
+    stripped_items = _item_count(stripped)
     slipped = [a for a, r in stripped.items() if r.get("verdict") == "VERIFIED"]
     survivors = sorted(
         {
@@ -356,10 +375,20 @@ def main() -> None:
             if (i or {}).get("state") == "UNVERIFIED"
         }
     )
+    # 잔존 항목이 상수 표에서 온 것이면 갈아끼우기가 안 먹은 것이다 — 서로소여야 한다.
+    fixed_names = {name for items in fixed.values() for name, _ in items}
+    leaked_fixed = sorted(set(survivors) & fixed_names)
     check(
-        "verify_ownership — 상수를 비워도 무조건 UNVERIFIED 인 동적 항목이 남는다",
-        not slipped and bool(survivors),
-        f"VERIFIED 누출 {slipped} · 잔존 동적 미확인 {survivors[:4]}",
+        "verify_ownership — 상수를 비워도 무조건 UNVERIFIED 인 동적 항목이 남는다 "
+        "(+ 갈아끼우기가 실제로 먹었음을 함께 단언 — 공허한 통과 차단)",
+        not slipped
+        and bool(survivors)
+        and stripped_items < baseline_items
+        and not leaked_fixed,
+        f"VERIFIED 누출 {slipped} · 항목 {baseline_items}→{stripped_items}"
+        f"{' (줄지 않음 = 갈아끼우기 무효)' if stripped_items >= baseline_items else ''} · "
+        f"잔존 동적 미확인 {survivors[:4]}"
+        + (f" · ⚠ 상수 항목 잔존 {leaked_fixed}" if leaked_fixed else ""),
     )
 
     # ─ ⑲ 9카테고리 · 전 항목 state · UNVERIFIED 는 limit ────────────────────

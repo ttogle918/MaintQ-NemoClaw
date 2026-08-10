@@ -1074,7 +1074,14 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 #### MQ-712 — 계약 문서 정합 + D81~D88 기입
 
 - **복무 시나리오**: 전체 (문서가 코드와 어긋나면 다음 스프린트가 잘못된 전제로 출발한다)
-- **변경 파일**: `docs/10_DECISIONS.md` · `04_MCP_TOOLS.md` · `06_REPO_API.md` · `11_ASSET_LIFECYCLE.md` · `12_MAINT_VALUE.md` · `00_MVP_SCOPE.md` · `07_BACKLOG.md` · `03_WIREFRAME.html` · `README.md` · `CLAUDE.md`
+- **변경 파일**: `docs/10_DECISIONS.md` · `04_MCP_TOOLS.md` · **`05_DB_SCHEMA.md`** · `06_REPO_API.md` · `11_ASSET_LIFECYCLE.md` · `12_MAINT_VALUE.md` · `00_MVP_SCOPE.md` · `07_BACKLOG.md` · `03_WIREFRAME.html` · `README.md` · `CLAUDE.md`
+
+> **🔴 Stage 3 인계 — `05_DB_SCHEMA.md` 를 범위에 추가했다** (reviewer W-9).
+> §14 가 *"MCP 도구는 이 테이블에 손대지 않는다"* 라고 **거짓을 말하고 있었다** — D81 착지로
+> `generate_disposal_document` 가 `decisions` 에 draft 를 INSERT 한다. Stage 3 에서 그 문장과
+> 경고 블록만 급히 고쳤고, **DDL 본문 갱신은 남아 있다**: 컬럼 5개(`reason`·`requested_by`·
+> `session_id`·`decision_note`·`created_at`) · **CHECK 2종** · `evidence_bundle` 3키→5키.
+> 그리고 §12 `law_refs` 절의 `fetch_status` 현재값도 함께 확인할 것.
 - **핵심 로직 — 반드시 **코드와 대조**해서 쓴다 (MQ-613 이 문서 5건의 거짓을 잡은 방식)**
   1. **D81~D88 기입** + 전 문서의 D 범위 표기 `D1~D80` → `D1~D88` (**기입 전 `git grep -n "D1~D80"` 으로 대상을 전부 찾을 것** — Sprint 6 에서 4곳이었다)
   2. `04_MCP_TOOLS` — **§15 `generate_disposal_document` 신설**(코어 7 + 확장 **8**). §14 번들 스키마를 5키로 갱신 + `rule_hash` 산출 규약 + `asset_modified` reason 추가. reason 색인 갱신

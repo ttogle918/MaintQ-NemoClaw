@@ -12,10 +12,10 @@
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
 
-확장 7종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
+확장 8종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
   - check_disposal_blockers · verify_ownership · classify_part_criticality ·
     get_maintenance_metrics · classify_expenditure · assess_repair_value ·
-    build_evidence_bundle
+    build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**)
 
 **기본이 `core` 인 이유(D69)**: `eval/run_eval.py` 가 부모 env 를 상속해 이 서버를 띄우므로
 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — 그러면 "수정 효과 vs
@@ -151,7 +151,7 @@ def create_po_draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 7종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69)
+# 확장 8종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69)
 #
 # ★ 파라미터 타입을 좁히지 않는다. `get_error_history.line_id` 주석과 같은 이유다 —
 #   타입을 좁히면 LLM 이 문자열로 넘긴 순간 pydantic 이 본체 진입 전에 예외를 던져
@@ -201,6 +201,10 @@ if TOOLS_PROFILE == "full":
     from mcp_server.tools.classify_part_criticality import (  # noqa: E402
         DESCRIPTION as CRITICALITY_DESC,
         classify_part_criticality as _classify_part_criticality,
+    )
+    from mcp_server.tools.generate_disposal_document import (  # noqa: E402
+        DESCRIPTION as DISPOSAL_DOC_DESC,
+        generate_disposal_document as _generate_disposal_document,
     )
     from mcp_server.tools.get_maintenance_metrics import (  # noqa: E402
         DEFAULT_WINDOW_MONTHS,
@@ -318,6 +322,38 @@ if TOOLS_PROFILE == "full":
     ) -> dict:
         """판정하지도 저장하지도 않는다 — 근거를 묶어 해시로 고정할 뿐이다 (D10)."""
         return _build_evidence_bundle(
+            asset_id=asset_id,
+            equipment_id=equipment_id,
+            disposal_mode=disposal_mode,
+            disposal_date=disposal_date,
+        )
+
+    @mcp.tool(description=DISPOSAL_DOC_DESC)
+    def generate_disposal_document(
+        reason: Annotated[
+            str,
+            Field(
+                description=(
+                    "처분을 요청하는 사유. 사용자가 밝힌 근거를 그대로 적을 것 — "
+                    "승인자가 판단 근거를 추적한다. 지어내지 말고 없으면 먼저 물어볼 것."
+                )
+            ),
+        ],
+        asset_id: str | None = None,
+        equipment_id: str | None = None,
+        disposal_mode: Annotated[str, _DISPOSAL_MODE_FIELD] = "SALE",
+        disposal_date: Annotated[str | None, _DISPOSAL_DATE_FIELD] = None,
+    ) -> dict:
+        """⚠️ 두 번째 쓰기 도구. `decisions` 에 **draft INSERT 만** 한다 (D10).
+
+        ★ `override`·`override_reason`·`reviewed_by` 파라미터를 **여기에 추가하지 말 것** (D81).
+          스키마에 키가 없어야 LLM 이 BLOCKING 을 뚫는 사유를 지어내 호출하는 경로가
+          구조적으로 막힌다 — D23(신원)·D31(단가)을 파라미터에서 뺀 것과 같은 이유다.
+          예외 적용은 서명 API 가 `X-User` 와 함께 받는다.
+        ★ `reason` 은 필수 — 기본값을 두지 않는다 (D80).
+        """
+        return _generate_disposal_document(
+            reason=reason,
             asset_id=asset_id,
             equipment_id=equipment_id,
             disposal_mode=disposal_mode,

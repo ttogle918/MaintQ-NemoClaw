@@ -32,6 +32,23 @@ def check(name: str, ok: bool, detail: str) -> None:
 TECH = {"X-Role": "technician", "X-User": "tech-01"}
 MGR = {"X-Role": "manager", "X-User": "mgr-01"}
 
+# ── `/api/po` 응답 **키 집합** 기준선 (D85) ──────────────────────────────────────
+# D85 가 `/api/po` 의 "경로·응답 형태 불변"을 조건으로 `GET /api/approvals` 신설을 허용했다.
+# 그런데 값만 단언하는 검사는 **키가 늘거나 사라져도 통과한다** — Stage 1 에서 계약 드리프트가
+# 키집합 단언이 없어 그대로 지나간 전례가 있다. 그래서 형태를 여기에 못박고,
+# `spikes/approvals_contract.py` ⑱ 이 **이 상수를 import 해** 통합 큐 도입 후에도 대조한다
+# (기준선을 두 곳에 적으면 한쪽만 고쳐도 조용히 어긋난다).
+PO_LIST_ITEM_KEYS = frozenset(
+    {
+        "created_at", "decided_by", "decided_by_name", "decision_note", "error_code",
+        "evidence", "model", "part_name", "part_no", "po_id", "qty", "reason",
+        "requested_by", "requested_by_name", "session_id", "state", "supplier_id",
+        "supplier_name", "unit_price", "urgency",
+    }
+)
+# 상세는 목록 + 화면 B 재료 3종
+PO_DETAIL_KEYS = PO_LIST_ITEM_KEYS | {"quotes", "inventory", "trace_url"}
+
 
 #: seq 를 **일부러 뒤섞어** INSERT 한다 — 저장 순서가 아니라 `ORDER BY seq` 가
 #: 응답 순서를 정하는지 봐야 화면 B 타임라인(MQ-309)이 믿을 수 있다.
@@ -74,20 +91,26 @@ def run(client) -> None:
     r = client.get("/api/po", params={"state": "pending"}, headers=MGR)
     items = r.json()["items"]
     check(
-        "① 승인 큐 조회 (긴급 우선 정렬)",
-        r.status_code == 200 and len(items) == 3 and items[0]["urgency"] == "urgent",
-        f"{len(items)}건, 첫 항목 {items[0]['po_id']}({items[0]['urgency']})",
+        "① 승인 큐 조회 (긴급 우선 정렬) + 항목 키집합 불변 (D85)",
+        r.status_code == 200
+        and len(items) == 3
+        and items[0]["urgency"] == "urgent"
+        and all(set(i) == PO_LIST_ITEM_KEYS for i in items),
+        f"{len(items)}건, 첫 항목 {items[0]['po_id']}({items[0]['urgency']})"
+        f", 키차이={set(items[0]) ^ PO_LIST_ITEM_KEYS or '없음'}",
     )
 
     # ── 상세: 근거 카드·공급사 비교에 필요한 것이 한 번에 오는가
     d = client.get("/api/po/PO-0117", headers=MGR).json()
     check(
-        "② 상세 — evidence·재고·견적·trace 링크",
+        "② 상세 — evidence·재고·견적·trace 링크 + 키집합 불변 (D85)",
         d["evidence"]["symptoms"]
         and d["inventory"]["qty"] == 1
         and len(d["quotes"]) == 2
-        and d["trace_url"] == "/api/chat/S1/trace",
-        f"quotes={len(d['quotes'])}, 재고={d['inventory']['qty']}, trace={d['trace_url']}",
+        and d["trace_url"] == "/api/chat/S1/trace"
+        and set(d) == PO_DETAIL_KEYS,
+        f"quotes={len(d['quotes'])}, 재고={d['inventory']['qty']}, trace={d['trace_url']}"
+        f", 키차이={set(d) ^ PO_DETAIL_KEYS or '없음'}",
     )
     check(
         "②-b D57 — model 확정(iG5A, 2026-07-28 승인 후) → print_page 실측 202(offset 0)",

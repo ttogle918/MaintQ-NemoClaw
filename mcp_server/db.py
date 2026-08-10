@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """MCP 도구용 DB 접근 계층 — 읽기 전용 / draft INSERT 전용을 분리한다 (D10).
 
-절대 규칙: MCP 도구는 `po_drafts` 에 **draft INSERT만** 가능하다.
-상태 전이(draft→pending→approved/rejected)는 backend/routers/po.py 의 사람 전용 API 만.
-그래서 커넥션을 두 개로 나눈다 — 읽기용은 SQLite URI 의 `mode=ro` 로 물리적으로 막는다.
+절대 규칙: MCP 도구는 `po_drafts`·`decisions` 에 **draft INSERT만** 가능하다.
+상태 전이(발주 draft→pending→approved/rejected, 처분 draft→pending→signed/rejected)는
+backend/routers 의 사람 전용 API 만 한다.
+그래서 커넥션을 나눈다 — 읽기용은 SQLite URI 의 `mode=ro` 로 물리적으로 막고,
+쓰기용은 **테이블별로** TEMP TRIGGER 를 건 커넥션(`draft_writer`·`decision_writer`)을 준다.
 """
 
 from __future__ import annotations
@@ -65,9 +67,35 @@ def read_only() -> Iterator[sqlite3.Connection]:
         con.close()
 
 
+# ── 쓰기 커넥션의 세션 잠금 (D10) ───────────────────────────────────────────────
+# 테이블마다 **자기 트리거만** 건다. 한 커넥션에 두 테이블 트리거를 몰아 걸지 않는 이유는
+# 잠금의 범위를 커넥션 이름과 일치시키기 위해서다 — `draft_writer` 로 `decisions` 를 쓰면
+# "po_drafts 전용 트리거만 걸린 커넥션으로 다른 테이블을 만지는" 상태가 되고, 잠겼다고
+# 믿는 지점이 실제로는 안 잠긴다.
+_PO_GUARDS = """
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_update
+BEFORE UPDATE ON po_drafts
+BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 수정할 수 없습니다 (D10)'); END;
+
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_delete
+BEFORE DELETE ON po_drafts
+BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 삭제할 수 없습니다 (D10)'); END;
+"""
+
+_DECISION_GUARDS = """
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_decision_update
+BEFORE UPDATE ON decisions
+BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 수정할 수 없습니다 (D10)'); END;
+
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_decision_delete
+BEFORE DELETE ON decisions
+BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 삭제할 수 없습니다 (D10)'); END;
+"""
+
+
 @contextmanager
-def draft_writer() -> Iterator[sqlite3.Connection]:
-    """`po_drafts` 에 draft 한 건을 INSERT 하기 위한 커넥션.
+def _guarded_writer(guards: str) -> Iterator[sqlite3.Connection]:
+    """INSERT 전용 쓰기 커넥션. `guards` 로 받은 TEMP TRIGGER 를 걸고 연다.
 
     UPDATE/DELETE 를 막는 건 코드 규율만으로는 부족해서, 세션 수준 트리거로
     한 번 더 잠근다 — 도구 코드가 실수로 UPDATE 를 시도하면 즉시 예외가 난다.
@@ -77,17 +105,7 @@ def draft_writer() -> Iterator[sqlite3.Connection]:
     con = sqlite3.connect(DB_PATH)
     _configure(con)
     _enable_wal(con)
-    con.executescript(
-        """
-        CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_update
-        BEFORE UPDATE ON po_drafts
-        BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 수정할 수 없습니다 (D10)'); END;
-
-        CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_delete
-        BEFORE DELETE ON po_drafts
-        BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 삭제할 수 없습니다 (D10)'); END;
-        """
-    )
+    con.executescript(guards)
     try:
         yield con
         con.commit()
@@ -96,6 +114,25 @@ def draft_writer() -> Iterator[sqlite3.Connection]:
         raise
     finally:
         con.close()
+
+
+@contextmanager
+def draft_writer() -> Iterator[sqlite3.Connection]:
+    """`po_drafts` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`create_po_draft` 전용)."""
+    with _guarded_writer(_PO_GUARDS) as con:
+        yield con
+
+
+@contextmanager
+def decision_writer() -> Iterator[sqlite3.Connection]:
+    """`decisions` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`generate_disposal_document` 전용).
+
+    `draft_writer` 와 **같은 구조·다른 트리거**다. 상태 전이(draft→pending→signed/rejected)는
+    `backend/routers/decisions.py` 의 사람 전용 API 만 한다 (D10·D63) — 그래서 이 커넥션에서
+    `decisions` 를 UPDATE·DELETE 하면 SQLite 가 ABORT 한다.
+    """
+    with _guarded_writer(_DECISION_GUARDS) as con:
+        yield con
 
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:

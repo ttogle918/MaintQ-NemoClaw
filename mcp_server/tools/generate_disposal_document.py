@@ -1,0 +1,373 @@
+# -*- coding: utf-8 -*-
+"""generate_disposal_document — 처분 승인서·진술보장서 **초안** 생성 (S10 계층 3의 입구).
+
+`create_po_draft` 와 **완전히 같은 패턴**이다 (D67·`11 §5`): draft 만 INSERT 하고,
+확정은 사람의 승인 큐에서만 일어나며, 신원은 백엔드가 stamp 한다.
+
+────────────────────────────────────────────────────────────────────────────────
+★ 이 도구가 지키는 경계
+────────────────────────────────────────────────────────────────────────────────
+  D10  `decisions` 에 `state='draft'` INSERT 만. UPDATE/DELETE 권한 자체가 없다 —
+       규율이 아니라 `db.decision_writer()` 의 TEMP TRIGGER 2개로 잠근다.
+       ⛔ `draft_writer()` 를 재사용하지 않는다. 그건 `po_drafts` 전용 트리거만 걸린
+         커넥션이라, 그걸로 `decisions` 를 만지면 **잠금이 없는 채로 쓰는 것**이 된다.
+  D81  `override`·`override_reason`·`reviewed_by` 는 **파라미터가 아니다.** 스키마에 키가
+       없으므로 LLM 이 "추징을 감수하고 매각한다" 같은 사유를 지어내 BLOCKING 을 뚫는
+       호출 자체가 불가능하다. 예외 적용은 서명 API 가 `X-User` 와 함께 받는다.
+  D63  **verdict 가 BLOCKED 여도 draft 는 정상 생성된다.** 시스템은 막지 않는다 —
+       막혔다는 사실과 뚫은 사람을 기록할 뿐이다. 막으면 사용자는 시스템 밖에서
+       처분하고 **기록만 사라진다.** 그래서 "차단됐다"가 아니라 "차단된 채로 결재에
+       올라간다"가 이 도구의 출력이다.
+  D23·D37  `requested_by`·`session_id` 도 파라미터가 아니다. INSERT 직후 백엔드가 stamp 한다.
+  D80  `reason` 에 기본값을 두지 않는다 — 승인자가 판단 근거를 추적할 수 있어야 한다.
+  D86  `documents_preview` 는 **저장하지 않는다.** 정식 렌더는 `GET /api/decisions/{id}` 가
+       응답 조립 시점에 번들에서 만든다. 저장하면 템플릿이 바뀔 때 저장본이 조용히 낡는다.
+  D9   실패는 예외가 아니라 `status` 로 돌려준다.
+
+────────────────────────────────────────────────────────────────────────────────
+★ 근거 없는 서류는 만들지 않는다 — `build_evidence_bundle` 실패의 **그대로 전파**
+────────────────────────────────────────────────────────────────────────────────
+번들 생성은 `build_evidence_bundle` 을 **함수로 직접 호출**하고, 실패하면 그 `status`·
+`reason` 을 손대지 않고 그대로 돌려준다. 특히:
+
+  `law_text_unavailable` → **draft 를 만들지 않는다.** 해시할 조문 원문이 없는 서류는
+    "이 결정이 참조한 근거가 이후 변조되지 않았음"을 증명하지 못한다 — 계층 3의 존재
+    이유가 통째로 사라진다. 실패했다고 말하는 것으로 끝나면 안 되고 **아무것도 쓰지
+    않아야** 하므로, INSERT 는 번들이 성공한 뒤에만 시작한다.
+  `asset_modified`·`asset_disappeared` → 판정과 서류의 사실이 어긋난 상태다. 역시 미생성.
+
+같은 이유로 판정·해시·자산 해석을 여기서 **다시 하지 않는다.** 두 벌이 생기면 서명 시
+재대조가 어느 쪽과도 맞지 않게 된다 (W5 가 계층 1에서 겪은 이원화의 반복).
+
+────────────────────────────────────────────────────────────────────────────────
+★ 문안은 코드 상수다 — LLM 이 생성하지 않는다
+────────────────────────────────────────────────────────────────────────────────
+진술보장서는 법적 효력이 있는 문서다. 안전 문구(D2·safety-guardrail 규칙 1)와 같은
+성격으로 **문장을 모델이 짓게 두지 않고** 템플릿에 번들의 값만 치환한다. 그리고 문안이
+아직 사람 검수를 거치지 않았다는 사실을 `unreviewed_template_notice` 로 출력과 문서
+본문 **양쪽에** 싣는다 (`TODO_직접할일.md`).
+
+  사실이 번들에 없으면 `확인되지 않음` 으로 적는다 — 빈칸으로 두면 "해당 없음"으로
+  읽힌다. 모른다를 통과로 반올림하지 않는 D62 의 문서 판이다.
+
+`mcp_server` 는 `backend` 를 import 하지 않는다 (D15).
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from typing import Any
+
+from ..db import decision_writer
+from ._asset_ref import NOT_TEXT, as_text, err as _err
+from .build_evidence_bundle import build_evidence_bundle, canonical_json
+
+DESCRIPTION = (
+    "설비 자산의 처분 승인서·진술보장서 '초안'을 생성한다. 확정이 아니다. "
+    "반드시 check_disposal_blockers 로 판정을 먼저 확인한 뒤 사용자가 처분을 결정한 후에만 호출할 것. "
+    "판정이 BLOCKED·HOLD·INSUFFICIENT_FACTS 여도 초안은 만들어진다 — 그 사실이 초안에 기록되고, "
+    "차단을 뚫을지는 팀장이 승인 화면에서 사유와 함께 결정한다. "
+    "너는 override 를 요청하거나 사유를 대신 작성할 수 없다 — 그 파라미터가 없다. "
+    "근거 조문 원문이 아직 수집되지 않았으면 초안 생성이 거부된다 — 해시할 근거가 없는 서류는 만들지 않는다."
+)
+
+# 출력 상수. 값이 계약이므로 호출부에서 조립하지 않는다 (`sprint-7 MQ-706` 출력 예시).
+NEXT_STEP = "이 초안은 확정이 아니다. 팀장 승인 큐에서 서명해야 처분이 확정된다."
+UNREVIEWED_TEMPLATE_NOTICE = "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
+
+DECISION_TYPE = "DISPOSAL"
+
+_UNKNOWN = "확인되지 않음"
+
+# 자산 단위 verdict 5종의 뜻. **판정하지 않는다** — 엔진이 낸 값을 문서용 한 줄로 옮길 뿐이다.
+# 없는 키는 `.get` 으로 흘려 원문 verdict 를 그대로 적는다 (모르는 판정을 통과로 포장 금지).
+_VERDICT_LINES: dict[str, str] = {
+    "BLOCKED": "법정 차단 조건이 발화했다. 해소 없이 처분하면 법령 위반·추징 위험이 있다.",
+    "HOLD": "경계 구간이라 사람의 검토가 필요하다. 조건 미해당이라는 뜻이 아니다.",
+    "INSUFFICIENT_FACTS": "확인되지 않은 사실이 있어 판정을 확정할 수 없다. 문제 없음이 아니다.",
+    "CONDITIONAL": "선행 조건을 이행하면 처분할 수 있다.",
+    "CLEAR": "확인된 범위에서 처분을 막는 조건이 발견되지 않았다.",
+}
+
+_VERDICT_UNKNOWN = "시스템이 정의하지 않은 판정값이다. 통과로 해석하지 말 것."
+
+# 문서에 그대로 실리는 고정 문장. **verdict 와 무관하게 붙는다** (D63).
+_NO_AUTO_BLOCK_LINE = (
+    "이 판정은 처분을 자동으로 차단하지 않는다. 차단 사실이 이 초안에 기록된 채 결재에 "
+    "올라가며, 예외 적용 여부와 그 사유는 승인자가 서명 시 기록한다."
+)
+
+_UNKNOWN_LINE = (
+    f"'{_UNKNOWN}' 으로 적힌 항목은 '해당 없음'이 아니라 시스템에서 확인되지 않았다는 뜻이다 — "
+    "매도인이 별도로 확인해 보완해야 한다."
+)
+
+
+def _next_decision_id(con: sqlite3.Connection) -> str:
+    """`DEC-%04d`. `create_po_draft._next_po_id` 와 같은 패턴 — 채번 규약을 갈라 두지 않는다."""
+    row = con.execute(
+        "SELECT decision_id FROM decisions WHERE decision_id LIKE 'DEC-%'"
+        " ORDER BY decision_id DESC LIMIT 1"
+    ).fetchone()
+    n = int(str(row[0]).split("-")[1]) + 1 if row else 1
+    return f"DEC-{n:04d}"
+
+
+def _yn(facts: dict, key: str) -> str:
+    """불리언 사실 → 예/아니오. **키가 없으면 '확인되지 않음'** (D62 — 빈칸은 '아니오'로 읽힌다)."""
+    if key not in facts:
+        return _UNKNOWN
+    value = facts[key]
+    if isinstance(value, bool):
+        return "예" if value else "아니오"
+    return str(value)
+
+
+def _val(facts: dict, key: str) -> str:
+    """값 사실. 키가 없거나 빈 문자열이면 '확인되지 않음'."""
+    value = facts.get(key)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return _UNKNOWN
+    return str(value)
+
+
+def _law_lines(bundle: dict) -> str:
+    laws = bundle.get("laws") or []
+    if not laws:
+        return "        · 인용된 법령 조문 없음 (발화한 조건이 없거나 계약 근거만 인용됨)"
+    return "\n".join(
+        f"        · {law.get('law_ref_id')} (시행 {law.get('effective_from') or _UNKNOWN})"
+        f" {law.get('text_hash') or _UNKNOWN}"
+        for law in laws
+    )
+
+
+def _rule_lines(bundle: dict) -> str:
+    rules = bundle.get("rules") or []
+    if not rules:
+        return "        · 인용된 해석 룰 없음"
+    return "\n".join(
+        f"        · {r.get('rule_id')} v{r.get('rule_version')} {r.get('rule_hash') or _UNKNOWN}"
+        for r in rules
+    )
+
+
+def _contract_lines(bundle: dict) -> str:
+    contracts = bundle.get("contracts") or []
+    if not contracts:
+        return "        · 인용된 계약 근거 없음"
+    return "\n".join(f"        · {c.get('contract_ref')}" for c in contracts)
+
+
+def _open_condition_lines(bundle: dict) -> str:
+    """발화·보류·사실부족으로 남은 룰. **재판정이 아니라 번들 `evaluated[]` 의 전재**다."""
+    rows = [e for e in (bundle.get("evaluated") or []) if e.get("verdict") != "CLEAR"]
+    if not rows:
+        return "        · 미해소 항목 없음 (평가한 룰이 전부 CLEAR)"
+    return "\n".join(
+        f"        · {e.get('rule_id')} v{e.get('rule_version')} — {e.get('verdict')}"
+        f" (근거 조문: {', '.join(e.get('law_refs') or []) or '없음'})"
+        for e in rows
+    )
+
+
+def render_documents(
+    bundle: dict, *, verdict: str, bundle_hash: str, reason: str, decision_id: str
+) -> dict:
+    """승인서·진술보장서 **미리보기** 문안. 저장하지 않는다 (D86).
+
+    입력은 번들과 판정값뿐이다 — 여기서 DB 를 다시 읽지 않는다. 다시 읽으면 문서가
+    번들과 다른 사실을 말할 수 있고, 그러면 해시가 가리키는 근거와 서류가 갈린다.
+    """
+    facts: dict[str, Any] = bundle.get("facts") or {}
+    evaluated = bundle.get("evaluated") or []
+    fired = [e for e in evaluated if e.get("verdict") != "CLEAR"]
+    verdict_line = _VERDICT_LINES.get(verdict, _VERDICT_UNKNOWN)
+
+    approval = f"""[설비 처분 승인서 — 초안]
+문서번호: {decision_id} (초안 · 확정 아님)
+
+1. 처분 대상
+     · 자산 ID: {_val(facts, "asset_id")}
+     · 자산 상태: {_val(facts, "status")}
+     · 취득일: {_val(facts, "acquired_at")}
+     · 설치 건물: {_val(facts, "building_id")}
+
+2. 처분 개요
+     · 처분 방식: {_val(facts, "disposal_mode")}
+     · 처분 예정일: {_val(facts, "disposal_date")}
+     · 요청 사유: {reason}
+
+3. 시스템 판정
+     · 판정: {verdict} — {verdict_line}
+     · {_NO_AUTO_BLOCK_LINE}
+     · 평가한 룰 {len(evaluated)}건 중 미해소 {len(fired)}건
+{_open_condition_lines(bundle)}
+
+4. 근거 (해시 고정)
+     · 근거 번들 해시: {bundle_hash}
+     · 법령 조문 {len(bundle.get("laws") or [])}건
+{_law_lines(bundle)}
+     · 해석 룰 {len(bundle.get("rules") or [])}건
+{_rule_lines(bundle)}
+     · 계약 근거 {len(bundle.get("contracts") or [])}건 — 원문 원천이 저장소에 없어 해시로 고정되지 않음
+{_contract_lines(bundle)}
+
+5. 결재
+     · 상태: 초안(draft) — 확정 아님
+     · 예외 적용(override): 미적용. 예외와 그 사유는 승인자가 서명 화면에서 기록한다.
+     · 서명자 / 서명일시: (미기재 — 서명 시 기록된다)
+
+{_UNKNOWN_LINE}
+※ {UNREVIEWED_TEMPLATE_NOTICE}"""
+
+    warranty = f"""[진술 및 보장서 — 초안]
+문서번호: {decision_id} (초안 · 확정 아님)
+
+매도인은 아래 자산의 처분({_val(facts, "disposal_mode")},
+예정일 {_val(facts, "disposal_date")})과 관련하여 다음 사실을 진술하고 보장한다.
+아래 항목은 시스템이 보유한 자산 정보에서 그대로 옮긴 것이며, 매도인의 확인으로 확정된다.
+
+1. 대상 자산
+     · 자산 ID: {_val(facts, "asset_id")}
+     · 취득일: {_val(facts, "acquired_at")}
+     · 자산 상태: {_val(facts, "status")}
+
+2. 권리관계
+     · 담보권 설정: {_yn(facts, "has_lien")}
+     · 담보권자: {_val(facts, "lien_creditor")}
+     · 담보권자 동의서: {_val(facts, "lien_consent_ref")}
+
+3. 보험
+     · 부보 여부: {_yn(facts, "insured")}
+     · 증권 식별자: {_val(facts, "policy_id")}
+
+4. 안전검사
+     · 안전검사 대상: {_yn(facts, "safety_inspection_target")}
+     · 최근 검사일: {_val(facts, "last_inspection_date")}
+     · 검사 유효기한: {_val(facts, "inspection_valid_until")}
+
+5. 세제
+     · 세액공제 적용: {_yn(facts, "tax_credit_applied")}
+     · 취득 후 경과(개월): {_val(facts, "months_since_acquisition")}
+     · 세금계산서 발급: {_yn(facts, "vat_invoice_issued")} (거래 성립 전 시점 기준)
+
+6. 미해소 조건 (시스템 판정 {verdict})
+{_open_condition_lines(bundle)}
+     · {_NO_AUTO_BLOCK_LINE}
+
+7. 근거 번들 해시: {bundle_hash}
+
+{_UNKNOWN_LINE}
+※ {UNREVIEWED_TEMPLATE_NOTICE}"""
+
+    return {"approval": approval, "representation_warranty": warranty}
+
+
+def generate_disposal_document(
+    reason: str,
+    asset_id: str | None = None,
+    equipment_id: str | None = None,
+    disposal_mode: str = "SALE",
+    disposal_date: str | None = None,
+) -> dict:
+    """처분 승인서·진술보장서 draft 를 `decisions` 에 한 건 INSERT 한다 (D10 — INSERT 만).
+
+    `asset_id`·`equipment_id` 는 **둘 중 하나 필수**라 시그니처상 둘 다 optional 이다
+    (D80 의 either-or 공백). 해석·검증은 `build_evidence_bundle` 이 `_asset_ref` 로 하며,
+    여기서 네 번째 사본을 만들지 않는다.
+
+    실패는 예외가 아니라 `status` 로 돌려준다 (D9).
+    """
+    try:
+        # ── ① reason 게이트 (`create_po_draft:58` 과 같은 어휘). 번들보다 **먼저** 본다 —
+        #    거부할 입력으로 DB 를 열 이유가 없다.
+        parsed_reason = as_text(reason)
+        if parsed_reason is None or parsed_reason is NOT_TEXT:
+            return _err(
+                "reason_required",
+                "reason 은 필수입니다 — 승인자가 처분 판단의 근거를 추적할 수 있어야 합니다 "
+                "(D5·D80). 사용자가 밝힌 사유를 그대로 넣고, 없으면 먼저 물어보세요.",
+            )
+        reason_text = str(parsed_reason)
+
+        # ── ② 근거 번들. 실패는 **그대로 전파**하고 여기서 끝낸다 — draft 미생성.
+        #    특히 `law_text_unavailable` 은 "해시할 근거가 없다"는 뜻이라, 이 경로에서
+        #    서류를 만들면 계층 3이 빈 약속이 된다.
+        built = build_evidence_bundle(
+            asset_id=asset_id,
+            equipment_id=equipment_id,
+            disposal_mode=disposal_mode,
+            disposal_date=disposal_date,
+        )
+        if built.get("status") != "ok":
+            return built
+
+        resolved_id = built["asset_id"]
+        bundle = built["evidence_bundle"]
+        bundle_hash = built["bundle_hash"]
+        verdict = built["verdict"]
+
+        # ── ③ 판정과 무관하게 draft 를 만든다 (D63·D81). BLOCKED 를 여기서 막지 않는다.
+        #    ⛔ 이 자리에 `if verdict in (...): return ...` 을 추가하지 말 것.
+        #    ★ 직렬화는 `canonical_json` **그대로** 저장한다. 다시 직렬화하면 키 순서·구분자가
+        #      달라져 서명 시 해시 재대조(D84)가 깨진다.
+        serialized = canonical_json(bundle)
+
+        with decision_writer() as con:
+            decision_id = _next_decision_id(con)
+            con.execute(
+                "INSERT INTO decisions (decision_id, asset_id, decision_type, evidence_bundle,"
+                " bundle_hash, verdict_at_signing, override, override_reason, reviewed_by,"
+                " signed_at, state, reason)"
+                # override=0 · override_reason/reviewed_by/signed_at=NULL · state='draft' 는
+                # **리터럴로 박는다** (D81). 파라미터로 두면 언젠가 값이 흘러들어온다.
+                " VALUES (?,?,?,?,?,?, 0, NULL, NULL, NULL, 'draft', ?)",
+                (
+                    decision_id,
+                    resolved_id,
+                    DECISION_TYPE,
+                    serialized,
+                    bundle_hash,
+                    # 이름은 `_at_signing` 이지만 여기 담기는 값은 **draft 시점 판정**이다.
+                    # 서명 시 백엔드가 재산출해 이 값을 덮는다 (D84) — 컬럼이 거짓말하지 않도록.
+                    verdict,
+                    reason_text,
+                ),
+            )
+
+        # ── ④ 미리보기 렌더. **INSERT 뒤**에 하고, 여기서 실패해도 예외를 던지지 않는다 —
+        #    렌더는 try 블록 안이어야 D9 가 성립한다 (문안 조립 버그가 도구를 죽이지 않게).
+        documents = render_documents(
+            bundle,
+            verdict=verdict,
+            bundle_hash=bundle_hash,
+            reason=reason_text,
+            decision_id=decision_id,
+        )
+    except sqlite3.IntegrityError as e:
+        # FK·CHECK·TEMP TRIGGER(D10) 위반. 계약 위반이므로 그대로 드러낸다.
+        return _err("integrity", str(e))
+    except sqlite3.Error as e:
+        return _err("db_error", str(e))
+    except FileNotFoundError as e:
+        return _err("db_missing", str(e))
+    except Exception as e:  # noqa: BLE001 — 예외를 밖으로 던지지 않는다 (D9)
+        return _err("internal_error", f"{type(e).__name__}: {e}")
+
+    return {
+        "status": "ok",
+        "decision_id": decision_id,
+        "state": "draft",
+        "decision_type": DECISION_TYPE,
+        "asset_id": resolved_id,
+        "verdict_at_signing": verdict,
+        "bundle_hash": bundle_hash,
+        # 항상 false. 도구에는 이 값을 바꿀 파라미터가 없다 (D81) — 출력에 싣는 이유는
+        # "예외가 적용되지 않은 초안"임을 소비자가 확인할 수 있게 하기 위함이다.
+        "override": False,
+        "next_step": NEXT_STEP,
+        # D86 — 미리보기다. 저장하지 않는다. 정식 렌더는 GET /api/decisions/{id}.
+        "documents_preview": documents,
+        "unreviewed_template_notice": UNREVIEWED_TEMPLATE_NOTICE,
+    }

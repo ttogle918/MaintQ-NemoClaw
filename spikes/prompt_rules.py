@@ -5,8 +5,8 @@
 **"규칙과 기준값이 프롬프트에 실제로 들어 있는가"** 다. 문구가 조용히 사라지거나
 방전 대기 기준값이 축소되면(safety-guardrail 규칙 3) 여기서 먼저 깨진다.
 
-MQ-612 가 더한 것 (⑰~㉑, D69):
-  - 확장 규칙 3개(12·13·14)는 **전제 도구가 실제로 등록됐을 때만** 붙는다
+MQ-612 가 더한 것 (⑰~㉑, D69) · MQ-706 이 더한 것 (㉒㉓):
+  - 확장 규칙 4개(12·13·14·15)는 **전제 도구가 실제로 등록됐을 때만** 붙는다
   - `prompts.py` 는 `MAINTQ_TOOLS_PROFILE` 을 **읽지 않는다** — env 를 바꿔도 출력이
     바뀌지 않음을 실제로 확인한다. 등록(자식 프로세스)과 지시(백엔드)가 같은 env 를
     각자 해석하면 어긋나기 때문이다
@@ -218,19 +218,24 @@ def run() -> None:
     # MQ-612 (D69) — 도구 프로파일과 프롬프트의 분리
     # ─────────────────────────────────────────────────────────────────────────
 
-    # ── ⑰ 개수 고정 — **env 미설정 상태**에서 규칙 11 + 확장 3
+    # ── ⑰ 개수 고정 — **env 미설정 상태**에서 규칙 11 + 확장 4
+    #
+    # ★ MQ-706: 새 규칙 15(`generate_disposal_document`)를 `RULES` 가 아니라 `EXT_RULES` 에
+    #   넣었다. sprint-7 MQ-706 DoD 는 `len(RULES)==12` 라고 적었으나, 그러면 **코어 프로파일
+    #   프롬프트에 `full` 전용 도구의 사용법이 실린다** — 같은 DoD 의 "tool_names=CORE_7 일 때
+    #   0건 누출"과 양립할 수 없다(㉒ 가 그 누출을 직접 본다). 규칙 총량은 11+4=15 로 늘었다.
     env_note = (
         "env 미설정"
         if _ENV_AT_IMPORT is None
         else f"env {_ENV_AT_IMPORT!r} 를 스파이크 진입 시 제거함(검사 대상 아님)"
     )
     check(
-        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 3개 고정 (D69)",
+        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 4개 고정 (D69)",
         len(RULES) == 11
-        and len(EXT_RULES) == 3
+        and len(EXT_RULES) == 4
         and os.environ.get("MAINTQ_TOOLS_PROFILE") is None
         and len(CORE_TOOLS) == 7
-        and len(EXT_TOOLS) == 7,
+        and len(EXT_TOOLS) == 8,
         f"RULES={len(RULES)} EXT_RULES={len(EXT_RULES)} "
         f"CORE={len(CORE_TOOLS)} EXT={len(EXT_TOOLS)} · {env_note}",
     )
@@ -245,20 +250,20 @@ def run() -> None:
         f"규칙 누출={ext_rule_leak or '없음'} · 도구명 누출={ext_tool_leak or '없음'}",
     )
 
-    # ── ⑲ 확장 14종 등록 → EXT 규칙 3개 + 각 근거 D 태그
+    # ── ⑲ 확장 15종 등록 → EXT 규칙 4개 + 각 근거 D 태그
     all_tools = [*CORE_TOOLS, *EXT_TOOLS]
     full_prompt = build_system_prompt("iG5A", tool_names=all_tools)
     ext_missing = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] not in full_prompt]
-    # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3
-    ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3")
+    # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3 / 15=D81·D63·D10
+    ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3", "D81", "D63")
     tag_missing = [t for t in ext_tags if t not in full_prompt]
-    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14))
+    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15))
     check(
-        "⑲ tool_names=전체14 → EXT 규칙 3개 + D 태그 전건 · 규칙 번호 12·13·14",
+        "⑲ tool_names=전체15 → EXT 규칙 4개 + D 태그 전건 · 규칙 번호 12·13·14·15",
         not ext_missing
         and not tag_missing
         and numbered
-        and "사용 가능한 도구 (14종)" in full_prompt
+        and "사용 가능한 도구 (15종)" in full_prompt
         and all(t in full_prompt for t in EXT_TOOLS),
         f"규칙 누락={ext_missing or '없음'} · 태그 누락={tag_missing or '없음'} · 번호={numbered}",
     )
@@ -288,13 +293,46 @@ def run() -> None:
 
     # ── ㉑ 부분 등록 — 번호는 위치로 고정된다(규칙 14 만 붙어도 "14.")
     partial = build_system_prompt("iG5A", tool_names=[*CORE_TOOLS, "assess_repair_value"])
-    present = {n: f"\n{n}. " in partial for n in (12, 13, 14)}
+    present = {n: f"\n{n}. " in partial for n in (12, 13, 14, 15)}
     check(
         "㉑ 확장 도구 일부만 등록 → 해당 규칙만 · 번호 밀림 없음",
-        present == {12: False, 13: True, 14: True}
+        present == {12: False, 13: True, 14: True, 15: False}
         and "check_disposal_blockers" not in partial
+        and "generate_disposal_document" not in partial
         and "규칙 (13개" in partial,
         f"규칙 존재={present} · 헤더 13개={'규칙 (13개' in partial}",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # MQ-706 (D81·D63) — 처분 서류는 초안까지
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── ㉒ 쓰기 도구의 규칙이 **코어 프로파일로 새지 않는가** (게이트의 핵심 방향)
+    #    `generate_disposal_document` 는 full 에서만 등록된다 — 코어 실행 프롬프트에
+    #    이 이름이나 규칙 15 의 문구가 있으면 "없는 도구의 사용법"을 지시하는 상태다.
+    rule15 = EXT_RULES[3]
+    core_leak = [
+        s
+        for s in ("generate_disposal_document", rule15[:24], "처분 서류는 초안까지")
+        if s in core_prompt
+    ]
+    check(
+        "㉒ tool_names=코어7 → generate_disposal_document·규칙 15 문구 0건 누출 (D69 게이트)",
+        not core_leak and "규칙 (11개" in core_prompt,
+        f"누출={core_leak or '없음'} · 코어 규칙 헤더 11개={'규칙 (11개' in core_prompt}",
+    )
+
+    # ── ㉓ full 프로파일에서 규칙 15 가 실제로 **무엇을 금지하는지** 확인한다.
+    #    개수만 세면 문구가 통째로 바뀌어도 통과한다 — D81 이 막으려는 건 문구가 아니라
+    #    "LLM 이 override 를 요청하거나 사유를 대신 쓰는" 경로다.
+    must_have = ("초안만", "override", "네 권한이 아니", "next_step", "law_text_unavailable")
+    missing15 = [s for s in must_have if s not in rule15]
+    check(
+        "㉓ 규칙 15 — 초안 한정 · override 는 권한 아님 · 사유 대필 금지 · 미생성 사실 명시 (D81·D63)",
+        not missing15
+        and "generate_disposal_document" in full_prompt
+        and rule15[:24] in full_prompt,
+        f"규칙 15 누락 문구={missing15 or '없음'}",
     )
 
 

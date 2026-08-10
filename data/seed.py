@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import shutil
 import sqlite3
 import sys
@@ -254,12 +255,19 @@ CREATE TABLE rules (
   CHECK (json_valid(law_refs) AND json_valid(contract_refs) AND json_valid(trigger))
 );
 
--- §14 decisions — 계층 3 서명. **쓰기 경로는 Sprint 7** (D10 태도 유지: 도구는 못 쓴다)
+-- §14 decisions — 계층 3 서명. 쓰기 경로는 Sprint 7 (D10 태도 유지: 도구는 draft INSERT 만)
+--
+-- ★ 이 테이블의 CHECK 3종이 *"BLOCKING 우회 처분 0건 · 서명 없는 처분 확정 0건"* 의 **마지막 층**이다.
+--   위쪽 층은 전부 코드다 — 도구는 UPDATE 권한이 없고(D10), 서명 API 는 순서를 강제한다(D84).
+--   그러나 코드 층은 **버그로 뚫린다.** 미래의 잘못된 UPDATE 한 줄, 마이그레이션 스크립트,
+--   콘솔에서 친 SQL — 어느 것이든 코드를 우회한다. 스키마는 우회할 수 없다.
+--   D63 이 "사유 없는 override" 를 CHECK 로 막은 것과 같은 태도이며, 그 CHECK 가 이미
+--   `seed.py ⑰` 로 검증돼 있다는 사실이 이 확장의 선례다.
 CREATE TABLE decisions (
   decision_id TEXT PRIMARY KEY,
   asset_id  TEXT NOT NULL REFERENCES assets,
   decision_type TEXT NOT NULL,           -- 'DISPOSAL' | 'REPAIR'
-  evidence_bundle TEXT NOT NULL,         -- JSON: {laws[], rules[], facts{}}
+  evidence_bundle TEXT NOT NULL,         -- JSON 5키: {laws[], rules[], evaluated[], contracts[], facts{}} (D83)
   bundle_hash TEXT NOT NULL,
   verdict_at_signing TEXT NOT NULL,
   override BOOLEAN NOT NULL DEFAULT 0,
@@ -267,10 +275,38 @@ CREATE TABLE decisions (
   reviewed_by TEXT REFERENCES users,
   signed_at DATETIME,
   state TEXT NOT NULL DEFAULT 'draft',
+  -- ── Sprint 7 (MQ-707) 보강 컬럼 ────────────────────────────────────────────
+  -- 도구(generate_disposal_document)가 채우는 요청 사유. `po_drafts.reason` 과 같은 자리다.
+  reason TEXT,
+  -- 신원·세션은 **도구가 채우지 않는다** (D23·D37) — 백엔드가 같은 요청 안에서 stamp 한다.
+  -- 도구 스키마에 requested_by 가 있으면 LLM 이 그 값을 채울 수 있다 = 위조 경로다.
+  requested_by TEXT REFERENCES users,
+  session_id TEXT,
+  -- 반려 사유 / 서명 코멘트. `po_drafts.decision_note` 와 같은 역할이다 (D38).
+  -- ⚠ 명세(MQ-707)에는 3컬럼만 적혀 있으나 `POST /sign{note}`·`/reject{reason}` 의 값을
+  --   담을 자리가 없어 그대로면 **사유가 저장되지 않는다** — "사유 없는 반려는 요청자가 뭘
+  --   고쳐야 할지 알 수 없다"(D38)는 반려 사유를 *받는 것*이 아니라 *남기는 것*이 목적이다.
+  decision_note TEXT,
+  -- 통합 승인 큐(D85)가 `created_at DESC` 로 정렬한다. DEFAULT 가 있으므로 MQ-706 의
+  -- draft INSERT 계약(컬럼 목록)은 한 글자도 바뀌지 않는다 — `po_drafts` 와 같은 패턴.
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- D63 을 스키마로 잠근다 — 사유 없는 override 는 저장 자체가 불가
   CHECK (override = 0 OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
   CHECK (json_valid(evidence_bundle)),
-  CHECK (state IN ('draft','pending','signed','rejected'))
+  CHECK (state IN ('draft','pending','signed','rejected')),
+  -- ★ "서명 없는 처분 확정 0건" — state='signed' 인데 서명자·서명시각·번들해시가 비면 거부.
+  --   `signed` 는 "누가 언제 무엇에 서명했는가"가 전부 있어야 성립하는 상태다.
+  --   셋 중 하나라도 없는 행은 *서명처럼 보이는 행*이지 서명이 아니다.
+  CHECK (state <> 'signed' OR (signed_at IS NOT NULL
+                               AND reviewed_by IS NOT NULL
+                               AND length(trim(bundle_hash)) > 0)),
+  -- ★ "BLOCKING 우회 처분 0건" — 차단 판정(BLOCKED·HOLD·INSUFFICIENT_FACTS)에 서명하려면
+  --   override=1 이어야 하고, override=1 이면 위 D63 CHECK 가 사유를 강제한다.
+  --   두 CHECK 가 맞물려 **"사유 없는 우회 서명"이 스키마 수준에서 표현 불가능**해진다.
+  --   ⚠ 여기 열거된 두 값은 `engine.VERDICTS` 의 **비차단** 어휘다. 엔진이 어휘를 늘리면
+  --     이 목록이 조용히 낡으므로 `verify()` ㉑ 이 DDL 문자열을 파싱해 엔진과 대조한다.
+  CHECK (state <> 'signed' OR override = 1
+         OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))
 );
 
 -- §15 flags — 법정 조건 상태 (발생 → 이행 → 해소). deadlines(F5)와 성격이 다름
@@ -1929,6 +1965,98 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         + (
             f" {[r[0] for r in lien_blind]} — BLOCKING 룰이 조용히 미발화한다" if lien_blind else ""
         ),
+    )
+
+    # ── Sprint 7 (MQ-707) — `decisions` 스키마 게이트 3건 ─────────────────────────
+    # ⑲ 컬럼 존재. MQ-706 의 draft INSERT 가 `reason` 을 쓰고, 백엔드 `submit()` 이
+    #    `requested_by` 를 stamp 한다(D23·D37). 컬럼이 없으면 도구가 INSERT 단계에서 죽는다.
+    #    ⚠ `session_id` 는 **아직 아무도 채우지 않는다**(Sprint 8 예약). `create_po_draft` 는
+    #      `loop.py` 가 stamp 하지만 처분 초안에는 대응물이 없어, 에이전트가 만든 초안이
+    #      어느 대화에서 나왔는지 추적되지 않는다. 컬럼만 미리 뚫어 둔 상태다 —
+    #      "채워진다"고 적으면 검사 라벨이 없는 동작을 주장하게 된다(reviewer W-2).
+    cols = {r[1]: r for r in con.execute("PRAGMA table_info(decisions)").fetchall()}
+    fk_targets = {
+        r[3]: r[2] for r in con.execute("PRAGMA foreign_key_list(decisions)").fetchall()
+    }  # from-컬럼 → 참조 테이블
+    required_cols = ("reason", "requested_by", "session_id")
+    missing_cols = [c for c in required_cols if c not in cols]
+    check(
+        "⑲ decisions 신규 컬럼 3종 + requested_by FK (MQ-706 draft 계약)",
+        not missing_cols and fk_targets.get("requested_by") == "users",
+        f"누락={missing_cols or 0} · requested_by → {fk_targets.get('requested_by')!r}"
+        f" · 부가 컬럼 decision_note={'decision_note' in cols}"
+        f", created_at={'created_at' in cols}",
+    )
+
+    # ⑳ **두 CHECK 가 실제로 거부하는가.** 한 번도 실행되지 않는 CHECK 는 있는 셈 치기 쉽다
+    #    (⑩ FK 프로브·⑰ D63 프로브와 같은 이유). 여기서는 **음성 2건 + 양성 1건**을 본다 —
+    #    양성이 없으면 "전부 거부하는 CHECK" 도 통과해 버려 검사가 방어선이 아니게 된다.
+    _BUNDLE = "{\"laws\":[],\"rules\":[],\"evaluated\":[],\"contracts\":[],\"facts\":{}}"
+
+    def _decision_probe(label: str, cols_sql: str, values_sql: str) -> tuple[bool, str]:
+        """SAVEPOINT 안에서 INSERT 를 실제로 시도하고 되돌린다. (거부됨?, 상세)"""
+        con.execute("SAVEPOINT dec_probe")
+        try:
+            con.execute(
+                f"INSERT INTO decisions (decision_id, asset_id, decision_type,"  # noqa: S608
+                f" evidence_bundle, bundle_hash, {cols_sql})"
+                f" VALUES ('DEC-CHK','AST-L3-CONV','DISPOSAL','{_BUNDLE}','sha256:x',{values_sql})"
+            )
+            return False, f"{label}: INSERT 가 통과해버림 (CHECK 미작동)"
+        except sqlite3.IntegrityError as exc:
+            return True, f"{label}: {exc}"
+        finally:
+            con.execute("ROLLBACK TO dec_probe")
+            con.execute("RELEASE dec_probe")
+            con.commit()
+
+    # 음성 ⓐ — 서명 없는 확정: state='signed' 인데 signed_at·reviewed_by 가 NULL
+    neg_a, det_a = _decision_probe(
+        "ⓐ 서명 없는 signed",
+        "verdict_at_signing, state",
+        "'CLEAR','signed'",
+    )
+    # 음성 ⓑ — BLOCKING 우회: 서명 3요소는 갖췄지만 verdict=BLOCKED 인데 override=0
+    neg_b, det_b = _decision_probe(
+        "ⓑ override 없는 BLOCKED signed",
+        "verdict_at_signing, state, signed_at, reviewed_by, override",
+        "'BLOCKED','signed','2026-08-10 00:00:00','mgr-01',0",
+    )
+    # 양성 ⓒ — 정상 서명은 통과해야 한다 (거부되면 CHECK 가 과하게 잡는 것)
+    pos_ok, det_c = _decision_probe(
+        "ⓒ 정상 서명",
+        "verdict_at_signing, state, signed_at, reviewed_by, override",
+        "'CLEAR','signed','2026-08-10 00:00:00','mgr-01',0",
+    )
+    check(
+        "⑳ 서명 없는 확정 / BLOCKING 우회 → CHECK 거부 (양성 대조 포함)",
+        neg_a and neg_b and not pos_ok,
+        f"{det_a} · {det_b} · ⓒ 정상 서명 통과={not pos_ok}",
+    )
+
+    # ㉑ CHECK 의 verdict 목록이 `engine.VERDICTS` 와 정합인가.
+    #    DDL 은 리터럴이라 엔진이 어휘를 늘려도 조용히 낡는다. **방향을 정확히 적어 둔다** —
+    #    CHECK 는 `verdict_at_signing IN ('CONDITIONAL','CLEAR')` **화이트리스트**라
+    #    새 어휘는 override 를 요구하는 쪽(fail-closed)으로 떨어진다. 즉 위험은
+    #    "새 차단 어휘가 우회된다"가 **아니라** "새 **비차단** 어휘가 부당하게 막힌다" 쪽이다.
+    #    ⚠ 아래 `engine_blocking == set(BLOCKING_VERDICTS)` 는 양변이 같은 식으로 계산돼
+    #      **항진명제**다. 실질 방어는 ⓐ DDL 문자열 파싱 대조(이 검사)와
+    #      ⓑ `backend/services/decisions.py` 의 모듈 수준 assert(import 시점에 죽는다) 두 개다.
+    from backend.services.decisions import BLOCKING_VERDICTS  # noqa: PLC0415
+    from data.rules import engine  # noqa: PLC0415
+
+    m = re.search(
+        r"state <> 'signed' OR override = 1\s*OR verdict_at_signing IN \(([^)]*)\)", SCHEMA
+    )
+    ddl_non_blocking = set(re.findall(r"'([^']+)'", m.group(1))) if m else set()
+    engine_blocking = set(engine.VERDICTS) - {"CONDITIONAL", "CLEAR"}
+    check(
+        "㉑ CHECK 의 비차단 verdict 목록 == engine.VERDICTS 파생 (D79)",
+        bool(m)
+        and ddl_non_blocking == set(engine.VERDICTS) - engine_blocking
+        and engine_blocking == set(BLOCKING_VERDICTS),
+        f"DDL 비차단={sorted(ddl_non_blocking)} · engine.VERDICTS={list(engine.VERDICTS)}"
+        f" · BLOCKING_VERDICTS={list(BLOCKING_VERDICTS)}",
     )
     return results
 

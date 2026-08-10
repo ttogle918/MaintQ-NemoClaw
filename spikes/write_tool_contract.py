@@ -1,12 +1,30 @@
 # -*- coding: utf-8 -*-
-"""create_po_draft 계약 검증 — 유일한 쓰기 도구가 경계를 지키는가.
+"""쓰기 도구 **2종** 계약 검증 — `create_po_draft` · `generate_disposal_document`.
 
-검증 대상: D10(draft INSERT만) · D23·D37(신원은 도구 스키마에 없음) ·
-          D31(단가 스냅샷 / MOQ 거부) · D33(코드 FK) · D34(evidence)
+검증 대상:
+  create_po_draft (①~⑭)          D10(draft INSERT만) · D23·D37(신원은 스키마에 없음) ·
+                                  D31(단가 스냅샷 / MOQ 거부) · D33(코드 FK) · D34(evidence)
+  generate_disposal_document (⑮~㉒, MQ-706)
+                                  D10(`decisions` draft INSERT만 · TEMP TRIGGER 2개) ·
+                                  D81(`override`·`override_reason`·`reviewed_by` 가 **스키마에
+                                  없다**) · D63(BLOCKED 여도 draft 는 만들어진다) ·
+                                  D84(저장된 `evidence_bundle` 로 `bundle_hash` 재대조) ·
+                                  D80(`reason` 필수) · "근거 없으면 아무것도 쓰지 않는다"
+
+★ **"막았다"를 선언하지 않고 증명한다.** 트리거는 `decision_writer()` 커넥션으로 실제
+  UPDATE·DELETE SQL 을 날려 ABORT 를 확인하고(⑯⑰), `law_text_unavailable` 은 "실패했다"가
+  아니라 **`decisions` 행 수가 그대로다**(⑱)로 확인한다.
+  ⛔ 트리거 확인에 `draft_writer()` 를 쓰지 않는다 — `po_drafts` 전용 트리거만 걸린
+    커넥션으로 `decisions` 를 만지면 잠기지 않은 경로를 통과시키고도 통과가 된다.
 
 실제 DB를 오염시키지 않도록 **임시 사본**을 만들고 MAINTQ_DB 로 주입한다.
 error_codes 는 사람 승인 전이라 비어 있으므로, D33 FK 검증만은 사본에
 검증용 코드 1건을 직접 넣어 확인한다 (원본 DB·추출 JSON 은 건드리지 않음).
+
+⚠ **MQ-707 DDL 대기** — MQ-706 의 draft INSERT 계약은 `decisions.reason` 에 값을 넣는데,
+  그 컬럼은 `data/seed.py` DDL 에 아직 없다(MQ-707 이 `reason`·`requested_by`·`session_id`
+  3개를 동시에 추가하는 중). 그래서 **사본에만** 없으면 추가한다(`prepare_db`) —
+  제품 코드·seed.py 에는 넣지 않는다. MQ-707 착지 후에는 이 보정이 저절로 무동작이 된다.
 
 실행:  uv run python spikes/write_tool_contract.py
 """
@@ -26,8 +44,20 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 SERVER = ROOT / "mcp_server" / "server.py"
 SOURCE_DB = ROOT / "data" / "maintq.db"
+
+# 처분 초안 케이스에 쓰는 자산. 실 DB 시드 기준 판정이 갈린다 —
+#   AST-L3-LIFT  CONDITIONAL (선행 조건형)
+#   AST-L3-CONV  BLOCKED     (담보 미동의 — D63 케이스: 막지 않고 기록한다)
+ASSET_CONDITIONAL = "AST-L3-LIFT"
+ASSET_BLOCKED = "AST-L3-CONV"
+DISPOSAL_DATE = "2026-09-01"
+
+# 이 조문을 미수집으로 되돌리면 `VAT-INVOICE` 가 인용하는 원문이 사라져
+# `law_text_unavailable` 경로가 열린다 (SALE 처분이면 어느 자산이든 인용된다).
+LAW_TO_BREAK = "KR-VAT-32"
 
 results: list[tuple[str, bool, str]] = []
 
@@ -42,12 +72,26 @@ def payload(result) -> dict:
     return json.loads(result.content[0].text)
 
 
+DDL_NOTE = ""
+
+
 def prepare_db(tmp: Path) -> Path:
-    """실제 DB 사본 + D33 검증용 error_codes 1건."""
+    """실제 DB 사본 + D33 검증용 error_codes 1건 (+ MQ-707 DDL 대기 보정)."""
+    global DDL_NOTE
     db = tmp / "contract.db"
     shutil.copy2(SOURCE_DB, db)
     con = sqlite3.connect(db)
     con.execute("PRAGMA foreign_keys=ON")
+
+    # ── MQ-707 DDL 대기: `decisions.reason` 이 없으면 **사본에만** 만든다.
+    #    스키마 정본은 data/seed.py 한 곳이다 — 여기 보정이 제품 스키마를 대신하지 않는다.
+    cols = {r[1] for r in con.execute("PRAGMA table_info(decisions)")}
+    if "reason" not in cols:
+        con.execute("ALTER TABLE decisions ADD COLUMN reason TEXT")
+        DDL_NOTE = "사본에 decisions.reason 임시 추가 (MQ-707 DDL 대기)"
+    else:
+        DDL_NOTE = "decisions.reason 이 이미 스키마에 있음 (MQ-707 착지 완료)"
+
     # OR REPLACE — iG5A 매핑 승인(2026-07-28) 후로는 복사한 실 DB 에 이미 (iG5A, OHT) 가
     # 있을 수 있다. 이 테스트의 고정 fixture 값(causes·actions 등)이 실 데이터와 무관하게
     # 항상 이겨야 뒤 검증이 결정적이다 — 순수 INSERT 면 UNIQUE 충돌로 죽는다.
@@ -68,8 +112,43 @@ EVIDENCE = {
 }
 
 
-async def run(db: Path) -> None:
-    env = {**os.environ, "MAINTQ_DB": str(db)}
+def decision_count(db: Path) -> int:
+    con = sqlite3.connect(db)
+    try:
+        return int(con.execute("SELECT count(*) FROM decisions").fetchone()[0])
+    finally:
+        con.close()
+
+
+def set_law_fetched(db: Path, law_ref_id: str, fetched: bool, snapshot: tuple | None) -> tuple:
+    """조문 원문을 미수집으로 되돌리거나(FALSE) 원상 복구한다(TRUE). 이전 값을 돌려준다."""
+    con = sqlite3.connect(db)
+    try:
+        before = con.execute(
+            "SELECT fetch_status, text, text_hash FROM law_refs WHERE law_ref_id=?",
+            (law_ref_id,),
+        ).fetchone()
+        if fetched:
+            con.execute(
+                "UPDATE law_refs SET fetch_status=?, text=?, text_hash=? WHERE law_ref_id=?",
+                (*snapshot, law_ref_id),  # type: ignore[misc]
+            )
+        else:
+            con.execute(
+                "UPDATE law_refs SET fetch_status='PENDING', text=NULL, text_hash=NULL"
+                " WHERE law_ref_id=?",
+                (law_ref_id,),
+            )
+        con.commit()
+        return before
+    finally:
+        con.close()
+
+
+async def run(db: Path) -> tuple[str, str, str]:
+    # `generate_disposal_document` 는 확장 도구라 **full 프로파일에서만** 등록된다 (D69).
+    # 코어 도구(create_po_draft)는 두 프로파일 모두에 있으므로 한 세션으로 2종을 다 본다.
+    env = {**os.environ, "MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full"}
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
 
     async with stdio_client(params) as (read, write):
@@ -206,7 +285,129 @@ async def run(db: Path) -> None:
                 f"status={nq['status']}, reason={nq.get('reason')}",
             )
 
-            return po_id
+            # ─────────────────────────────────────────────────────────────────
+            # generate_disposal_document (MQ-706) — 두 번째 쓰기 도구
+            # ─────────────────────────────────────────────────────────────────
+            doc_tool = next(t for t in listed.tools if t.name == "generate_disposal_document")
+            doc_schema = doc_tool.inputSchema or {}
+            doc_props = set(doc_schema.get("properties", {}))
+            doc_required = set(doc_schema.get("required") or [])
+
+            # ── D81 — LLM 이 BLOCKING 을 뚫는 호출 자체가 **구조적으로 불가능**해야 한다.
+            #    "쓰지 마라"를 description 에 적는 것으로는 부족하다. 키가 없어야 한다.
+            override_keys = {"override", "override_reason", "reviewed_by"}
+            identity_keys = {
+                "requested_by",
+                "session_id",
+                "state",
+                "signed_at",
+                "verdict_at_signing",
+            }
+            check(
+                "⑮ D81 스키마에 override·override_reason·reviewed_by 키 없음 (+D23 신원·상태 없음)",
+                not (doc_props & override_keys)
+                and not (doc_props & identity_keys)
+                and doc_required == {"reason"},
+                f"노출 파라미터={sorted(doc_props)} · required={sorted(doc_required)}",
+            )
+
+            # ── D80·D5 — reason 공백이면 draft 를 만들지 않는다
+            before_blank = decision_count(db)
+            blank = payload(
+                await session.call_tool(
+                    "generate_disposal_document",
+                    {"reason": "   ", "asset_id": ASSET_CONDITIONAL},
+                )
+            )
+            check(
+                "⑯ reason 공백 → reason_required · 행 수 불변",
+                blank["status"] == "error"
+                and blank.get("reason") == "reason_required"
+                and decision_count(db) == before_blank,
+                f"reason={blank.get('reason')} · decisions={before_blank}→{decision_count(db)}",
+            )
+
+            # ── 정상 초안 (CONDITIONAL 자산)
+            cond = payload(
+                await session.call_tool(
+                    "generate_disposal_document",
+                    {
+                        "reason": "노후 리프터 매각 — 대체 설비 도입으로 유휴",
+                        "asset_id": ASSET_CONDITIONAL,
+                        "disposal_mode": "SALE",
+                        "disposal_date": DISPOSAL_DATE,
+                    },
+                )
+            )
+            preview = cond.get("documents_preview") or {}
+            check(
+                "⑰ 처분 초안 생성 → state=draft · override=false · 미검수 고지 · 문서 2종",
+                cond["status"] == "ok"
+                and cond["state"] == "draft"
+                and cond["decision_type"] == "DISPOSAL"
+                and cond["override"] is False
+                and cond["asset_id"] == ASSET_CONDITIONAL
+                and set(preview) == {"approval", "representation_warranty"}
+                and all(cond["unreviewed_template_notice"] in v for v in preview.values()),
+                f"decision_id={cond.get('decision_id')} verdict_at_signing="
+                f"{cond.get('verdict_at_signing')} · 문서={sorted(preview)}",
+            )
+            # 실패해도 여기서 죽지 않는다 — 뒤 검증이 **깨끗한 FAIL** 로 보고돼야
+            # "무엇이 어긋났는지"가 표에 남는다 (트레이스백은 그걸 지운다).
+            cond_id = cond.get("decision_id")
+
+            # ── D63 — BLOCKED 여도 막지 않는다. "차단된 채로 결재에 올라간다"
+            blocked = payload(
+                await session.call_tool(
+                    "generate_disposal_document",
+                    {
+                        "reason": "담보 설정 상태이나 라인 폐쇄로 매각 검토",
+                        "asset_id": ASSET_BLOCKED,
+                        "disposal_mode": "SALE",
+                        "disposal_date": DISPOSAL_DATE,
+                    },
+                )
+            )
+            check(
+                "⑱ D63 BLOCKED 자산도 draft 생성 (막지 않고 기록한다) · override 는 여전히 false",
+                blocked["status"] == "ok"
+                and blocked["verdict_at_signing"] == "BLOCKED"
+                and blocked["state"] == "draft"
+                and blocked["override"] is False,
+                f"verdict_at_signing={blocked.get('verdict_at_signing')} "
+                f"decision_id={blocked.get('decision_id')}",
+            )
+            blocked_id = blocked.get("decision_id")
+
+            # ── 근거 원문이 없으면 **아무것도 쓰지 않는다** — 실패 선언이 아니라 행 수로 증명
+            before_missing = decision_count(db)
+            snapshot = set_law_fetched(db, LAW_TO_BREAK, fetched=False, snapshot=None)
+            try:
+                missing = payload(
+                    await session.call_tool(
+                        "generate_disposal_document",
+                        {
+                            "reason": "조문 미수집 상태에서 초안 시도",
+                            "asset_id": ASSET_CONDITIONAL,
+                            "disposal_mode": "SALE",
+                            "disposal_date": DISPOSAL_DATE,
+                        },
+                    )
+                )
+            finally:
+                set_law_fetched(db, LAW_TO_BREAK, fetched=True, snapshot=snapshot)
+            after_missing = decision_count(db)
+            check(
+                "⑲ law_text_unavailable 전파 → draft 미생성 (decisions 행 수 불변)",
+                missing["status"] == "error"
+                and missing.get("reason") == "law_text_unavailable"
+                and LAW_TO_BREAK in (missing.get("missing_law_refs") or [])
+                and after_missing == before_missing,
+                f"reason={missing.get('reason')} · missing={missing.get('missing_law_refs')} "
+                f"· decisions={before_missing}→{after_missing}",
+            )
+
+            return po_id, cond_id, blocked_id
 
 
 def verify_row(db: Path, po_id: str) -> None:
@@ -259,19 +460,101 @@ def verify_row(db: Path, po_id: str) -> None:
     )
 
 
+def verify_decision_rows(db: Path, cond_id: str | None, blocked_id: str | None) -> None:
+    """`decisions` 저장분 검증 — MQ-707 이 전제하는 draft INSERT 계약 그대로인가."""
+    if cond_id is None or blocked_id is None:
+        for mark in ("⑳", "㉑", "㉒", "㉓"):
+            check(f"{mark} decisions 저장분 검증", False, "선행 draft 생성이 실패해 검증 불가")
+        return
+
+    import mcp_server.db as mcp_db  # noqa: PLC0415
+
+    from mcp_server.tools.build_evidence_bundle import (  # noqa: PLC0415
+        canonical_json,
+        compute_bundle_hash,
+    )
+
+    con = sqlite3.connect(db)
+    con.row_factory = sqlite3.Row
+    r = con.execute("SELECT * FROM decisions WHERE decision_id=?", (cond_id,)).fetchone()
+    b = con.execute("SELECT * FROM decisions WHERE decision_id=?", (blocked_id,)).fetchone()
+    con.close()
+
+    check(
+        "⑳ D10·D81 저장 계약 — state='draft' · override=0 · override_reason/reviewed_by/signed_at NULL",
+        r["state"] == "draft"
+        and r["override"] == 0
+        and r["override_reason"] is None
+        and r["reviewed_by"] is None
+        and r["signed_at"] is None
+        and r["decision_type"] == "DISPOSAL"
+        and r["asset_id"] == ASSET_CONDITIONAL
+        and (r["reason"] or "").strip() != ""
+        and b["verdict_at_signing"] == "BLOCKED",
+        f"{cond_id}: state={r['state']} override={r['override']} "
+        f"verdict_at_signing={r['verdict_at_signing']} reason={(r['reason'] or '')[:14]}…",
+    )
+
+    # ── D84 — 저장된 번들을 다시 파싱해 해시를 재산출한다. 서명 시 백엔드가 하는 그 대조다.
+    #    직렬화 규약(sort_keys·separators·ensure_ascii)이 어긋나면 여기서 먼저 깨진다.
+    stored = r["evidence_bundle"]
+    parsed = json.loads(stored)
+    check(
+        "㉑ D84 저장된 evidence_bundle 재파싱 → bundle_hash 일치 · 정준 직렬화 바이트 동일",
+        compute_bundle_hash(parsed) == r["bundle_hash"] and canonical_json(parsed) == stored,
+        f"재산출={compute_bundle_hash(parsed)[:24]}… 저장={str(r['bundle_hash'])[:24]}… "
+        f"· 재직렬화 동일={canonical_json(parsed) == stored}",
+    )
+
+    # ── D10 — TEMP TRIGGER 가 **실제로** ABORT 하는지 SQL 을 직접 날려 본다.
+    #   ⛔ draft_writer 를 쓰지 않는다 (po_drafts 전용 트리거만 걸린 커넥션이라 안 잠긴다).
+    #
+    #   ★ UPDATE 문을 고를 때 주의 — `SET state='signed'` 로 시험하면 **트리거를 지워도
+    #     통과한다.** MQ-707 이 넣은 CHECK("signed 인데 서명자·서명시각이 비면 거부")가
+    #     대신 IntegrityError 를 내기 때문이다(뮤턴트로 실측). 그래서 스키마가 **허용하는**
+    #     전이(draft→pending, 사람 API 가 실제로 하는 그 전이)로 시험하고, 예외 메시지에
+    #     **트리거 문구**가 있는지까지 본다. 그러지 않으면 "잠갔다"가 아니라 "다른 것이
+    #     우연히 막아 줬다"를 통과로 기록하게 된다.
+    mcp_db.DB_PATH = db
+    trigger_msg = "MCP 도구는 decisions 를"
+    for mark, label, sql in (
+        ("㉒", "UPDATE", "UPDATE decisions SET state='pending' WHERE decision_id=?"),
+        ("㉓", "DELETE", "DELETE FROM decisions WHERE decision_id=?"),
+    ):
+        try:
+            with mcp_db.decision_writer() as w:
+                w.execute(sql, (cond_id,))
+            aborted, detail = False, "ABORT 되지 않았다 (잠금 없음)"
+        except sqlite3.IntegrityError as e:
+            aborted, detail = trigger_msg in str(e), str(e)
+        con = sqlite3.connect(db)
+        con.row_factory = sqlite3.Row
+        still = con.execute(
+            "SELECT state FROM decisions WHERE decision_id=?", (cond_id,)
+        ).fetchone()
+        con.close()
+        check(
+            f"{mark} D10 decisions {label} 시도 → TEMP TRIGGER ABORT · 행 그대로",
+            aborted and still is not None and still["state"] == "draft",
+            f"{detail} · 행 상태={still['state'] if still else '삭제됨'}",
+        )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    print("create_po_draft 계약 검증 — 유일한 쓰기 도구 (임시 DB 사본)\n")
+    print("쓰기 도구 2종 계약 검증 — create_po_draft · generate_disposal_document (임시 DB 사본)\n")
     if not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
     with tempfile.TemporaryDirectory() as td:
         db = prepare_db(Path(td))
-        po_id = asyncio.run(run(db))
+        print(f"[스키마] {DDL_NOTE}\n")
+        po_id, cond_id, blocked_id = asyncio.run(run(db))
         verify_row(db, po_id)
+        verify_decision_rows(db, cond_id, blocked_id)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))
@@ -282,7 +565,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — 쓰기 도구가 D10·D23·D31·D33·D34·D37 경계를 지킨다")
+    print(
+        f"\n통과 ({len(results)}건) — 쓰기 도구 2종이 "
+        "D10·D23·D31·D33·D34·D37·D63·D80·D81·D84 경계를 지킨다"
+    )
 
 
 if __name__ == "__main__":
