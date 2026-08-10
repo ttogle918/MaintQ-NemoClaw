@@ -1279,3 +1279,40 @@ cd frontend && npx tsc --noEmit && npm run build        # Stage 5 이후
 **회귀**: seed 18 · 스파이크 **433건/22스위트** · pytest 46 · ruff 통과
 
 **남은 reviewer 경고 2건** — 둘 다 MQ-712 소유로 인계됨(`04 §14` 5키 갱신 · 실패 어휘 통일)
+
+### Stage 3 완료 (2026-08-10)
+
+**커밋**: `38fdd72` — `[F1] Sprint 7 Stage 3 — 처분 서류 도구 · 서명 REST · 실사 로직 이관`
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-706** | `generate_disposal_document.py`(신규) · `mcp_server/db.py` `decision_writer()` · `server.py` full 등록 · `prompts.py` EXT 규칙 15 · `write_tool_contract`(→23) · `tools_profile_contract`(→7) · `prompt_rules`(→23) |
+| **MQ-707** | `services/{decisions,approvals}.py` · `routers/{decisions,approvals}.py` · `main.py` · `seed.py` DDL+검증(→21) · `api_contract`(28 유지) · `approvals_contract`(신규 26) |
+| **MQ-707b** | `data/ownership.py`(신규) · `verify_ownership.py`(803→107행) · `services/ownership.py` · `routers/disposal.py` · `ownership_api_contract`(신규 10) |
+
+**회귀**: seed **21건** · 스파이크 **481건/24스위트** · pytest 46 · ruff 통과
+
+#### "BLOCKING 우회 0건 · 서명 없는 확정 0건" — 4층 방어 (reviewer 검증)
+
+| 층 | 방어 | 독립성 |
+|---|---|---|
+| 1 | `decision_writer()` TEMP TRIGGER 2개 | `state='pending'` 으로 시험 + 트리거 문구 대조 — CHECK 가 가려줄 수 없다 |
+| 2 | 도구 스키마에 `override` 키 부재 (D81) | 스키마 검사라 경로가 겹치지 않는다 |
+| 3 | `sign()` ③④⑤ 순서 | 셋 다 **DB 도달 전** 409/422 — CHECK 가 가려줄 수 없다 |
+| 4 | `decisions` CHECK 2종 | 상호 비마스킹 설계 + 양성 대조 + 뮤턴트 대조 |
+
+#### 이 스테이지가 남긴 교훈 — **한 층이 다른 층을 가린다**
+
+MQ-706 이 트리거 검사를 `UPDATE … state='signed'` 로 했더니 **트리거를 지워도 PASS** 했다.
+MQ-707 의 CHECK 가 대신 `IntegrityError` 를 냈기 때문이다. 스스로 찾아 `state='pending'` 으로 고쳤고,
+reviewer 가 **같은 구조가 `db_concurrency` ⑩⑪ 에도 남아 있음**을 찾아냈다(W-8, 이번에 해소).
+
+> **방어선 검사는 "예외가 났다"가 아니라 "그 방어선이 냈다"를 봐야 한다.**
+
+#### 남은 reviewer 경고 3건 (판단 성격 — 인계)
+
+| # | 내용 | 왜 지금 안 고치나 |
+|---|---|---|
+| **W-7** | `_locked_row` 가 실제로는 잠그지 않는다 (`BEGIN IMMEDIATE` 없음). 두 팀장 동시 서명 시 마지막 쓰기가 이긴다 | `services/po.py` 와 같은 선례. 헤드라인 두 문장은 무영향 — 모든 UPDATE 경로가 `signed_at`·`reviewed_by` 를 함께 쓰고 override 게이트는 요청마다 독립 통과 |
+| **W-10** | `render_documents` 가 버킷 분류의 **3번째 사본** (`engine` · `services/disposal.py` 에 이어) | D79 위반은 아니다(최상위 verdict 재계산 없음). 룰의 `disposal_type` 이 같은 버전 안에서 바뀔 때만 갈린다 |
+| — | 두 문서 렌더러(`documents_preview` vs `render_documents`)가 `AUTO_CLOSE` 룰에서 갈린다 | **룰 카탈로그에 `AUTO_CLOSE` 가 0건**이라 현재는 항상 일치. ⚠ 추가하는 순간 회귀가 필요하다 |
