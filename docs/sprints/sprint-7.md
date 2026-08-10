@@ -1412,3 +1412,61 @@ UI 는 자동 회귀가 얇아 `tsc` 가 통과해도 화면이 도는지는 모
 
 두 에이전트가 API 오류·세션 한도로 중단됐다(구현 에이전트는 "실 백엔드 응답 대조" 직전, reviewer 는 착수 직후).
 중단 지점부터 직접 이어받아 게이트(`tsc`·`build`·실 API 키집합 대조)와 설계 검토를 수행했다.
+
+### Stage 6 완료 (2026-08-10)
+
+**커밋**: `c6daf07` — `[F1] Sprint 7 Stage 6 — 처분 서명 UI · S18 실사 화면 · S9→S10 진입 화면`
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-709b** | `components/queue/{DecisionDetail,SignBar}.tsx`(신규) · `{DecisionBar,EvidenceCard}.tsx` · `lib/decisionView.ts`(신규) · `manager/decision/[decisionId]/page.tsx`(스텁 교체) · `ApprovalQueueScreen.tsx` |
+| **MQ-710** | `lib/ownership.ts` · `lib/__checks__/ui_honesty.ts` · `components/asset/{VerificationMatrix,ResidualRiskCard}.tsx` · `technician/asset/[assetId]/ownership/page.tsx` · `spikes/ui_honesty_contract.py`(신규) |
+| **MQ-711** | `components/asset/{FindingList,AssetHeader,DisposalPanel}.tsx` · `technician/asset/{page,[assetId]/disposal/page}.tsx` · `ChatComposer`·`DiagnosticConsole`·`technician/page.tsx`(prefill 배선) |
+
+**회귀**: `tsc` 0 · `build` 성공(라우트 7→**10**) · seed 21 · 스파이크 **581건/27스위트** ·
+pytest 46 · ruff 통과 · **백엔드 tracked 변경 0건**
+
+#### `ui_honesty_contract` — 13건 → **57건**
+
+reviewer W1 이 드러낸 것: `DisposalPanel` 이 verdict 맵·성공색·`verdict ===` 비교를 자기 안에 갖고 있었고,
+**같은 어휘의 두 번째 맵**이 `decisionView.ts` 에 있었다. 가짜 초록이 나가진 않았지만
+**L2 가 `VerificationMatrix.tsx` 한 파일만 스캔해 회귀가 못 잡았다.**
+
+> D87 이 존재하는 이유가 *"코드 리뷰로만 지키지 않는다"* 인데, 정작 리뷰가 잡았다.
+
+→ 어휘 맵 단일화 + L2 를 **8파일 × 6규칙 = 48건**으로 확대.
+→ 뮤턴트 ⓓ' 가 확대의 필요를 증명: 구 규칙은 **대상에서 빠졌고 규칙도 못 잡았다**(독립된 두 이유).
+
+#### 지어내지 않고 멈춘 지점 3
+
+| # | 무엇 | 처리 |
+|---|---|---|
+| 1 | `evidence_completeness` 가 **REST 응답에 없다**(실측 — MCP 도구만 낸다) | `COMPLETE` 로 채우지 않고 "근거 수집 상태 미제공" 점선 배지. **계약 갭은 MQ-712 인계** |
+| 2 | 채팅 결과 카드(`decision_card`) | **만들지 않았다** — block 3종 고정은 D14·D22 계약. 자산 화면의 "이 자산의 처분서 초안" + 기존 `submitDecision` 으로 `draft→pending` 을 메웠다 |
+| 3 | **명세의 수동 체크리스트가 재현되지 않는다** | verdict 가 `disposal_date` 에 의존 — 명세 1069행 ⓑ 로는 HOLD 가 안 나온다. 정확한 날짜를 아래에 기록 |
+
+#### reviewer 경고 10건 — 6건 해소 / 4건 인계
+
+| # | 내용 | 처리 |
+|---|---|---|
+| W1 | verdict 맵 이중화 + L2 스캔 1파일 | ✅ 단일화 + L2 4→48건 |
+| W2 | 모르는 어휘가 정상 경고(오렌지)와 같은 톤 | ✅ 전용 `unknown` 톤. L1 단언도 "ok 아님" → **"정상 경고와도 다름"** 으로 강화 |
+| W3 | `evidence_changed` sticky 가 **반려까지 닫음** | ✅ 서명만 닫는다. 둘 다 막으면 결정이 `pending` 에 영구 고착 — D63 의 정반대 |
+| W4 | "색을 아는 곳은 여기 하나뿐" 주석이 거짓(사본 3개) | ✅ 범위 정확히 명시 |
+| W6 | S18 화면이 **어디서도 링크되지 않음** | ✅ `AssetHeader.right` 에 진입 경로 |
+| W7 | `unverified` 키 부재를 `0` 으로 → "미확인 0건"이 PARTIAL 과 모순 | ✅ **"미상"** |
+| W5 | **L3(실 데이터 렌더) 부재** — 백엔드가 불변식을 깨는 응답을 내도 CI 가 모른다 | 🔜 Sprint 8 |
+| W8 | 죽은 코드(`TONE_STYLE.muted` 등) | 🔜 |
+| W9 | `verdictView` 가 3개(→2개) | 🔜 |
+| W10 | 정비사 화면이 팀장 서명 화면으로 직접 링크 | 🔜 D4·D18 동선 재고 |
+
+#### ⚠ 회귀 러너 신뢰성 — 조치 필요
+
+27스위트를 **연속 실행**하면 매번 **다른 스위트가 1건** 실패한다:
+```
+OSError: [WinError 10014] … socket.socketpair() → asyncio _make_self_pipe
+```
+**Windows 소켓 고갈**이다 — 코드 결함이 아니고 개별 실행·재시도에서 전부 통과한다.
+관측: `ownership_api_contract`+`s4_smoke` → `s10_smoke` → `tools_profile_contract` → `disposal_sign_contract`.
+**서브프로세스를 띄우는 스위트가 늘수록 잦아진다.** 러너 차원의 조치(재시도·간격)가 필요하다.
+⛔ 이걸 모른 채 "전부 통과"라고 적으면 **거짓 보고**가 된다.
