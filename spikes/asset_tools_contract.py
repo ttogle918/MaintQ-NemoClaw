@@ -29,7 +29,9 @@ MQ-612 확장분 (Stage 5 reviewer 지정 3건):
   ⓖ `assess_repair_value` 의 `estimates[]`(D65) · `ROOT_CAUSE_FIRST` 는 3지 선택지를 내지 않는다
   ⓗ `build_evidence_bundle` — 정상 케이스 기대값을 **`data/rules/laws/*.json` 의 수집 상태와
      그 자산이 실제로 인용한 조문**에서 파생시킨다(하드코딩 0건). 해시 안정성은 인용 조문이
-     전부 채워진 **임시 DB 사본**에서 본다. 같은 사실 → 같은 해시
+     전부 채워진 **임시 DB 사본**에서 본다. 같은 사실 → 같은 해시.
+     MQ-705 이후 번들은 **5키**(D83)이며, 무결성 축(`rule_hash`·주입·N1·N2·뮤턴트 생존)은
+     `spikes/bundle_integrity.py` 가 전담한다 — 여기서는 계약의 겉면만 확인한다
 
 **실 DB 를 읽기만 한다** — 7도구 전부 읽기 전용이고(D10), 실행 전후 mtime·size 불변을
 마지막 검사가 직접 확인한다 (`s4_smoke.py` 선례). 픽스처는 전부 **임시 폴더의 사본**에
@@ -581,25 +583,38 @@ def main() -> None:
         finally:
             mcp_db.DB_PATH = saved_db
 
+    # ★ 번들 스키마는 MQ-705 에서 3키 → **5키**가 됐다 (D83). 여기서는 계약의 겉면만
+    #   확인하고, 무결성 축(rule_hash·주입·N1·N2·뮤턴트 생존)은 `spikes/bundle_integrity.py`
+    #   가 전담한다 — 두 스위트가 같은 것을 검사하면 한쪽을 고칠 때 다른 쪽이 가려 준다.
+    bundle_keys = {"laws", "rules", "evaluated", "contracts", "facts"}
     check(
         "build_evidence_bundle — 원문이 있으면 해시 산출 · 같은 사실이면 2회 동일 (built_at 은 해시 밖)",
         b1.get("status") == "ok"
         and b2.get("status") == "ok"
         and b1.get("bundle_hash") == b2.get("bundle_hash")
         and str(b1.get("bundle_hash") or "").startswith("sha256:")
+        and set(b1.get("evidence_bundle") or {}) == bundle_keys
+        and b1.get("hash_spec")  # N1 — 해시 규약의 이름은 번들 **밖**에 붙는다
+        and "hash_spec" not in (b1.get("evidence_bundle") or {})
         and b1.get("built_at") is not None
         and b1.get("not_considered"),
         f"status={b1.get('status')} hash={str(b1.get('bundle_hash'))[:24]}… "
-        f"동일={b1.get('bundle_hash') == b2.get('bundle_hash')}",
+        f"동일={b1.get('bundle_hash') == b2.get('bundle_hash')} "
+        f"번들키={sorted(b1.get('evidence_bundle') or {})}",
     )
     check(
-        "build_evidence_bundle — CLEAR 자산(근거 0건)도 해시를 낸다 (빈 근거도 사실이다)",
+        "build_evidence_bundle — CLEAR 자산은 laws·rules 가 비어도 evaluated[] 는 비지 않는다 (W7)",
         clear.get("status") == "ok"
         and clear.get("verdict") == "CLEAR"
         and (clear.get("evidence_bundle") or {}).get("laws") == []
         and (clear.get("evidence_bundle") or {}).get("rules") == []
+        # 빈 근거도 사실이라 해시는 나온다. 다만 **무엇을 평가했는지**는 남아야 한다 —
+        # 이게 없으면 "조회 결과 해당 없음"과 "아예 안 봤다"가 번들에서 구분되지 않는다.
+        and bool((clear.get("evidence_bundle") or {}).get("evaluated"))
         and bool(clear.get("bundle_hash")),
-        f"verdict={clear.get('verdict')} hash={str(clear.get('bundle_hash'))[:24]}…",
+        f"verdict={clear.get('verdict')} "
+        f"evaluated={len((clear.get('evidence_bundle') or {}).get('evaluated') or [])}건 "
+        f"hash={str(clear.get('bundle_hash'))[:24]}…",
     )
 
     # ─ MCP ↔ REST 직접 대조 (Stage 5 reviewer 지정 2) ───────────────────────

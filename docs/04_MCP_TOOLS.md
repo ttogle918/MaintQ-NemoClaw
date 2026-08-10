@@ -611,6 +611,12 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 > "처분 판정의 근거(법령 조문·해석 룰·판정에 쓰인 사실)를 하나로 묶고 해시로 고정한다. 매각·폐기 결정을 문서로 남기거나 결재·서명에 올릴 때 호출할 것. asset_id 또는 equipment_id **둘 중 하나는 반드시 넘겨야 한다** (둘 다 비우면 실패한다). 처분 예정일을 알면 disposal_date 를 함께 넘길 것 — 없으면 세액공제 조항이 사실 부족으로 남는다. 이 도구는 판정하지도 저장하지도 않는다. 판정은 check_disposal_blockers 가 하고, 번들의 저장·서명은 사람이 승인 화면에서 한다. law_text_unavailable 로 실패하면 조문 원문이 아직 수집되지 않았다는 뜻이며, '근거가 없다'가 아니라 '근거 원문을 아직 해시할 수 없다'는 뜻이다 — 판정 결과는 check_disposal_blockers 로 그대로 얻을 수 있다."
 
 ```json
+// ⚠⚠ 아래 예시는 **낡았다 — MQ-705 이후 번들은 3키가 아니라 5키다 (D83).**
+//     실제 출력: laws · rules(+`rule_hash`) · **evaluated** · **contracts** · facts
+//     그리고 `hash_spec` 필드와 `asset_modified` reason 이 추가됐다.
+//     ⛔ 이 예시를 근거로 구현하지 말 것. 정확한 스키마는 `docs/sprints/sprint-7.md` MQ-705 절과
+//        `mcp_server/tools/build_evidence_bundle.py` docstring 을 보라.
+//     이 절의 갱신은 **MQ-712 소유**다 (sprint-7.md:1080).
 // input — §8과 동일한 4개 (asset_id·equipment_id 중 하나 필수)
 { "asset_id": "AST-L3-LIFT", "equipment_id": null,
   "disposal_mode": "SALE", "disposal_date": "2026-09-01" }
@@ -618,7 +624,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 {
   "status": "ok",
   "asset_id": "AST-L3-LIFT",
-  "evidence_bundle": {              // ★ 해시 대상은 이 세 키뿐이다
+  "evidence_bundle": {              // ★ 해시 대상은 이 세 키뿐이다 ← MQ-705 이후 5키
     "laws":  [{"law_ref_id": "KR-VAT-32", "effective_from": "2025-01-01", "text_hash": "sha256:a3f2…"}],
     "rules": [{"rule_id": "VAT-INVOICE", "rule_version": 2}],
     "facts": { … engine.build_facts() 결과 — NULL 컬럼은 키 자체가 없다 (D62) … }

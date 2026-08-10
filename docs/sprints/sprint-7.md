@@ -1089,6 +1089,20 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   11. **MQ-711 이 택한 초안 요청 경로**(채팅 경유)를 `06 §2.1` 과 `02_SCENARIOS` S10 에 기록
   12. **S17·`detect_law_revision` 이 v2 로 제외됐고, `check_revisions()` 는 코드에 살아 있으나 도구로 노출하지 않는다**는 사실을 `11 §10-3` 에 명시
 - **엣지 케이스**: 문서가 주장하는 수치와 실측이 다르면 **실측을 쓰고 차이를 기록**한다 / 코드와 대조 불가한 주장은 삭제한다
+> ### Stage 2 인계 — `04 §14` 에 반드시 반영할 것
+>
+> 1. **번들 3키 → 5키 (D83)** — `laws` · `rules`(**`rule_hash` 추가**) · **`evaluated`** · **`contracts`** · `facts`.
+>    §14 코드블록 위에 Stage 2 가 붙여 둔 `⚠⚠ 아래 예시는 낡았다` 경고를 **지우고** 실제 스키마로 교체한다.
+> 2. **`hash_spec` 필드** — 번들 **밖**(N1). 안에 넣으면 스펙 문자열 수정이 과거 서명을 전부 깬다.
+> 3. **`asset_modified` reason 신설** (N2 — 판정 전후 자산 행 재읽기).
+> 4. **`contracts[]` 는 `law_text_unavailable` 검사 대상이 아니다** — 넣으면 `LIEN-CONSENT` 자산 번들이
+>    구조적으로 영원히 불가능해진다. 이 경계를 문서에 남긴다.
+> 5. **🔴 실패 어휘 불일치 해소** — 엔진이 던지는 `KeyError`/`TypeError`/`ValueError` 를
+>    **`§8`(`check_disposal_blockers`)은 `engine_error`, `§14`(`build_evidence_bundle`)는 `internal_error`** 로 낸다.
+>    같은 실패가 도구마다 다른 이름인데, 이건 §14 가 스스로 경고해 둔 바로 그 상태다.
+>    MQ-705 가 MCP 도구 경유를 끊으면서 생겼다. **어느 쪽으로 통일할지 정하고 문서·코드를 함께 고쳐라.**
+>    통일 후 `spikes/bundle_integrity.py` ⑳(두 도구 어휘 대조)에 **엔진 예외 케이스를 추가**해 잠글 것.
+
 - **DoD**
   - **코드 대조 단언 40건 이상**을 태스크 보고에 표로 첨부(MQ-613 선례: 46건)
   - `git grep -n "D1~D8[0-7]"` → 오래된 표기 0건

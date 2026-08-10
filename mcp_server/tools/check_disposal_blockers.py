@@ -36,11 +36,15 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
 
 from data.rules import engine
 
 from ..db import read_only
+
+# 자산 참조 규약(`asset_id | equipment_id` 해석·처분 인자 검증)은 `04 §8`·`§14` 공용이라
+# `_asset_ref` 에 한 벌만 둔다. 두 도구가 같은 입력에 다른 `reason` 을 내는 드리프트를
+# 구조로 막는 것이 목적이며, `spikes/bundle_integrity.py` 의 대조 회귀는 그대로 남는다.
+from ._asset_ref import err as _err, parse_disposal_args, resolve_asset_id
 
 DESCRIPTION = (
     "설비 자산의 처분(매각·폐기·이전) 가능 여부를 법정 조건으로 판정한다. "
@@ -66,70 +70,6 @@ _ENGINE_CONTRACT_KEYS = (
     "not_considered",
     "disclaimer",  # 아래에서 completeness 접미사를 붙여 덮어쓴다
 )
-
-# "문자열이 아닌 값이 들어왔다" 를 None(미지정)과 구분하기 위한 표식.
-# 둘을 뭉치면 `asset_id=123` 이 조용히 "asset_id 미지정" 이 된다.
-_NOT_TEXT = object()
-
-
-def _err(reason: str, message: str) -> dict:
-    return {"status": "error", "reason": reason, "message": message}
-
-
-def _as_text(value: object) -> object:
-    """문자열로 확정되는 값만 통과시킨다. 숫자·dict·list 는 추정하지 않는다."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value.strip() or None
-    return _NOT_TEXT
-
-
-def _resolve_asset_id(
-    con: sqlite3.Connection, asset_id: str | None, equipment_id: str | None
-) -> tuple[str | None, dict | None]:
-    """(asset_id, 실패 응답) 중 하나를 채워 돌려준다.
-
-    `equipment_id` 만 주어지면 `equipment.asset_id` 로 해석한다 (D68). 그 값이 NULL 이면
-    `no_host_asset` — `INV-L1-01`(분전반)이 정확히 이 케이스다. **배전 위치는 거래 단위가
-    아니므로** 처분 판정 대상이 될 수 없고, 이를 `unknown_*` 이나 `CLEAR` 로 뭉개면
-    "판정할 수 없는 대상"이 "판정 결과 문제 없음"으로 읽힌다.
-
-    둘 다 주어졌는데 서로 다른 자산을 가리키면 `invalid_input` 이다 — 한쪽을 조용히 이기게
-    하면 사용자가 물은 것과 다른 자산의 판정을 돌려주게 된다.
-    """
-    resolved: str | None = None
-    if equipment_id is not None:
-        row = con.execute(
-            "SELECT asset_id FROM equipment WHERE equipment_id = ?", (equipment_id,)
-        ).fetchone()
-        if row is None:
-            return None, {
-                "status": "not_found",
-                "reason": "unknown_equipment",
-                "equipment_id": equipment_id,
-                "message": f"등록되지 않은 설비입니다: {equipment_id}",
-            }
-        if row["asset_id"] is None:
-            return None, {
-                "status": "not_found",
-                "reason": "no_host_asset",
-                "equipment_id": equipment_id,
-                "message": (
-                    f"{equipment_id} 에 연결된 호스트 자산이 없습니다 — 처분 판정의 대상은 "
-                    "거래 단위인 자산(assets)이며 이 설비에는 그 자산이 지정돼 있지 않습니다. "
-                    "판정 결과가 '문제 없음'인 것이 아닙니다."
-                ),
-            }
-        resolved = row["asset_id"]
-
-    if asset_id is not None and resolved is not None and asset_id != resolved:
-        return None, _err(
-            "invalid_input",
-            f"asset_id({asset_id}) 와 equipment_id 가 가리키는 자산({resolved}) 이 다릅니다. "
-            "하나만 지정하세요.",
-        )
-    return (asset_id or resolved), None
 
 
 def _evidence_completeness(
@@ -182,7 +122,7 @@ def _run(
                 "해석 룰(rules)이 적재돼 있지 않습니다 — 조건 미해당이 아니라 카탈로그 미적재입니다.",
             )
 
-        resolved_id, failure = _resolve_asset_id(con, asset_id, equipment_id)
+        resolved_id, failure = resolve_asset_id(con, asset_id, equipment_id)
         if failure is not None:
             return failure
 
@@ -241,42 +181,13 @@ def check_disposal_blockers(
 ) -> dict:
     """자산 처분의 법정 조건을 판정한다. 실패는 예외가 아니라 `status` 로 돌려준다 (D9·D46)."""
     try:
-        parsed_asset = _as_text(asset_id)
-        parsed_equipment = _as_text(equipment_id)
-        for name, value in (("asset_id", parsed_asset), ("equipment_id", parsed_equipment)):
-            if value is _NOT_TEXT:
-                return _err("invalid_input", f"{name} 는 문자열 식별자입니다 (예: 'AST-L3-CONV')")
-        if parsed_asset is None and parsed_equipment is None:
-            return _err("invalid_input", "asset_id 또는 equipment_id 중 하나는 필요합니다")
-
-        # 미지정(None)은 시그니처 기본값과 같은 뜻으로 본다. 값이 **있는데** enum 밖이면
-        # 폴백하지 않는다 — 'SELL'/'sale' 을 SALE 로 고쳐 주면 오타가 판정을 조용히 바꾼다.
-        parsed_mode = _as_text(disposal_mode)
-        mode = "SALE" if parsed_mode is None else parsed_mode
-        if mode is _NOT_TEXT or mode not in engine.DISPOSAL_MODES:
-            return _err(
-                "invalid_input",
-                f"disposal_mode 는 {' | '.join(engine.DISPOSAL_MODES)} 중 하나여야 합니다: "
-                f"{disposal_mode!r} (대소문자·유사어를 임의로 해석하지 않습니다)",
-            )
-
-        parsed_date = _as_text(disposal_date)
-        if parsed_date is _NOT_TEXT:
-            return _err(
-                "invalid_input", "disposal_date 는 ISO 날짜 문자열입니다 (예: '2026-08-09')"
-            )
-        if parsed_date is not None:
-            try:
-                date.fromisoformat(parsed_date)
-            except ValueError:
-                # 판독 불가한 날짜를 오늘로 메우면 "처분일을 모른다"가 "오늘 처분한다"가 된다 (D62).
-                return _err(
-                    "invalid_input",
-                    f"disposal_date 를 ISO 날짜로 읽을 수 없습니다: {disposal_date!r} "
-                    "(예: '2026-08-09'). 모르는 날짜를 오늘로 대체하지 않습니다.",
-                )
-
-        return _run(parsed_asset, parsed_equipment, mode, parsed_date)
+        # 입력 검증·폴백 금지 규약(`disposal_mode` enum, ISO 날짜)은 `_asset_ref` 한 곳에 있다.
+        # `build_evidence_bundle` 과 **같은 reason·같은 문구**를 내야 하기 때문이다.
+        args, failure = parse_disposal_args(asset_id, equipment_id, disposal_mode, disposal_date)
+        if args is None:
+            # 배타적 반환 — `args` 가 없으면 `failure` 가 반드시 있다 (`resolve_asset_id` 와 같은 규약).
+            return failure or _err("invalid_input", "처분 인자를 해석하지 못했습니다")
+        return _run(args.asset_id, args.equipment_id, args.disposal_mode, args.disposal_date)
 
     except engine.RuleIntegrityError as e:
         # 근거 없는 룰이 카탈로그에 있다 (D61). 판정을 내면 근거 없는 판정이 된다.
