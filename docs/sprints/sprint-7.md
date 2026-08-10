@@ -1229,3 +1229,46 @@ cd frontend && npx tsc --noEmit && npm run build        # Stage 5 이후
 ---
 
 실행: `/stage 1`
+
+---
+
+## 완료 기록
+
+### Stage 1 완료 (2026-08-09)
+
+**커밋**: `51f2535` — `[F1] Sprint 7 Stage 1 — 법령 조문 실수집 · 엔진 주입점 · D88 가드 · DB 격리`
+· `8730388` — `[F1] Sprint 7 Stage 1 — MQ-703b 3차 평가 실행 · 원인 분석`
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-701** | `data/rules/fetch_laws.py`·`laws/*.json` 6건·`law_fetch_contract`(→28)·`asset_tools_contract`. **FETCHED 6 / MISMATCH 1 / FAILED 0**. `조문내용` 은 제목뿐인 조문이 있어 `항·호·목` 평탄화 필수(`KR-STTC-24`: 14자 → 3,574자) |
+| **MQ-702** | `engine.py` 주입점(D82)·`facts_used`/`laws_used`·`test_rules.py`(→46)·`rules_db_load`(→25)·`disposal_api_contract`(→26) |
+| **MQ-703a** | `eval/run_eval.py` D88 이중 게이트 · `eval_score_contract`(→22). 변이 테스트로 exit 2↔0 전환 확인 |
+| **MQ-703b** | 3차 평가 실행 + `data/analysis/eval_gap_3rd.md` |
+| **MQ-704** | 3스위트 per-suite `MAINTQ_DB` 사본. 연속 20회 **0/60 실패** |
+
+**후속 정리**: 계약 드리프트 차단(`_ENGINE_CONTRACT_KEYS` + 키집합 전수 단언) · 인증값 평문 제거 +
+재발 방지 검사 ⓚ · sp2 격리를 계수 검사 ⑳ 로 승격(→20) · `tools_profile_contract` 인코딩 위양성 해소 ·
+낡은 "미수집" 서술 11파일 정정
+
+**회귀**: seed 18 · 스파이크 **409건/21스위트** · pytest 46 · ruff 통과 (직전 414 → **473**)
+
+**3차 평가 요지** — 부품 26.7→46.7% · 안전 61.1→72.2% · 인용 83.3% 제자리 · 환각 0% · 시퀀스 100%.
+⚠ **증감표만 보면 틀린다**: 순증 3건이 전부 S2 이고 D66 이 판정 소스를 넓힌 결과다. S1 은 +3/−3 = 0.
+실패는 **한 뿌리** — 파이프라인 다음 단계를 밟지 않고 되물으며 턴을 끝낸다.
+
+### Stage 2 완료 (2026-08-10)
+
+**커밋**: `e2809a2` — `[F1] Sprint 7 Stage 2 — 근거 번들 재설계 (W5·W6·W7·계약근거·N1·N2)`
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-705** | `build_evidence_bundle.py` 5키 재설계 · `bundle_integrity.py`(신규 **24건**) · `asset_tools_contract`(49 유지) |
+
+**후속 정리**(reviewer 경고 5건 중 3건 해소): `_asset_ref.py` 공용화(복제 190행 → 1벌, 74 엔트리 차이 0건) ·
+㉓ 실 DB↔파일 정본 동치 · ㉒ 두 도구 성공 verdict 대조 · ㉑ 실패 응답 키집합 ·
+`04 §14` 낡음 경고 · `engine_error`/`internal_error` 어휘 불일치는 **MQ-712 인계**
+
+**회귀**: seed 18 · 스파이크 **433건/22스위트** · pytest 46 · ruff 통과
+
+**남은 reviewer 경고 2건** — 둘 다 MQ-712 소유로 인계됨(`04 §14` 5키 갱신 · 실패 어휘 통일)
