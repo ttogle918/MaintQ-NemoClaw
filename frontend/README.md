@@ -89,6 +89,7 @@ frontend/
     ├── role.ts                 # Role · 라우트↔역할 매핑 · 목업 신원
     ├── citation.ts             # Citation · citationLabel (D26·D32)
     ├── types.ts                # 도메인 타입 (PoDraft · QueueEntry · TraceStep · ChatItem …)
+    ├── queueState.ts           # 큐 어휘 → 표시 (stateView · kindView · detailHref) — D87
     ├── api.ts                  # fetch 래퍼 · SSE 리더 · 엔드포인트 표
     └── mock/                   # 목업 데이터 — M2 에서 API 응답으로 대체
         ├── scenarios.tsx       #   S1 / S3 대화
@@ -113,7 +114,13 @@ UI 를 고칠 때 깨면 안 되는 것들:
 - **S3 는 발주 카드가 아니라 발주 보류 블록** — `po_card` block 의 `variant: "hold"` (D35).
   별도 이벤트 타입을 만들지 않는다 (이벤트 4종 고정, D14·D22)
 - **이력 기록은 명시적 액션** — 채팅 진입만으로 기록하면 `repeated` 판정이 질문 횟수로 오염된다 (D29·A7)
-- **오렌지는 안전·긴급 전용** — 장식으로 새면 경고가 무감각해진다
+- **오렌지는 안전·긴급 전용** — 장식으로 새면 경고가 무감각해진다.
+  `kind` 배지는 중립색 고정이고, *모르는 어휘* 배지는 오렌지를 빌려 쓰지 않고 전용 톤(`unknown`)을 쓴다
+- **승인 큐의 어휘를 정규화하지 않는다** (D85·D87) — 발주 `approved` 와 처분 `signed` 는 다른 사건이다.
+  `state` 는 백엔드가 준 **원 어휘 그대로** 들고 다니고, 표시는 `lib/queueState.stateView(kind, state)`
+  한 곳이 정한다. **맵에 없는 값은 `⚠ 원문` + 점선 배지**이며 **절대 초록(`ok`)으로 떨어지지 않는다**
+- **없는 값을 채우지 않는다** — `urgency: null`(처분서)이면 배지를 만들지 않고,
+  `verdict: null`(발주)이면 판정 영역을 렌더하지 않는다. `"normal"`·`false` 는 없는 사실을 만든다
 
 ## 백엔드 연동 TODO (M2, docs/06_REPO_API.md)
 

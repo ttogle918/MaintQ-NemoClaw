@@ -1,7 +1,8 @@
 import { Mono } from "@/components/ui/Mono";
-import type { ApiPo } from "./api";
+import type { ApiApproval, ApiPo } from "./api";
 import type { Citation } from "./citation";
-import type { EvidenceEntry, QueueEntry, SupplierQuote } from "./types";
+import { detailHref } from "./queueState";
+import type { ApprovalKind, QueueEntry, EvidenceEntry, SupplierQuote, Urgency } from "./types";
 
 /**
  * 백엔드 응답 → 화면 B 컴포넌트 props.
@@ -10,13 +11,52 @@ import type { EvidenceEntry, QueueEntry, SupplierQuote } from "./types";
  * 계약이 바뀔 때마다 UI 전체를 훑어야 한다.
  */
 
-export function toQueueEntry(po: ApiPo): QueueEntry {
+/**
+ * 통합 큐 항목(D85) → 큐 한 줄.
+ *
+ * ⚠ 여기서 값을 **메우지 않는다**:
+ *   - `urgency` 가 `null` 이면 `null` 그대로 — `"normal"` 로 채우면 처분서에 없는 긴급도가 생긴다
+ *   - `state` 는 원 어휘 그대로 — 표시는 `stateView(kind, state)` 가 정한다
+ *   - 모르는 `kind` 는 버리지 않고 **그대로 실어 보낸다**. 배지가 `⚠ 원문` 으로 뜨고
+ *     상세에는 착지점이 없다고 말한다. 목록에서 지우면 "그런 승인 건이 없다"는 거짓말이 된다.
+ */
+export function toQueueEntry(item: ApiApproval): QueueEntry {
   return {
-    poId: po.po_id,
+    // 좁히는 게 아니라 **표기**다 — 값을 검사해서 거르지 않는다. 모르는 종류가 오면
+    // 그대로 통과하고, 화면에서 `⚠ 원문` 배지 + 착지점 없음으로 드러난다 (D87).
+    // 여기서 `if (!KINDS.includes) return null` 을 하면 그 순간 항목이 조용히 사라진다.
+    kind: item.kind as ApprovalKind,
+    id: item.id,
+    title: item.title,
+    urgency: item.urgency,
+    state: item.state,
+    meta: [item.requested_by_name, relativeTime(item.created_at ?? "")]
+      .filter(Boolean)
+      .join(" · "),
+    detailHref: detailHref(item.kind, item.id),
+    verdict: item.verdict,
+    requiresOverride: item.requires_override,
+  };
+}
+
+/**
+ * `GET /api/po/{id}` 상세 → 큐 한 줄.
+ *
+ * 큐 4목록(pending·approved·signed·rejected) **밖에 있는** 발주를 딥링크로 열었을 때
+ * (예: 아직 `draft`) 헤더를 만들기 위한 경로다. 이게 없으면 "목록에 없다"는 이유로
+ * 다른 발주의 헤더 위에 이 발주의 근거가 렌더된다 — 승인 화면에서 가장 위험한 종류의 오표시다.
+ */
+export function toPoQueueEntry(po: ApiPo): QueueEntry {
+  return {
+    kind: "po",
+    id: po.po_id,
     title: `${po.part_name} ×${po.qty}`,
-    urgency: po.urgency,
+    urgency: po.urgency as Urgency,
     state: po.state,
     meta: [po.requested_by_name, relativeTime(po.created_at)].filter(Boolean).join(" · "),
+    detailHref: detailHref("po", po.po_id),
+    verdict: null, // 발주에는 처분 판정이 없다 — false 가 아니라 null 이다
+    requiresOverride: null,
   };
 }
 

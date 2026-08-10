@@ -28,16 +28,46 @@ export interface PoHold {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 승인 큐 (화면 B)                                                            */
+/* 승인 큐 (화면 B) — 통합 큐 `GET /api/approvals` (D85)                        */
 
+/**
+ * 승인 대상 종류. **`repair` 는 Sprint 7 에서 항상 0건**이다 — 백엔드가 계약 변경 없이
+ * Sprint 8(S19)에 채우려고 enum 에 미리 넣어 뒀다(`backend/services/approvals.py`).
+ * 0건이라고 프론트에서 지우면 그때 다시 프론트 계약을 흔들어야 한다.
+ */
+export type ApprovalKind = "po" | "disposal" | "repair";
+
+/**
+ * 큐 한 줄. 발주서·처분서·(수리)를 **한 형태로** 담는다.
+ *
+ * ⛔ `state` 를 공통 어휘로 정규화하지 않는다 — 발주의 `approved` 와 처분의 `signed` 는
+ *   다른 사건이다(백엔드 `services/approvals.py` 의 같은 주석). 그래서 타입이 `string` 이고,
+ *   "무엇으로 보이게 할 것인가"는 `lib/queueState.stateView(kind, state)` 한 곳이 정한다.
+ * ⛔ `urgency`·`verdict`·`requiresOverride` 의 `null` 을 기본값으로 메우지 않는다 —
+ *   처분서에는 긴급도가, 발주서에는 판정이 **없다**. `"normal"`·`false` 로 채우면
+ *   없는 사실이 생긴다 (D62·D87).
+ */
 export interface QueueEntry {
-  poId: string;
+  kind: ApprovalKind;
+  /** 종류 불문 식별자 — `PO-0117` · `DEC-0001` */
+  id: string;
   title: string;
   /** "(대체품)" 같은 부가 표기 */
   note?: string;
-  urgency: Urgency;
-  state: PoState;
+  /** 처분서는 `null` — 배지를 만들지 않는다 */
+  urgency: Urgency | null;
+  /** **원 어휘 그대로.** po: draft|pending|approved|rejected · disposal: …|signed|… */
+  state: string;
   meta: string;
+  /**
+   * 상세 화면 경로. **착지점이 아직 없으면 `null`** — `repair` 가 그렇다(Sprint 8).
+   * 빈 문자열 대신 `null` 인 이유: `<Link href="">` 는 조용히 현재 페이지로 가서
+   * "눌렀는데 아무 일도 안 난다"가 되고, 라우트가 없다는 사실이 화면에서 사라진다.
+   */
+  detailHref: string | null;
+  /** 처분 판정(`BLOCKED` 등). 발주에는 없다 → `null` */
+  verdict?: string | null;
+  requiresOverride?: boolean | null;
 }
 
 /** 근거 요약 카드 한 행 */

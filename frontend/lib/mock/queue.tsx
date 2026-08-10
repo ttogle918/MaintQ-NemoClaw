@@ -1,40 +1,85 @@
 import { Mono } from "@/components/ui/Mono";
 import type { EvidenceEntry, QueueEntry, SupplierQuote } from "../types";
 
+/**
+ * 목업 큐. **첫 항목은 발주로 둔다** — 백엔드가 꺼진 상태에서도 기본 선택이 발주 상세로
+ * 떨어져야 데모의 주 흐름(S1~S3)이 목업 모드에서 그대로 보인다.
+ * 처분서 1건은 뒤에 둬서, 골랐을 때만 "상세는 Stage 6" 안내가 뜨게 한다.
+ */
 export const PENDING: QueueEntry[] = [
   {
-    poId: "PO-0117",
+    kind: "po",
+    id: "PO-0117",
     title: "냉각팬 ×2",
     urgency: "urgent",
     state: "pending",
     meta: "1번 라인 · 김OO · 10분 전",
+    detailHref: "/manager/po/PO-0117",
   },
   {
-    poId: "PO-0116",
+    kind: "po",
+    id: "PO-0116",
     title: "제어보드",
     note: "(대체품)",
     urgency: "normal",
     state: "pending",
     meta: "1번 라인 · 이OO · 2시간 전",
+    detailHref: "/manager/po/PO-0116",
   },
   {
-    poId: "PO-0115",
+    kind: "po",
+    id: "PO-0115",
     title: "퓨즈 ×10",
     urgency: "normal",
     state: "pending",
     meta: "2번 라인 · 김OO · 어제",
+    detailHref: "/manager/po/PO-0115",
+  },
+  {
+    // 처분서에는 긴급도가 없다 — `urgency: null`. `"normal"` 로 채우지 않는다 (D87).
+    kind: "disposal",
+    id: "DEC-0001",
+    title: "AST-L1-INV-01 매각 처분",
+    urgency: null,
+    state: "pending",
+    meta: "1번 라인 · 이OO · 3시간 전",
+    detailHref: "/manager/decision/DEC-0001",
+    verdict: "BLOCKED",
+    requiresOverride: true,
   },
 ];
 
 export const RECENT: QueueEntry[] = [
-  { poId: "PO-0114", title: "V벨트 ×1", urgency: "normal", state: "approved", meta: "" },
   {
-    poId: "PO-0113",
+    kind: "po",
+    id: "PO-0114",
+    title: "V벨트 ×1",
+    urgency: "normal",
+    state: "approved",
+    meta: "",
+    detailHref: "/manager/po/PO-0114",
+  },
+  {
+    kind: "po",
+    id: "PO-0113",
     title: "인버터 ×1",
     note: "· 사유: 예산",
     urgency: "normal",
     state: "rejected",
     meta: "",
+    detailHref: "/manager/po/PO-0113",
+  },
+  {
+    // 발주의 `approved` 와 같은 칸이 아니다 — 처분의 종결은 `signed` 다
+    kind: "disposal",
+    id: "DEC-0000",
+    title: "AST-L2-PRS-03 폐기 처분",
+    urgency: null,
+    state: "signed",
+    meta: "",
+    detailHref: "/manager/decision/DEC-0000",
+    verdict: "CONDITIONAL",
+    requiresOverride: false,
   },
 ];
 

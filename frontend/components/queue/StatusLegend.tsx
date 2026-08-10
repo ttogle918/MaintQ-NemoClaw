@@ -9,7 +9,10 @@ const LEGEND: { state: PoState; desc: string }[] = [
   { state: "rejected", desc: "반려" },
 ];
 
-/** 상태 전이 다이어그램(06_REPO_API §2.4)의 UI 대응 범례. */
+/**
+ * 상태 전이 다이어그램(06_REPO_API §2.4)의 UI 대응 범례.
+ * **발주 어휘 전용**이다 — 처분(`signed`)은 다른 전이이고, 그 범례는 Stage 6 이 붙인다.
+ */
 export function StatusLegend() {
   return (
     <div
@@ -21,7 +24,7 @@ export function StatusLegend() {
       <span style={sx("font-weight:600;color:var(--dim)")}>승인 워크플로우 상태</span>
       {LEGEND.map(({ state, desc }) => (
         <span key={state} style={sx("display:inline-flex;align-items:center;gap:5px")}>
-          <StateBadge state={state} />
+          <StateBadge kind="po" state={state} />
           {desc}
         </span>
       ))}

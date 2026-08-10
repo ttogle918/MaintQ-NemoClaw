@@ -10,6 +10,7 @@
  */
 import type { Role } from "./role";
 import { ROLE_USER_ID } from "./role";
+import type { ApprovalKind } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8003";
 
@@ -45,6 +46,39 @@ export class ApiError extends Error {
   ) {
     super(`API ${status}: ${body}`);
     this.name = "ApiError";
+  }
+}
+
+/**
+ * 오류 본문에서 사람이 읽을 문장을 꺼낸다.
+ * 403(권한)·409(전이)·422(사유 누락)를 **구분해서** 보여 주기 위한 것 — 이게 D38 의 요점이다.
+ * FastAPI 는 `{"detail": …}`, 처분 409 는 `{"reason": …, "detail": …}` 로 온다.
+ */
+export function extractDetail(body: string): string {
+  try {
+    const j = JSON.parse(body);
+    if (typeof j?.detail === "string") return j.detail;
+    if (j?.detail !== undefined) return JSON.stringify(j.detail);
+    if (typeof j?.message === "string") return j.message;
+    return JSON.stringify(j);
+  } catch {
+    return body.slice(0, 120);
+  }
+}
+
+/**
+ * 오류 본문을 객체로. **409 는 재료를 싣고 온다** — `reason`(`evidence_changed` ·
+ * `override_required` · `law_text_unavailable` …) 과 `verdict`·`blockers`·`bundle_hash` 를
+ * 읽어야 사용자에게 "무엇을 하면 풀리는지"를 말할 수 있다 (`backend/routers/decisions.py`).
+ * 파싱 실패는 `null` — 지어내지 않는다.
+ */
+export function errorBody(e: unknown): Record<string, unknown> | null {
+  if (!(e instanceof ApiError)) return null;
+  try {
+    const j = JSON.parse(e.body);
+    return j && typeof j === "object" ? (j as Record<string, unknown>) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -153,6 +187,10 @@ export interface ApiBasis {
   [k: string]: unknown;
 }
 
+/**
+ * 발주 **전용** 목록. 화면 B 의 큐는 이제 `getApprovals`(통합 큐, D85)를 쓴다 —
+ * 이건 "발주만" 필요한 곳(정비사 화면·스크립트)을 위해 남긴다. `/api/po` 는 무변경이다.
+ */
 export const getPoQueue = (role: Role, state = "pending") =>
   apiFetch<{ items: ApiPo[] }>(`/api/po?state=${state}`, role).then((r) => r.items);
 
@@ -175,6 +213,240 @@ export const rejectPo = (poId: string, reason: string) =>
     method: "POST",
     body: JSON.stringify({ reason }),
   });
+
+/* -------------------------------------------------------------------------- */
+/* 통합 승인 큐 (D85) — `GET /api/approvals`                                    */
+
+/**
+ * 통합 큐 항목. **`/api/po` 는 한 글자도 바뀌지 않았다** — 처분서를 그 형태에 담으면
+ * 응답 절반이 NULL 이 되고, `/api/po` 에 걸린 회귀 28건·403 지표가 흔들리기 때문에
+ * 백엔드가 **읽기 전용 조립기**를 새 경로로 낸 것이다 (`backend/services/approvals.py`).
+ *
+ * ⚠ `kind`·`state` 를 유니온이 아니라 `string` 으로 받는 이유: 백엔드가 어휘를 늘리면
+ *   **먼저 도착하는 쪽이 화면**이다. 유니온으로 좁혀 두면 모르는 값이 타입상 존재할 수
+ *   없어서, "모르면 warn" 처리(D87)가 죽은 코드가 된다. 좁히기는 `lib/mappers` 가 한다.
+ */
+export interface ApiApproval {
+  kind: string;
+  id: string;
+  title: string;
+  /** 원 어휘 그대로 — po: approved / disposal: signed */
+  state: string;
+  /** 처분서에는 없다 → null */
+  urgency: "urgent" | "normal" | null;
+  requested_by: string | null;
+  requested_by_name: string;
+  created_at: string | null;
+  /** API 경로다 (`/api/po/PO-0117`). 화면 경로는 `lib/queueState.detailHref` 가 만든다 */
+  detail_path: string;
+  /** kind==="disposal" 일 때만 값이 있다 */
+  verdict: string | null;
+  requires_override: boolean | null;
+}
+
+/**
+ * 통합 큐 조회. `state` 는 **각 종류의 원 어휘**로 필터한다 —
+ * 종결 상태가 종류마다 다르므로(`approved` vs `signed`) 한 번의 호출로는 다 못 모은다.
+ * `kind` 에 `KINDS` 밖의 값을 넣으면 422 다 (오타를 0건으로 돌려주지 않는다).
+ */
+export const getApprovals = (role: Role, state?: string, kind?: ApprovalKind) => {
+  const q = new URLSearchParams();
+  if (state) q.set("state", state);
+  if (kind) q.set("kind", kind);
+  const qs = q.toString();
+  return apiFetch<{ items: ApiApproval[]; kinds: string[] }>(
+    `/api/approvals${qs ? `?${qs}` : ""}`,
+    role
+  ).then((r) => r.items);
+};
+
+/* -------------------------------------------------------------------------- */
+/* 처분 결정 (S10) — 상세·제출·서명·반려                                        */
+
+/**
+ * `GET /api/decisions/{id}` 응답.
+ *
+ * `documents`·`evidence_bundle` 안쪽은 **여기서 좁히지 않는다** — D86 이 "저장하지 않고
+ * 조립 시점 렌더"로 정한 구조라 항목이 늘어날 수 있고, 모양을 여기 박아 두면 백엔드가
+ * 키를 하나 더할 때마다 이 파일이 바뀐다. 렌더 쪽(Stage 6)이 필요한 키만 좁혀 읽는다.
+ */
+export interface ApiDecision {
+  decision_id: string;
+  asset_id: string;
+  asset_name?: string | null;
+  asset_category?: string | null;
+  /** draft | pending | signed | rejected — **`approved` 가 아니다** */
+  state: string;
+  disposal_mode: string | null;
+  disposal_date: string | null;
+  verdict_at_signing: string | null;
+  /** 서명 시점 판정이 차단 어휘인가 = 우회 없이는 서명 불가인가 */
+  requires_override: boolean;
+  override: boolean;
+  override_reason?: string | null;
+  bundle_hash?: string | null;
+  requested_by: string | null;
+  requested_by_name: string;
+  reviewed_by: string | null;
+  reviewed_by_name: string;
+  created_at: string | null;
+  signed_at: string | null;
+  evidence_bundle?: Record<string, unknown>;
+  /** 승인서·진술보장서·증빙 패키지 + `missing_sections`·`hash_fixed` (D86) */
+  documents?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
+export const getDecisions = (role: Role, state?: string) =>
+  apiFetch<{ items: ApiDecision[] }>(
+    `/api/decisions${state ? `?state=${encodeURIComponent(state)}` : ""}`,
+    role
+  ).then((r) => r.items);
+
+export const getDecision = (role: Role, id: string) =>
+  apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(id)}`, role);
+
+/** draft → pending. **정비사만** — 팀장이 부르면 403 (403 은 양방향이다). */
+export const submitDecision = (id: string) =>
+  apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(id)}/submit`, "technician", {
+    method: "POST",
+  });
+
+/**
+ * 서명 본문. `override` 는 **사람만** 넣을 수 있다 — 도구 스키마에는 이 키가 없다 (D81).
+ * ⛔ `override_reason` 에 기본 문구를 채우지 말 것. 사유는 사람이 쓴 것만 사유다.
+ */
+export interface SignDecisionBody {
+  override?: boolean;
+  override_reason?: string | null;
+  note?: string | null;
+}
+
+/**
+ * pending → signed. **팀장만.**
+ * 실패는 상태코드가 아니라 **409 본문의 `reason`** 으로 갈린다 —
+ * `invalid_transition` · `law_text_unavailable` · `cited_rule_missing` ·
+ * `evidence_changed` · `override_required`. `errorBody(e)` 로 읽는다.
+ */
+export const signDecision = (id: string, body: SignDecisionBody = {}) =>
+  apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(id)}/sign`, "manager", {
+    method: "POST",
+    body: JSON.stringify({
+      override: body.override ?? false,
+      override_reason: body.override_reason ?? null,
+      note: body.note ?? null,
+    }),
+  });
+
+/** pending → rejected. 사유 필수 (D38) — 공백이면 백엔드가 422. */
+export const rejectDecision = (id: string, reason: string) =>
+  apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(id)}/reject`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+/* -------------------------------------------------------------------------- */
+/* 자산 · 처분 사전판정 · 실사 (S9 · S18)                                       */
+
+export interface ApiAsset {
+  asset_id: string;
+  name: string;
+  category: string | null;
+  status: string | null;
+  line_id: number | null;
+  acquired_at: string | null;
+  book_value: number | null;
+  acquisition_cost: number | null;
+  equipment_count?: number;
+  equipment?: Record<string, unknown>[];
+  [k: string]: unknown;
+}
+
+export const getAssets = (role: Role, params?: { lineId?: number; status?: string }) => {
+  const q = new URLSearchParams();
+  if (params?.lineId !== undefined) q.set("line_id", String(params.lineId));
+  if (params?.status) q.set("status", params.status);
+  const qs = q.toString();
+  return apiFetch<{ items: ApiAsset[] }>(`/api/assets${qs ? `?${qs}` : ""}`, role).then(
+    (r) => r.items
+  );
+};
+
+export const getAsset = (role: Role, assetId: string) =>
+  apiFetch<ApiAsset>(`/api/assets/${encodeURIComponent(assetId)}`, role);
+
+/**
+ * 처분 사전판정 결과. **`CLEAR`·`CONDITIONAL` 만 200 이다** —
+ * `BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS` 는 409 로 오고, 본문은 200 과 **같은 형태 + `detail`**
+ * 이다 (D71). 즉 차단이어도 `errorBody(e)` 로 이 형태를 그대로 렌더할 수 있다.
+ *
+ * ⛔ 409 를 "실패"로 뭉개 버리지 말 것 — 200 을 "진행 가능"으로 읽는 클라이언트를 위해
+ *   일부러 갈라 놓은 것이고, 사용자가 볼 것은 blockers·resolve_options 다.
+ */
+export interface ApiPrecheck {
+  asset_id: string;
+  asset_name: string | null;
+  disposal_mode: string;
+  disposal_date: string | null;
+  evaluated_at: string;
+  generated_at: string;
+  verdict: string;
+  blockers: Record<string, unknown>[];
+  preconditions: Record<string, unknown>[];
+  holds: Record<string, unknown>[];
+  insufficient: Record<string, unknown>[];
+  checklist: Record<string, unknown>[];
+  resolve_options: string[];
+  missing_facts: string[];
+  facts_used: Record<string, unknown>;
+  not_considered: string[];
+  /** 409 일 때만 붙는다 */
+  detail?: string;
+  [k: string]: unknown;
+}
+
+export const precheckDisposal = (
+  role: Role,
+  assetId: string,
+  body: { disposal_mode: string; disposal_date?: string | null }
+) =>
+  apiFetch<ApiPrecheck>(
+    `/api/assets/${encodeURIComponent(assetId)}/disposal/precheck`,
+    role,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        disposal_mode: body.disposal_mode,
+        disposal_date: body.disposal_date ?? null,
+      }),
+    }
+  );
+
+/**
+ * 중고 거래 실사 체크리스트 (S18 · `11 §6`). REST 응답 == MCP 도구 출력이다 —
+ * 채팅으로 물었을 때와 화면으로 봤을 때 결과가 달라지지 않는다.
+ *
+ * `verdict` 는 `VERIFIED|PARTIAL|…` 이고 **`PARTIAL` 은 정상 결과다**(409 가 아니라 200).
+ * `status:"not_found"` 는 404 로 오며 `reason`(`no_host_asset` 등)이 본문에 있다 —
+ * "문제 없음"이 아니라 "실사 대상이 아니다"라는 판정이므로 `errorBody(e)` 로 읽어 보여준다.
+ */
+export interface ApiOwnership {
+  status: "ok" | "not_found" | "error";
+  asset_id?: string;
+  verdict?: string;
+  categories?: Record<string, unknown>[];
+  verified?: string[];
+  unverified?: string[];
+  residual_risk?: unknown;
+  mitigation?: unknown;
+  not_considered?: string[];
+  disclaimer?: unknown;
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const getOwnership = (role: Role, assetId: string) =>
+  apiFetch<ApiOwnership>(`/api/assets/${encodeURIComponent(assetId)}/ownership`, role);
 
 /* -------------------------------------------------------------------------- */
 /* trace 조회 (D43)                                                            */
@@ -233,6 +505,17 @@ export const endpoints = {
   poSubmit: (poId: string) => `/api/po/${poId}/submit`,
   poApprove: (poId: string) => `/api/po/${poId}/approve`,
   poReject: (poId: string) => `/api/po/${poId}/reject`,
+  /** 통합 승인 큐 (D85) — 읽기 전용. 전이는 종류별 경로가 각자의 역할 게이트와 함께 한다 */
+  approvals: "/api/approvals",
+  decisions: "/api/decisions",
+  decision: (id: string) => `/api/decisions/${id}`,
+  decisionSubmit: (id: string) => `/api/decisions/${id}/submit`,
+  decisionSign: (id: string) => `/api/decisions/${id}/sign`,
+  decisionReject: (id: string) => `/api/decisions/${id}/reject`,
+  assets: "/api/assets",
+  asset: (assetId: string) => `/api/assets/${assetId}`,
+  assetOwnership: (assetId: string) => `/api/assets/${assetId}/ownership`,
+  disposalPrecheck: (assetId: string) => `/api/assets/${assetId}/disposal/precheck`,
   equipment: "/api/equipment",
   equipmentHistory: (id: string) => `/api/equipment/${id}/history`,
   /** 에러 발생 이력 기록 — 정비사의 명시적 액션만 (D29) */

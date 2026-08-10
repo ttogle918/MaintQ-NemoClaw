@@ -8,6 +8,10 @@ import { DecisionBar } from "./DecisionBar";
 import { EvidenceCard } from "./EvidenceCard";
 import { SupplierCompare } from "./SupplierCompare";
 
+/**
+ * 발주 상세. **`kind === "po"` 항목에만 렌더한다** — 처분 상세는 Stage 6(`DecisionDetail`).
+ * 계약은 무변경이다: 여전히 `QueueEntry` + 근거 + 견적 + 승인/반려다.
+ */
 export function PoDetail({
   entry,
   evidence,
@@ -28,10 +32,10 @@ export function PoDetail({
     <div style={sx("display:flex;flex-direction:column;padding:18px 20px")}>
       <div style={sx("display:flex;align-items:center;gap:9px;margin-bottom:14px")}>
         <span style={sx("font:700 17px 'Pretendard';color:var(--ink)")}>
-          <Mono size={15}>#{entry.poId}</Mono> {entry.title}
+          <Mono size={15}>#{entry.id}</Mono> {entry.title}
         </span>
         <UrgencyBadge urgency={entry.urgency} size={10} />
-        <StateBadge state={entry.state} size={10} />
+        <StateBadge kind={entry.kind} state={entry.state} size={10} />
         <div style={sx("flex:1")} />
         <span style={sx("font:11px 'JetBrains Mono',monospace;color:var(--dim2)")}>
           요청 · {entry.meta}
