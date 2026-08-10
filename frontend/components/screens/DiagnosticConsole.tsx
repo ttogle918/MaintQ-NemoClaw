@@ -29,9 +29,25 @@ const EMPTY_TRACE: TraceSession = { label: "SESSION", meta: "0 calls", accent: "
 /** 재생 데모의 고정 프롬프트 (`_replay_s1` 은 입력 무관하게 하드코딩 이벤트를 낸다, D55). */
 const REPLAY_PROMPT = "iG5A 인버터에 OHt 에러가 떴어";
 
+/**
+ * 다른 화면에서 넘어온 진입 상태 (`/technician?prefill=…&equipment=…`, MQ-711).
+ * **채워 넣기만** 한다 — 자동 전송하지 않는다.
+ */
+export interface ConsoleEntry {
+  /** 컴포저에 미리 채울 문장 */
+  prefill?: string;
+  /** 헤더 장비 선택기의 초기값. 목록에 없으면 선택을 비운다(지어내지 않는다) */
+  equipmentId?: string;
+}
+
 type DiagnosticConsoleProps =
   | { mode: "mock"; scenario: Scenario; onRequestApproval?: (poId: string) => void }
-  | { mode: "live"; replay?: "s1"; onRequestApproval?: (poId: string) => void };
+  | {
+      mode: "live";
+      replay?: "s1";
+      entry?: ConsoleEntry;
+      onRequestApproval?: (poId: string) => void;
+    };
 
 /**
  * 화면 A — 진단 콘솔 (정비사).
@@ -42,7 +58,13 @@ type DiagnosticConsoleProps =
  */
 export function DiagnosticConsole(props: DiagnosticConsoleProps) {
   if (props.mode === "live") {
-    return <LiveConsole replay={props.replay} onRequestApproval={props.onRequestApproval} />;
+    return (
+      <LiveConsole
+        replay={props.replay}
+        entry={props.entry}
+        onRequestApproval={props.onRequestApproval}
+      />
+    );
   }
   return <MockConsole scenario={props.scenario} onRequestApproval={props.onRequestApproval} />;
 }
@@ -81,9 +103,11 @@ type EquipmentItem = Awaited<ReturnType<typeof getEquipment>>[number];
 
 function LiveConsole({
   replay,
+  entry,
   onRequestApproval,
 }: {
   replay?: "s1";
+  entry?: ConsoleEntry;
   onRequestApproval?: (poId: string) => void;
 }) {
   // `Date.now()` 를 초기 렌더에서 바로 쓰면 SSR 패스와 클라이언트 hydration 패스가
@@ -112,39 +136,58 @@ function LiveConsole({
       />
     );
   }
-  return <LiveConsoleReady sessionId={sessionId} replay={replay} onRequestApproval={onRequestApproval} />;
+  return (
+    <LiveConsoleReady
+      sessionId={sessionId}
+      replay={replay}
+      entry={entry}
+      onRequestApproval={onRequestApproval}
+    />
+  );
 }
 
 function LiveConsoleReady({
   sessionId,
   replay,
+  entry,
   onRequestApproval,
 }: {
   sessionId: string;
   replay?: "s1";
+  entry?: ConsoleEntry;
   onRequestApproval?: (poId: string) => void;
 }) {
   const { state, send } = useChatStream(sessionId);
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
-  const [equipmentId, setEquipmentId] = useState<string | null>(null);
+  const [equipmentId, setEquipmentId] = useState<string | null>(entry?.equipmentId ?? null);
   const autoSentRef = useRef(false);
 
   // 장비 목록 로드. 실패해도 화면은 뜬다 — 그때는 equipment_id: null 로 보내고 에이전트가
   // 모델 확인 질문을 한다(06_REPO_API §2.1). 기본값을 지어내지 않는다 (D6·D13).
+  //
+  // 진입 파라미터로 받은 `equipmentId` 는 **목록에 있을 때만** 유지한다. 목록에 없는 값을
+  // 들고 있으면 선택기는 빈칸을 보여 주는데 요청은 그 ID 로 나가서, 화면과 요청이 어긋난다.
+  const entryEquipmentId = entry?.equipmentId;
   useEffect(() => {
     let alive = true;
     getEquipment()
       .then((items) => {
-        if (alive) setEquipment(items);
+        if (!alive) return;
+        setEquipment(items);
+        if (entryEquipmentId && !items.some((i) => i.equipment_id === entryEquipmentId)) {
+          setEquipmentId(null);
+        }
       })
       .catch(() => {
-        if (alive) setEquipment([]);
+        if (!alive) return;
+        setEquipment([]);
+        if (entryEquipmentId) setEquipmentId(null);
       });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [entryEquipmentId]);
 
   // 재생 자동 send: mount 시 1회. StrictMode 이중 mount 가드(useRef) — POST 2회 방지.
   useEffect(() => {
@@ -183,6 +226,8 @@ function LiveConsoleReady({
         <ChatComposer
           onSend={(text) => send(text, equipmentId)}
           disabled={state.streaming}
+          // 채워만 둔다 — 전송은 사용자가 누른다 (자동 전송 금지)
+          initialText={entry?.prefill}
         />
       }
       trace={<TracePanel session={state.trace} />}

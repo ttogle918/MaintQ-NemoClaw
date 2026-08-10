@@ -15,11 +15,18 @@ import type { Scenario } from "@/lib/mock/scenarios";
  *   ?replay=s1       → 라이브 + 재생 데모 자동 흐름 (키 없이 동작, D55)
  *   (쿼리 없음)       → 라이브 실 루프
  * `?replay=S1` 같은 오타는 라이브 기본으로 떨어진다 (백엔드 400 을 유발하지 않는다).
+ *
+ * 진입 파라미터 (MQ-711 — 자산 처분 화면에서 넘어오는 경로):
+ *   ?prefill=…       → 컴포저에 문장을 **채워만** 둔다. ⛔ 자동 전송하지 않는다
+ *   ?equipment=…     → 헤더 장비 선택기 초기값 (목록에 없으면 비운다)
+ * 초안 요청이 채팅을 경유하는 이유: **도구는 에이전트만 부른다** (D15·D10). 화면이 직접
+ * 도구를 부르거나 사람 전용 생성 API 를 새로 만들면 쓰기 경로가 둘이 되어
+ * `generate_disposal_document` 의 존재 이유가 흐려진다. 이 경로는 신규 API 0·신규 SSE 소비 0.
  */
 export default function TechnicianPage({
   searchParams,
 }: {
-  searchParams?: { scenario?: string; replay?: string };
+  searchParams?: { scenario?: string; replay?: string; prefill?: string; equipment?: string };
 }) {
   const [toast, setToast] = useState<React.ReactNode>(null);
 
@@ -27,6 +34,11 @@ export default function TechnicianPage({
   const scenario: Scenario | null =
     scenarioParam === "s1" || scenarioParam === "s3" ? scenarioParam : null;
   const replay = searchParams?.replay === "s1" ? "s1" : undefined;
+  // 빈 문자열은 "값 없음"과 같게 다룬다 — 빈 프리필로 컴포저를 건드리지 않는다
+  const entry = {
+    prefill: searchParams?.prefill || undefined,
+    equipmentId: searchParams?.equipment || undefined,
+  };
 
   function show(node: React.ReactNode) {
     setToast(node);
@@ -61,7 +73,12 @@ export default function TechnicianPage({
       {scenario ? (
         <DiagnosticConsole mode="mock" scenario={scenario} onRequestApproval={onRequestApproval} />
       ) : (
-        <DiagnosticConsole mode="live" replay={replay} onRequestApproval={onRequestApproval} />
+        <DiagnosticConsole
+          mode="live"
+          replay={replay}
+          entry={entry}
+          onRequestApproval={onRequestApproval}
+        />
       )}
       {toast && <Toast>{toast}</Toast>}
     </>

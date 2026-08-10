@@ -1,0 +1,331 @@
+/**
+ * L1 — UI 정직성 순수 함수 단언 (D87).
+ *
+ * 프론트에 테스트 러너가 없다(실측: `tsc --noEmit`·`next build` 뿐). 러너를 새로 들이지 않고
+ * **이미 회귀에 있는 `tsc`** 로 컴파일해 `node` 로 돌린다 — 신규 의존성 0.
+ * 이게 가능한 이유는 `lib/ownership.ts` 가 리액트를 쓰지 않고 `@/` 별칭도 쓰지 않기 때문이다.
+ * 그 두 제약 자체는 `spikes/ui_honesty_contract.py` 가 별도로 단언한다.
+ *
+ * 실행(스파이크가 대신 한다):
+ *   cd frontend
+ *   npx tsc lib/__checks__/ui_honesty.ts --outDir <tmp> --module commonjs --target es2020 --skipLibCheck
+ *   node <tmp>/__checks__/ui_honesty.js
+ *
+ * 출력 규약: 한 줄에 `L1-<n>|PASS|<detail>` — 스파이크가 이 형식을 파싱해 표에 싣는다.
+ *
+ * ⛔ 기대값을 검증 대상에서 파생시키지 않는다. 카테고리 9종·"확인됨" 같은 값은 여기에
+ *   **독립적으로 하드코딩**한다 — `ownership.ts` 의 상수를 그대로 참조해 비교하면
+ *   상수를 망가뜨려도 검사가 함께 망가져 공허하게 통과한다(Sprint 6 에서 실제로 났던 실패).
+ */
+import {
+  auditRows,
+  CATEGORIES,
+  ITEM_VIEW,
+  itemView,
+  summarize,
+  toRows,
+  VERDICT_VIEW,
+  verdictView,
+  type Row,
+  type Tone,
+} from "../ownership";
+import { stateView } from "../queueState";
+
+/* -------------------------------------------------------------------------- */
+/* 러너                                                                        */
+
+let failed = 0;
+let n = 0;
+
+function check(name: string, ok: boolean, detail: string): void {
+  n += 1;
+  if (!ok) failed += 1;
+  console.log(`L1-${n}|${ok ? "PASS" : "FAIL"}|${name}|${detail.replace(/\s+/g, " ")}`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 독립 오라클 — 검증 대상에서 파생시키지 않은 기대값                          */
+
+const EXPECTED_CATEGORIES = [
+  "물리적 상태",
+  "가동 이력",
+  "정비 이력",
+  "기술적 진부화",
+  "권리관계",
+  "법정 요건",
+  "재무·회계",
+  "시장·가격",
+  "이전 비용",
+];
+
+/** 실 응답을 축약한 픽스처. **3번째 카테고리를 일부러 0건**으로 둔다(뮤턴트 ⓒ 탐지용). */
+function fixture(): {
+  status: string;
+  verdict: string;
+  categories: { category: string; items: { item: string; state: string; evidence: string | null; limit: string | null }[] }[];
+} {
+  return {
+    status: "ok",
+    verdict: "PARTIAL",
+    categories: EXPECTED_CATEGORIES.map((c, i) => ({
+      category: c,
+      items:
+        i === 2
+          ? []
+          : [
+              {
+                item: `${c} 확인 항목`,
+                state: "UNVERIFIED",
+                evidence: null,
+                limit: "원천 없음 — 저장소에 해당 테이블이 없다",
+              },
+              {
+                item: `${c} 기록 항목`,
+                state: "VERIFIED",
+                evidence: "사내 기록 조회 결과",
+                limit: null,
+              },
+            ],
+    })),
+  };
+}
+
+function row(over: Partial<Row>): Row {
+  return {
+    category: "권리관계",
+    item: "샘플",
+    state: "VERIFIED",
+    badge: "확인됨",
+    tone: "ok",
+    evidence: "근거",
+    limit: null,
+    empty: false,
+    ...over,
+  };
+}
+
+/** 9카테고리를 채운 정상 행 묶음 — 카테고리 수 불변식과 다른 불변식을 섞지 않기 위한 것. */
+function nineRows(extra: Row[] = []): Row[] {
+  return [...EXPECTED_CATEGORIES.map((c) => row({ category: c })), ...extra];
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-1 — ITEM_VIEW 는 total 이고, 미확인은 절대 "ok" 가 아니다                 */
+
+{
+  const keys = Object.keys(ITEM_VIEW).sort();
+  const v = ITEM_VIEW.VERIFIED;
+  const u = ITEM_VIEW.UNVERIFIED;
+  check(
+    "ITEM_VIEW total(2키) · UNVERIFIED.tone !== 'ok'",
+    keys.join(",") === "UNVERIFIED,VERIFIED" &&
+      v.tone === "ok" &&
+      u.tone !== "ok" &&
+      u.tone === "warn",
+    `keys=[${keys.join(",")}] VERIFIED=${v.tone} UNVERIFIED=${u.tone}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-2 — 맵 안 값의 배지·톤                                                   */
+
+{
+  const v = itemView("VERIFIED");
+  const u = itemView("UNVERIFIED");
+  check(
+    "itemView 맵 안 값 — VERIFIED='확인됨'/ok · UNVERIFIED='미확인'/warn",
+    v.badge === "확인됨" && v.tone === "ok" && u.badge === "미확인" && u.tone === "warn",
+    `VERIFIED={${v.badge},${v.tone}} UNVERIFIED={${u.badge},${u.tone}}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-3 — 맵 밖 값은 어떤 경우에도 "ok" 로 떨어지지 않는다                      */
+
+{
+  const unknowns = ["PENDING", "verified", "ok", "", "UNKNOWN", "확인됨"];
+  const bad: string[] = [];
+  // ★ "ok 가 아니다" 로는 부족하다 — **정상 경고(`UNVERIFIED`=warn)와도 달라야** 한다.
+  //   "확인 못 했다"와 "이 값이 뭔지 모른다"는 다른 사실이고, 후자는 계약이 어긋났다는 신호다.
+  //   `frontend/README §설계 계약`: 모르는 어휘는 오렌지를 빌리지 않고 전용 톤을 쓴다.
+  const normalWarn = ITEM_VIEW.UNVERIFIED.tone;
+  for (const s of unknowns) {
+    const view = itemView(s);
+    if (view.tone === "ok") bad.push(`${s || "(빈문자열)"}→tone=ok (초록 누수)`);
+    if (view.tone === normalWarn) bad.push(`${s || "(빈문자열)"}→tone=${view.tone} (정상 경고와 동일)`);
+    if (view.tone !== "unknown") bad.push(`${s || "(빈문자열)"}→tone=${view.tone} (전용 톤 아님)`);
+    if (!view.badge.includes(s) || !view.badge.startsWith("미확인")) {
+      bad.push(`${s || "(빈문자열)"}→badge=${view.badge}`);
+    }
+  }
+  check(
+    "itemView 맵 밖 값 6종 — 전용 unknown 톤 + 원문 보존 (초록·정상경고 어느 쪽도 아니다)",
+    bad.length === 0,
+    bad.length ? bad.join(" / ") : `검사 ${unknowns.length}종 · 예: itemView("PENDING")=${itemView("PENDING").badge} tone=${itemView("PENDING").tone}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-4 — PARTIAL 배너 문구 · 미지 판정 폴백                                    */
+
+{
+  const p = VERDICT_VIEW.PARTIAL;
+  const unknown = verdictView("MOSTLY_VERIFIED");
+  const okCase = VERDICT_VIEW.VERIFIED;
+  const unknownTone: string = unknown.tone;
+  const partialTone: string = p.tone;
+  check(
+    "VERDICT_VIEW.PARTIAL — warn + '안전하다는 뜻이 아닙니다' · 미지 판정은 전용 unknown 톤 + 원문",
+    p.tone === "warn" &&
+      p.headline.includes("안전하다는 뜻이 아닙니다") &&
+      okCase.tone === "ok" &&
+      // 미지 판정은 `PARTIAL`(정상 경고)과 **같은 톤이면 안 된다** — L1-3 과 같은 이유.
+      // 톤을 `string` 으로 넓혀 비교한다: 리터럴끼리 두면 tsc 가 "겹치지 않는 비교"로 막아
+      // 단언이 사라지고, 나중에 두 값이 같아져도 아무도 모르게 된다.
+      unknownTone === "unknown" &&
+      unknownTone !== partialTone &&
+      unknown.headline.includes("MOSTLY_VERIFIED"),
+    `PARTIAL=${p.tone}:"${p.headline}" · 미지=${unknown.tone}:"${unknown.headline}"`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-5 — 카테고리 9종·순서 고정 (하드코딩 오라클과 대조)                       */
+
+{
+  const actual = [...CATEGORIES];
+  check(
+    "CATEGORIES — 하드코딩 9종과 개수·순서 동일 (04 §9)",
+    actual.length === 9 && actual.join("|") === EXPECTED_CATEGORIES.join("|"),
+    `${actual.length}종 [${actual.slice(0, 3).join(", ")}…]`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-6 — toRows 는 항목 0건 카테고리도 남긴다 (뮤턴트 ⓒ)                       */
+
+{
+  const rows = toRows(fixture());
+  const cats: string[] = [];
+  for (const r of rows) if (!cats.includes(r.category)) cats.push(r.category);
+  const emptyOnes = rows.filter((r) => r.empty);
+  const missing = EXPECTED_CATEGORIES.filter((c) => !cats.includes(c));
+  check(
+    "toRows — 항목 0건 카테고리도 행을 남긴다 (9카테고리 전부 · 순서 유지)",
+    cats.length === 9 &&
+      missing.length === 0 &&
+      cats.join("|") === EXPECTED_CATEGORIES.join("|") &&
+      emptyOnes.length === 1 &&
+      emptyOnes[0].category === EXPECTED_CATEGORIES[2] &&
+      (emptyOnes[0].limit ?? "").length > 0 &&
+      emptyOnes[0].tone !== "ok",
+    `카테고리 ${cats.length}종 · 빠짐 ${missing.length}건 · 0건 카테고리 행 ${emptyOnes.length}건` +
+      ` (${emptyOnes.length ? `${emptyOnes[0].category}/tone=${emptyOnes[0].tone}` : "없음"})`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-7 — 미지 state 는 초록이 안 된다 · 요약에 퍼센트가 없다                    */
+
+{
+  const dirty = fixture();
+  dirty.categories[0].items.push({
+    item: "백엔드가 새 어휘를 보냈다",
+    state: "PARTIALLY_VERIFIED",
+    evidence: null,
+    limit: null,
+  });
+  dirty.categories[0].items.push({
+    item: "state 키 자체가 없다",
+    state: undefined as unknown as string,
+    evidence: null,
+    limit: null,
+  });
+  const rows = toRows(dirty);
+  const strange = rows.filter((r) => r.state !== "VERIFIED" && r.state !== "UNVERIFIED");
+  const greenLeak = strange.filter((r) => r.tone === "ok");
+  const s = summarize(rows);
+  const okText = s.text === `${s.verified}/${s.total} 확인됨`;
+  check(
+    "미지 state 는 tone='ok' 가 되지 않는다 · summarize 는 'N/M 확인됨' (퍼센트·진행바 없음)",
+    strange.length === 2 &&
+      greenLeak.length === 0 &&
+      okText &&
+      !s.text.includes("%") &&
+      s.total > s.verified,
+    `미지 state ${strange.length}건 · 초록 누수 ${greenLeak.length}건 · summary="${s.text}"`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-8 — auditRows 가 불변식 4종을 **실제로** 잡는다                           */
+
+{
+  const clean = auditRows(toRows(fixture()));
+
+  const cases: { label: string; rows: Row[]; want: string }[] = [
+    {
+      label: "미확인인데 tone=ok",
+      rows: nineRows().map((r, i) =>
+        i === 0 ? { ...r, state: "UNVERIFIED", tone: "ok" as Tone, limit: "사유", evidence: null } : r
+      ),
+      want: "[tone]",
+    },
+    {
+      label: "UNVERIFIED 인데 limit 없음",
+      rows: nineRows().map((r, i) =>
+        i === 0 ? { ...r, state: "UNVERIFIED", tone: "warn" as Tone, limit: null, evidence: null } : r
+      ),
+      want: "[limit]",
+    },
+    {
+      label: "VERIFIED 인데 evidence 없음",
+      rows: nineRows().map((r, i) => (i === 0 ? { ...r, evidence: null } : r)),
+      want: "[evidence]",
+    },
+    {
+      label: "카테고리 8종",
+      rows: nineRows().slice(0, 8),
+      want: "[categories]",
+    },
+  ];
+
+  const missed = cases.filter((c) => !auditRows(c.rows).some((v) => v.startsWith(c.want)));
+  check(
+    "auditRows — 정상 입력은 위반 0건 · 불변식 4종 위반을 각각 잡는다",
+    clean.length === 0 && missed.length === 0,
+    `정상 위반 ${clean.length}건${clean.length ? ` (${clean[0]})` : ""} · ` +
+      `못 잡은 뮤턴트 ${missed.length}건${missed.length ? ` (${missed.map((m) => m.label).join(", ")})` : ""}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-9 — 큐 상태 라벨도 같은 원칙 (lib/queueState.ts · MQ-709a 산출, 읽기만)    */
+
+{
+  const probes: [string, string][] = [
+    ["po", "archived"],
+    ["disposal", "approved"],
+    ["repair", "pending"],
+    ["unknown_kind", "signed"],
+    ["po", ""],
+  ];
+  const bad: string[] = [];
+  for (const [kind, state] of probes) {
+    const v = stateView(kind, state);
+    if (v.tone === "ok") bad.push(`${kind}/${state}→ok`);
+    if (v.known) bad.push(`${kind}/${state}→known=true`);
+    if (v.text !== state) bad.push(`${kind}/${state}→text=${v.text}`);
+  }
+  const known = stateView("po", "approved");
+  check(
+    "stateView — 맵 밖 (kind,state) 5종이 tone='ok' 로 떨어지지 않는다 (known=false + 원문)",
+    bad.length === 0 && known.tone === "ok" && known.known,
+    bad.length ? bad.join(" / ") : `검사 ${probes.length}종 전부 warn/known=false · 대조군 po/approved=${known.tone}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+console.log(`L1-SUMMARY|${failed === 0 ? "PASS" : "FAIL"}|총 ${n}건 · 실패 ${failed}건`);
+if (failed > 0) process.exit(1);

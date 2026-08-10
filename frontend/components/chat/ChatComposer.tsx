@@ -13,18 +13,26 @@ const DEFAULT_PLACEHOLDER = "메시지를 입력하거나, 마이크를 눌러 �
  * - 한글 IME 조합 중(isComposing / keyCode 229) Enter 는 무시 — 이중 전송 방지.
  * - `onSend` 미지정(mock 화면)이면 입력만 가능하고 전송은 무동작.
  * - 🎤(VoiceBar, 백로그 P8) · 📷(백로그 P1) 버튼은 자리만 잡아둔 것 — 기능 배선 금지.
+ *
+ * `initialText` — 다른 화면에서 넘어올 때 문장을 **채워만** 둔다 (`/technician?prefill=…`,
+ * MQ-711 자산 처분 화면). ⛔ **자동 전송하지 않는다.** 사람이 무엇을 요청하는지 읽고
+ * 직접 눌러야 한다 — 화면이 대신 보내면 그건 사용자의 요청이 아니라 화면의 요청이 된다
+ * (D29 가 "이력 기록은 명시적 액션"이라 한 것과 같은 태도).
  */
 export function ChatComposer({
   onSend,
   disabled = false,
   placeholder = DEFAULT_PLACEHOLDER,
+  initialText,
 }: {
   onSend?: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  initialText?: string;
 }) {
   const [listening, setListening] = useState(false);
-  const [text, setText] = useState("");
+  // 초기값으로만 쓴다. 이후 입력은 사용자 것이므로 prop 변화로 덮어쓰지 않는다.
+  const [text, setText] = useState(initialText ?? "");
 
   function send() {
     if (disabled) return;

@@ -8,6 +8,7 @@ import {
   Spacer,
 } from "@/components/layout/ConsoleFrame";
 import { StatusBanner } from "@/components/layout/StatusBanner";
+import { DecisionDetail } from "@/components/queue/DecisionDetail";
 import { EmptyQueue } from "@/components/queue/EmptyQueue";
 import { PoDetail } from "@/components/queue/PoDetail";
 import { QueueList } from "@/components/queue/QueueList";
@@ -20,9 +21,11 @@ import {
   approvePo,
   extractDetail,
   getApprovals,
+  getDecision,
   getPo,
   rejectPo,
   type ApiApproval,
+  type ApiDecision,
   type ApiPo,
 } from "@/lib/api";
 import { toEvidenceEntries, toPoQueueEntry, toQueueEntry, toQuotes } from "@/lib/mappers";
@@ -38,8 +41,8 @@ type Source = "loading" | "live" | "mock";
  * 승인은 채팅 밖 전용 화면에서 한다 — 채팅에선 결재가 흘러가버린다 (D18).
  *
  * 목록은 `GET /api/approvals` (D85) 로 **발주서·처분서를 한 큐**에 놓는다.
- * **상세는 이 스테이지에서 `kind === "po"` 만 렌더한다** — 처분 상세·서명은 Stage 6
- * (MQ-709b `DecisionDetail`·`SignBar`)이 이 분기를 채운다.
+ * 상세는 `kind` 로 갈린다 — `po` → `PoDetail`(계약 무변경) · `disposal` → `DecisionDetail`.
+ * 그 밖의 종류(`repair`, Sprint 8)는 **숨기지 않고** "상세가 없다"고 말한다.
  *
  * 백엔드가 꺼져 있으면 목업으로 떨어지되 **배너로 명시**한다.
  * 조용히 목업을 보여주면 데모에서 "동작한다"는 오해를 만든다.
@@ -52,6 +55,8 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
   const [selected, setSelected] = useState<QueueEntry | null>(null);
   /** 발주 상세 — `kind === "po"` 일 때만 채워진다 */
   const [detail, setDetail] = useState<ApiPo | null>(null);
+  /** 처분 상세 — `kind === "disposal"` 일 때만 채워진다 (MQ-709b) */
+  const [decision, setDecision] = useState<ApiDecision | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [missing, setMissing] = useState<string | null>(null);
 
@@ -80,6 +85,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           const direct = await getPo("manager", selectedId);
           setSelected(toPoQueueEntry(direct));
           setDetail(direct);
+          setDecision(null);
           setMissing(null);
           setSource("live");
           return;
@@ -91,7 +97,11 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
 
       const target = found ?? p[0] ?? null;
       setSelected(target ? toQueueEntry(target) : null);
+      // 종류별 상세는 각자의 경로에서 온다 — `/api/approvals` 는 목록 전용이다 (D85)
       setDetail(target?.kind === "po" ? await getPo("manager", target.id) : null);
+      setDecision(
+        target?.kind === "disposal" ? await getDecision("manager", target.id) : null
+      );
       if (found || !selectedId) setMissing(null);
       setSource("live");
     } catch {
@@ -168,6 +178,18 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
                 onApprove={live ? () => void decide("approve") : undefined}
                 onReject={live ? (reason) => void decide("reject", reason) : undefined}
               />
+            ) : chosen.kind === "disposal" && live && decision ? (
+              <DecisionDetail
+                decision={decision}
+                onUpdated={(updated) => {
+                  setDecision(updated);
+                  setNotice(`${updated.decision_id} — 상태 ${updated.state}`);
+                  // 목록 재조회. 선택은 큐의 기존 규칙을 따른다(발주 승인 뒤와 같은 동작) —
+                  // 서명한 건을 계속 보려면 `/manager/decision/{id}` 딥링크가 그 자리다.
+                  void load();
+                }}
+                onReload={() => void load()}
+              />
             ) : (
               <PendingImplementationDetail entry={chosen} />
             )}
@@ -183,19 +205,20 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
 }
 
 /**
- * 아직 상세 화면이 없는 종류의 자리.
+ * 상세를 그릴 수 없는 자리.
  *
+ * 남는 경우는 둘이다 — ⓐ 상세 화면이 아직 없는 종류(`repair`, Sprint 8) ⓑ 처분서인데
+ * 백엔드에 연결되지 않아 `GET /api/decisions/{id}` 를 못 읽은 경우.
  * **숨기지 않고 "없다"고 말한다.** 큐에서 항목을 지우면 승인 대기 건수가 거짓이 되고,
- * 빈 화면을 주면 사용자는 로딩 실패로 읽는다. Stage 6(처분)·Sprint 8(수리)이
- * 이 분기를 각각 `DecisionDetail` 로 대체한다.
+ * 빈 화면을 주면 사용자는 로딩 실패로 읽는다.
  *
  * ⛔ 판정(`verdict`)을 여기서 해석하지 않는다 — 값이 있으면 원문 그대로 보여줄 뿐이다.
- *   "BLOCKED 는 이런 뜻입니다" 같은 요약은 Stage 6 의 해소 경로 목록이 할 일이다.
+ *   "BLOCKED 는 이런 뜻입니다" 같은 요약은 `DecisionDetail` 의 해소 경로 목록이 할 일이다.
  */
 function PendingImplementationDetail({ entry }: { entry: QueueEntry }) {
   const when =
     entry.kind === "disposal"
-      ? "처분 상세·서명 UI 는 Stage 6 (MQ-709b) 에서 붙습니다."
+      ? "처분 상세는 백엔드(GET /api/decisions/{id})에서 옵니다 — 지금은 그 응답을 읽지 못했습니다."
       : "이 종류의 상세 화면은 다음 스프린트에서 붙습니다.";
 
   return (

@@ -25,6 +25,9 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 *.db.bak
+# `spikes/ui_honesty_contract.py` 가 뮤턴트를 돌릴 때 잠시 만드는 작업 폴더.
+# `try/finally` 로 지우지만, 스파이크가 중간에 죽으면 남는다 — 그때 커밋되지 않게 등록해 둔다.
+frontend/.ui_honesty_mutant/
 # 재시드 전 백업(`maintq.db.before-reseed-YYYYMMDD` 등). `*.db` 는 확장자가 끝일 때만 걸려
 # 뒤에 접미사가 붙은 사본을 못 잡는다 — 실제로 추적 대상으로 잡힌 적이 있다.
 *.db.*
