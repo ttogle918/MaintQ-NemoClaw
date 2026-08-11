@@ -210,7 +210,7 @@ def summarize_result(tool: str, result: dict) -> str:
     if tool == "create_po_draft":
         return f"{result.get('po_id', '?')} {result.get('state', 'draft')} · {_won(result.get('total'))}"
 
-    # ── 확장 7종 (D69 `full` 프로파일에서만 호출된다) ─────────────────────────
+    # ── 확장 8종 (D69 `full` 프로파일에서만 호출된다) ─────────────────────────
     # ⚠ D76 이후 이 문자열은 화면·traces 뿐 아니라 **LLM 입력**에도 실린다
     #   (`loop.py` 가 `_summary` 로 trimmed dict 안에 넣는다). 그래서 더더욱
     #   **결과에 있는 값만** 쓴다 — 여기서 판정을 요약하다 어휘를 바꾸면

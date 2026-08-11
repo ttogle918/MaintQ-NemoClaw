@@ -1470,3 +1470,27 @@ OSError: [WinError 10014] … socket.socketpair() → asyncio _make_self_pipe
 관측: `ownership_api_contract`+`s4_smoke` → `s10_smoke` → `tools_profile_contract` → `disposal_sign_contract`.
 **서브프로세스를 띄우는 스위트가 늘수록 잦아진다.** 러너 차원의 조치(재시도·간격)가 필요하다.
 ⛔ 이걸 모른 채 "전부 통과"라고 적으면 **거짓 보고**가 된다.
+
+### Stage 7 — 진행 중 (2026-08-11 시점)
+
+**MQ-712 완료 · MQ-713a(계측) 완료 · MQ-713b(튜닝 + 4차 평가) 미착수.**
+
+| 태스크 | 결과 |
+|---|---|
+| **MQ-712** | `docs/**` 11파일 + `CLAUDE.md` + 루트 `README.md`. D1~D88 전파 · `04 §15` 신설(확장 8종) · `04 §14` 5키 갱신 · `06 §2.6·2.7` · `05` DDL 본문(컬럼 5 + CHECK 2) · `11 §5·§8` F3 완료 · `12 §8·§10` · `07` P24 완료/P25 Sprint 8. **실패 어휘 통일** — `check_disposal_blockers` 의 `except Exception` 그물이 `engine_error` → **`internal_error`**, `engine_error` 는 엔진 계약 위반을 실제로 확인한 자리에만 남긴다(`bundle_integrity` ⑳ 이 잠금) |
+| **MQ-713a** | `eval_gap_3rd.md §6` 후보 **1·③** 구현. ⓐ `run_eval.py` → `{stamp}.traces.jsonl` 덤프(`dump_traces`, `tool_payload` 포함 — 임시 DB 폐기로 판정 근거가 사라지던 §5 해소) ⓑ `loop.py` → `[LLM_END]` 종료 사유 계측(`normalize_finish_reason`·`is_truncated`·`format_llm_end`) + `run_eval.parse_llm_end`/`summarize_llm_end` ⓒ `trace.tool_result(tool_payload=…)` 배선(D76-2). **SSE 이벤트 4종·`traces.event_type` CHECK·block 3종은 손대지 않았다** — 계측은 서버측 로그 한 줄로 나간다 |
+
+**회귀 (실측 2026-08-11)** — spikes **27스위트 / 603건**(전 스위트 rc=0, **재시도 0회**) · seed **21건** ·
+pytest **46건** · ruff 통과. 직전 593 → **603**(`agent_loop_contract` 29→32 · `trace_persist` 14→17 ·
+`eval_score_contract` 22→26). `CLAUDE.md`·`docs/README.md` 기준선을 실측으로 갱신.
+
+**MQ-713b 잔여 — 다음 세션은 여기서 시작한다**
+
+1. **후보 3 미구현** — `run_eval.py` 에 반복 실행(flip률) 인자가 없다. `eval_gap_3rd.md §4` 가
+   *"2·3차에서 판정이 뒤집힌 문항이 7개"* 라 **단일 실행으로 4차를 돌리면 효과를 판정할 수 없다**고 못 박았다
+2. **후보 2 진단** — 계측이 들어갔으므로 1회 실행하면 `.traces.jsonl` 에서 `search_inventory` 호출 유무 ·
+   `input.part_no` 유무로 §3-A 두 기전(턴 조기 종료 vs 조회 인자)을 가를 수 있다. **후보 5 는 이 결과에 종속**
+3. **후보 4·5** — 프롬프트(S2 `rag_search_manual` 유도 · 파이프라인 완주). ⛔ `SAFETY_BASELINE` 문구는
+   수정하지 않고 사람 승인 항목으로 보고
+4. **4차 실행 → `data/analysis/eval_gap_4th.md`** — 3차 대비 문항 단위 증감 + 수정↔문항 대응표
+5. ⛔ 부품 특정 지표는 `related_parts` 사람 최종 승인 전이라 **"미달"이 아니라 "판정 불가"**(D12)

@@ -104,14 +104,23 @@ class TraceWriter:
         elapsed: float,
         pages: list[int] | None = None,
         parts: list[str] | None = None,
+        tool_payload: dict | None = None,
     ) -> sse.SseEvent:
         """도구 완료. `status` 는 D9 4종, 세분화는 도구가 `reason` 으로 (D46).
 
         `pages` 는 근거 페이지 목록 (D54), `parts` 는 특정된 부품 품번 목록 (D66) —
         실 루프는 둘 다 항상 넘긴다(해당 없는 도구면 빈 리스트).
+
+        `tool_payload` 는 도구가 돌려준 **원본 dict** 로 `traces.tool_payload` 컬럼에만
+        들어간다 (D76-2 ⓑ). **SSE 로는 나가지 않는다** — `sse.tool_result()` 인자에
+        섞지 않는 것이 핵심이고(D76 ⓓ: SSE tool_result 필드 불변), 그래서 `payload` 와
+        SSE `data` 의 바이트 동일(D30)도 그대로다. 컬럼만 있고 값을 쓰는 쪽이 없어
+        3차 평가에서 "도구가 실제로 무엇을 반환했는지"를 사후 대조하지 못했다.
         """
         return self._write(
-            sse.tool_result(tool, status, summary, elapsed, pages, parts), tool
+            sse.tool_result(tool, status, summary, elapsed, pages, parts),
+            tool,
+            tool_payload=tool_payload,
         )
 
     def block(self, block_type: str, data: dict) -> sse.SseEvent:
@@ -144,13 +153,24 @@ class TraceWriter:
 
     # ────────────────────────────────────────────── 내부
 
-    def _write(self, event: sse.SseEvent, tool: str | None) -> sse.SseEvent:
+    def _write(
+        self, event: sse.SseEvent, tool: str | None, *, tool_payload: dict | None = None
+    ) -> sse.SseEvent:
         # D55 — 재생 표식은 **저장·인코딩 전에** data 에 넣는다. SseEvent 는 frozen 이지만
         # data dict 는 같은 객체라, 여기서 넣으면 traces payload 와 SSE `data` 가 같은
         # 사실을 말한다(D30 바이트 동일 유지). 발행 뒤에 붙이면 저장본과 갈라진다.
         if self.replay:
             event.data["replay"] = True
-        self._persist(event.event, tool, event_payload(event))
+        raw = None
+        if tool_payload is not None:
+            # 직렬화 불가한 값이 섞여도 trace 저장 전체를 죽이지 않는다 — 원본 보존은
+            # 감사·평가용이고, 실패하면 그 사실을 문자열로 남기는 편이 NULL 보다 낫다.
+            try:
+                raw = json.dumps(tool_payload, ensure_ascii=False, sort_keys=True)
+            except (TypeError, ValueError) as exc:  # noqa: PERF203
+                log.warning("tool_payload 직렬화 실패 (tool=%s): %s", tool, exc)
+                raw = json.dumps({"_serialize_error": str(exc)}, ensure_ascii=False)
+        self._persist(event.event, tool, event_payload(event), raw)
         return event
 
     def _next_seq(self) -> int:
@@ -163,16 +183,27 @@ class TraceWriter:
             self._seq = int(row[0] or 0)
         return self._seq + 1
 
-    def _persist(self, event_type: str, tool: str | None, payload: str) -> None:
+    def _persist(
+        self, event_type: str, tool: str | None, payload: str, tool_payload: str | None = None
+    ) -> None:
         for attempt in (1, 2):
             seq: int | None = None
             try:
                 seq = self._next_seq()
                 with connect(self.db_path) as con:
                     con.execute(
-                        "INSERT INTO traces (session_id, seq, event_type, tool, payload, ts)"
-                        " VALUES (?,?,?,?,?,?)",
-                        (self.session_id, seq, event_type, tool, payload, _db_ts()),
+                        "INSERT INTO traces"
+                        " (session_id, seq, event_type, tool, payload, tool_payload, ts)"
+                        " VALUES (?,?,?,?,?,?,?)",
+                        (
+                            self.session_id,
+                            seq,
+                            event_type,
+                            tool,
+                            payload,
+                            tool_payload,
+                            _db_ts(),
+                        ),
                     )
                 self._seq = seq
                 return

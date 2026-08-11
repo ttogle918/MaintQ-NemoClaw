@@ -106,11 +106,21 @@ TOOL_TIMEOUT_SEC        = 10     # 개별 도구 타임아웃
 | # | 스파이크 | 검증 질문 | 예상 |
 |---|---|---|---|
 | SP1 | 매뉴얼 표 5페이지 pdfplumber 추출 | 셀 병합·줄바꿈에서 정확도 몇 %? 파서로 충분한가? | **완료 (D24)** — 텍스트 파싱으로 충분, 64건 추출 |
-| SP2 | MCP 서버 ↔ 에이전트 hello-world 왕복 | 도구 등록·호출·status 반환 왕복 확인 | **통과 (15건)** — `spikes/sp2_mcp_roundtrip.py` |
-| SP3 | FastAPI SSE 이벤트 4종 스트리밍 (D22) | token/tool_call/tool_result/block이 프론트에서 구분 수신되고, block이 token 스트림 "중간"에 삽입 가능한가 | **통과 (11건)** — `spikes/sp3_sse_events.py`. 진행 중 D23의 구현 불가 결함 발견 → **D36** |
+| SP2 | MCP 서버 ↔ 에이전트 hello-world 왕복 | 도구 등록·호출·status 반환 왕복 확인 | **통과** — `spikes/sp2_mcp_roundtrip.py` (착수 시 15건 → **현재 20건**) |
+| SP3 | FastAPI SSE 이벤트 4종 스트리밍 (D22) | token/tool_call/tool_result/block이 프론트에서 구분 수신되고, block이 token 스트림 "중간"에 삽입 가능한가 | **통과** — `spikes/sp3_sse_events.py` (착수 시 11건 → **현재 22건**). 진행 중 D23의 구현 불가 결함 발견 → **D36** |
 
 SP1 결과에 따라 M1 일정 확정. 셋 다 통과하면 M2에서 막힐 미지수 없음.
 
 **셋 다 통과 (2026-07-23).** 스파이크는 재실행 가능한 회귀 테스트로 `spikes/` 에 남긴다 —
 계약(이벤트 4종·status 반환·A1 순서·block 중간 삽입)이 깨지면 여기서 먼저 잡힌다.
+
+> **그 뒤로 스위트가 3종 → 27종으로 늘었다** (실측 `ls spikes/*.py`, 2026-08-10 · 총 **593건**).
+> 전체 목록·스위트별 건수는 `CLAUDE.md` 회귀 절이 정본이다 — 여기서 두 벌로 관리하지 않는다.
+> ⚠ **Windows 에서 27스위트를 연속 실행하면 소켓 고갈(`WinError 10014`)로 산발 실패가 난다.**
+> 코드 결함이 아니며 단독 재실행하면 통과한다. **실패한 스위트는 반드시 단독 재실행해 확인할 것** —
+> 모르면 "전부 통과"를 거짓 보고하거나, 반대로 진짜 실패를 함께 넘기게 된다.
+
+> **block 은 3종 고정이다** — `safety` · `po_card` · `citation` (D14·D22). Sprint 7 이 처분서 초안을
+> 채팅 결과 카드로 그리려면 4번째 타입(`decision_card`)이 필요했지만 **만들지 않았다.**
+> 그 구간(`draft → pending`)은 자산 화면의 `submitDecision` 이 메운다 (`06 §2.1`).
 SP3 는 실제로 `X-User: 김OO` 가 HTTP 헤더로 전송 불가임을 잡아냈다 (→ D36).

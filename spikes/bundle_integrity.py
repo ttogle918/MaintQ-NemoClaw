@@ -667,6 +667,42 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         "; ".join(key_leaks) or f"{len(shared_cases)}케이스 × 2도구 초과 키 0건",
     )
 
+    # ── ⑳-b 엔진 **예외** 어휘도 두 도구가 같은가 (MQ-712 어휘 통일) ────────────
+    #
+    #   ⑳ 의 8케이스는 전부 **입력 검증·자산 해석** 실패라 `_asset_ref` 공용 코드가
+    #   같은 값을 낼 수밖에 없었다 — 즉 정작 갈려 있던 축을 하나도 보지 않았다.
+    #   실제로 갈려 있었다: 같은 엔진 예외를 `check_disposal_blockers` 는 `engine_error`,
+    #   `build_evidence_bundle` 은 `internal_error` 로 냈다(MQ-705 가 MCP 경유를 끊으며 생김).
+    #   MQ-712 가 **`internal_error` 로 통일**했다 — 이 그물은 엔진 예외만 잡는 게 아니라
+    #   직렬화·타입 오류도 잡으므로 `engine_error` 는 원인을 단정하는 거짓 라벨이다.
+    #   `engine_error` 는 **엔진 계약 위반을 명시적으로 확인한 자리**에만 남는다.
+    #   ⛔ 이 검사를 지우면 어휘가 다시 갈린다 — 갈렸을 때 그걸 보는 검사가 여기밖에 없다.
+    exc_gaps: list[str] = []
+    real_engine_judge = engine.check_disposal_blockers
+    probe_kwargs = {"asset_id": "AST-L3-CONV", "disposal_mode": "SALE", "disposal_date": PROBE_DATE}
+    try:
+        for exc_type in (KeyError, TypeError, ValueError):
+
+            def _boom(*_a, _exc=exc_type, **_kw):
+                raise _exc("엔진 폭발 (합성)")
+
+            engine.check_disposal_blockers = _boom
+            judge, built = check_disposal_blockers(**probe_kwargs), call(**probe_kwargs)
+            pair_j = (judge.get("status"), judge.get("reason"))
+            pair_b = (built.get("status"), built.get("reason"))
+            if pair_j != pair_b:
+                exc_gaps.append(f"{exc_type.__name__}: 판정={pair_j} vs 번들={pair_b}")
+            elif pair_j != ("error", "internal_error"):
+                # 일치해도 계약 밖 어휘로 함께 흘러가면 통일이 아니다.
+                exc_gaps.append(f"{exc_type.__name__}: 양쪽 모두 {pair_j} — internal_error 아님")
+    finally:
+        engine.check_disposal_blockers = real_engine_judge
+    check(
+        "엔진 예외 어휘 일치 — KeyError·TypeError·ValueError 3종이 두 도구 모두 internal_error",
+        not exc_gaps,
+        "; ".join(exc_gaps) or "3종 × 2도구 전부 error/internal_error (engine_error 는 계약 위반 전용)",
+    )
+
     # ── ㉒ 두 도구의 **성공 경로 verdict** 일치 (파일 정본 vs DB 사본) ──────────
     #
     #   ⑳ 은 8케이스가 **전부 실패 케이스**라 성공 경로를 하나도 대조하지 않았다.

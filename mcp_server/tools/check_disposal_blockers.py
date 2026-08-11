@@ -194,5 +194,16 @@ def check_disposal_blockers(
         return _err("rule_integrity", f"룰 카탈로그 무결성 위반: {e}")
     except (sqlite3.Error, OSError) as e:
         return _err("db_error", str(e))
-    except Exception as e:  # noqa: BLE001 — 엔진 예외를 status 로 바꿔 반환한다 (D9)
-        return _err("engine_error", f"{type(e).__name__}: {e}")
+    except Exception as e:  # noqa: BLE001 — 예외를 status 로 바꿔 반환한다 (D9)
+        # ★ 어휘 통일 (MQ-712) — 여기는 `engine_error` 가 아니라 `internal_error` 다.
+        #   이 그물은 엔진 예외만 잡는 게 아니다(직렬화·타입 오류 등 전부 걸린다). 그런데
+        #   `engine_error` 라고 이름 붙이면 **원인을 단정한 거짓 라벨**이 되고, 같은 실패를
+        #   `build_evidence_bundle` 은 `internal_error` 로 내므로 도구마다 이름이 갈렸다
+        #   (`04 §14` 가 스스로 경고해 둔 상태 · MQ-705 가 MCP 경유를 끊으며 생겼다).
+        #   `internal_error` 는 이미 프로젝트 공통 어휘다 —
+        #   `build_evidence_bundle`·`generate_disposal_document`·`assess_repair_value`·
+        #   `classify_expenditure`·`classify_part_criticality`·`verify_ownership` 전부 이것을 쓴다.
+        #   ⛔ `engine_error` 는 **엔진 계약 위반을 명시적으로 확인한 자리**(계약 밖 verdict ·
+        #     계약 키 누락, 위 `_run`)에만 남긴다. 두 도구가 그 뜻으로만 쓰므로 뜻이 갈리지 않는다.
+        #   `spikes/bundle_integrity.py` ⑳ 이 엔진 예외 케이스로 이 일치를 잠근다.
+        return _err("internal_error", f"{type(e).__name__}: {e}")

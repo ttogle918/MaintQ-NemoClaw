@@ -92,8 +92,9 @@
 ## 인프라 · 구조 (필수)
 
 - **MCP 서버 ↔ 백엔드 프로세스 분리** — 목업 DB를 실제 ERP로 교체 시 MCP 서버만 교체 (**D15**). `data/`(매뉴얼·시드·룰 카탈로그)는 두 프로세스가 공유해도 되는 **데이터 계층**이다 (**D73**)
-- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 7종**(전부 읽기, `§8~§14`, 프로파일 게이트 **D69**)
-- **SQLite 목업 DB** (**17절·실제 테이블 18개** — 코어 11 + 확장 7) + 벡터스토어(매뉴얼) + `seed.py`(시드 케이스 7종) (`05_DB_SCHEMA`)
+- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 8종**(읽기 7 + **쓰기 1**, `§8~§15`, 프로파일 게이트 **D69**)
+  - ⚠ **쓰기 도구는 2종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설). 둘 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81)
+- **SQLite 목업 DB** (**17절·실제 테이블 18개** — 코어 11 + 확장 7. 실측: `data/seed.py` 의 `CREATE TABLE` **18개**) + 벡터스토어(매뉴얼) + `seed.py`(시드 케이스 7종, 자가검증 **21건**) (`05_DB_SCHEMA`)
 - **UI 2종**: 정비사 진단 콘솔(화면 A) / 팀장 승인 큐(화면 B) (`03_WIREFRAME`)
 - **환경**: uv + venv, Docker는 MVP 제외 (**D27**)
 
@@ -158,18 +159,22 @@
 |---|---|---|---|
 | 7 | **수리 / 교체 / 매각 3지 판단** — 발주 전에 자산가치 관점을 넣는다 | `12 §3` · `04 §13` | ✅ **Sprint 6** — `assess_repair_value`. 판정 순서가 계약(`ROOT_CAUSE_FIRST` → `HOLD` → `REPLACE` → `SELL_AS_IS` → `REPAIR`) |
 | 8 | **보전지표** — MTBF 추세 · 예방보전 비율 · 누적 수리비 | `12 §2` · `04 §10·§11` | ✅ **Sprint 6** — `get_maintenance_metrics` · `classify_part_criticality`. MTBF 는 **달력 기준**(D70) |
-| 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 7** |
+| 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 8** (실측: `mcp_server/tools/` 에 파일 없음). 계약 자리는 확보돼 있다 — `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**(D85) |
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
-| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14` | 🟡 **부분** — 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들 해시(`build_evidence_bundle`) 완료. **계층 1 조문 원문은 Sprint 7 MQ-701 이 실수집**(7건 중 6건 `FETCHED`, 1건은 제목 불일치로 사람 승인 대기) → 번들 18조합 전부 `ok`. **남은 것은 계층 3 서명 API 뿐**이고 외부 블로커는 없다 |
-| 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` | ✅ **Sprint 6** — `verify_ownership`. 9카테고리, `PARTIAL` 승격 경로 없음 |
+| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집(7건 중 **6 `FETCHED` · 1 `PENDING`** — `KR-CITA-ENF-31`, 제목 불일치로 사람 승인 대기). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ⚠ 남은 것: **문서 문안 사람 검수**(그때까지 `unreviewed_template_notice`) |
+| 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` · `06 §2.5` | ✅ **Sprint 6·7** — `verify_ownership` + REST `GET /api/assets/{id}/ownership` + 실사 화면. 9카테고리, `PARTIAL` 승격 경로 없음(코드에 분기 자체가 없다). UI 도 `PARTIAL` 을 성공색으로 그리지 않는다 (**D87**) |
 
-> **노출은 기본 꺼져 있다 (D69).** 확장 7종은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.
-> 기본값 `core` 로는 코어 7종만 보인다 — 도구를 7종 늘린 뒤 평가를 돌리면
+> **노출은 기본 꺼져 있다 (D69).** 확장 **8종**은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.
+> 기본값 `core` 로는 코어 7종만 보인다 — 도구를 늘린 뒤 평가를 돌리면
 > "수정 효과 vs 도구 증가 효과"를 분리할 수 없기 때문이다.
+> **D88 이 이 기준선을 코드로 잠갔다** — `run_eval.py` 가 `/health` 의 `tools_profile` **과** `tools` 실측
+> 개수를 둘 다 보고, `core` 가 아니거나 `tools > 7` 이면 `--allow-full-profile` 없이는 `SystemExit(2)` 다.
 > 단 **사람용 REST(`/api/assets/…`)는 `core` 에서도 동작한다** (D73).
 
-**Sprint 7 잔여** — ⓐ 법제처 조문 원문 실수집(`fetch_from_api`) ⓑ 계층 3 서명 API + `decisions` 저장
-ⓒ 쓰기 도구 2종(`generate_disposal_document` · `create_repair_record`) ⓓ 확장 도구의 UI 노출.
+**Sprint 7 결과** — ⓐ ✅ 법제처 조문 원문 실수집(`fetch_from_api`, 6/7) ⓑ ✅ 계층 3 서명 API + `decisions` 저장
+ⓒ 🟡 쓰기 도구 — `generate_disposal_document` **완료** / `create_repair_record` **Sprint 8 이월**
+ⓓ ✅ 확장 도구의 UI 노출(자산 목록·처분 사전판정·실사·처분서 서명 화면).
+**Sprint 8 잔여** — `create_repair_record`(P25·S19) · 문서 문안 사람 검수 · `related_parts` 최종 승인.
 
 ### 범위를 넓히되 순서는 지킨다
 
@@ -186,4 +191,4 @@
 | 매뉴얼 **근거 페이지** 인용 | **법령 조문** 인용 |
 | 반복 고장 **감지** (S3) | 그걸 **자산가치 감점 신호로 재사용** |
 | 발주서 승인 큐 | 같은 큐에 **처분서·수리 증빙** 추가 |
-| 쓰기 도구 1종 | 3종 (전부 draft만 생성, 동일 패턴) |
+| 쓰기 도구 1종 | **현재 2종** (`create_po_draft`·`generate_disposal_document`) → Sprint 8 에 `create_repair_record` 로 3종. **전부 draft 만 생성, 동일 패턴** |

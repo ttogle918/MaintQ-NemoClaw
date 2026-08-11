@@ -30,8 +30,20 @@
 사람이 `eval/testset_draft.json` 을 검수해 직접 반영한다(`guard_writes.py` 훅이 Claude
 의 직접 반영을 차단, MQ-501/MQ-505 참조).
 
+**결과물은 한 타임스탬프로 4개다** (MQ-713a — 4차 평가 전 계측):
+
+    {stamp}.json          5지표 + meta + 문항별 상세 (items[].session_id 로 아래와 이어진다)
+    {stamp}.md            사람이 읽는 리포트
+    {stamp}.traces.jsonl  ★ 임시 DB 의 `traces` 전량 (tool_payload 포함, D76-2)
+    {stamp}.server.log    ★ 자식 서버 stderr 원문 — 잘림 계측 `[LLM_END]` 의 원본
+
+`.traces.jsonl` 이 필요한 이유: `_start_server` 가 DB **사본**으로 서버를 띄우고 종료 시
+사본을 폐기하므로, 실 DB 보호는 되지만 **판정 근거가 실행과 함께 사라졌다.** 3차 평가에서
+`traces` 가 0행이라 "도구가 실제로 무엇을 반환했는지"를 사후 대조하지 못했다.
+
 관련 결정: D40(LLM 폴백 금지)·D42(MCP lifespan 단독 소유)·D55(재생 표식 분모 제외)·
-D56(env 상속)·D38(403 vs 409)·D69(프로파일 게이트)·**D88(이중 게이트)**.
+D56(env 상속)·D38(403 vs 409)·D69(프로파일 게이트)·**D88(이중 게이트)**·
+D21(trace 영속화)·**D76-2(`tool_payload`)**.
 
 실행:
     uv run python eval/run_eval.py --testset eval/testset_draft.json --dry-run
@@ -45,8 +57,10 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -67,6 +81,10 @@ sys.path.insert(0, str(ROOT))
 # (2026-07-29 실 20문항 실행에서 S4 문항만 매번 "MAINTQ_LLM_MODEL 없음"으로 실패해 발견).
 load_dotenv(ROOT / ".env", override=False)
 
+from backend.agent.loop import (  # noqa: E402 — 마커 형식은 생산자(loop.py)가 정본이다
+    LLM_END_MARKER,
+    TRUNCATION_REASONS,
+)
 from eval import score  # noqa: E402 — sys.path 설정 후여야 한다
 from eval.judge import JudgeVerdict, judge_hallucination  # noqa: E402
 
@@ -74,7 +92,7 @@ SOURCE_DB = ROOT / "data" / "maintq.db"
 PORT = 8091
 BASE_URL = f"http://127.0.0.1:{PORT}"
 
-#: core 프로파일의 도구 수 (04_MCP_TOOLS §1~§7). 확장 7종(§8~§14)은 `MAINTQ_TOOLS_PROFILE=full`
+#: core 프로파일의 도구 수 (04_MCP_TOOLS §1~§7). 확장 8종(§8~§15)은 `MAINTQ_TOOLS_PROFILE=full`
 #: 에서만 등록된다 (D69) — 그래서 실측 개수가 7을 넘으면 core 가 아니다.
 CORE_TOOL_COUNT = 7
 
@@ -117,6 +135,15 @@ class ItemResult:
     verdicts: list  # eval.score.Verdict 리스트, score_session() 반환
     judge: object | None  # eval.judge.JudgeVerdict | None
     elapsed_s: float
+    #: 문항 ↔ traces 덤프를 잇는 키. 결과 JSON 의 `items[]` 에 실어야 `.traces.jsonl` 과
+    #: 대조가 성립한다 — 3차까지 없어서 원본 대조(MQ-703 명세)를 하지 못했다.
+    session_id: str = ""
+
+
+def session_id_for(item_id: str) -> str:
+    """문항 id → 세션 id. **한 곳에서만 만든다** — 실행 경로와 실행 실패 경로가 갈리면
+    실패한 문항의 trace 를 덤프에서 못 찾는다."""
+    return f"EVAL-{item_id}"
 
 
 # ────────────────────────────────────────────── testset 로드·검증
@@ -272,7 +299,7 @@ def profile_violations(health: dict) -> list[str]:
 
     - `tools_profile` — `backend/main.py:111` 이 backend 프로세스의 env 를 **에코**한 값이고,
       같은 파일 105행이 스스로 "참고값"이라고 규정한다. MCP 자식(D15, 별도 프로세스)이 다른
-      env 로 떴다면 이 값이 `core` 여도 실제로는 확장 7종이 등록돼 있을 수 있다.
+      env 로 떴다면 이 값이 `core` 여도 실제로는 확장 8종이 등록돼 있을 수 있다.
     - `tools` — `list_tools()` **실측** 개수(D69 가 정본으로 규정). 다만 MCP 미기동이면
       `None` 이라 이것만으로도 판정을 세울 수 없다.
 
@@ -316,7 +343,7 @@ def enforce_profile_guard(health: dict, *, allow_full_profile: bool) -> None:
     for r in reasons:
         print(f"  - 위반: {r}")
     print(
-        "  왜 막는가: 확장 7종(04 §8~§14)이 등록된 상태의 점수는 core 기준 지표와 분모가 달라"
+        "  왜 막는가: 확장 8종(04 §8~§15)이 등록된 상태의 점수는 core 기준 지표와 분모가 달라"
         " 이전 회차와 비교할 수 없습니다. 사후에는 어느 프로파일로 돌았는지 복원할 수 없어"
         " 결과 전체가 무효가 됩니다."
     )
@@ -329,13 +356,32 @@ def enforce_profile_guard(health: dict, *, allow_full_profile: bool) -> None:
 
 
 def build_meta(health: dict) -> dict:
-    """결과 JSON·MD 머리말에 실을 실행 환경 기록 (D56 — 제공자는 env 우선, 기본 gemini)."""
+    """결과 JSON·MD 머리말에 실을 실행 환경 기록 (D56 — 제공자는 env 우선, 기본 gemini).
+
+    `llm_model` 은 **기본값을 두지 않는다.** `llm_provider` 가 미설정 시 `gemini` 로
+    떨어지는 건 `backend/agent/llm.py:get_client()` 가 실제로 그렇게 동작하기 때문이지만,
+    모델명은 그런 폴백이 없다(키가 없으면 그냥 실패한다). 없는데 값을 채우면 회차 비교의
+    근거가 통째로 거짓이 된다 — 모르면 `null` 이다.
+
+    D88 이 `tools_profile`·`tools` 를 실은 논리("3차가 full 로 돌았는지 사후에 알 수 없다")가
+    모델명에도 그대로 적용되는데 그것만 빠져 있었다: `llm_provider: gemini` 만으로는
+    `gemini-2.5-flash` 인지 `flash-lite` 인지 구분되지 않는다.
+    """
     return {
         "tools_profile": health.get("tools_profile"),
         "tools": health.get("tools"),
         # `or` — .env 의 빈 키를 미설정과 같게 본다 (backend/agent/llm.py:310 과 같은 근거).
         "llm_provider": os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini",
+        "llm_model": (os.environ.get("MAINTQ_LLM_MODEL") or "").strip() or None,
     }
+
+
+def meta_line(meta: dict) -> str:
+    """콘솔 한 줄 요약 — dry-run 과 실행이 **같은 문자열**을 쓴다(한쪽만 갱신되는 걸 막는다)."""
+    return (
+        f"tools_profile={meta.get('tools_profile')} · tools={meta.get('tools')} · "
+        f"llm_provider={meta.get('llm_provider')} · llm_model={meta.get('llm_model')}"
+    )
 
 
 def _free_port() -> int:
@@ -392,6 +438,141 @@ def _parse_sse_frame(buf: str, on_event) -> str:
     return buf
 
 
+# ────────────────────────────────────────────── traces 덤프 (MQ-713a ①)
+
+
+def dump_traces(db_path: Path, out_path: Path) -> int:
+    """임시 DB 가 폐기되기 **전에** `traces` 전량을 JSONL 로 결과 옆에 덤프한다. 반환은 행 수.
+
+    **왜 필요한가.** `_start_server` 는 실 DB 사본으로 서버를 띄우고 종료 시 사본을 폐기한다.
+    실 DB 보호는 옳지만 그 결과 **평가의 판정 근거가 실행과 함께 사라졌다** — 3차 평가에서
+    `traces` 는 0행이었고, MQ-703 명세가 요구한 `GET /api/chat/{sid}/trace` 원본 대조를
+    할 수 없었다(`data/analysis/eval_gap_3rd.md`).
+
+    `tool_payload`(D76-2)를 반드시 싣는다 — 도구가 **실제로 무엇을 반환했는지**가 거기 있고,
+    `payload`(SSE data 사본)에는 요약만 있다. 값이 전부 NULL 이면 계측이 안 된 것이므로
+    호출부가 그 사실을 눈에 띄게 보고한다.
+
+    ⛔ 인자로 받은 사본 DB 만 연다. `data/maintq.db` 는 열지 않는다.
+    """
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute(
+            "SELECT session_id, seq, event_type, tool, payload, tool_payload, ts"
+            " FROM traces ORDER BY session_id, seq"
+        ).fetchall()
+    finally:
+        con.close()
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(
+                json.dumps(
+                    {
+                        "session_id": r["session_id"],
+                        "seq": r["seq"],
+                        "event": r["event_type"],
+                        "tool": r["tool"],
+                        "data": _loads_or_raw(r["payload"]),
+                        "tool_payload": _loads_or_raw(r["tool_payload"]),
+                        "ts": r["ts"],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    return len(rows)
+
+
+def _loads_or_raw(text: str | None) -> object:
+    """저장된 JSON 을 되돌린다. 깨져 있으면 **버리지 않고** 원문 문자열로 남긴다."""
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return text
+
+
+def count_tool_payloads(dump_path: Path) -> tuple[int, int]:
+    """덤프에서 `(tool_result 행 수, tool_payload 가 채워진 행 수)`.
+
+    "행 수 > 0" 만으로는 D76-2 가 실제로 값을 쓰는지 알 수 없다 — 컬럼은 Sprint 6 에
+    있었지만 **쓰는 쪽이 없어** 3차까지 전부 NULL 이었다.
+    """
+    total = filled = 0
+    if not dump_path.exists():
+        return (0, 0)
+    for line in dump_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("event") != "tool_result":
+            continue
+        total += 1
+        if row.get("tool_payload") not in (None, "", {}):
+            filled += 1
+    return (total, filled)
+
+
+# ────────────────────────────────────────────── LLM 종료 사유 집계 (MQ-713a ③)
+
+#: `backend/agent/loop.py:format_llm_end` 가 만든 줄을 되읽는다. 형식 문자열은 생산자가
+#: 정본이라 마커 상수를 import 해 쓴다 — 여기서 따로 적으면 조용히 어긋난다.
+_LLM_END_RE = re.compile(
+    re.escape(LLM_END_MARKER)
+    + r" session=(?P<session>\S+) call=(?P<call>\d+)"
+    r" reason=(?P<reason>\S+) truncated=(?P<truncated>[01])"
+)
+
+
+def parse_llm_end(stderr_text: str) -> list[dict]:
+    """서버 stderr 에서 `[LLM_END]` 계측 줄을 뽑는다.
+
+    `truncated` 는 줄에 적힌 값을 그대로 믿지 않고 **`reason` 에서 다시 판정**한다
+    (`TRUNCATION_REASONS` 가 단일 소스). 두 값이 어긋나면 그 사실을 `mismatch` 로 남긴다 —
+    조용히 한쪽을 고르면 "계측했는데 무엇을 셌는지 모르는" 상태가 된다.
+    """
+    out: list[dict] = []
+    for m in _LLM_END_RE.finditer(stderr_text):
+        reason = m.group("reason")
+        derived = reason in TRUNCATION_REASONS
+        out.append(
+            {
+                "session_id": m.group("session"),
+                "call": int(m.group("call")),
+                "reason": reason,
+                "truncated": derived,
+                "mismatch": derived != (m.group("truncated") == "1"),
+            }
+        )
+    return out
+
+
+def summarize_llm_end(records: list[dict]) -> dict:
+    """잘림 집계. **0건과 '계측 실패'를 구분한다** — 이번 계측의 목적이 그 구분이다.
+
+    `measured=False` 는 "잘림이 없었다"가 아니라 "쟀는지조차 모른다"이므로, 이 값이면
+    결과 MD 가 잘림 0건이라고 쓰지 않는다.
+    """
+    reasons: dict[str, int] = {}
+    by_session: dict[str, int] = {}
+    for r in records:
+        reasons[r["reason"]] = reasons.get(r["reason"], 0) + 1
+        if r["truncated"]:
+            by_session[r["session_id"]] = by_session.get(r["session_id"], 0) + 1
+    return {
+        "measured": bool(records),
+        "llm_calls": len(records),
+        "truncated_calls": sum(by_session.values()),
+        "truncated_by_session": dict(sorted(by_session.items())),
+        "reasons": dict(sorted(reasons.items())),
+        "mismatched": sum(1 for r in records if r["mismatch"]),
+    }
+
+
 # ────────────────────────────────────────────── 문항 실행
 
 
@@ -405,7 +586,7 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
     expected = item["expected"]
     branch = expected.get("branch", "")
     headers = MGR if item.get("role") == "manager" else TECH
-    session_id = f"EVAL-{item_id}"
+    session_id = session_id_for(item_id)
 
     payload = {
         "session_id": session_id,
@@ -463,6 +644,7 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
         verdicts=verdicts,
         judge=judge,
         elapsed_s=elapsed_s,
+        session_id=session_id,
     )
 
 
@@ -490,6 +672,9 @@ async def _run_all(base_url: str, items: list[dict]) -> list[ItemResult]:
                 verdicts=score.score_session([], expected),
                 judge=None,
                 elapsed_s=elapsed,
+                # 실행이 실패해도 세션 id 는 남긴다 — 부분적으로 남은 trace 를 덤프에서
+                # 찾아야 "어디까지 갔다가 죽었는지"를 볼 수 있다.
+                session_id=session_id_for(item_id),
             )
         else:
             print(f"  완료 ({result.elapsed_s:.1f}초)", flush=True)
@@ -590,16 +775,76 @@ def _metric_row(label: str, d: dict, goal: float, *, lower_is_better: bool = Fal
     return f"| {label} | {count}/{d['total']} | {rate:.1%} | {'PASS' if ok else 'FAIL'} |"
 
 
-def write_report(results, agg, perm_result, out_dir: Path, meta: dict) -> Path:
+def _llm_end_lines(llm_end: dict) -> list[str]:
+    """결과 MD 의 "잘린 턴 N건" 줄.
+
+    **0건과 미계측을 다른 문장으로 쓴다.** 계측이 안 됐는데 "0건"이라고 적으면
+    "잘림은 원인이 아니다"라는 결론이 근거 없이 서게 된다 — 3차 분석이 개선과 요동을
+    구분하지 못한 것과 같은 종류의 실패다.
+    """
+    if not llm_end.get("measured"):
+        return [
+            f"- 잘린 턴: **계측 실패** — `{LLM_END_MARKER}` 마커 0건 "
+            "(서버 stderr 미회수이거나 LLM 이 `end` 델타를 흘리지 않음). "
+            "**0건이라는 뜻이 아니다.**"
+        ]
+    reasons = ", ".join(f"{k}×{v}" for k, v in llm_end.get("reasons", {}).items()) or "-"
+    line = (
+        f"- 잘린 턴: **{llm_end['truncated_calls']}건** / LLM 호출 {llm_end['llm_calls']}회 "
+        f"(종료 사유: {reasons})"
+    )
+    out = [line]
+    if llm_end.get("truncated_by_session"):
+        out.append(
+            "  - 잘린 세션: "
+            + ", ".join(f"{k}({v}회)" for k, v in llm_end["truncated_by_session"].items())
+        )
+    if llm_end.get("mismatched"):
+        out.append(
+            f"  - ⚠ 마커의 truncated 표기와 reason 판정이 어긋난 줄 {llm_end['mismatched']}건 "
+            "— 형식이 갈렸는지 확인하십시오"
+        )
+    return out
+
+
+def _traces_dump_lines(dump: dict) -> list[str]:
+    if not dump:
+        return ["- traces 덤프: 없음"]
+    line = f"- traces 덤프: `{dump.get('path')}` — {dump.get('rows')}행"
+    tp_total, tp_filled = dump.get("tool_result_rows", 0), dump.get("tool_payload_rows", 0)
+    line += f" (tool_result {tp_total}행 중 tool_payload 채워짐 {tp_filled}행, D76-2)"
+    out = [line]
+    if tp_total and not tp_filled:
+        out.append("  - ⚠ tool_payload 가 전부 비었다 — 도구 원본 대조가 불가능하다")
+    return out
+
+
+def write_report(
+    results,
+    agg,
+    perm_result,
+    out_dir: Path,
+    meta: dict,
+    *,
+    stamp: str | None = None,
+    llm_end: dict | None = None,
+    traces_dump: dict | None = None,
+) -> Path:
     """`eval/results/{날짜}.md`+`.json` 생성. 5지표 전부(좋은 것만 골라내지 않는다).
 
     `meta`(D88·D56)는 **JSON 최상위 `meta` 키**와 **MD 머리말** 양쪽에 싣는다 — 어느 프로파일·
-    어느 제공자로 낸 수치인지 결과물만 보고 알 수 있어야 회차 간 비교가 성립한다.
+    어느 제공자·**어느 모델**로 낸 수치인지 결과물만 보고 알 수 있어야 회차 간 비교가 성립한다.
+
+    `stamp` 를 인자로 받는 이유: `traces` 덤프는 임시 DB 가 폐기되기 전(=리포트 작성 전)에
+    써야 하는데, 파일명이 같은 타임스탬프여야 짝을 이룬다. 여기서 새로 만들면 두 파일이
+    다른 이름으로 갈라져 대조가 수작업이 된다.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = stamp or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     json_path = out_dir / f"{stamp}.json"
     md_path = out_dir / f"{stamp}.md"
+    llm_end = llm_end or summarize_llm_end([])
+    truncated_by_session: dict[str, int] = llm_end.get("truncated_by_session", {})
 
     perm_ok, perm_detail = perm_result
     perm_verdict = "N/A" if perm_detail == "N/A" else ("PASS" if perm_ok else "FAIL")
@@ -610,10 +855,17 @@ def write_report(results, agg, perm_result, out_dir: Path, meta: dict) -> Path:
         .replace("+00:00", "Z"),
         "meta": meta,
         "aggregate": agg,
+        # 계측 2종은 지표가 아니므로 `aggregate` 에 섞지 않는다 — 5지표 분모를 흐리지 않게
+        # 최상위 별도 키로 둔다.
+        "llm_end": llm_end,
+        "traces_dump": traces_dump or {},
         "permission_403": {"passed": perm_ok, "detail": perm_detail, "verdict": perm_verdict},
         "items": [
             {
                 "item_id": r.item_id,
+                # traces 덤프(`{stamp}.traces.jsonl`)와 문항을 잇는 키
+                "session_id": r.session_id,
+                "truncated_calls": truncated_by_session.get(r.session_id, 0),
                 "branch": r.branch,
                 "expected": r.expected,
                 "response_text": r.response_text,
@@ -645,6 +897,11 @@ def write_report(results, agg, perm_result, out_dir: Path, meta: dict) -> Path:
         f"- tools_profile: {meta.get('tools_profile')}",
         f"- tools: {meta.get('tools')}",
         f"- llm_provider: {meta.get('llm_provider')}",
+        # 값이 없으면 `null` 그대로 — 지어내지 않는다 (build_meta docstring 참조)
+        f"- llm_model: {meta.get('llm_model')}",
+        "",
+        *_llm_end_lines(llm_end),
+        *_traces_dump_lines(traces_dump or {}),
         "",
         "> ⚠ **경고**: `related_parts.seed.json` 은 아직 사람 검수 전이다(D12) — 이 결과의 부품",
         "> 특정 정확률을 최종 실적으로 인용하지 말 것. `eval/testset.json` 도 초안",
@@ -673,6 +930,10 @@ def write_report(results, agg, perm_result, out_dir: Path, meta: dict) -> Path:
     ]
     for r in results:
         lines.append(f"### {r.item_id} ({r.branch})")
+        lines.append(f"- session: `{r.session_id}` (traces 덤프에서 이 키로 찾는다)")
+        n_trunc = truncated_by_session.get(r.session_id, 0)
+        if n_trunc:
+            lines.append(f"- **잘린 LLM 호출 {n_trunc}건** (MAX_TOKENS/length)")
         if r.response_text.startswith(_EXEC_FAILED_PREFIX):
             lines.append(f"- **실행 실패**: {r.response_text[len(_EXEC_FAILED_PREFIX):]}")
         else:
@@ -717,6 +978,20 @@ def diff_against_previous(agg: dict, out_dir: Path) -> str:
             delta = (cur_rate - old_rate) * 100
             lines.append(f"  - {key}: {old_rate:.1%} → {cur_rate:.1%} ({delta:+.1f}pt)")
     return "\n".join(lines)
+
+
+def _print_llm_end(llm_end: dict) -> None:
+    """콘솔에도 같은 사실을 싣는다 — MD 를 안 열어도 계측 성패가 보여야 한다."""
+    if not llm_end.get("measured"):
+        print(
+            f"  [주의] 잘림 계측 실패 — {LLM_END_MARKER} 마커 0건. "
+            "'잘림 0건'이 아니라 '쟀는지 모른다'입니다."
+        )
+        return
+    print(
+        f"  잘린 턴: {llm_end['truncated_calls']}건 / LLM 호출 {llm_end['llm_calls']}회 "
+        f"· 종료 사유 {llm_end.get('reasons')}"
+    )
 
 
 def _print_summary(agg: dict, perm_result: tuple[bool, str]) -> None:
@@ -789,10 +1064,7 @@ def main() -> None:
         # 않으므로 서버를 띄워도 모델은 한 번도 불리지 않는다.
         health = probe_health()
         meta = build_meta(health)
-        print(
-            f"  meta: tools_profile: {meta['tools_profile']} · tools: {meta['tools']} · "
-            f"llm_provider: {meta['llm_provider']}"
-        )
+        print(f"  meta: {meta_line(meta)}")
         enforce_profile_guard(health, allow_full_profile=args.allow_full_profile)
         print("  D88 프로파일 가드 통과 — 실행하려면 --yes 를 붙이십시오.")
         return
@@ -806,6 +1078,11 @@ def main() -> None:
 
     if not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+
+    # 리포트·traces 덤프·서버 로그가 **같은 타임스탬프**를 공유해야 짝이 성립한다.
+    # 덤프는 임시 DB 가 폐기되기 전에 써야 해서 리포트보다 먼저 만들어진다.
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    traces_dump: dict = {}
 
     err_bytes = b""
     with tempfile.TemporaryDirectory() as td:
@@ -831,28 +1108,64 @@ def main() -> None:
             #   여기서는 위 `mcp` 검사를 통과했으므로 `tools` 가 null 이 아님이 보장된다.
             enforce_profile_guard(health, allow_full_profile=args.allow_full_profile)
             meta = build_meta(health)
-            print(
-                f"실행 환경 meta: tools_profile={meta['tools_profile']} · "
-                f"tools={meta['tools']} · llm_provider={meta['llm_provider']}"
-            )
+            print(f"실행 환경 meta: {meta_line(meta)}")
 
             results, perm_result = asyncio.run(_run_stage(BASE_URL, items))
         finally:
             err_bytes = _shutdown_server(proc)
+            # ★ 임시 디렉터리가 사라지기 **전에** traces 를 결과 옆으로 옮긴다.
+            #   덤프 실패로 이미 끝난 문항 결과를 날리지 않는다(집계는 계속한다).
+            try:
+                dump_path = args.out_dir / f"{stamp}.traces.jsonl"
+                rows = dump_traces(db_copy, dump_path)
+                tr_rows, tp_rows = count_tool_payloads(dump_path)
+                traces_dump = {
+                    "path": str(dump_path),
+                    "rows": rows,
+                    "tool_result_rows": tr_rows,
+                    "tool_payload_rows": tp_rows,
+                }
+                print(
+                    f"traces 덤프: {dump_path} — {rows}행 "
+                    f"(tool_result {tr_rows}행 중 tool_payload {tp_rows}행)"
+                )
+                if rows == 0:
+                    print("  [주의] traces 가 0행입니다 — 판정 근거를 사후 대조할 수 없습니다.")
+            except Exception as exc:  # noqa: BLE001 — 덤프 실패는 평가 실패가 아니다
+                print(f"[경고] traces 덤프 실패: {exc}")
 
-    if err_bytes:
-        stderr_text = err_bytes.decode("utf-8", "replace")
-        if stderr_text.strip():
-            print(f"\n[서버 stderr 끝부분]\n{stderr_text[-1200:]}")
+    stderr_text = err_bytes.decode("utf-8", "replace") if err_bytes else ""
+    if stderr_text.strip():
+        print(f"\n[서버 stderr 끝부분]\n{stderr_text[-1200:]}")
+
+    # 잘림 계측 — 서버 stderr 의 [LLM_END] 마커를 집계한다 (loop.py 가 생산자).
+    # stderr 회수 자체가 실패하면 `measured: False` 로 떨어져 "0건"과 구분된다.
+    llm_end = summarize_llm_end(parse_llm_end(stderr_text))
+    log_path = args.out_dir / f"{stamp}.server.log"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(stderr_text, encoding="utf-8")
+    except OSError as exc:
+        print(f"[경고] 서버 로그 저장 실패: {exc}")
 
     agg = aggregate(results)
     diff_text = diff_against_previous(agg, args.out_dir)
-    report_path = write_report(results, agg, perm_result, args.out_dir, meta)
+    report_path = write_report(
+        results,
+        agg,
+        perm_result,
+        args.out_dir,
+        meta,
+        stamp=stamp,
+        llm_end=llm_end,
+        traces_dump=traces_dump,
+    )
 
     print()
     print(diff_text)
     print()
     _print_summary(agg, perm_result)
+    _print_llm_end(llm_end)
     print(f"\n리포트: {report_path}")
 
 

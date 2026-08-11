@@ -18,13 +18,22 @@ fail 하는지**(음성 검증)를 citation·safety·sequence·S4 4개 지표에
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from eval.run_eval import enforce_profile_guard, profile_violations  # noqa: E402
+from backend.agent.loop import format_llm_end  # noqa: E402
+from eval.run_eval import (  # noqa: E402
+    _llm_end_lines,
+    build_meta,
+    enforce_profile_guard,
+    parse_llm_end,
+    profile_violations,
+    summarize_llm_end,
+)
 from eval.score import has_replay, metric_rate, score_session  # noqa: E402
 
 DB = ROOT / "data" / "maintq.db"
@@ -405,6 +414,89 @@ def run() -> None:
         "⑲ D88 --allow-full-profile → 우회해 exit 0 (★ 위반 사유 자체는 2건 그대로 보고)",
         allowed == 0 and len(reasons) == 2,
         f"exit={allowed} / 사유 {len(reasons)}건: {reasons}",
+    )
+
+
+    # ── ⑳ MQ-713a ② — meta.llm_model. 없으면 `null`, **지어내지 않는다** ──
+    #
+    # `llm_provider` 는 미설정 시 'gemini' 로 떨어지는데(D56, get_client 의 실동작),
+    # 모델명에는 그런 폴백이 없다. 같은 자리에 기본값을 두면 회차 비교의 근거가 거짓이 된다.
+    saved = os.environ.get("MAINTQ_LLM_MODEL")
+    try:
+        os.environ["MAINTQ_LLM_MODEL"] = "gemini-2.5-flash"
+        set_meta = build_meta({"tools_profile": "core", "tools": 7})
+        os.environ["MAINTQ_LLM_MODEL"] = "   "  # .env 의 빈 값 = 미설정 (D56 과 같은 근거)
+        blank_meta = build_meta({"tools_profile": "core", "tools": 7})
+        del os.environ["MAINTQ_LLM_MODEL"]
+        unset_meta = build_meta({"tools_profile": "core", "tools": 7})
+    finally:
+        if saved is None:
+            os.environ.pop("MAINTQ_LLM_MODEL", None)
+        else:
+            os.environ["MAINTQ_LLM_MODEL"] = saved
+    check(
+        "⑳ D88 확장 — meta.llm_model 은 env 그대로, 없으면 null (★ 음성: 빈 값도 null)",
+        set_meta["llm_model"] == "gemini-2.5-flash"
+        and blank_meta["llm_model"] is None
+        and unset_meta["llm_model"] is None
+        and set(set_meta) == {"tools_profile", "tools", "llm_provider", "llm_model"},
+        f"설정={set_meta['llm_model']!r} / 빈값={blank_meta['llm_model']!r} / "
+        f"미설정={unset_meta['llm_model']!r}",
+    )
+
+    # ── ㉑ MQ-713a ③ — 잘림 계측의 **생산자↔소비자**를 한 검사로 묶는다 ──
+    #
+    # 형식 문자열은 `backend/agent/loop.py:format_llm_end` 가 만들고 `run_eval.parse_llm_end`
+    # 가 읽는다. 두 곳이 조용히 갈리면 4차 평가에서 "잘림 0건"이 **파싱 실패의 0건**이 된다.
+    # 그래서 파서에 지어낸 샘플을 먹이지 않고 **생산자가 만든 실제 줄**을 먹인다.
+    stderr_sample = "\n".join(
+        [
+            "INFO:     Started server process",
+            format_llm_end("EVAL-T01", 1, "STOP"),
+            "WARNING  traces seq 충돌 ...",
+            format_llm_end("EVAL-T08", 2, "FinishReason.MAX_TOKENS"),
+            format_llm_end("EVAL-T08", 3, "max_tokens"),
+            format_llm_end("EVAL-T13", 1, "stream_error"),
+        ]
+    )
+    parsed = parse_llm_end(stderr_sample)
+    summary = summarize_llm_end(parsed)
+    check(
+        "㉑ [LLM_END] 생산자(loop) → 소비자(run_eval) 라운드트립 · 잡음 줄 무시",
+        len(parsed) == 4
+        and summary["llm_calls"] == 4
+        and summary["truncated_calls"] == 2
+        and summary["truncated_by_session"] == {"EVAL-T08": 2}
+        and summary["mismatched"] == 0,
+        f"파싱 {len(parsed)}줄 · 잘림 {summary['truncated_calls']} · {summary['reasons']}",
+    )
+
+    # ★ 음성 — 정상 종료만 있는 stderr 는 잘림 0건이어야 한다. 무엇을 넣어도 잘림으로
+    #   세는 계측이면 4차 결과의 "N건"이 아무 의미가 없다.
+    clean = summarize_llm_end(
+        parse_llm_end("\n".join([format_llm_end("EVAL-T01", i, "STOP") for i in (1, 2)]))
+    )
+    check(
+        "㉑-b ★ 음성: 정상 종료만 → 잘림 0건 (measured=True 는 유지)",
+        clean["truncated_calls"] == 0
+        and clean["measured"] is True
+        and clean["truncated_by_session"] == {},
+        f"measured={clean['measured']} / 잘림={clean['truncated_calls']}",
+    )
+
+    # ── ㉒ "0건"과 "계측 실패"를 결과 MD 가 다른 문장으로 쓰는가 ──
+    #
+    # 3차 분석의 결론이 "개선과 요동을 구분할 수 없다"였다. 마커가 하나도 없는데 0건이라고
+    # 적으면 "잘림은 원인이 아니다"가 근거 없이 서게 된다 — 같은 종류의 실패다.
+    none_lines = " ".join(_llm_end_lines(summarize_llm_end([])))
+    zero_lines = " ".join(_llm_end_lines(clean))
+    check(
+        "㉒ 미계측(마커 0건)과 잘림 0건을 다른 문장으로 보고",
+        "계측 실패" in none_lines
+        and "0건이라는 뜻이 아니다" in none_lines
+        and "계측 실패" not in zero_lines
+        and "**0건**" in zero_lines,
+        f"미계측={none_lines[:52]}… / 0건={zero_lines[:52]}…",
     )
 
 

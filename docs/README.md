@@ -6,16 +6,16 @@
 |---|---|---|
 | [00_MVP_SCOPE](00_MVP_SCOPE.md) | **반드시 구현할 기능 6종 + 확장 6종 + 인프라 + 완료 기준** (목록만, 상세는 각 문서로 링크) | 착수 전 "이번에 뭘 만드나" 확인, 범위 다툼 날 때 |
 | [01_OVERVIEW](01_OVERVIEW.md) | 문제정의·As-Is/CMMS 포지셔닝·페르소나·KPI·기능·OoS·리스크·마일스톤(M1~M4) | 프로젝트 전체 그림이 필요할 때, 발표 준비 |
-| [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
+| [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 + **확장 시퀀스(S1+·S9·S10·S18·S19, S17 은 v2 제외)** | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
 | [03_WIREFRAME](03_WIREFRAME.html) | 화면 A(진단 콘솔)·A-2(S3 변형)·B(승인 큐) + 주석 10개. **구조 참조 — 실제 화면은 frontend/ 구현이 기준** | UI 작업 전, 디자인 검수 |
-| [04_MCP_TOOLS](04_MCP_TOOLS.md) | **코어 7종(읽기 6+쓰기 1) + 확장 7종(§8~§14)** 입출력 계약, 프로파일 게이트(D69), 설계 원칙 6개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
+| [04_MCP_TOOLS](04_MCP_TOOLS.md) | **코어 7종(읽기 6+쓰기 1) + 확장 8종(§8~§15, 읽기 7+쓰기 1)** 입출력 계약, 프로파일 게이트(D69), 설계 원칙 6개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
 | [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 **17절(CREATE TABLE 18개)** + 시드 케이스 맵 7종 | DB·시드 작업 시 |
-| [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), **`/api/assets` 3종 + D71 HTTP 매핑**, 상태 전이, testset 스키마 | 폴더·엔드포인트 만들 때, M1 첫날 |
-| [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + **확장 범위 P22~P27(진행 표시)** + **P28·P29 인프라** + 아이디어 주차장 + 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
+| [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), **`/api/assets` 4종 + D71 HTTP 매핑**, **`/api/decisions`(§2.6)·`/api/approvals`(§2.7)**, 상태 전이, testset 스키마 | 폴더·엔드포인트 만들 때, M1 첫날 |
+| [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + **확장 범위 P22~P27(진행 표시 — P24 Sprint 7 완료, P25 는 Sprint 8)** + **P28·P29 인프라** + 아이디어 주차장 + 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
 | [09_RUNTIME](09_RUNTIME.md) | S1 시퀀스 다이어그램, 에이전트 루프 정책, 장애 모드, 스파이크 3종 | 에이전트 루프·SSE 구현 시, 개발 착수 직전 |
 | [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D88 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
-| [11_ASSET_LIFECYCLE](11_ASSET_LIFECYCLE.md) | 처분 법정 조건 · **근거 3계층** · 룰 5종 · S9·S10·S18 | 처분·취득 기능 작업 시, "근거를 어떻게 남기나" 확인할 때 |
+| [11_ASSET_LIFECYCLE](11_ASSET_LIFECYCLE.md) | 처분 법정 조건 · **근거 3계층(계층 3 = Sprint 7 완료)** · 룰 5종 · S9·S10·S18 | 처분·취득 기능 작업 시, "근거를 어떻게 남기나" 확인할 때 |
 | [12_MAINT_VALUE](12_MAINT_VALUE.md) | 보전지표 · 수리 이력의 자산가치 · 중고 거래 배경 · S1+·S19 | 수리 판단·증빙 기능 작업 시 |
 
 **규칙:** 설계와 다른 구현을 하려면 10_DECISIONS에 결정을 먼저 추가하고 진행한다. 새 기능 아이디어는 07_BACKLOG로 보낸다.
@@ -24,17 +24,20 @@
 
 ---
 
-## 진행 상태 (Sprint 6 종료 시점 · 2026-08-09)
+## 진행 상태 (Sprint 7 Stage 7 시점 · 2026-08-10)
 
-**M1~M4 는 완주했고, Sprint 6 에서 확장 범위(F1·F2·F4)를 열었다.**
+**M1~M4 는 완주했고, Sprint 6 에서 확장 범위(F1·F2·F4)를 열었으며 Sprint 7 이 F3(계층 3 서명)을 닫았다.**
 
 | 축 | 상태 |
 |---|---|
-| 코어 도구 7종 · 백엔드 · 에이전트 루프 · trace · UI 2종 · 평가 하네스 | ✅ 동작 |
-| **확장 도구 7종** (`check_disposal_blockers` · `verify_ownership` · `classify_part_criticality` · `get_maintenance_metrics` · `classify_expenditure` · `assess_repair_value` · `build_evidence_bundle`) | ✅ 구현 — 계약은 `04 §8~§14`. **노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만**(기본 `core`, D69) |
-| DB | 코어 11 + 확장 7 = **테이블 18개**. `assets` 신설(D68) · `assets.insured` 신설(D78) |
+| 코어 도구 7종 · 백엔드 · 에이전트 루프 · trace · UI · 평가 하네스 | ✅ 동작 |
+| **확장 도구 8종** (`check_disposal_blockers` · `verify_ownership` · `classify_part_criticality` · `get_maintenance_metrics` · `classify_expenditure` · `assess_repair_value` · `build_evidence_bundle` · **`generate_disposal_document`**) | ✅ 구현 — 계약은 `04 §8~§15`. **노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만**(기본 `core`, D69·D88) |
+| **쓰기 도구** | **2종** — `create_po_draft`(`po_drafts`) · `generate_disposal_document`(`decisions`). 둘 다 **draft INSERT 만**, UPDATE 권한 없음 (D10·D81) |
+| DB | 코어 11 + 확장 7 = **테이블 18개**(실측 `data/seed.py`). `decisions` 에 컬럼 5개 + **CHECK 2종** 추가(MQ-707) |
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |
-| REST | `GET /api/assets` · `GET /api/assets/{id}` · `POST /api/assets/{id}/disposal/precheck`(무저장, D71) |
+| REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. ⚠ `/api/po` 는 **형태 불변** |
+| 프론트 | 라우트 **10개** (실측 `npm run build`) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace |
+| 회귀 (실측 2026-08-11) | spikes **27스위트 / 603건** · seed **21건** · pytest **46건**. ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절) |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
 | 계층 1 (법령 원문) | ✅ **실수집 완료 (Sprint 7 MQ-701)** — 참조 7건 중 **6건 `FETCHED` · 1건 `PENDING`**(`KR-CITA-ENF-31`). 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
 
@@ -47,13 +50,14 @@
 > **이 미수집 경로가 다시 발화하는 때**: 새 조문을 등록했는데 아직 안 받았을 때 ·
 > 개정으로 `pending_revisions` 가 열렸을 때 · `KR-CITA-ENF-31` 처럼 정체성 대조에 실패했을 때.
 
-**다음 액션 (Sprint 7)**
+**다음 액션 (Sprint 7 Stage 7 → Sprint 8)**
 
-1. 🟡 **사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인(`즉시상각의제` → API 값 `즉시상각의 의제`). 이 1건이 계층 1 의 마지막 `PENDING` 이다
-2. 🔴 **사람** — 기준내용연수 `N=8` 법령 원문 대조 (잔가곡선 전체가 이 값에 걸려 있다) · `parts.part_class` 40종 감수 · `related_parts` 최종 승인
-3. 계층 3 서명 API — `build_evidence_bundle` 이 실 DB 에서 이미 `status:"ok"` 를 내므로 선행 조건은 풀렸다
-4. 쓰기 도구 2종(`generate_disposal_document` · `create_repair_record`)
-5. 3차 평가 — 확장 도구를 켠 상태와 끈 상태를 **분리해서** 돌린다 (D69 가 지키려는 것)
+1. 🔴 **사람** — `related_parts` 최종 승인. **이게 없으면 부품 특정 정확률은 "미달"이 아니라 "판정 불가"** 다 (D12)
+2. 🔴 **사람** — 처분 승인서·진술보장서 **문안 검수**. 법적 효력이 있는 문서라 안전 문구(D2)와 같은 성격이며, 승인 전까지 출력에 `unreviewed_template_notice` 가 붙는다
+3. 🟡 **사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인(`즉시상각의제` → API 값 `즉시상각의 의제`). 계층 1 의 마지막 `PENDING` 이며 `classify_expenditure` 전용이라 **S10 에는 영향이 없다**
+4. 🟡 **사람** — 기준내용연수 `N=8` 법령 원문 대조(잔가곡선 전체가 이 값에 걸려 있다) · `parts.part_class` 40종 감수
+5. **MQ-713** — 지표 튜닝 + 4차 평가. ⛔ `MAINTQ_TOOLS_PROFILE=full` 로 평가하지 않는다 (D88 이 코드로 막는다)
+6. **Sprint 8** — `create_repair_record`(P25·S19). 계약 자리는 `GET /api/approvals` 의 `kind: "repair"`(현재 항상 0건)로 확보돼 있다
 
 사람이 해야 할 일 전체는 [../TODO_직접할일.md](../TODO_직접할일.md).
 

@@ -41,10 +41,10 @@ MVP에서 의도적으로 제외한 기능. 우선순위 순.
 
 | P | 진행 | 기능 | 설명 | 미리 확보해둔 것 |
 |---|---|---|---|---|
-| **P22** | 🟡 **부분** (Sprint 6) | **근거 3계층 (법령 스냅샷 + 해석 룰 + 서명)** | 확장의 토대. 계층 1(법령 원문, append-only) · 계층 2(해석 룰, 근거 미인용 시 로드 거부) · 계층 3(사람 서명, 번들 해시 고정). **F1 만 해도 "근거를 남기는 에이전트"라는 서사는 성립한다** | 룰 5종·엔진·pytest 가 동작. `law_refs`·`rules` DB 사본 적재 완료, 번들 해시(`build_evidence_bundle`) 완료. 2단계 기입(`applied` 3상태 + `requires_signature`, D75) 완료. 조문 원문 실수집 완료 (Sprint 7 MQ-701 — 7건 중 6건 `FETCHED`, `KR-CITA-ENF-31` 만 제목 불일치로 사람 승인 대기). **남은 것: 계층 3 서명 API 뿐이고 외부 블로커는 없다** |
+| **P22** | 🟡 **부분** (Sprint 6) | **근거 3계층 (법령 스냅샷 + 해석 룰 + 서명)** | 확장의 토대. 계층 1(법령 원문, append-only) · 계층 2(해석 룰, 근거 미인용 시 로드 거부) · 계층 3(사람 서명, 번들 해시 고정). **F1 만 해도 "근거를 남기는 에이전트"라는 서사는 성립한다** | 룰 5종·엔진·pytest 가 동작. `law_refs`·`rules` DB 사본 적재 완료, 번들 해시(`build_evidence_bundle`) 완료. 2단계 기입(`applied` 3상태 + `requires_signature`, D75) 완료. 조문 원문 실수집 완료 (Sprint 7 MQ-701 — 7건 중 6건 `FETCHED`, `KR-CITA-ENF-31` 만 제목 불일치로 사람 승인 대기). ~~남은 것: 계층 3 서명 API~~ → **계층 3 서명 API 는 Sprint 7 에서 완료됐다**(`/api/decisions` 제출·서명·반려 + DDL CHECK 2종). ⚠ 진행 표시를 🟡 로 둔 것은 MQ-712 가 상태 승격을 하지 않기로 한 결과이며(범위 밖), 잔여는 **`KR-CITA-ENF-31` 사람 승인**과 **하위 법령 추가**뿐이다 |
 | **P23** | ✅ **완료** (Sprint 6) | **처분 법정 조건 검사 (S9)** | `check_disposal_blockers` — 판정 **5종**(D79) + 409 반환 + 해소 경로 안내. 거부하되 이유와 다음 행동을 함께 준다(S4 와 같은 태도) | `403`(권한) · `409`(순서) 구분이 D38 에서 이미 서 있어 법정 조건 미충족을 409 로 붙이면 평가 판정이 섞이지 않는다. REST 는 `POST /api/assets/{id}/disposal/precheck`(무저장·역할 게이트 없음, D71) |
-| **P24** | ⬜ **Sprint 7** | **처분 서명 · 증빙 패키지 (S10)** | `generate_disposal_document` — 승인서·진술보장서 draft + 정비이력·보전지표·감가상각명세. `override` 허용 + 사유 필수 | **`create_po_draft` 와 완전히 같은 패턴** — draft 만 생성, 확정은 승인 큐, 신원은 서버 주입(D23·D37). 승인 큐는 **공유**한다(발주서·처분서·수리 증빙 한 큐). `build_evidence_bundle` 이 번들·해시를 이미 만든다 |
-| **P25** | 🟡 **부분** (Sprint 6) | **수리 증빙 서명 (S19)** | `create_repair_record` — 부품·시리얼·작업자·`work_type`(PLANNED/UNPLANNED) 묶어 서명. **나중에 팔 때 증명하려면 그때 서류가 있어야 한다** — 이게 없으면 P24 의 증빙 패키지가 성립하지 않는다 | `repair_records` 테이블·시드 완료(`downtime_hours` 포함 — MTTR 의 유일한 원천). `get_maintenance_metrics` 가 **서명분만** 집계하는 규칙까지 동작. **남은 것: 쓰기 도구 자체**. `(model, error_code)` 복합키 FK 규칙(D13·D33)을 그대로 쓴다 |
+| **P24** | ✅ **완료** (Sprint 7) | **처분 서명 · 증빙 패키지 (S10)** | `generate_disposal_document` — 승인서·진술보장서 draft(`decisions` INSERT, D81) + `POST /api/decisions/{id}/sign`(번들 재산출·해시 대조, D84) + 통합 승인 큐(D85). `override` 허용 + 사유 필수(D63, DDL CHECK 로 잠금) | **`create_po_draft` 와 완전히 같은 패턴** — draft 만 생성, 확정은 승인 큐, 신원은 서버 주입(D23·D37). ⚠ **증빙 패키지는 4종 중 3종만 제공한다** — 감가상각 명세는 `assets` 에 상각 스케줄 원천이 없어 만들 수 없고, `missing_sections` 로 **없다고 말한다**(D86·D65). ⚠ 문안은 **사람 검수 대기** — 그때까지 `unreviewed_template_notice` 가 붙는다 |
+| **P25** | 🟡 **부분** (Sprint 6) → **Sprint 8** | **수리 증빙 서명 (S19)** | `create_repair_record` — 부품·시리얼·작업자·`work_type`(PLANNED/UNPLANNED) 묶어 서명. **나중에 팔 때 증명하려면 그때 서류가 있어야 한다** | `repair_records` 테이블·시드 완료(`downtime_hours` 포함 — MTTR 의 유일한 원천). `get_maintenance_metrics` 가 **서명분만** 집계하는 규칙까지 동작. **남은 것: 쓰기 도구 자체 — Sprint 8 이다.** 계약 자리는 이미 비워 뒀다: `GET /api/approvals` 의 `kind` enum 에 **`repair` 가 들어 있고 현재 항상 0건**이라(D85) Sprint 8 은 **계약 변경 없이** 채운다. `(model, error_code)` 복합키 FK 규칙(D13·D33)을 그대로 쓴다 |
 | **P26** | ✅ **완료** (Sprint 6) | **수리/교체/매각 3지 판단 (S1+)** | 발주 전에 자산가치 관점을 넣는다 — 부품 등급·MTBF 추세·반복고장·누적수리비 비율. **`repeat_failure` 면 3지 판단보다 근본원인이 먼저**(S3 우선, D2) | `get_error_history` 의 `repeated` 판정을 그대로 감점 신호로 재사용(상수도 재사용 — D2·D29). `parts.discontinued`(D20)·`parts_eol_flag` 가 진부화 판단에 쓰인다. 잔가는 목업 정률 공식(D74) |
 | **P27** | ✅ **완료** (Sprint 6) | **중고 취득 권리관계 검증 (S18)** | `verify_ownership` — 9개 카테고리 체크리스트. 판정은 "확인 완료"가 아니라 **"확인 항목 + 미확인 잔여 리스크"**. 동산은 등기가 없어 확인이 구조적으로 불완전하다 | `PARTIAL` 은 `VERIFIED` 로 승격 불가 — 코드에 승격 경로 자체가 없다. S4 의 "모르는 건 모른다고 말한다" 원칙이 그대로 이어진다 |
 
@@ -90,7 +90,7 @@ MVP에서 의도적으로 제외한 기능. 우선순위 순.
 
 그리고 확장 범위 쪽 경계 (D67):
 
-- 진단·발주는 기존 6종 / **처분·취득**은 확장 6종 (P22~P27). 도구로는 **코어 7종 / 확장 7종**이며 노출은 `MAINTQ_TOOLS_PROFILE` 이 가른다 (D69)
+- 진단·발주는 기존 6종 / **처분·취득**은 확장 6종 (P22~P27). 도구로는 **코어 7종 / 확장 8종**이며 노출은 `MAINTQ_TOOLS_PROFILE` 이 가른다 (D69). 확장 8번째는 `generate_disposal_document`(Sprint 7 신설, **두 번째 쓰기 도구**)
 - 매뉴얼 **근거 페이지** 인용은 기존 / **법령 조문** 인용은 확장
 - 반복 고장 감지는 기존 / 그걸 **자산가치 감점 신호로 재사용**하는 건 확장 (P26)
 - 팀장 승인 큐는 기존 / 그 큐에 **처분서·수리 증빙을 같이 올리는 것**은 확장 (P24·P25)

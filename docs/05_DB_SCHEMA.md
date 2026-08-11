@@ -20,7 +20,7 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 assets ──< equipment ──< error_history >── error_codes        ← assets 는 D68 의 호스트 설비
   │           │                                 │ (model+code 복합키)
   │           └──< repair_records >─────────────┘             ← 수리는 인버터 단위 (D68 ⓑ)
-  ├──< decisions            ← 계층 3 서명 (쓰기는 Sprint 7)
+  ├──< decisions            ← 계층 3 서명. **도구가 draft INSERT · 전이는 사람 API** (D10·D81)
   ├──< flags                ← 법정 조건 상태 (발생→이행→해소)
   └── category ──> residual_curve                             ← (category, age_bucket) 조인
 
@@ -452,14 +452,15 @@ CREATE TABLE rules (
 
 ## 14. decisions — 계층 3 서명
 
-> **상태 전이는 Sprint 7의 사람 전용 API.** MCP 도구는 **`state='draft'` INSERT 만** 할 수 있고
-> UPDATE·DELETE 는 TEMP TRIGGER 로 물리 차단된다 (`mcp_server/db.py:decision_writer`, D10·D81).
+> **⚠ 이 테이블에는 MCP 도구가 쓴다.** `generate_disposal_document`(`04 §15`)가 **`state='draft'`
+> INSERT 만** 한다 (D81). UPDATE·DELETE 는 TEMP TRIGGER 로 **물리 차단**된다
+> (`mcp_server/db.py:decision_writer`, D10). 상태 전이는 전부 사람 전용 API(`06 §2.6`)를 통한다.
 > `po_drafts` 와 **정확히 같은 태도**다 — 도구는 초안을 올릴 뿐, 확정은 사람이 서명한다.
+>
+> (이 절은 Sprint 6 까지 *"MCP 도구는 이 테이블에 손대지 않는다"* 라고 **거짓을 말하고 있었다** —
+> reviewer W-9. D81 착지로 뒤집혔고 MQ-712 가 DDL 본문까지 정정했다.)
 
-> ⚠ **아래 DDL 은 Sprint 7 Stage 3(MQ-707) 이전 형태다.** 정본은 `data/seed.py` 의 `SCHEMA` 이며
-> 현재는 컬럼 5개(`reason`·`requested_by`·`session_id`·`decision_note`·`created_at`)와
-> **CHECK 2종**(서명 없는 확정 차단 · BLOCKING 우회 차단)이 더 있다. `evidence_bundle` 도
-> 3키가 아니라 **5키**다(D83). 이 절의 갱신은 **MQ-712 소유**.
+**아래 DDL 은 `data/seed.py` 의 `SCHEMA`(정본, `§14 decisions`)와 대조한 실제 형태다.**
 
 ```sql
 CREATE TABLE decisions (
@@ -468,28 +469,59 @@ CREATE TABLE decisions (
   decision_type TEXT NOT NULL,           -- 'DISPOSAL' | 'REPAIR'
   evidence_bundle TEXT NOT NULL,         -- JSON 5키 (D83): {laws[], rules[], evaluated[], contracts[], facts{}}
   bundle_hash TEXT NOT NULL,
-  verdict_at_signing TEXT NOT NULL,
+  verdict_at_signing TEXT NOT NULL,      -- draft 시점 판정. 서명 시 백엔드가 재산출해 덮는다 (D84)
   override BOOLEAN NOT NULL DEFAULT 0,
   override_reason TEXT,
   reviewed_by TEXT REFERENCES users,
   signed_at DATETIME,
   state TEXT NOT NULL DEFAULT 'draft',
+  -- ── Sprint 7 (MQ-707) 보강 컬럼 5개 ───────────────────────────────────────
+  reason TEXT,                           -- 도구가 채우는 요청 사유. `po_drafts.reason` 과 같은 자리
+  requested_by TEXT REFERENCES users,    -- ★ 도구가 채우지 않는다 (D23·D37) — 백엔드가 stamp
+  session_id TEXT,                       -- ★ 같음. 도구 스키마에 있으면 LLM 위조 경로가 된다
+  decision_note TEXT,                    -- 반려 사유 / 서명 코멘트 (`po_drafts.decision_note` 와 같은 역할)
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,   -- 통합 큐(D85)가 created_at DESC 로 정렬
+  -- ── CHECK 5종 (그중 아래 2종이 Sprint 7 신설) ────────────────────────────
   -- D63 을 스키마로 잠근다 — 사유 없는 override 는 저장 자체가 불가
   CHECK (override = 0 OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
   CHECK (json_valid(evidence_bundle)),
-  CHECK (state IN ('draft','pending','signed','rejected'))
-  -- ↓ MQ-707 이 추가한 2종 (여기 없음 — data/seed.py 참조)
-  -- CHECK (state <> 'signed' OR (signed_at IS NOT NULL AND reviewed_by IS NOT NULL
-  --                              AND length(trim(bundle_hash)) > 0))   -- 서명 없는 확정 0건
-  -- CHECK (state <> 'signed' OR override = 1
-  --        OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))           -- BLOCKING 우회 0건
+  CHECK (state IN ('draft','pending','signed','rejected')),
+  -- ★ 신설 ① "서명 없는 처분 확정 0건"
+  CHECK (state <> 'signed' OR (signed_at IS NOT NULL
+                               AND reviewed_by IS NOT NULL
+                               AND length(trim(bundle_hash)) > 0)),
+  -- ★ 신설 ② "BLOCKING 우회 처분 0건"
+  CHECK (state <> 'signed' OR override = 1
+         OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))
 );
 ```
 
+**`created_at` 에 `DEFAULT` 가 있는 이유**: 도구의 draft INSERT 컬럼 목록이 **한 글자도 바뀌지
+않는다.** `requested_by`·`session_id`·`decision_note` 도 NULL 허용이라 같다 — `po_drafts` 와 같은 패턴이다.
+
+**⚠ `decision_note` 는 명세(MQ-707)에 없던 컬럼이다.** 3컬럼만 두면 `POST /sign{note}`·
+`/reject{reason}` 의 값을 담을 자리가 없어 **사유가 저장되지 않는다** — D38 이 요구한 것은 반려
+사유를 *받는 것*이 아니라 *남기는 것*이다.
+
+### CHECK 2종이 "두 문장"의 **마지막 층**이다
+
+위쪽 층은 전부 코드다 — 도구는 UPDATE 권한이 없고(D10), 서명 API 는 순서를 강제한다(D84).
+**그러나 코드 층은 버그로 뚫린다.** 미래의 잘못된 UPDATE 한 줄, 마이그레이션 스크립트, 콘솔에서
+친 SQL — 어느 것이든 코드를 우회한다. **스키마는 우회할 수 없다.**
+
+- 신설 ① — `signed` 는 *"누가 언제 무엇에 서명했는가"* 가 전부 있어야 성립하는 상태다.
+  셋 중 하나라도 없는 행은 **서명처럼 보이는 행**이지 서명이 아니다.
+- 신설 ② — 차단 판정(`BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS`)에 서명하려면 `override=1` 이어야 하고,
+  `override=1` 이면 위 D63 CHECK 가 사유를 강제한다. **두 CHECK 가 맞물려 "사유 없는 우회 서명"이
+  스키마 수준에서 표현 불가능**해진다.
+- ⚠ ② 에 열거된 두 값은 `engine.VERDICTS` 의 **비차단** 어휘다. 엔진이 어휘를 늘리면 이 목록이
+  조용히 낡으므로 **시드 검증 ㉑ 이 DDL 문자열을 파싱해 엔진과 대조**한다.
+
 **D63을 문서가 아니라 스키마로 잠갔다.** "override 하려면 사유를 쓰라"를 애플리케이션 검증에만
-두면 경로 하나만 빠뜨려도 사유 없는 무시가 저장된다. 시드 검증 **⑰** 이 실제로 INSERT 를
+두면 경로 하나만 빠뜨려도 사유 없는 무시가 저장된다. 시드 검증 **⑰⑲⑳㉑** 이 실제로 INSERT 를
 시도해 CHECK 가 거부하는지 확인한다(⑩ FK 프로브와 같은 이유 — 한 번도 실행되지 않는 제약은
-있는 셈 치기 쉽다).
+있는 셈 치기 쉽다). `spikes/disposal_sign_contract.py` 가 **9자산 × 3모드 27조합 전수**로 4층을
+각각 독립 확인한다.
 
 ## 15. flags — 법정 조건 상태
 
@@ -652,3 +684,9 @@ CREATE TABLE residual_curve (
 | ⑯ | `parts.part_class` NULL 0건 · 잔가 격자 공백 0 · 단조 감소 · 목업 표기 | D12·D74 |
 | ⑰ | 사유 없는 `override` INSERT → CHECK 거부 | D63 |
 | ⑱ | `has_lien=1` 인데 `lien_consent_ref=''` 인 자산 0건 | D62·D77 |
+| ⑲ | `decisions` 신규 컬럼 3종 + `requested_by` FK + 부가 컬럼(`decision_note`·`created_at`) | MQ-706 draft 계약 |
+| ⑳ | 서명 없는 확정 / BLOCKING 우회 INSERT → CHECK 거부 (**양성 대조 포함** — 정상 서명은 통과해야 한다) | 완료 기준 ②③ |
+| ㉑ | DDL 의 비차단 verdict 목록 == `engine.VERDICTS` 파생 (하드코딩 대조가 아니라 **파싱 대조**) | D79 |
+
+> **실측 (2026-08-10)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (21건)**.
+> 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.

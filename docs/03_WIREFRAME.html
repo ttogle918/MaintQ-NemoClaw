@@ -629,7 +629,15 @@
   <p class="sub" style="border-left:3px solid var(--accent);padding-left:9px;">
     <b>이 문서는 구조 참조다.</b> 실제 화면은 <code>frontend/</code> 의 Next.js 구현이 기준이며(하이파이가 먼저 나왔다),
     여기는 <b>레이아웃·구성요소·주석</b>만 담는다. 색·간격·타이포는 구현을 보라.
-    현재 구현과 정합 확인: 2026-07-23.
+    현재 구현과 정합 확인: <b>2026-08-10 (Sprint 7 Stage 7)</b>.
+  </p>
+  <p class="sub" style="border-left:3px solid var(--accent);padding-left:9px;">
+    <b>Sprint 7 로 화면이 4개 늘었다.</b> 실측 라우트 <b>10개</b>(<code>cd frontend &amp;&amp; npm run build</code>):
+    <code>/</code> · <code>/technician</code> · <code>/technician/asset</code> ·
+    <code>/technician/asset/[assetId]/disposal</code> · <code>/technician/asset/[assetId]/ownership</code> ·
+    <code>/manager</code> · <code>/manager/po/[poId]</code> · <code>/manager/decision/[decisionId]</code> ·
+    <code>/manager/trace/[sessionId]</code> · <code>/_not-found</code>.
+    아래 SCREEN C·D·E 는 <b>레이아웃 골자와 규약만</b> 적는다 — 픽셀은 구현이 기준이다.
   </p>
 
   <!-- ─────────────── 화면 A ─────────────── -->
@@ -891,6 +899,10 @@
             · 2시간 전</span></div>
         <div class="qitem"><span class="badge">일반</span><br><b>#PO-0115</b> 퓨즈 ×10<br><span class="label">2번 라인 · 김OO ·
             어제</span></div>
+        <div class="qitem" style="position:relative;"><span class="badge hot">차단</span><br><b>#DEC-0001</b> AST-L3-CONV 매각 처분<br><span
+            class="label">kind: disposal · verdict BLOCKED · 김OO</span>
+          <span class="note" style="right:-10px;top:-10px;">11</span>
+        </div>
         <div class="note" style="position:static;align-self:flex-end;">8</div>
       </div>
 
@@ -919,6 +931,22 @@
           <span class="btn reject">반려 (사유 입력)</span>
           <span class="btn primary">승인 — 발주서 확정</span>
         </div>
+
+        <div class="evidence" style="position:relative;margin-top:14px;">
+          <span class="note" style="right:-10px;top:-10px;">12</span>
+          <div class="row"><span class="k">DECISION</span><span><b>#DEC-0001</b> AST-L3-CONV · 매각(SALE) · 예정일 2021-06-01</span></div>
+          <div class="row"><span class="k">VERDICT</span><span><b style="color:var(--accent);">BLOCKED</b> — 차단 2건 (LIEN-CONSENT · TAX-CREDIT-2Y)</span></div>
+          <div class="row"><span class="k">근거</span><span>법령 조문 칩 <code>§KR-CIVIL-388</code> <code>§KR-STTC-24</code> · 룰 해시 · 번들 해시 <code>sha256:9d1e…</code></span></div>
+          <div class="row"><span class="k">계약 근거</span><span>여신거래기본약관 — <b>해시로 고정되지 않음</b> (hash_fixed:false)</span></div>
+          <div class="row"><span class="k">빠진 절</span><span><b>감가상각 명세 — 상각 스케줄 원천 없음</b> (missing_sections · 접히지 않는 자리)</span></div>
+          <div class="row"><span class="k">문안</span><span>미검수 초안 (unreviewed_template_notice)</span></div>
+        </div>
+
+        <div class="actions" style="flex-wrap:wrap;gap:8px;">
+          <span class="btn reject">반려 (사유 입력)</span>
+          <span class="chip">☐ 예외 적용(override) — 차단 판정이라 <b>체크 + 사유</b> 둘 다 없으면 버튼 비활성</span>
+          <span class="btn primary" style="opacity:.45;">서명 — 처분 확정 <b>(disabled)</b></span>
+        </div>
       </div>
     </div>
   </div>
@@ -932,6 +960,120 @@
         <code>notes</code>→NOTES(현장 비고). trace 링크로 검증 경로 확보.</span></div>
     <div class="li"><span class="n">10</span><span><b>공급사 비교</b> — AI가 추천하되 선택은 사람이. MOQ 미달은 카드에 먼저 고지하고, 그래도 미달 수량으로
         발주하면 도구가 거부한다 (D31 — 자동 상향 금지). 백로그 P2 '긴급도 기반 추천'이 들어올 자리 미리 확보.</span></div>
+    <div class="li"><span class="n">11</span><span><b>처분서 카드 (Sprint 7 신설)</b> — 같은 큐에 발주서와 처분서가 섞인다
+        (<code>GET /api/approvals</code>, <b>D85</b>). 판별자는 <code>kind</code>(<code>po</code>|<code>disposal</code>|<code>repair</code>)이고
+        <b><code>state</code> 는 각 종류의 원 어휘 그대로</b>다 — <code>approved</code>(발주 승인)와 <code>signed</code>(처분 확정)는
+        <b>다른 사건</b>이라 한 필드로 뭉개면 책임 귀속이 사라진다. 발주에 없는 값은 <code>null</code>이지 <code>false</code>가 아니다
+        (처분서엔 <code>urgency</code>가 없고 발주엔 <code>verdict</code>가 없다). <code>repair</code>는 <b>현재 항상 0건</b>(Sprint 8).
+        정렬은 <code>created_at DESC</code> — 발주 전용 '긴급 우선' 정렬을 통합 큐로 끌어오면 처분서가 항상 뒤로 밀린다.</span></div>
+    <div class="li"><span class="n">12</span><span><b>처분서 상세 · 서명 바 (Sprint 7 신설, <code>/manager/decision/{id}</code>)</b> —
+        <b>서명은 승인이 아니다.</b> 발주의 승인/반려 바와 <b>다른 컴포넌트</b>이며 세 가지를 지킨다:
+        (1) <b>사유 없이 제출 자체가 불가능하다</b> — 차단 판정이면 체크박스와 사유가 둘 다 채워지기 전까지 버튼이 <code>disabled</code>.
+        금지: 자동 체크·기본 사유 문구 (<b>D63</b>. 백엔드도 422 로 막지만 UI 에서 먼저 받는다)
+        (2) <b><code>evidence_changed</code>(409)를 무시하고 재시도하는 경로를 만들지 않는다</b> — 근거가 바뀌면 서명 컨트롤이
+        <b>사라지고 재조회만</b> 남는다. 사람이 본 것과 다른 근거에 서명하는 것이 이 화면에서 가장 비싼 실패다 (<b>D84</b>)
+        (3) <b>빠진 것을 숨기지 않는다</b> — <code>missing_sections</code>(감가상각 명세)와 <code>hash_fixed:false</code>를
+        접히지 않는 자리에 렌더한다 (<b>D65·D86</b>).
+        상태에서 표시로 가는 매핑은 <b>전역 total 맵 1곳</b>이고 맵 밖 값은 <code>warn</code>으로 떨어진다 — 컴포넌트에
+        상태 문자열 비교를 두지 않는다 (<b>D87</b>).
+        <b>목업 폴백을 두지 않는다</b> — 승인 큐는 배너를 달고 목업으로 떨어지지만 여기는 <i>서명</i>하는 화면이다.
+        연결이 없는데 그럴듯한 처분서를 그리면 "서명했다"는 오해를 만든다.</span></div>
+  </div>
+
+  <!-- ─────────────── 화면 C ─────────────── -->
+  <h2><span class="tag">SCREEN C</span> 자산 목록 · 처분 사전판정 <span style="font-size:11px;font-weight:400;">(Sprint 7 신설)</span></h2>
+  <p class="persona">사용자: 정비사 — <code>/technician/asset</code> · <code>/technician/asset/{assetId}/disposal</code></p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i></div>
+    <div class="apphead">
+      <div class="logo"></div>
+      <span style="font-size:13px;font-weight:700;">자산 · AST-L3-CONV</span>
+      <div class="spacer"></div>
+      <span class="chip">라인 필터: 3번</span>
+      <span class="chip">정비사 김OO</span>
+    </div>
+
+    <div class="detail" style="padding:16px;">
+      <div class="evidence" style="position:relative;">
+        <span class="note" style="right:-10px;top:-10px;">13</span>
+        <div class="row"><span class="k">입력</span><span>처분 방식 <b>[SALE]</b> [SCRAP] [TRANSFER] · 처분 예정일
+            <code>____-__-__</code> <b>(비어 있음 — 오늘로 자동 채우지 않는다)</b></span></div>
+        <div class="row"><span class="k">안내</span><span>"미입력 시 세액공제 조항이 <b>사실 부족</b>으로 남습니다"</span></div>
+      </div>
+
+      <div class="evidence" style="position:relative;margin-top:12px;">
+        <span class="note" style="right:-10px;top:-10px;">14</span>
+        <div class="row"><span class="k">VERDICT</span><span><b style="color:var(--accent);">BLOCKED</b> · HTTP <b>409</b> ·
+            SALE · 처분일 2021-06-01 · 기준일 2026-08-10 · <span class="chip">근거 수집 상태 미제공</span></span></div>
+        <div class="row"><span class="k">차단(2)</span><span>LIEN-CONSENT <code>KR-CIVIL-388</code> · TAX-CREDIT-2Y <code>KR-STTC-24</code></span></div>
+        <div class="row"><span class="k">선행조건</span><span>VAT-INVOICE <code>KR-VAT-32</code> — 매각은 정의상 최소 CONDITIONAL</span></div>
+        <div class="row"><span class="k">보류 / 사실부족</span><span>0건 / 0건</span></div>
+        <div class="row"><span class="k">해소 경로</span><span>담보권자 동의서 징구 · 세액공제 추징 검토 …</span></div>
+        <div class="row"><span class="k">고지</span><span>not_considered 3건 · disclaimer (엔진 문구 그대로 — 복제 금지)</span></div>
+      </div>
+
+      <div class="actions" style="margin-top:12px;">
+        <span class="btn">이 자산의 처분서 초안 요청 → 채팅으로 이동(전송은 사용자가)</span>
+      </div>
+
+      <div class="evidence" style="position:relative;margin-top:12px;">
+        <span class="note" style="right:-10px;top:-10px;">15</span>
+        <div class="row"><span class="k">이 자산의 처분서 초안</span><span><b>#DEC-0001</b> · draft →
+            <span class="btn" style="padding:1px 7px;font-size:11px;">팀장 승인 요청(submit)</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><span class="n">13</span><span><b><code>disposal_date</code>를 오늘로 자동 채우지 않는다 (D62).</b>
+        <code>build_facts</code>가 "모르는 날짜를 오늘로 대체하지 않는" 이유가 그대로 UI 에 적용된다 —
+        채우면 <b>사용자가 입력하지 않은 사실이 판정 근거가 된다.</b> 비어 있으면 안내만 띄운다.
+        주의: verdict 는 이 날짜에 따라 갈린다 (<code>AST-L4-WRAP</code> SALE: <code>2008-04-01</code> → HOLD /
+        <code>2026-09-01</code> → CONDITIONAL). 재현 파라미터 표는 <code>11_ASSET_LIFECYCLE §5</code>.</span></div>
+    <div class="li"><span class="n">14</span><span><b>200 과 409 를 같은 화면으로 렌더한다</b> — 409 본문이 200 과 같은 형태인 이유가
+        정확히 이것이다 (<code>06 §2.5</code>). "안 됩니다"로 끝내지 않고 차단 시에도 4버킷·조문 칩·해소 경로를 그대로 편다
+        (S4 와 같은 태도). 503(카탈로그 미적재)은 "서버 설정 문제 — 관리자 문의"로 500 과 구분하고(D71),
+        422(enum·날짜)는 입력 필드 옆 인라인 오류다.
+        <b><code>evidence_completeness</code> 는 REST 응답에 없다</b>(실측 — MCP 도구만 낸다). 그래서 화면은 값을 지어내지 않고
+        <b>"근거 수집 상태 미제공"</b>이라고 말한다 — 숨기면 사용자가 근거 상태를 모른 채 판정만 읽는다 (D87).</span></div>
+    <div class="li"><span class="n">15</span><span><b>요청은 prefill, 제출은 이 화면 (MQ-711 착지).</b>
+        <code>generate_disposal_document</code>는 <b>에이전트만</b> 부를 수 있어(D15·D10) 버튼이 도구를 직접 못 부른다.
+        그래서 버튼은 <code>/technician?prefill=…</code> 로 <b>이동만</b> 하고 <b>전송은 사용자가</b> 누른다 (자동 전송 금지).
+        그리고 <b><code>decision_card</code> block 은 만들지 않았다</b> — block 은 <code>safety</code>·<code>po_card</code>·<code>citation</code>
+        <b>3종 고정</b>이 계약이라(D14·D22) 4번째 타입은 계약 변경이다. 그 대신 <b><code>draft → pending</code> 구간을 이 화면이 메운다.</b>
+        신규 API 0 · 신규 SSE 소비 0.</span></div>
+  </div>
+
+  <!-- ─────────────── 화면 D ─────────────── -->
+  <h2><span class="tag">SCREEN D</span> 중고 취득 실사 (S18) <span style="font-size:11px;font-weight:400;">(Sprint 7 신설)</span></h2>
+  <p class="persona">사용자: 정비사 — <code>/technician/asset/{assetId}/ownership</code></p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i></div>
+    <div class="apphead">
+      <div class="logo"></div>
+      <span style="font-size:13px;font-weight:700;">권리관계 실사 · AST-L2-SPDL</span>
+      <div class="spacer"></div>
+      <span class="chip">정비사 김OO</span>
+    </div>
+
+    <div class="detail" style="padding:16px;">
+      <div class="evidence" style="position:relative;">
+        <span class="note" style="right:-10px;top:-10px;">16</span>
+        <div class="row"><span class="k">판정</span><span><b>PARTIAL</b> — HTTP <b>200</b> (409 가 아니다)</span></div>
+        <div class="row"><span class="k">확인 매트릭스</span><span>9카테고리 × 상태. 미확인 항목은 <b>회색 점선</b> — 성공색·체크 금지</span></div>
+        <div class="row"><span class="k">잔여 리스크</span><span>동산은 등기가 없어 확인이 <b>구조적으로 불완전</b>하다 + 계약상 배분 안내</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><span class="n">16</span><span><b>UI 정직성 규약 (D87)</b> — <code>PARTIAL</code>은 <code>VERIFIED</code>로
+        승격되지 않는다. 백엔드에 승격 분기가 <b>코드에 없도록</b> 잠겨 있는데 <b>UI 가 <code>PARTIAL</code>을 초록 체크로 그리면
+        그 방어선이 화면에서 전부 무효</b>가 된다 — <b>사용자가 보는 것이 시스템이 말하는 것이다.</b>
+        <b>퍼센트 진행바를 금지</b>하는 것도 같은 이유다: "82% 완료"는 "거의 다 됐다"로 읽히는데 <code>PARTIAL</code>의 뜻은 정반대다.
+        회귀: <code>spikes/ui_honesty_contract.py</code> (68건 — 계약 57 + 제약 2 + 뮤턴트 5 + 메타 4).</span></div>
   </div>
 
   <div class="memo">

@@ -1,8 +1,11 @@
 # MCP 도구 스키마 v0.3
-설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 7종(전부 읽기) = 총 14종**
+설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 8종(읽기 7 + 쓰기 1) = 총 15종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
-- 확장 7종은 자산 생애주기(처분·취득·자산가치) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다 (**D68**).
+- 확장 8종은 자산 생애주기(처분·취득·자산가치) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다 (**D68**).
+- ⚠ **쓰기 도구는 이제 2종이다** — `create_po_draft`(§7) 와 **`generate_disposal_document`(§15, Sprint 7 신설)**.
+  둘 다 draft INSERT 만 하며 UPDATE 권한이 없다 (D10·D81). 확장 도구에 쓰기가 하나도 없다는 이 문서의
+  옛 서술은 **거짓이 됐고 아래에서 정정했다** (실측: `mcp_server/server.py:331-361`).
 
 ### 프로파일 게이트 (D69)
 
@@ -11,7 +14,12 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 7 = 14종 (§1~§14) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 8 = 15종 (§1~§15) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+
+> **실측** — `mcp_server/server.py:183` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
+> **8개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
+> `get_maintenance_metrics`·`classify_expenditure`·`assess_repair_value`·`build_evidence_bundle`·
+> **`generate_disposal_document`**. `spikes/tools_profile_contract.py`(7건)가 양방향으로 잠근다.
 
 - **기본이 `core` 인 이유**: `eval/run_eval.py` 가 부모 env 를 상속해 MCP 서버를 띄우므로(D56), 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — "수정 효과 vs 도구 증가 효과"가 영원히 분리되지 않는다.
 - **enum 밖 값은 폴백하지 않고 죽는다.** 조용히 `core` 로 떨어지면 "어느 프로파일로 돌았는지 모르는 실행 결과"가 남는다.
@@ -23,13 +31,15 @@
 ## 공통 설계 원칙
 
 1. **description이 오케스트레이션의 절반이다.** 각 도구 설명에 "언제 사용 / 언제 사용 금지"를 명시한다. LLM의 도구 선택 품질은 스키마 설명 품질에 비례한다.
-   → 확장 7종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
+   → 확장 8종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
 2. **실패도 구조화된 결과로 반환한다.** 예외를 던지지 않고 `status` 필드로 반환해 에이전트가 분기(S2, S4)할 수 있게 한다. `status: "ok" | "not_found" | "empty" | "error"`
-3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 `create_po_draft` 하나뿐이며, draft 상태만 생성 가능. 확정은 승인 큐(사람)에서만. **확장 7종에는 쓰기가 하나도 없다** — `build_evidence_bundle` 조차 `decisions` 를 INSERT 하지 않는다 (D10).
+3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 **2종**(`create_po_draft` §7 · `generate_disposal_document` §15)이며 **둘 다 draft INSERT 만** 한다. 확정은 승인 큐(사람)에서만.
+   - `build_evidence_bundle`(§14)은 **여전히 아무것도 쓰지 않는다** — 읽기 전용 커넥션만 갖는다(`build_evidence_bundle.py:320` `with read_only()`). 그러나 §15 는 `decisions` 에 `state='draft'` 한 행을 INSERT 한다 (D81).
+   - 권한은 규율이 아니라 **커넥션이 잠근다**: `db.decision_writer()` 의 TEMP TRIGGER 2개가 `decisions` UPDATE/DELETE 를 거부한다. §15 는 `po_drafts` 전용인 `draft_writer()` 를 재사용하지 않는다(`generate_disposal_document.py:10-13`).
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
    ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(4종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`).
-6. **확장 7종은 "모른다"를 값으로 표현한다.** 출력에 `not_considered[]`(무엇을 보지 않았는가)·`disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65).
+6. **확장 8종은 "모른다"를 값으로 표현한다.** 출력에 `not_considered[]`(무엇을 보지 않았는가)·`disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65).
 
 ---
 
@@ -161,7 +171,7 @@
 // 2개 이상이면 비교 제시 후 사용자 선택 (에이전트 단독 결정 금지)
 ```
 
-## 7. create_po_draft — 발주서 초안 생성 ⚠️ 유일한 쓰기 도구
+## 7. create_po_draft — 발주서 초안 생성 ⚠️ 쓰기 도구 ①/2 (다른 하나는 §15)
 
 **description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 **한 줄로** 요약하고, evidence에는 **어떤 현상을 보고 고장으로 판단했는지**(symptoms)와 근거가 된 도구 결과(basis), 기타 비고(notes)를 구조화해 남길 것. 에러코드로부터 시작된 진단이면 model·error_code를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다. 단가는 파라미터가 아니다(서버가 조회해 채움). 수량이 공급사 MOQ에 미달하면 거부되므로 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 
@@ -214,14 +224,14 @@
 
 ---
 
-# 확장 7종 (프로파일 `full` 에서만 등록 — D69)
+# 확장 8종 (프로파일 `full` 에서만 등록 — D69)
 
-> **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§14 는 인버터가 구동하는
+> **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§15 는 인버터가 구동하는
 > **호스트 설비(`asset_id`)** 를 본다 (**D68**). `equipment_id` 로 불러도 되지만 그건
 > `equipment.asset_id` 로 해석되는 **입력 편의**일 뿐, 판정 대상은 언제나 자산이다.
 > 호스트 자산이 없는 인버터(`INV-L1-01` 분전반)는 `no_host_asset` 이다 — "판정 결과 문제 없음"이 아니다.
 
-**공통 규약 4가지 (§8~§14 전부)**
+**공통 규약 4가지 (§8~§15 전부)**
 
 1. **읽기 전용.** `read_only()` 커넥션만 쓴다. 쓰기 경로가 코드에 없다 (D10).
 2. **예외를 던지지 않는다.** 룰 엔진은 `RuleIntegrityError` 말고도 `KeyError`(미등록 법령 참조)·`TypeError`(`trigger` 파손)·`ValueError`(시점 밖 조문)를 던지므로 **광범위하게 포착해** `status:"error"` 로 닫는다 (D9·D46).
@@ -321,8 +331,23 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 | `error` | `invalid_input` | 식별자가 문자열이 아님 / 둘 다 미지정 / `asset_id`·`equipment_id` 가 서로 다른 자산 / `disposal_mode` enum 밖 / `disposal_date` 판독 불가 |
 | `error` | `rule_catalog_not_loaded` | `law_refs` 또는 `rules` 가 DB 에 0행. **`not_found` 가 아니다** — 0행을 "조건 없음"으로 주면 모든 자산이 `CLEAR` 로 통과한다 (D50) |
 | `error` | `rule_integrity` | 근거 없는 룰이 카탈로그에 있다 (`RuleIntegrityError`, D61) |
-| `error` | `engine_error` | 엔진 예외 전반 / 엔진이 계약 밖 verdict 반환 (모르는 판정을 통과로 포장하지 않는다) |
+| `error` | `engine_error` | **엔진 계약 위반을 명시적으로 확인한 자리에만.** 계약 밖 verdict 반환(`check_disposal_blockers.py:147`) / 계약 키 누락(`:162`). 모르는 판정을 통과로 포장하지 않는다 |
+| `error` | `internal_error` | 그 밖의 예외를 `status` 로 닫는 마지막 그물 (`:209`, D9) |
 | `error` | `db_error` | `sqlite3.Error`·`OSError` |
+
+> **⚠ 어휘 통일 (MQ-712)** — 이전에는 `except Exception` 그물이 `engine_error` 를 냈고, 같은 실패를
+> §14 `build_evidence_bundle` 은 `internal_error` 로 냈다. **같은 실패가 도구마다 다른 이름**이었다
+> (§14 가 스스로 경고해 둔 상태 · MQ-705 가 MCP 도구 경유를 끊으면서 생겼다).
+> **`internal_error` 로 통일했다.** 이유 둘: ⓐ 그 그물은 엔진 예외만 잡지 않는다(직렬화·타입 오류도
+> 걸린다) — `engine_error` 라 부르면 **원인을 단정한 거짓 라벨**이 된다. ⓑ `internal_error` 는 이미
+> 프로젝트 공통 어휘다(§9·§10·§12·§13·§14·§15 + `backend/services/ownership.py`).
+> `engine_error` 는 **엔진이 계약을 깼음을 실제로 확인한 두 자리**에만 남고, 그 뜻은 §14 와 같다.
+> `spikes/bundle_integrity.py ㉒` 가 `KeyError`·`TypeError`·`ValueError` 3종으로 두 도구 어휘 일치를 잠근다
+> (뮤턴트로 되돌리면 FAIL 하는 것을 확인했다).
+>
+> ⚠ **남아 있는 비대칭 1건(고치지 않았다)**: DB 파일 부재를 §14 는 `db_missing`, §8 은 `db_error` 로 낸다
+> — §8 에 `except FileNotFoundError` 절이 없어 `OSError` 절이 먼저 잡는다(`:195`). 새 reason 을 §8 계약에
+> 추가하는 일이라 **MQ-712 범위 밖**이며, ㉒ 의 대조 대상도 아니다. 고치려면 계약 변경으로 다뤄야 한다.
 | `not_found` | `unknown_equipment` | 등록되지 않은 설비 |
 | `not_found` | `no_host_asset` | 설비에 연결된 호스트 자산이 없음 (분전반 등). 배전 위치는 거래 단위가 아니다 |
 | `not_found` | `unknown_asset` | 등록되지 않은 자산 |
@@ -610,32 +635,92 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 **description (코드 정본 = `build_evidence_bundle.py:DESCRIPTION`):**
 > "처분 판정의 근거(법령 조문·해석 룰·판정에 쓰인 사실)를 하나로 묶고 해시로 고정한다. 매각·폐기 결정을 문서로 남기거나 결재·서명에 올릴 때 호출할 것. asset_id 또는 equipment_id **둘 중 하나는 반드시 넘겨야 한다** (둘 다 비우면 실패한다). 처분 예정일을 알면 disposal_date 를 함께 넘길 것 — 없으면 세액공제 조항이 사실 부족으로 남는다. 이 도구는 판정하지도 저장하지도 않는다. 판정은 check_disposal_blockers 가 하고, 번들의 저장·서명은 사람이 승인 화면에서 한다. law_text_unavailable 로 실패하면 조문 원문이 아직 수집되지 않았다는 뜻이며, '근거가 없다'가 아니라 '근거 원문을 아직 해시할 수 없다'는 뜻이다 — 판정 결과는 check_disposal_blockers 로 그대로 얻을 수 있다."
 
+**번들은 3키가 아니라 5키다 (D83)** — 아래는 코드(`build_evidence_bundle.py:431-445`)와 대조한 실제 스키마다.
+
 ```json
-// ⚠⚠ 아래 예시는 **낡았다 — MQ-705 이후 번들은 3키가 아니라 5키다 (D83).**
-//     실제 출력: laws · rules(+`rule_hash`) · **evaluated** · **contracts** · facts
-//     그리고 `hash_spec` 필드와 `asset_modified` reason 이 추가됐다.
-//     ⛔ 이 예시를 근거로 구현하지 말 것. 정확한 스키마는 `docs/sprints/sprint-7.md` MQ-705 절과
-//        `mcp_server/tools/build_evidence_bundle.py` docstring 을 보라.
-//     이 절의 갱신은 **MQ-712 소유**다 (sprint-7.md:1080).
 // input — §8과 동일한 4개 (asset_id·equipment_id 중 하나 필수)
-{ "asset_id": "AST-L3-LIFT", "equipment_id": null,
+{ "asset_id": "AST-L3-CONV", "equipment_id": null,
   "disposal_mode": "SALE", "disposal_date": "2026-09-01" }
-// output
+// output — 아래 값은 **실 DB 실행 결과**다 (해시만 축약)
 {
   "status": "ok",
-  "asset_id": "AST-L3-LIFT",
-  "evidence_bundle": {              // ★ 해시 대상은 이 세 키뿐이다 ← MQ-705 이후 5키
-    "laws":  [{"law_ref_id": "KR-VAT-32", "effective_from": "2025-01-01", "text_hash": "sha256:a3f2…"}],
-    "rules": [{"rule_id": "VAT-INVOICE", "rule_version": 2}],
-    "facts": { … engine.build_facts() 결과 — NULL 컬럼은 키 자체가 없다 (D62) … }
+  "asset_id": "AST-L3-CONV",
+  "evidence_bundle": {            // ★ 해시 대상은 **이 5키뿐**이다 (D83)
+    // ① 4버킷에 실린 findings 의 law_refs **합집합만**. law_ref_id 정렬. 원문은 싣지 않고 해시로만 고정
+    "laws": [
+      {"law_ref_id": "KR-CIVIL-388", "effective_from": "2026-03-17", "text_hash": "sha256:caf918cb…"},
+      {"law_ref_id": "KR-KCC-652",   "effective_from": "2026-07-23", "text_hash": "sha256:48de90a1…"},
+      {"law_ref_id": "KR-VAT-32",    "effective_from": "…",          "text_hash": "sha256:…"}
+    ],
+    // ② 인용된 룰 + rule_hash (W6). (rule_id, rule_version) 정렬
+    "rules": [
+      {"rule_id": "INSURANCE-NOTIFY", "rule_version": 3, "rule_hash": "sha256:60e726ed…"},
+      {"rule_id": "LIEN-CONSENT",     "rule_version": 2, "rule_hash": "sha256:9630e235…"},
+      {"rule_id": "VAT-INVOICE",      "rule_version": 2, "rule_hash": "sha256:…"}
+    ],
+    // ③ **평가된 전 룰** (W7) — 인용되지 않은 CLEAR 룰도 전부 실린다. 정확히 이 4키뿐
+    //    (text_hash 를 요구하지 않는다 — 요구하면 미수집 조문 1건이 전 자산의 서명 경로를 잠근다)
+    "evaluated": [
+      {"rule_id": "INSURANCE-NOTIFY",  "rule_version": 3, "verdict": "TRIGGERED", "law_refs": ["KR-KCC-652"]},
+      {"rule_id": "LIEN-CONSENT",      "rule_version": 2, "verdict": "TRIGGERED", "law_refs": ["KR-CIVIL-388"]},
+      {"rule_id": "SAFETY-INSPECTION", "rule_version": 2, "verdict": "CLEAR",     "law_refs": ["KR-OSHA-93"]},
+      {"rule_id": "TAX-CREDIT-2Y",     "rule_version": 1, "verdict": "CLEAR",     "law_refs": ["KR-STTC-24","KR-STTC-146"]},
+      {"rule_id": "VAT-INVOICE",       "rule_version": 2, "verdict": "TRIGGERED", "law_refs": ["KR-VAT-32"]}
+    ],
+    // ④ 인용된 룰의 contract_refs. contract_ref 정렬. **해시로 고정되지 않는다**
+    "contracts": [
+      {"contract_ref": "근저당권설정계약서", "text_hash": null, "hash_fixed": false,
+       "note": "계약 조항 원문 원천이 저장소에 없다 — 이 근거는 해시로 고정되지 않는다"},
+      {"contract_ref": "여신거래기본약관",   "text_hash": null, "hash_fixed": false, "note": "…"}
+    ],
+    // ⑤ 엔진이 돌려준 facts_used **그대로**. 재조립 금지 (W5). NULL 컬럼은 키 자체가 없다 (D62)
+    "facts": {"asset_id": "AST-L3-CONV", "building_id": "BLD-C", "status": "IN_USE",
+              "acquired_at": "2020-02-10", "tax_credit_applied": true, "has_lien": true,
+              "lien_creditor": "한빛은행 여신부", "insured": true, "policy_id": "POL-2026-FIRE-01",
+              "safety_inspection_target": false, "disposal_mode": "SALE",
+              "vat_invoice_issued": false, "disposal_date": "2026-09-01",
+              "months_since_acquisition": 78}
   },
   "bundle_hash": "sha256:9d1e…",
-  "verdict": "CONDITIONAL",         // 판정 주체가 낸 값을 그대로 옮긴다 (재계산 금지)
-  "not_considered": [ … check_disposal_blockers 의 목록을 그대로 옮긴다 … ],
+  "hash_spec": "sha256/nfkc-ws/canonical-json-v1",   // ★ 번들 **밖** (N1) — 아래 설명
+  "verdict": "BLOCKED",             // 판정 주체가 낸 값을 그대로 옮긴다 (재계산 금지)
+  "not_considered": ["생산 계획·대체 설비 확보 여부", "시장 상황 및 매각 타이밍", "개별 계약의 특약 조항"],
   "built_at": "2026-08-09T05:12:44Z",   // ★ 번들 밖
   "disclaimer": "이 번들은 판정 시점의 근거 스냅샷이며 판정 자체가 아니다. …"
 }
 ```
+
+**5키가 각각 무엇을 막는가**
+
+| 키 | 범위 | 없으면 무엇이 무너지나 |
+|---|---|---|
+| `laws[]` | 4버킷 findings 의 `law_refs` **합집합만** | `text_hash` 없는 항목이 섞이면 *해시할 사실이 없는 번들*이 된다 → `law_text_unavailable` 게이트 대상 |
+| `rules[]` | 인용된 룰 + **`rule_hash`** | 계층 1은 `text_hash` 로 잠겼는데 계층 2가 `rule_version` 숫자로만 잠겨 있었다 — **같은 버전 안에서 룰 본문이 in-place 로 바뀌어도 번들 해시가 그대로**였다 (W6) |
+| `evaluated[]` | **평가된 전 룰**의 4키 | CLEAR 자산은 `laws`·`rules` 가 비어 *"근거를 조회한 결과 해당 없음"* 과 *"근거를 아예 안 봤다"* 가 구분되지 않는다 (W7) |
+| `contracts[]` | 인용된 룰의 `contract_refs` | 계약 근거가 있었다는 사실 자체가 사라진다. `hash_fixed:false` 로 **고정되지 않았음을 드러낸다** |
+| `facts` | 엔진의 `facts_used` **그대로** | 재조립하면 "엔진이 본 값"과 "번들에 실린 값"이 갈린다 (W5 의 facts 축) |
+
+**`rule_hash` 산출 규약** (`build_evidence_bundle.rule_hash()` · `RULE_HASH_FIELDS`)
+
+```python
+rule_hash = engine.text_hash(canonical_json({f: getattr(rule, f) for f in RULE_HASH_FIELDS}))
+```
+
+`RULE_HASH_FIELDS` 는 **판정에 영향을 주는 16필드**다: `rule_id` · `rule_version` · `label` · `category` ·
+`disposal_type` · `source_type` · `law_refs` · `contract_refs` · `interpretation` · `required_facts` ·
+`trigger` · `boundary` · `message` · `resolve_options` · `confidence` · `requires_expert_review`.
+
+- ⛔ `authored_by`·`reviewed_at`·`revision_note` 는 **제외**한다. 룰 JSON 에는 있지만 판정 입력이 아닌
+  메타데이터라, 넣으면 *"검토자 이름 오타 수정"* 이 서명 검증에서 **근거 변조**로 보고된다.
+  셋은 `engine.Rule` dataclass 에도 실리지 않으므로 이 제외는 구조와도 일치한다.
+- `bundle_hash` 와 **같은 함수**(`canonical_json` + `engine.text_hash`)를 쓴다. 재구현 금지.
+
+**⛔ `contracts[]` 는 `law_text_unavailable` 검사 대상이 **아니다****
+
+계약 조항은 법제처 수집 대상이 아니다. 검사에 넣으면 `LIEN-CONSENT`(여신거래기본약관 인용)가 걸린
+자산의 번들이 **구조적으로 영원히 불가능**해진다 — 수집으로 해소될 수 없는 실패다.
+그래서 `_cited_law_ref_ids()` 는 `law_refs` 만 모으고 `contract_refs` 는 건드리지 않는다
+(`build_evidence_bundle.py:274-286`).
 
 ### `bundle_hash` 산출 규약 (Sprint 7 서명 검증이 **같은 함수를 그대로 써야 한다**)
 
@@ -647,15 +732,23 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 네 가지를 **전부** 고정해야 "같은 사실 → 같은 해시"가 성립한다:
 
 1. `sort_keys=True` — dict 는 삽입 순서를 보존하므로, 고정하지 않으면 `facts` 를 만든 순서만 달라도 다른 해시가 난다.
-2. `separators=(",", ":")` — 기본 구분자는 공백이 들어간다. `engine.normalize()` 가 지워 주지만 두 방어선을 겹쳐 둔다.
+2. `separators=(",", ":")` — 기본 구분자는 `", "`·`": "` 라 공백이 들어간다.
+   ⚠ **이건 "두 방어선을 겹쳐 둔 것"이 아니라 필수 규약이다.** `engine.normalize()` 는
+   `" ".join(text.split())` 이라 공백을 **지우는 게 아니라 하나로 접는다**(`engine.py:29-32`) —
+   즉 구분자 차이(`{"a":1}` vs `{"a": 1}`)는 정규화로 **흡수되지 않는다.**
 3. `ensure_ascii=False` — 한글을 `\uXXXX` 로 이스케이프하면 같은 문자열이 두 표현을 갖는다. NFKC 는 이스케이프 시퀀스를 되돌리지 못한다.
 4. `engine.text_hash()` **재구현 금지** — NFKC + 공백 정규화가 계층 1 조문 해시와 **같은 규칙**이어야 한다.
 
-⚠ `built_at`·`evaluated_at` 은 **번들 밖**이다. 안에 넣으면 같은 사실도 호출할 때마다 해시가 달라져
-"근거가 변조되지 않았음"을 증명할 수 없다 — 해시의 존재 이유가 사라진다.
-⚠ `laws`·`rules` 는 **리스트라 순서가 해시에 영향을 준다.** `sort_keys` 는 리스트를 정렬하지 않으므로
-조립 시점에 명시적으로 정렬한다(`law_ref_id` / `rule_id`·`rule_version`). 룰 유일키에 `rule_version` 을
+⚠ `built_at`·`evaluated_at`·**`hash_spec`** 은 **번들 밖**이다. `built_at` 을 안에 넣으면 같은 사실도
+호출할 때마다 해시가 달라져 "근거가 변조되지 않았음"을 증명할 수 없다. **`hash_spec` 을 안에 넣으면
+스펙 문자열을 한 글자 고치는 순간 과거 서명이 전부 깨진다**(N1). `not_considered` 도 같은 이유로 밖이다 —
+목록 문구가 바뀔 때마다 "근거가 변조됐다"는 오탐이 난다.
+⚠ **리스트 4종(`laws`·`rules`·`evaluated`·`contracts`)은 순서가 해시에 영향을 준다.** `sort_keys` 는
+리스트를 정렬하지 않으므로 조립 시점에 명시적으로 정렬한다 — `laws`→`law_ref_id`,
+`rules`·`evaluated`→`(rule_id, rule_version)`, `contracts`→`contract_ref`. 룰 유일키에 `rule_version` 을
 포함하는 이유: 개정본이 공존할 수 있고 **서명은 그때 그 버전에 대해 이뤄진 것**이다 (D60).
+⚠ **해시 동일 ≠ 바이트 동일** (N1). 기준은 *NFKC + 공백 정규화 후 동일* 이며, 그 사실을 번들 밖의
+`hash_spec` 과 `disclaimer` 로 드러낸다. `spikes/bundle_integrity.py ⑩` 이 전각/연속 공백 변형으로 확인한다.
 
 ### 미수집 조문이 하나라도 있으면 **의도적으로 거부**한다
 
@@ -683,34 +776,122 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | status | reason | 언제 |
 |---|---|---|
 | `error` | `law_text_unavailable` | 인용 조문 중 `is_fetched ∧ text_hash` 를 만족하지 않는 것이 있음. `missing_law_refs[]` 로 이름을 댄다 |
+| `error` | **`asset_modified`** | **N2 — 판정 후 번들 조립 사이에 자산 행이 바뀜.** 판정 전·후로 자산 행을 두 번 읽고 `facts` 지문을 대조한다(`:459`). 번들은 *한 시점의 사실*에 대한 서명 재료이므로, 조립 도중 사실이 움직였으면 그 번들은 **어느 시점도 증명하지 못한다** — 조용히 이전 스냅샷으로 해시를 내면 서명이 이미 지난 사실에 걸린다 |
 | `error` | `asset_disappeared` | 판정 직후 자산 행을 다시 읽지 못함(외부 재시드 등). 사실 없이 번들을 만들지 않는다 |
-| `error` | `invalid_input` | `disposal_mode` enum 밖 (위임 전에 먼저 막는다 — 잘못된 mode 로 판정을 돌린 뒤 번들만 못 만드는 상태를 만들지 않기 위해) |
+| `error` | `invalid_input` | `disposal_mode` enum 밖 / 식별자 비문자열 / 둘 다 미지정 / `disposal_date` 판독 불가. §8 과 **같은 reason·같은 문구**다(`_asset_ref` 공용) |
+| `error` | `rule_catalog_not_loaded` | `law_refs` 또는 `rules` 가 DB 에 0행 (D50) |
 | `error` | `rule_integrity` | `RuleIntegrityError` (D61) |
-| `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(직렬화·엔진) |
-| (전파) | §8의 모든 status·reason | 판정을 `check_disposal_blockers` 에 위임하므로 그쪽 실패가 **그대로** 나온다 — 여기서 다시 포장하면 같은 실패가 도구마다 다른 이름을 갖는다 |
+| `error` | `engine_error` | **엔진 계약 위반을 확인한 자리.** 계약 키 누락 / 계약 밖 verdict / 인용 룰을 카탈로그에서 못 찾음 / 4버킷↔`evaluated` 재평가 불일치 / `laws_used` ↔ `evaluated` 조문 합집합 불일치 (`:360`·`:367`·`:384`·`:418`·`:425`) |
+| `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(직렬화·엔진 예외)을 닫는 마지막 그물 |
+| `not_found` | `unknown_asset` / `unknown_equipment` / `no_host_asset` | §8 과 동일 (`_asset_ref` 공용) |
+
+> **⚠ "§8 에 위임한다"는 서술은 거짓이었다 — 정정한다 (D82·W5).**
+> 이 도구는 **MCP 도구 `check_disposal_blockers` 를 부르지 않는다.** `engine.load_laws_from_db()` 로
+> 계층 1·2 사본을 한 번만 읽고 그 객체를 `engine.check_disposal_blockers(facts, laws=…, rules=…)` 에
+> **주입**한다(`build_evidence_bundle.py:320-355`). 도구를 경유하면 인용 집합은 *파일 사본* 판정에서,
+> `text_hash` 는 *DB 사본* 에서 와 **"판정이 본 조문"과 "해시로 고정한 조문"이 갈린다.**
+> 실무적 이유도 있다 — §8 출력은 13키로 화이트리스트 고정돼 `facts_used`·`laws_used` 가 애초에 나오지 않는다.
+> `spikes/bundle_integrity.py ⑲` 가 import 문과 자식 프로세스 `sys.modules` 양쪽으로 이 분리를 잠근다.
+> 그래서 §8 과 어휘가 같은 것은 **위임이 아니라 `_asset_ref` 공용 모듈 덕분**이며, 그 일치는
+> ⑳(입력·해석 8케이스)·㉒(엔진 예외 3종)가 직접 대조한다.
 
 ---
 
-## 확장 7종 reason 색인 (한눈에)
+## 15. generate_disposal_document — 처분 승인서·진술보장서 **초안** (S10 계층 3의 입구) ⚠️ 두 번째 쓰기 도구
+
+**description (코드 정본 = `generate_disposal_document.py:DESCRIPTION`):**
+> "설비 자산의 처분 승인서·진술보장서 '초안'을 생성한다. 확정이 아니다. 반드시 check_disposal_blockers 로 판정을 먼저 확인한 뒤 사용자가 처분을 결정한 후에만 호출할 것. 판정이 BLOCKED·HOLD·INSUFFICIENT_FACTS 여도 초안은 만들어진다 — 그 사실이 초안에 기록되고, 차단을 뚫을지는 팀장이 승인 화면에서 사유와 함께 결정한다. 너는 override 를 요청하거나 사유를 대신 작성할 수 없다 — 그 파라미터가 없다. 근거 조문 원문이 아직 수집되지 않았으면 초안 생성이 거부된다 — 해시할 근거가 없는 서류는 만들지 않는다."
+
+```json
+// input — reason 은 **필수**(기본값 없음, D80). asset_id·equipment_id 중 하나 필수
+{
+  "reason": "라인 개편으로 유휴화된 컨베이어를 매각",   // ★ required
+  "asset_id": "AST-L3-CONV",      // optional (either-or)
+  "equipment_id": null,           // optional (either-or)
+  "disposal_mode": "SALE",        // optional, 기본 "SALE". enum SALE|SCRAP|TRANSFER
+  "disposal_date": "2026-09-01"   // optional, ISO 날짜
+}
+// output
+{
+  "status": "ok",
+  "decision_id": "DEC-0001",              // 채번 규약 `DEC-%04d` (create_po_draft 와 같은 패턴)
+  "state": "draft",                       // ★ 리터럴. 파라미터가 아니다
+  "decision_type": "DISPOSAL",
+  "asset_id": "AST-L3-CONV",
+  "verdict_at_signing": "BLOCKED",        // draft 시점 판정. 서명 시 백엔드가 재산출해 덮는다 (D84)
+  "bundle_hash": "sha256:9d1e…",
+  "override": false,                      // ★ 항상 false — 이 값을 바꿀 파라미터가 없다 (D81)
+  "next_step": "이 초안은 확정이 아니다. 팀장 승인 큐에서 서명해야 처분이 확정된다.",
+  "documents_preview": {                  // ★ 저장하지 않는다 (D86). 정식 렌더는 GET /api/decisions/{id}
+    "approval": "[설비 처분 승인서 — 초안] …",
+    "representation_warranty": "[진술 및 보장서 — 초안] …"
+  },
+  "unreviewed_template_notice": "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
+}
+```
+
+### ★ 이 도구가 지키는 경계 (전부 코드로 확인 가능)
+
+| 결정 | 무엇을 | 어디서 |
+|---|---|---|
+| **D10** | `decisions` 에 `state='draft'` **INSERT 만**. UPDATE/DELETE 권한 자체가 없다 | `db.decision_writer()` 의 TEMP TRIGGER 2개. ⛔ `po_drafts` 전용 `draft_writer()` 를 재사용하지 않는다 — 그걸로 `decisions` 를 만지면 **잠금 없이 쓰는 것**이 된다 |
+| **D81** | `override`·`override_reason`·`reviewed_by` 가 **파라미터에 없다** | `server.py:332-346` 시그니처. 스키마에 키가 없으므로 LLM 이 *"추징을 감수하고 매각한다"* 같은 사유를 지어내 BLOCKING 을 뚫는 호출이 **구조적으로 불가능**하다. `:325` 에서 `0, NULL, NULL, NULL, 'draft'` 를 **리터럴로 박는다** |
+| **D63** | **BLOCKED 여도 draft 는 정상 생성된다** | 막으면 사용자는 시스템 밖에서 처분하고 **기록만 사라진다.** 출력은 "차단됐다"가 아니라 "차단된 채로 결재에 올라간다" |
+| **D23·D37** | `requested_by`·`session_id` 도 파라미터가 아니다 | INSERT 직후 백엔드가 stamp 한다 (`create_po_draft` 와 같은 패턴) |
+| **D80** | `reason` 에 기본값을 두지 않는다 | 승인자가 판단 근거를 추적할 수 있어야 한다 |
+| **D86** | `documents_preview` 를 **저장하지 않는다** | 저장하면 템플릿이 바뀔 때 저장본이 조용히 낡는다. 정식 렌더는 `GET /api/decisions/{id}` 가 응답 조립 시점에 번들에서 만든다 |
+| **D2 태도** | 문안은 **코드 상수**다 — LLM 이 생성하지 않는다 | 진술보장서는 법적 효력이 있는 문서다. 안전 문구와 같은 성격으로 템플릿에 번들 값만 치환하고, 사람 검수 전임을 `unreviewed_template_notice` 로 **출력과 문서 본문 양쪽에** 싣는다 |
+| **D62** | 사실이 번들에 없으면 `"확인되지 않음"` 으로 적는다 | 빈칸으로 두면 "해당 없음"으로 읽힌다 |
+
+### 근거 없는 서류는 만들지 않는다 — §14 실패의 **그대로 전파**
+
+번들 생성은 `build_evidence_bundle` 을 **함수로 직접 호출**하고, 실패하면 그 `status`·`reason` 을
+손대지 않고 그대로 돌려준다. **INSERT 는 번들이 성공한 뒤에만 시작한다** — 실패했다고 말하는 것으로
+끝나면 안 되고 **아무것도 쓰지 않아야** 하기 때문이다.
+
+- `law_text_unavailable` → **draft 미생성.** 해시할 조문 원문이 없는 서류는 "이 결정이 참조한 근거가
+  이후 변조되지 않았음"을 증명하지 못한다 — 계층 3의 존재 이유가 통째로 사라진다.
+- `asset_modified`·`asset_disappeared` → 판정과 서류의 사실이 어긋난 상태다. 역시 미생성.
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `reason_required` | `reason` 이 문자열이 아니거나 공백. **번들보다 먼저** 본다 — 거부할 입력으로 DB 를 열 이유가 없다 (`create_po_draft` 와 같은 어휘) |
+| `error` | `integrity` | FK·CHECK·TEMP TRIGGER(D10) 위반. 계약 위반이므로 그대로 드러낸다 |
+| `error` | `db_error` / `db_missing` / `internal_error` | DB 예외 / DB 파일 없음 / 그 밖 |
+| (전파) | **§14 의 모든 status·reason** | `law_text_unavailable`·`asset_modified`·`asset_disappeared`·`invalid_input`·`rule_catalog_not_loaded`·`rule_integrity`·`engine_error`·`unknown_asset`·`unknown_equipment`·`no_host_asset`. **여기서 다시 포장하지 않는다** — 포장하면 같은 실패가 도구마다 다른 이름을 갖는다 |
+
+> ⚠ **`documents_preview` 렌더는 INSERT 뒤 `try` 블록 안**에서 한다(`:341`). 문안 조립 버그가 도구를
+> 죽이면 D9 가 깨지기 때문이다.
+> ⚠ 직렬화는 `canonical_json` 결과를 **그대로** 저장한다(`:315`). 다시 직렬화하면 키 순서·구분자가 달라져
+> 서명 시 해시 재대조(D84)가 깨진다.
+
+---
+
+## 확장 8종 reason 색인 (한눈에)
 
 | reason | 나오는 도구 | 성격 |
 |---|---|---|
-| `invalid_input` | 8·9·11·12·13·14 | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
-| `unknown_asset` | 8·9·11·12·13 | `not_found` |
-| `unknown_equipment` | 8·9·11·13 | `not_found` |
-| `no_host_asset` | 8·9·11·13 | `not_found` — 호스트 자산 미지정. **"문제 없음"이 아니다** |
+| `invalid_input` | 8·9·11·12·13·14 (→15 전파) | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
+| `unknown_asset` | 8·9·11·12·13·14 (→15 전파) | `not_found` |
+| `unknown_equipment` | 8·9·11·13·14 (→15 전파) | `not_found` |
+| `no_host_asset` | 8·9·11·13·14 (→15 전파) | `not_found` — 호스트 자산 미지정. **"문제 없음"이 아니다** |
 | `unknown_part` | 10 (→13 전파) | `not_found` |
 | `part_class_not_set` / `part_class_invalid` | 10 (→13 전파) | 등급 미등록 / 허용값 밖 |
-| `rule_catalog_not_loaded` | 8 (→14 전파) | 카탈로그 0행. `not_found` 로 주면 전 자산이 `CLEAR` (D50) |
-| `rule_integrity` | 8·14 | 근거 없는 룰 (D61) |
+| `rule_catalog_not_loaded` | 8·14 (→15 전파) | 카탈로그 0행. `not_found` 로 주면 전 자산이 `CLEAR` (D50) |
+| `rule_integrity` | 8·14 (→15 전파) | 근거 없는 룰 (D61) |
 | `law_ref_missing` | 12 | 근거 조문 미등록 → 판정 자체를 하지 않음 |
 | `law_not_effective` | 12 | 시점 밖 조문. 최신본 대체 금지 |
-| `law_text_unavailable` | 14 | 조문 원문 미수집 → 번들 생성 거부 (MQ-701 수집 후 **실 DB 에서는 미발화**) |
-| `asset_disappeared` | 14 | 판정 직후 자산 행 소실 |
-| `engine_error` | 8 | 엔진 예외·계약 밖 verdict |
-| `db_missing` | 9·14 | DB 파일 없음 |
-| `db_error` | 8·9·10·11·12·13·14 | DB 예외 |
-| `internal_error` | 9·10·12·13·14 | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9) |
+| `law_text_unavailable` | 14 (→15 전파) | 조문 원문 미수집 → 번들 생성 거부 (MQ-701 수집 후 **실 DB 에서는 미발화**). **15 는 이때 draft 를 만들지 않는다** |
+| `asset_disappeared` | 14 (→15 전파) | 판정 직후 자산 행 소실 |
+| **`asset_modified`** | 14 (→15 전파) | **N2** — 판정 후 조립 사이에 자산 행이 바뀜. 한 시점의 사실을 증명하지 못하는 번들은 만들지 않는다 |
+| `engine_error` | 8·14 (→15 전파) | **엔진 계약 위반을 확인한 자리에만** — 계약 밖 verdict · 계약 키 누락 · 재평가 불일치. ⛔ 일반 예외 그물이 아니다 |
+| **`reason_required`** | **15** | `reason` 미기재. 코어 §7 `create_po_draft` 와 같은 어휘 |
+| **`integrity`** | **15** | FK·CHECK·TEMP TRIGGER(D10) 위반. 코어 §7 과 같은 어휘 |
+| `db_missing` | 9·14·15 | DB 파일 없음. ⚠ 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
+| `db_error` | 8·9·10·11·12·13·14·15 | DB 예외 |
+| `internal_error` | **8**·9·10·12·13·14·15 | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9). **MQ-712 에서 8 이 `engine_error` → `internal_error` 로 통일됐다** |
 
 > **코어 7종의 reason** (참고): `invalid_model` · `code_required` · `catalog_not_loaded` · `malformed_row` ·
 > `query_required` · `index_not_built` · `search_failed` · `invalid_line_id` · `invalid_days` ·
@@ -735,13 +916,15 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | 10 | MOQ 미달은 자동 상향이 아니라 거부 | 사람 승인 없이 발주 금액을 키우지 않음 (D31) |
 | 11 | `(model, error_code)`를 발주서에 기록, FK로 실재 검증 | 발주↔에러코드 추적 + 지어낸 코드 차단 (D33) |
 | 12 | `evidence` JSON — 관찰 현상·근거·비고 | 승인자가 대화를 안 읽고 "왜 지금 이 부품인가"를 판단 (D34) |
-| 13 | 확장 7종을 `MAINTQ_TOOLS_PROFILE` 로 게이트, 기본 `core` | 도구를 7종 늘린 뒤 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다. 프롬프트는 env 가 아니라 `list_tools()` 실측 목록으로 조립 (D69) |
+| 13 | 확장 도구를 `MAINTQ_TOOLS_PROFILE` 로 게이트, 기본 `core` | 도구를 7종 늘린 뒤 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다. 프롬프트는 env 가 아니라 `list_tools()` 실측 목록으로 조립 (D69) |
 | 14 | 확장 도구의 대상은 `asset_id` (호스트 설비) | 인버터는 중고 거래 대상이 아니라 부품에 가깝다 — 실측(중진공 16,011건 중 인버터 4건). 기존 7종 계약은 무변경 (D68) |
 | 15 | 필수 파라미터에 기본값 없음, either-or 는 `DESCRIPTION` 이 말한다 | 기본값을 두면 FastMCP 가 optional 로 노출해 "인자 없이 호출 → invalid_input → 재시도" 루프가 생긴다. 잘못된 호출을 처리하는 것보다 만들 수 없게 하는 편이 낫다 (D80) |
 | 16 | `check_disposal_blockers` verdict 5종, 우선순위는 엔진에만 | `HOLD`(전문가 검토)와 `INSUFFICIENT_FACTS`(데이터 입력)는 해소 경로가 정반대다. 도구가 재조립하면 구 4종으로 되돌아가는 회귀가 조용히 들어온다 (D79·D71) |
 | 17 | `assess_repair_value` 는 **HOLD 를 EOL 보다 먼저** 본다 | 잔가 원천이 없는데 "교체하라"고 권하는 것도 근거 없는 판단이다. 이 순서라야 "`residual_curve` 를 비우면 전 자산 HOLD"가 성립한다 — 값을 지어내지 않음의 기계적 증명 |
 | 18 | `build_evidence_bundle` 은 미수집 조문이 있으면 거부 | 해시할 원문이 없는 번들은 무결성을 증명하지 못한다. 막는 것은 판정이 아니라 **서명용 증빙 생성뿐**이다 (D60·`11 §2`) |
-| 19 | 확장 도구도 쓰기가 하나도 없다 | `decisions` INSERT·서명은 Sprint 7 의 사람 전용 API 소관. 도구에 권한 자체를 주지 않는다 (D10) |
+| 19 | ~~확장 도구도 쓰기가 하나도 없다~~ → **Sprint 7 에서 뒤집혔다.** `generate_disposal_document`(§15)가 `decisions` 에 **draft INSERT** 를 한다 | 유지된 것: **UPDATE/DELETE 권한은 여전히 없다**(TEMP TRIGGER 2개). 서명·상태 전이는 사람 전용 API 소관 그대로다 (D10·D81). 바뀐 것은 "쓰기가 없다"가 아니라 "쓰기가 draft 로 한정된다" — `create_po_draft` 가 4스프린트간 지켜 온 패턴을 복제했을 뿐이다 |
+| 20 | `generate_disposal_document` 스키마에 `override` 키를 두지 않는다 | 스키마에 키가 없으면 LLM 이 BLOCKING 을 뚫는 사유를 지어내 호출하는 경로가 **구조적으로** 막힌다 — D23(신원)·D31(단가)을 뺀 것과 같은 이유. 예외 적용은 서명 API 가 `X-User` 와 함께 받는다 (D81) |
+| 21 | 엔진 예외 어휘를 `internal_error` 로 통일 (MQ-712) | `except Exception` 그물은 엔진 예외만 잡지 않는다 — `engine_error` 라 부르면 원인을 단정한 거짓 라벨이 되고, 같은 실패가 §8·§14 에서 다른 이름을 가졌다. `engine_error` 는 **엔진 계약 위반을 실제로 확인한 자리**에만 남는다 |
 
 ## 도구 ↔ 시나리오 매핑
 
@@ -753,7 +936,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | S4 미지 코드 | lookup(**not_found**) → 추측 금지 → A/S 안내 |
 | **S1+** 수리 판단 (확장) | classify_part_criticality → get_maintenance_metrics → **assess_repair_value** → (필요 시) classify_expenditure |
 | **S9** 처분 차단 (확장) | **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
-| **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **build_evidence_bundle** → (Sprint 7) 사람 서명 API |
+| **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 |
 
 ## 다음 단계

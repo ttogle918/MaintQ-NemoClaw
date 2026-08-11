@@ -197,6 +197,44 @@ def run(db: Path) -> None:
         str(empty),
     )
 
+    # ── ⑫-b D76-2 ⓑ tool_payload — 도구 **원본** JSON 이 별도 컬럼에 저장되는가
+    #
+    # Sprint 6 이 컬럼만 만들고 **쓰는 쪽이 없어서** 3차 평가까지 전부 NULL 이었다.
+    # 컬럼이 있다는 사실만으로 통과시키면 "저장했다고 믿었는데 안 한" 상태가 굳는다.
+    # 별도 세션(S-TP)에서 확인한다 — 위 검사들의 seq 기대치를 흔들지 않기 위해서다.
+    w3 = TraceWriter("S-TP", db_path=db)
+    w3.tool_call("lookup_error_code", {"model": "iG5A", "code": "OHt"})
+    raw = {"status": "ok", "related_parts": ["FAN-IG5-01"], "manual_page": 202}
+    ev_tp = w3.tool_result("lookup_error_code", "ok", "과열", 0.4, pages=[202], tool_payload=raw)
+    tp_rows = rows(
+        db, "SELECT event_type, payload, tool_payload FROM traces WHERE session_id='S-TP' ORDER BY seq"
+    )
+    saved_raw = json.loads(tp_rows[1][2]) if tp_rows[1][2] else None
+    check(
+        "⑫-b D76-2 tool_payload 에 도구 원본 JSON 저장 · tool_call 행은 NULL",
+        len(tp_rows) == 2
+        and tp_rows[0][2] is None
+        and saved_raw == raw,
+        f"tool_call={tp_rows[0][2]}, tool_result={str(tp_rows[1][2])[:60]}",
+    )
+    # ★ 음성 — 원본을 payload 에 섞으면 D30(바이트 동일)이 깨진다. 섞이지 않았는지 본다.
+    check(
+        "⑫-c D30 유지 — tool_payload 가 payload/SSE data 로 새지 않는다 (바이트 동일)",
+        tp_rows[1][1] == data_line(ev_tp.encode())
+        and "related_parts" not in tp_rows[1][1]
+        and "related_parts" not in ev_tp.encode(),
+        f"payload={tp_rows[1][1][:70]}",
+    )
+    # ★ D43 — GET /trace 응답에는 tool_payload 가 없다. 새면 프론트·score.py 가 모르는
+    #   키를 받게 되고, 무엇보다 "traces = SSE 사본"이라는 대조 전제가 흐려진다.
+    tp_trace = read_trace("S-TP", db_path=db)
+    check(
+        "⑫-d read_trace(D43) 에는 tool_payload 가 실리지 않는다",
+        all(set(e) == {"seq", "event", "tool", "data", "ts"} for e in tp_trace["events"])
+        and all("tool_payload" not in e["data"] for e in tp_trace["events"]),
+        f"keys={sorted(tp_trace['events'][0])}",
+    )
+
     # ── ⑫ 시각은 UTC Z (D39), block 의 tool 컬럼은 NULL
     block_ev = [e for e in tr["events"] if e["event"] == "block"][-1]
     check(

@@ -100,11 +100,19 @@ LLM 응답 자체는 근거가 될 수 없다. 세 계층으로 분리한다.
 
 ```json
 {
-  "decision_id": "DEC-2026-0842",
-  "evidence_bundle": {
-    "laws":  [{"law_ref_id": "KR-STTC-24", "effective_from": "2025-01-01", "text_hash": "sha256:a3f2…"}],
-    "rules": [{"rule_id": "TAX-CREDIT-2Y", "rule_version": 3}],
-    "facts": {"acquired_at": "2025-03-01", "appraised_value": 42000000}
+  "decision_id": "DEC-0001",            // 채번 규약 `DEC-%04d`
+  "evidence_bundle": {                  // ★ 3키가 아니라 **5키** (D83) — 정본은 04 §14
+    "laws":      [{"law_ref_id": "KR-CIVIL-388", "effective_from": "2026-03-17",
+                   "text_hash": "sha256:caf918cb…"}],
+    "rules":     [{"rule_id": "LIEN-CONSENT", "rule_version": 2,
+                   "rule_hash": "sha256:9630e235…"}],   // ← rule_hash (W6)
+    "evaluated": [{"rule_id": "LIEN-CONSENT", "rule_version": 2,
+                   "verdict": "TRIGGERED", "law_refs": ["KR-CIVIL-388"]},
+                  {"rule_id": "SAFETY-INSPECTION", "rule_version": 2,
+                   "verdict": "CLEAR", "law_refs": ["KR-OSHA-93"]}],   // ← 평가한 전 룰 (W7)
+    "contracts": [{"contract_ref": "여신거래기본약관", "text_hash": null,
+                   "hash_fixed": false, "note": "…"}],  // ← 해시로 고정되지 않는다
+    "facts":     {"asset_id": "AST-L3-CONV", "acquired_at": "2020-02-10", "has_lien": true}
   },
   "bundle_hash": "sha256:9d1e…",
   "reviewed_by": "mgr-01",              // users FK (D41), ID 저장 (D36)
@@ -113,6 +121,17 @@ LLM 응답 자체는 근거가 될 수 없다. 세 계층으로 분리한다.
   "override_reason": "세액공제 추징 감수 — 신규 라인 일정 우선"
 }
 ```
+
+**5키가 3키에서 늘어난 이유** (Sprint 6 reviewer W6·W7):
+
+- **`rule_hash`** — 계층 1은 `text_hash` 로 잠겨 있는데 계층 2는 `rule_version` **숫자로만** 잠겨
+  있었다. 같은 버전 안에서 룰 본문이 in-place 로 바뀌어도 번들 해시가 그대로였다.
+- **`evaluated[]`** — CLEAR 자산은 `laws`·`rules` 가 빈 배열이라 *"근거를 조회한 결과 해당 없음"* 과
+  *"근거를 아예 안 봤다"* 가 번들에서 구분되지 않았다. **빈 근거도 사실이므로** 해시는 그대로 내고,
+  무엇을 평가했는지는 이 키가 말한다.
+- **`contracts[]`** — 계약 근거는 법제처 수집 대상이 아니라 원문이 저장소에 없다. `laws[]` 에 섞으면
+  `LIEN-CONSENT` 가 걸린 자산의 번들이 **구조적으로 영원히 불가능**해진다. 그래서 분리하고
+  `hash_fixed:false` 로 **고정되지 않았음을 드러낸다** — 숨기는 것보다 낫다.
 
 **`override`가 핵심이다.** 추징을 감수하고 파는 건 정당한 경영 판단이다. 시스템은 막지 않는다 — **막았다는 사실과 뚫은 사람을 기록할 뿐이다.** 사유 미기재는 서명 거부(422). → **D63**
 
@@ -221,18 +240,46 @@ D62 가 지키려던 것은 *실제로 모르는 사실*이지 **애초에 알 �
 ## 5. 도구 (확장분)
 
 코어 7종은 그대로 두고 아래를 더한다. `04_MCP_TOOLS`의 status 계약(D9·D46)을 따르며,
-**입출력 계약의 정본은 `04_MCP_TOOLS §8~§14`** 다(여기서 복제하지 않는다).
+**입출력 계약의 정본은 `04_MCP_TOOLS §8~§15`** 다(여기서 복제하지 않는다).
 노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만 (D69).
 
-| 도구 | 성격 | 설명 | 계약 |
-|---|---|---|---|
-| `check_disposal_blockers` | 읽기 | 처분 가능 여부 + 체크리스트 + 근거. **S9 진입점** | `04 §8` |
-| `verify_ownership` | 읽기 | 실사 9카테고리 항목별 상태 + 잔여 리스크 | `04 §9` |
-| `build_evidence_bundle` | 읽기 | 법령·룰·사실 묶고 해시 산출 | `04 §14` |
-| `generate_disposal_document` | **쓰기** | 처분 승인서·진술보장서 draft. 근거 각주 자동 삽입. **미구현 — Sprint 7 (F3)** | — |
+| 도구 | 성격 | 설명 | 계약 | 상태 |
+|---|---|---|---|---|
+| `check_disposal_blockers` | 읽기 | 처분 가능 여부 + 체크리스트 + 근거. **S9 진입점** | `04 §8` | 구현 |
+| `verify_ownership` | 읽기 | 실사 9카테고리 항목별 상태 + 잔여 리스크 | `04 §9` | 구현 |
+| `build_evidence_bundle` | 읽기 | 법령·룰·사실 묶고 해시 산출 (**5키** — D83) | `04 §14` | 구현 |
+| `generate_disposal_document` | **쓰기** | 처분 승인서·진술보장서 draft. 근거는 번들에서 치환 | `04 §15` | **구현 (Sprint 7 · F3 완료)** |
 
-`generate_disposal_document`는 `create_po_draft`와 **완전히 같은 패턴**이다 — draft만 생성, 확정은 승인 큐에서만, 신원은 서버 주입(D23·D37). 쓰기 도구가 2종이 되지만 **승인 큐는 공유**한다(발주서·처분서·수리 증빙이 한 큐).
-**현재 구현된 확장 7종에는 쓰기가 하나도 없다** — `build_evidence_bundle` 조차 `decisions` 를 INSERT 하지 않는다 (D10).
+`generate_disposal_document`는 `create_po_draft`와 **완전히 같은 패턴**이다 — draft만 생성, 확정은 승인 큐에서만, 신원은 서버 주입(D23·D37).
+**쓰기 도구는 이제 2종이고, 승인 큐는 공유한다** — `GET /api/approvals` 가 `kind`(`po`|`disposal`|`repair`)로
+발주서·처분서·수리 증빙을 한 큐에 담는다 (D85, `06 §2.7`). `repair` 는 현재 항상 0건(Sprint 8).
+
+> ⚠ *"확장 도구에는 쓰기가 하나도 없다"* 는 이 문서의 옛 서술은 **거짓이 됐다.** 유지된 것은
+> **UPDATE/DELETE 권한이 없다**는 사실이며(TEMP TRIGGER), 바뀐 것은 "쓰기가 없다"가 아니라
+> **"쓰기가 draft 로 한정된다"** 이다. `build_evidence_bundle` 은 지금도 아무것도 쓰지 않는다.
+
+### 🔴 데모·수동 체크리스트 재현 파라미터 — **`disposal_date` 없이는 재현되지 않는다**
+
+verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다**(`TAX-CREDIT-2Y` 가
+`months_since_acquisition` 을 읽고, 날짜가 없으면 D62 대로 **오늘로 대체하지 않고** 사실 부족으로 남긴다).
+아래는 시드 DB 실측값이다 — 화면 시연 시 이 날짜를 그대로 넣어야 한다.
+
+| 자산 | mode | `disposal_date` | verdict | 비고 |
+|---|---|---|---|---|
+| `AST-L3-CONV` | SALE | **`2021-06-01`** | `BLOCKED` (**blockers 2건**) | 체크리스트 ⓐ 가 요구하는 "BLOCKED 2건"은 **이 날짜에서만** 나온다 |
+| `AST-L3-CONV` | SALE | `2026-09-01` | `BLOCKED` (blockers **1건**) | 세액공제 2년이 이미 지나 `TAX-CREDIT-2Y` 가 해제된다 |
+| `AST-L3-CONV` | SALE | *(미입력)* | `BLOCKED` (blockers 1 · insufficient 1) | 날짜 부족이 `insufficient` 로 정직하게 남는다 |
+| `AST-L4-WRAP` | SALE | **`2008-04-01`** | **`HOLD`** | 체크리스트 ⓑ("전문가 검토")는 **이 날짜에서만** 나온다 — 경계 구간 `review_band` |
+| `AST-L4-WRAP` | SALE | `2026-09-01` | `CONDITIONAL` | ⚠ **HOLD 가 아니다.** 이 날짜로 시연하면 ⓑ 가 재현되지 않는다 |
+| `AST-L4-DUST` | SALE | `2026-09-01` | `INSUFFICIENT_FACTS` | ⓒ — `tax_credit_applied` 가 NULL(모름) |
+| `AST-L3-LIFT` | SCRAP | `2026-09-01` | `CLEAR` | ⓓ — **`CLEAR` 는 SCRAP·TRANSFER 에서만** 나온다 (D78 부수 확정) |
+
+> ⚠⚠ **`acquired_at` 은 시드 실행 연도 기준 상대값이다.** `data/seed.py:1119` 가
+> `date(today.year - age_years, month, day)` 로 만든다 — **다른 해에 재시드하면 위 날짜의 판정이
+> 달라진다.** 위 표는 **2026년에 시드한 DB** 기준이며(`AST-L3-CONV` = `2020-02-10`,
+> `AST-L4-WRAP` = `2006-06-01`), 재현이 안 되면 먼저 `SELECT asset_id, acquired_at FROM assets` 로
+> 실제 취득일을 확인하고 경계(24개월 · `review_band [22,26]`)를 다시 계산할 것.
+> ⛔ 재현이 안 된다고 룰이나 시드를 고치지 말 것 — **날짜 의존성 자체가 D62 가 만든 설계**다.
 
 ### `check_disposal_blockers` 출력
 
@@ -296,13 +343,27 @@ D62 가 지키려던 것은 *실제로 모르는 사실*이지 **애초에 알 �
 
 **거부하되 이유와 해소 경로를 함께 준다.** "안 됩니다"로 끝내지 않는 건 S4(미지 코드 → A/S 안내)와 같은 태도다.
 
-### S10 — 근거 번들 → 서명
+### S10 — 근거 번들 → 서명 (**Sprint 7 구현 · 실제 흐름**)
 
-1. 실사 데이터 입력
-2. `build_evidence_bundle` → 계층 1+2 묶고 해시
-3. `generate_disposal_document` → 승인서·진술보장서 draft, 근거 각주 삽입
-4. 팀장 승인 큐에 표시 (기존 큐 재사용)
-5. 검토 → 서명 → 번들 해시 고정 → 확정
+1. 자산 화면에서 처분 사전판정 (`POST /api/assets/{id}/disposal/precheck` — 무저장, D71)
+2. **"이 자산의 처분서 초안" 버튼 → `/technician?prefill=…` 로 이동**해 채팅 컴포저에 문장을 채운다.
+   ⛔ **자동 전송하지 않는다** — 사람이 무엇을 요청하는지 보고 눌러야 한다
+3. 에이전트가 `generate_disposal_document` 호출 → 내부에서 `build_evidence_bundle`(5키·해시) →
+   `decisions` 에 **`state='draft'` INSERT** (D10·D81)
+4. **자산 화면의 "이 자산의 처분서 초안" 목록에서 `POST /api/decisions/{id}/submit`** → `pending`
+5. 통합 승인 큐 `GET /api/approvals?kind=disposal` 에 표시 (D85)
+6. 팀장이 검토 → `POST /api/decisions/{id}/sign` → **번들 재산출·해시 대조(D84)** → `signed`
+
+> **⚠ 요청은 prefill(채팅), 제출은 자산 화면이다.**
+> `generate_disposal_document` 는 **에이전트만** 부를 수 있어(D15·D10) 화면 버튼이 도구를 직접 못 부른다.
+> 그리고 **`decision_card` block 은 만들지 않았다** — block 은 `safety`·`po_card`·`citation` **3종 고정**이
+> 계약이다(D14·D22). 4번째 타입을 늘리는 것은 계약 변경이므로, `draft → pending` 구간을
+> 자산 화면이 메운다. 신규 API 0 · 신규 SSE 소비 0.
+> 기록: `06 §2.1`(초안 요청 경로) · `06 §2.6`(전이 API).
+
+> **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — 3번에서 함수로 직접 호출된다.
+> 번들 실패(`law_text_unavailable`·`asset_modified`·`asset_disappeared`)는 **그대로 전파되고
+> draft 는 만들어지지 않는다.** 해시할 근거가 없는 서류는 계층 3의 존재 이유가 없기 때문이다.
 
 ### S18 — 중고 매수 권리관계 검증
 
@@ -395,14 +456,21 @@ equipment 확장 — `asset_id` 1개뿐 (nullable FK)
 
 ### 순서
 
-| 단계 | 내용 |
-|---|---|
-| **F1** 근거 계층 | 법령 스냅샷 수집 · 룰 5종 · 엔진 · 단위 테스트 |
-| **F2** 처분 차단 | `check_disposal_blockers` → S9 |
-| **F3** 서명 | 번들·서면 생성·승인 큐 확장 → S10 |
-| **F4** 취득 검증 | `verify_ownership` → S18 |
+| 단계 | 내용 | 상태 |
+|---|---|---|
+| **F1** 근거 계층 | 법령 스냅샷 수집 · 룰 5종 · 엔진 · 단위 테스트 | **완료** (Sprint 6·7). 조문 원문 **6/7 수집** — 남은 1건은 사람 승인 대기 |
+| **F2** 처분 차단 | `check_disposal_blockers` → S9 | **완료** (Sprint 6). REST `POST /precheck` 포함 (D71) |
+| **F3** 서명 | 번들·서면 생성·승인 큐 확장 → S10 | **완료 (Sprint 7)** — `build_evidence_bundle`(5키·D83) · `generate_disposal_document`(draft INSERT·D81) · `/api/decisions` 제출·서명·반려(D84) · 통합 큐 `/api/approvals`(D85) · 자산 처분 화면 |
+| **F4** 취득 검증 | `verify_ownership` → S18 | **완료** (Sprint 6·7). REST `GET /api/assets/{id}/ownership` + 실사 화면 |
 
 F1이 가장 크고 나머지는 그 위에 얇게 얹힌다. **F1만 해도 "근거를 남기는 에이전트"라는 서사는 성립한다.**
+
+> **F3 이 "완료"인 기준**: `spikes/s10_smoke.py`(17건)가 **실 서버·실 MCP** 로
+> `precheck → 도구 draft → submit → /api/approvals 노출 → 상세 → sign → state='signed'` 를 관통하고,
+> `spikes/disposal_sign_contract.py`(26건)가 **9자산 × 3모드 27조합 전수**에서
+> *BLOCKING 우회 0건 · 서명 없는 확정 0건* 을 4층 각각 독립으로 확인한다.
+> ⚠ 남은 것: **처분 승인서·진술보장서 문안 사람 검수**(법적 효력이 있는 문서 — 안전 문구 D2 와 같은 성격).
+> 검수 전까지 출력에 `unreviewed_template_notice` 가 붙는다.
 
 ### 법령 수집 체크리스트 (실제 상태 — Sprint 7 MQ-701 실수집 이후)
 
@@ -493,6 +561,16 @@ risk_profile       건물 단위 속성
 | `detect_law_revision` | 읽기 | 해시 비교 + 영향 룰 역추적. **`fetch_laws.py` 의 `check_revisions()` 가 이미 하는 일**을 도구로 노출하는 것이라 새로 만들 로직이 거의 없다 |
 | `assess_risk_grade` | 읽기 | 위험 프로파일 → 등급 + 변동 판정 |
 
+> **⚠ 셋 다 v2 다 — Sprint 7 에서 제외를 확정했다** (`07_BACKLOG`).
+> 특히 **`detect_law_revision` 과 그 시나리오 S17 은 v2 로 제외됐다.**
+> 그런데 **`fetch_laws.check_revisions()` 는 코드에 살아 있다** — `apply_fetch` 가
+> "이미 FETCHED 인데 해시가 다르면 덮어쓰지 않고 `pending_revisions/` 로" 를 수행하는 데
+> 이 함수가 쓰이기 때문이다(D75).
+> **즉 개정 감지 로직은 존재하지만 MCP 도구로 노출하지 않는다.**
+> 이 구분을 흐리면 *"도구가 있는데 왜 안 보이나"* 와 *"코드가 없는데 왜 문서에 있나"* 가
+> 양쪽으로 생긴다. 노출하려면 `MAINTQ_TOOLS_PROFILE=full` 등록 + `04_MCP_TOOLS` 절 신설이
+> 필요하며, 그건 계약 변경이다.
+
 `verify_ownership`(§5)은 그대로 재사용한다 — `ownership_checks` 가 생겨도 **판정 스키마
 (`PARTIAL` / `VERIFIED` 구분)는 바꾸지 않는다.**
 
@@ -523,7 +601,7 @@ risk_profile       건물 단위 속성
 | 목적 | 문서 |
 |---|---|
 | 보전지표 · 수리 이력 · 중고 거래 배경 | `12_MAINT_VALUE` |
-| **확장 7종의 입출력 계약 (정본)** | **`04_MCP_TOOLS §8~§14`** |
+| **확장 8종의 입출력 계약 (정본)** | **`04_MCP_TOOLS §8~§15`** |
 | **`/api/assets` REST · HTTP 매핑 (정본)** | **`06_REPO_API §2.5`** |
 | **테이블 DDL (정본)** | **`05_DB_SCHEMA §11~§17`** |
 | 왜 이렇게 정했는가 | `10_DECISIONS` D58~D65 · **D67~D69 · D71 · D73 · D75 · D77~D80** |

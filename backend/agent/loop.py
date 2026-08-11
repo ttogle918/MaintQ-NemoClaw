@@ -57,6 +57,76 @@ HISTORY_MAX_ITEMS = 10
 #: 문장 종결 판정 — 안전 블록을 문장 **앞에** 끼워 넣으려면 문장 단위로 끊어야 한다
 _SENTENCE_ENDINGS = ("다.", "요.", ".", "!", "?", "\n")
 
+# ────────────────────────────────────────────── LLM 종료 사유 계측 (MQ-713a ③)
+#
+# **왜 필요한가.** `llm.py` 는 스트림 끝에 `("end", finish_reason)` 델타를 흘리는데
+# 이 루프가 그걸 **읽지 않고 버리고 있었다.** 그래서 `MAX_TOKENS` 로 잘린 응답과 모델이
+# 스스로 끝낸 응답이 **구분되지 않았다** — 3차 평가에서 "에이전트가 되묻고 턴을 끝낸다"로
+# 결론낸 실패들이 실제로는 잘림일 수도 있는데, 두 기전은 고칠 곳이 완전히 다르다
+# (프롬프트 vs `max_output_tokens`). 측정 없이 다음 회차를 돌리면 같은 자리로 돌아온다.
+#
+# **왜 `traces` 행이 아닌가 (판단 근거).** 처음 설계는 `TraceWriter` 로 별도 trace 행을
+# 남기는 것이었고, 실제로 그게 자연스럽다. 그런데 그 경로는 **막혀 있다**:
+#   1. `traces.event_type` 의 CHECK 가 `tool_call|tool_result|block` 3종뿐이다
+#      (`data/seed.py`, D41). 4번째 종류를 INSERT 하면 `IntegrityError` 로 튕긴다.
+#   2. SQLite 는 CHECK 를 `ALTER TABLE` 로 못 바꾼다 — 테이블 재작성 마이그레이션이 필요하고,
+#      평가는 **실 DB 사본**으로 도므로 사본도 옛 CHECK 를 그대로 물려받는다. 즉 "기록했다고
+#      믿었는데 전부 거부되는" 최악의 실패가 조용히 난다.
+#   3. `block` 타입을 하나 더 만드는 우회도 막혀 있다 — block 은 `safety|po_card|citation`
+#      3종 고정이다 (D14·D22, 09_RUNTIME §3 각주가 `decision_card` 를 만들지 않은 이유).
+#   4. 기존 이벤트 payload 에 얹는 것도 안 된다. `payload` 는 **SSE `data` 와 바이트 동일**이
+#      계약이고(D30, `trace_persist ②`·`sp3 ⑬` 이 바이트로 대조한다), 무엇보다
+#      **도구를 한 번도 안 부른 턴에는 trace 행 자체가 없다** — T08 처럼 잘림이 가장 의심되는
+#      경우가 정확히 그 경우라 얹을 행이 존재하지 않는다.
+# 그래서 스키마·계약을 건드리지 않고 **서버측 로그 한 줄**로 남긴다. `eval/run_eval.py` 가
+# 이미 자식 서버의 stderr 를 회수하고 있어(`_shutdown_server`) 추가 채널을 만들지 않아도 된다.
+# ⛔ SSE 이벤트는 4종 그대로다 — 프론트로 새 이벤트가 나가지 않는다.
+#
+# 로그 레벨을 WARNING 으로 고정한 것도 의도다. 정상 턴을 INFO 로 낮추면 uvicorn 기본
+# 설정에서 루트 로거에 핸들러가 없어 `logging.lastResort`(WARNING 하한)에 걸려 **사라진다.**
+# 그러면 "잘림 0건"과 "계측이 안 됐다"를 구분할 수 없게 되는데, 이번 계측의 목적이 바로
+# 그 구분이다.
+LLM_END_MARKER = "[LLM_END]"
+
+#: 잘림으로 셀 종료 사유. Gemini 는 `FinishReason.MAX_TOKENS`, Anthropic 은 `max_tokens`,
+#: OpenAI 계열은 `length` 를 쓴다 — `_normalize_finish_reason` 이 셋 다 여기로 정규화한다.
+TRUNCATION_REASONS: frozenset[str] = frozenset({"MAX_TOKENS", "LENGTH"})
+
+
+def normalize_finish_reason(raw: object) -> str:
+    """제공자별 stop reason 표기를 대문자 토큰 하나로 정규화한다.
+
+    `FinishReason.MAX_TOKENS`(enum repr) → `MAX_TOKENS`, `max_tokens` → `MAX_TOKENS`,
+    `end_turn` → `END_TURN`. 값이 없으면 지어내지 않고 `UNKNOWN` 이다.
+    """
+    text = str(raw).strip() if raw is not None else ""
+    if not text:
+        return "UNKNOWN"
+    text = text.rsplit(".", 1)[-1]  # enum repr 의 앞부분을 떨군다
+    cleaned = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in text)
+    return cleaned.upper() or "UNKNOWN"
+
+
+def is_truncated(raw: object) -> bool:
+    """이 종료 사유가 **출력 잘림**인가 (max_output_tokens / thinking 예산 소진)."""
+    return normalize_finish_reason(raw) in TRUNCATION_REASONS
+
+
+def format_llm_end(session_id: str, call_index: int, raw: object) -> str:
+    """계측 한 줄. `eval/run_eval.py:parse_llm_end` 가 이 형식을 파싱한다 (양끝을 스파이크가 묶는다)."""
+    reason = normalize_finish_reason(raw)
+    return (
+        f"{LLM_END_MARKER} session={session_id} call={call_index} "
+        f"reason={reason} truncated={1 if reason in TRUNCATION_REASONS else 0}"
+    )
+
+
+def record_llm_end(session_id: str, call_index: int, raw: object) -> str:
+    """종료 사유를 서버측에 기록하고 기록한 줄을 돌려준다(테스트가 같은 문자열을 본다)."""
+    line = format_llm_end(session_id, call_index, raw)
+    logger.warning("%s", line)
+    return line
+
 
 class SessionStore:
     """프로세스 메모리 세션 저장소. 단일 사용자 데모 전제 (09_RUNTIME 스코프)."""
@@ -308,6 +378,10 @@ async def run_turn(
         # 안에 두면 우리 코드의 버그(KeyError 등)가 "LLM 실패"로 위장돼 조용히 우회된다.
         stream = _safe_stream(llm, system=system, messages=messages, tools=tools)
         failed = False
+        #: `("end", stop_reason)` 델타. 이전에는 이 분기가 없어 **버려지고 있었다** —
+        #: 잘린 응답과 스스로 끝낸 응답이 구분되지 않던 자리다 (MQ-713a ③).
+        finish_raw: object | None = None
+        saw_end = False
         async for kind, value in stream:
             if kind == "_stream_error":
                 failed = True
@@ -319,6 +393,18 @@ async def run_turn(
                     yield ev
             elif kind == "tool_use":
                 pending.append(value)  # type: ignore[arg-type]
+            elif kind == "end":
+                finish_raw = value
+                saw_end = True
+
+        # 종료 사유 기록. 스트림 실패도 같은 줄로 남긴다 — 마커가 아예 없는 것과
+        # "실패해서 끝났다"는 다른 사실이고, 뒤섞이면 잘림 집계의 분모가 흐려진다.
+        # `end` 델타를 안 흘리는 클라이언트(`ScriptedClient` 기본)는 기록하지 않는다:
+        # 없는 사유를 `UNKNOWN` 으로 지어내 분모를 부풀리지 않는다.
+        if failed:
+            record_llm_end(session_id, store.llm_calls(session_id), "stream_error")
+        elif saw_end:
+            record_llm_end(session_id, store.llm_calls(session_id), finish_raw)
 
         if failed:
             # 09_RUNTIME §3 — 부분 스트림을 이어 붙이지 않는다
@@ -372,8 +458,18 @@ async def run_turn(
             # D66 — 특정된 부품 품번도 같은 방식으로 싣는다. 실패 결과는 부품을 특정한 게
             # 아니므로 ok 만 인정하는 것도 pages 와 같다.
             parts = _parts_from(tu.name, payload) if status == "ok" else []
+            # D76-2 ⓑ — 도구 **원본** payload 는 `traces.tool_payload` 컬럼으로만 간다.
+            # SSE tool_result 필드는 그대로다 (D76 ⓓ) — 프론트·score.py 무영향.
+            # 컬럼만 있고 쓰는 쪽이 없어서 3차 평가가 "도구가 실제로 무엇을 반환했는지"를
+            # 사후에 대조하지 못했다(`data/analysis/eval_gap_3rd.md`).
             yield trace.tool_result(
-                tu.name, status, summary, round(elapsed, 3), pages=pages, parts=parts
+                tu.name,
+                status,
+                summary,
+                round(elapsed, 3),
+                pages=pages,
+                parts=parts,
+                tool_payload=payload,
             )
 
             st.results[tu.name] = payload

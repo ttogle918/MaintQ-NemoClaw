@@ -46,11 +46,15 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 (도식 원본: `docs/06_REPO_API.md` §0)
 
 - MCP 서버·백엔드 프로세스 분리 (D15) → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨. 단, 개발/데모 시에는 백엔드 `lifespan`이 MCP 서버를 서브프로세스로 **자동 기동**한다(D42) — 별도 터미널로 띄울 필요 없음
-- MCP 도구 **코어 7종 + 확장 7종 = 14종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
-  기본 `core`. 도구를 늘린 채 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다).
-  확장 7종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
+- MCP 도구 **코어 7종 + 확장 8종 = 15종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
+  기본 `core`. 도구를 늘린 채 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다.
+  **D88** 이 이 기준선을 코드로 잠갔다 — `run_eval.py` 가 `/health` 실측으로 `core` 가 아니면 종료한다)
+  확장 8종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
   `get_maintenance_metrics` `classify_expenditure` `assess_repair_value` `build_evidence_bundle`
-- 코어 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`(draft INSERT만 가능 — 승인/반려는 `backend/routers/po.py`의 사람 전용 API, D10)
+  **`generate_disposal_document`**
+- 코어 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
+- **쓰기 도구는 2종**(`create_po_draft` · `generate_disposal_document`) — 둘 다 **draft INSERT 만** 가능하고
+  UPDATE 권한이 없다. 승인/반려/서명은 사람 전용 API(`backend/routers/po.py` · `backend/routers/decisions.py`)만 한다 (D10·D81)
 
 ## 빠른 시작
 
@@ -110,10 +114,10 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 |---|---|
 | [00 MVP_SCOPE](docs/00_MVP_SCOPE.md) | 반드시 구현할 기능 6종 + 인프라 + 완료 기준 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
-| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 7 = 14종** 입출력·설계 원칙 (계약 임의 변경 금지) |
+| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 8 = 15종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 D1~ 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D88** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 

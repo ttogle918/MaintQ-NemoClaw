@@ -60,15 +60,19 @@ MaintQ/
 │   │   ├── search_inventory.py           │
 │   │   ├── find_alternative_parts.py     │
 │   │   ├── get_supplier_quotes.py        │
-│   │   ├── create_po_draft.py            ┘ ← 유일한 쓰기 도구 (D10)
+│   │   ├── create_po_draft.py            ┘ ← 쓰기 도구 ①/2 — po_drafts draft INSERT (D10)
 │   │   ├── check_disposal_blockers.py    ┐
 │   │   ├── verify_ownership.py           │
-│   │   ├── classify_part_criticality.py  │ 확장 7종 (`full` 에서만 등록 — D69)
-│   │   ├── get_maintenance_metrics.py    │ 전부 읽기. 대상은 asset_id (D68)
+│   │   ├── classify_part_criticality.py  │ 확장 8종 (`full` 에서만 등록 — D69)
+│   │   ├── get_maintenance_metrics.py    │ 대상은 asset_id (D68)
 │   │   ├── classify_expenditure.py       │
 │   │   ├── assess_repair_value.py        │
-│   │   └── build_evidence_bundle.py      ┘
-│   └── db.py                  # 읽기 전용 커넥션 / draft INSERT 전용 분리
+│   │   ├── build_evidence_bundle.py      │ ← 읽기 전용. 저장하지 않는다
+│   │   ├── generate_disposal_document.py ┘ ← **두 번째 쓰기 도구** (decisions draft INSERT, D81)
+│   │   └── _asset_ref.py                 # §8·§14·§15 공용 자산 참조·인자 검증 (도구 아님)
+│   └── db.py                  # read_only / draft_writer(po_drafts) / decision_writer(decisions)
+│                              #   — 쓰기 커넥션은 대상 테이블별로 분리한다. TEMP TRIGGER 가
+│                              #     UPDATE/DELETE 를 거부하므로 커넥션을 섞으면 잠금이 사라진다
 │
 ├── backend/
 │   ├── main.py                # FastAPI 앱
@@ -77,16 +81,21 @@ MaintQ/
 │   ├── deps.py                # X-Role/X-User 파싱 + 403 강제
 │   ├── services/
 │   │   ├── po.py              # 신원 stamp(D37) · 상태 전이 · 표시명 매핑(D36)
-│   │   └── disposal.py        # 자산 조회 + 처분 사전판정 (data.rules.engine 직접 사용 — D73)
+│   │   ├── disposal.py        # 자산 조회 + 처분 사전판정 (data.rules.engine 직접 사용 — D73)
+│   │   ├── ownership.py       # 소유권 실사 (REST==MCP 바이트 대조 대상)
+│   │   ├── decisions.py       # 처분 결정 전이 — submit·sign(번들 재산출·해시 대조 D84)·reject
+│   │   └── approvals.py       # 통합 승인 큐 조립 (KINDS = po|disposal|repair — D85)
 │   ├── agent/
 │   │   ├── loop.py            # 에이전트 루프 (도구 호출 오케스트레이션)
 │   │   ├── prompts.py         # 시스템 프롬프트 (안전 가드레일 규칙 포함)
 │   │   └── trace.py           # trace 이벤트 발행
 │   ├── routers/
 │   │   ├── chat.py            # 대화 (SSE)
-│   │   ├── po.py              # 발주 승인 워크플로우
+│   │   ├── po.py              # 발주 승인 워크플로우 — **형태 불변이 계약이다** (D85)
 │   │   ├── equipment.py       # 라인/장비 컨텍스트
-│   │   └── disposal.py        # /api/assets — 목록·상세·처분 사전판정 (D71 HTTP 매핑)
+│   │   ├── disposal.py        # /api/assets — 목록·상세·소유권·처분 사전판정 (D71 HTTP 매핑)
+│   │   ├── decisions.py       # /api/decisions — 상세·제출·서명·반려 (§2.6)
+│   │   └── approvals.py       # /api/approvals — 통합 승인 큐, **읽기 전용** (§2.7)
 │   └── rag/
 │       ├── ingest.py          # 매뉴얼 청킹·임베딩 (model 메타데이터 부착)
 │       └── retriever.py
@@ -94,10 +103,16 @@ MaintQ/
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
+│   │                          # **27종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
-│   ├── write_tool_contract.py # create_po_draft 경계 (D10·D23·D31·D33·D34·D37)
-│   └── api_contract.py        # 권한 403 · 전이 409 · D29 이력 기록
+│   ├── write_tool_contract.py # 쓰기 도구 **2종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84)
+│   ├── api_contract.py        # 권한 403 · 전이 409 · D29 이력 기록 — /api/po 형태 고정 (D85)
+│   ├── bundle_integrity.py    # 번들 5키 · rule_hash · N1·N2 · 두 도구 실패 어휘 대조
+│   ├── approvals_contract.py  # 통합 큐 (D85) · BLOCKING 우회 0건 · 서명 없는 확정 0건
+│   ├── disposal_sign_contract.py  # 27조합 전수 — 4층 방어선이 각각 독립으로 막는가
+│   ├── s10_smoke.py           # 실 서버·실 MCP 로 S9→S10 관통
+│   └── ui_honesty_contract.py # D87 — 미확인 상태가 "확인됨"으로 렌더되지 않는가
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기
@@ -169,6 +184,21 @@ POST /api/chat
 GET /api/chat/{session_id}/trace     # trace 전체 조회 — traces 테이블 읽기 (화면 B "실행 로그 보기" 링크, SSE 끊김 폴백)
 ```
 
+#### 처분서 초안 요청 경로 — **요청은 prefill, 제출은 자산 화면** (MQ-711 착지)
+
+`generate_disposal_document`(`04 §15`)는 **에이전트만** 부를 수 있다(D15·D10). 그래서 자산 화면의
+"이 자산의 처분서 초안" 버튼은 **신규 API 를 만들지 않는다** — `/technician?prefill=…&equipment=…` 로
+이동해 채팅 컴포저에 문장을 채워 넣고 **전송은 사용자가** 누른다(자동 전송 금지 — 사람이 무엇을
+요청하는지 보고 눌러야 한다). **신규 API 0 · 신규 SSE 소비 0.**
+
+> ⚠ **`decision_card` block 은 만들지 않았다.** block 은 `safety` · `po_card` · `citation` **3종 고정**이
+> 계약이다(D14·D22 — 이벤트 4종 고정과 같은 층위). 초안 생성 결과를 채팅에서 전용 카드로 렌더하려면
+> 4번째 block 타입이 필요한데, 그건 계약 변경이다.
+> **대신 `draft → pending` 구간을 자산 화면이 메운다** — 초안 생성 후 자산 화면의 "이 자산의 처분서 초안"
+> 목록에서 `submitDecision`(`POST /api/decisions/{id}/submit`)을 누른다.
+> 즉 **요청은 채팅(prefill), 제출은 자산 화면**이다. 이 분업은 D18("승인 큐 진입은 채팅 밖")과
+> D29("이력 기록은 명시적 액션")를 그대로 따른다.
+
 ### 2.2 발주 워크플로우 (상태 전이 = 권한)
 
 ```
@@ -236,6 +266,21 @@ checklist[] · resolve_options[] · missing_facts[] · facts_used{} ·
 not_considered[] · disclaimer · note      (+ 409 일 때만 detail)
 ```
 
+> #### ⚠ **`evidence_completeness` 는 이 응답에 없다** (실측 · MQ-712 기록)
+>
+> `backend/services/disposal.precheck()` 의 반환 dict(`disposal.py:319-343`)에 그 키가 없다.
+> **이 값을 내는 것은 MCP 도구 `check_disposal_blockers` 뿐이다**(`check_disposal_blockers.py:171`).
+> 프론트는 이 사실을 알고 **없을 때 조용히 넘기지 않고** "근거 수집 상태 미제공" 으로 표시한다
+> (`frontend/lib/decisionView.ts:268-277`) — 숨기면 사용자가 근거 상태를 모른 채 판정만 읽는다.
+> ⛔ 없는 값을 `COMPLETE` 로 채우지 않는다.
+>
+> **키를 추가하려면 산식을 공유 계층에 올려야 한다.** `check_disposal_blockers._evidence_completeness`
+> 를 `services/disposal.py` 에 **복제하면** Sprint 7 이 계속 잡아온 드리프트를 그대로 재생산한다 —
+> W5(판정이 본 조문 ≠ 해시한 조문)·W2(엔진 문구 복제본)가 전부 같은 병이었고, 그때 답은 항상
+> **`data.rules.engine` 단일 출처**(D73)였다. 즉 추가한다면 산식을 엔진에 올리고 MCP·REST 양쪽이
+> 그것을 부르는 형태여야 하며, 그건 **엔진 계약 변경**이므로 이 태스크 범위 밖이다.
+> 지금 상태의 정직성은 이미 확보돼 있다(프론트가 부재를 표시한다).
+
 409 본문을 200 과 같은 형태로 주는 이유: 클라이언트가 **차단 시에도** blockers·holds·insufficient·
 resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로 끝내지 않는 건 S4(미지 코드 → A/S 안내)와 같은 태도다.
 
@@ -259,7 +304,8 @@ resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로
 
 `require()` 를 호출하지 않는다. **읽기 판정에 403 을 만들면 "권한 위반 403 차단 100%" 지표에
 법정 조건 미충족이 섞인다** — D38 이 403(권한)과 409(상태)를 나눈 바로 그 이유다.
-처분을 실제로 **확정**하는 경로(서명·문서 생성)에는 역할 게이트가 붙지만, 그건 Sprint 7 이다.
+처분을 실제로 **확정**하는 경로(제출·서명·반려)에는 역할 게이트가 붙는다 → **§2.6 에서 구현됐다**.
+`GET /api/assets/{id}/ownership` 도 같은 이유로 403 이 없다(`spikes/ownership_api_contract.py` 10건이 확인).
 
 #### `core` 프로파일에서도 살아 있다 (D73)
 
@@ -269,12 +315,92 @@ resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로
 D15(백엔드 ↔ MCP 프로세스 분리) 위반이 아니다: 금지되는 것은 `backend` ↔ `mcp_server` **상호 import** 이며
 `data/` 는 두 프로세스가 공유해도 되는 데이터 계층이다.
 
+### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
+
+```
+GET  /api/decisions?state=pending    # 목록. **역할 무관 조회** — 정비사도 자기 요청 상태를 봐야 한다
+GET  /api/decisions/{id}             # 상세 + 렌더된 문서·증빙 패키지
+                                     #   ★ 저장본이 아니다 (D86) — 응답 조립 시점에 번들에서 렌더한다.
+                                     #     저장하면 템플릿이 바뀔 때 저장본이 조용히 낡는다 (D57 선례)
+POST /api/decisions/{id}/submit      # draft → pending    (**technician만**)
+POST /api/decisions/{id}/sign        # pending → signed   (**manager만**)
+                                     #   body: { override?: bool, override_reason?: str, note?: str }
+                                     #   ★ 이 세 키는 **사람만** 넣을 수 있다 — 도구 스키마에는 없다 (D81)
+POST /api/decisions/{id}/reject      # pending → rejected (**manager만**, body: {reason} 필수 — D38)
+```
+
+**403 은 양방향이다** — 팀장이 `submit` 을 부르면 403, 정비사가 `sign` 을 부르면 403.
+한쪽만 막으면 "권한 위반 차단 100%" 지표가 반쪽이 된다.
+
+#### `sign` 의 409 `reason` 5종 — HTTP 하나로 뭉개지 않는다
+
+| reason | 뜻 | 사용자가 할 일 |
+|---|---|---|
+| `invalid_transition` | 현재 state 에서 불가한 전이 | 상태 확인 |
+| `law_text_unavailable` | 인용 조문 원문 미수집 (`missing_law_refs[]` 동반) | 조문 수집 |
+| `cited_rule_missing` | **판정이 인용한 룰만** 카탈로그에서 사라짐 (`missing_rules[]`) | 사람의 재검토. ⚠ **503 이 아니다** — 재시도해도 같은 답이다 |
+| `evidence_changed` | 번들 재산출 해시 ≠ 저장 해시 (`bundle_hash`·`recomputed_hash` 동반) | 근거 재확인 |
+| `override_required` | 차단 판정인데 `override` 미기재 (`verdict`·`blockers`·`holds`·`insufficient`·`resolve_options` 동반) | 사유와 함께 예외 적용, 또는 사유 해소 |
+
+- **`override_required` 본문이 해소 재료를 함께 싣는 이유**: S4 태도 — "안 된다"로 끝내지 않고
+  무엇이 막고 있고 무엇을 하면 풀리는지 함께 준다.
+- **503 은 "재시도하라"는 말이다.** 그러니 재시도로 풀리는 것만 503 이다 — 카탈로그 **미적재**
+  (`rule_catalog_not_loaded`)가 그것이다. *인용 룰만 사라진* 경우는 근거가 바뀐 것이라 409 다.
+  재시도해도 같은 답이 오는 상태에 503 을 주면 클라이언트를 영원히 돌게 만든다.
+- **`override_reason` 공백을 pydantic 으로 막지 않는다** — 본문 검증은 라우팅 직후라
+  404·`evidence_changed`·`override_required` 보다 **먼저** 실행되어 **D84 가 정한 순서가 깨진다.**
+  검증은 `services.decisions.sign()` 안에서 하고 라우터가 422 로 매핑한다. DB CHECK 가 2차 방어선(D63).
+- **D84 — 서명 시 번들을 재산출해 해시를 대조**하고, **그 대조를 override 판정보다 먼저** 한다.
+  근거가 바뀐 상태에서 override 를 받으면 *"사람이 본 것과 다른 근거에 서명"* 이 된다 —
+  **근거 무결성이 권한 판단보다 앞선다.**
+
+### 2.7 통합 승인 큐 (D85) — **읽기 전용**
+
+```
+GET /api/approvals?state=pending&kind=disposal
+  → { items: [...], kinds: ["po","disposal","repair"] }
+```
+
+**항목 공통 필드**: `kind` · `id` · `title` · `state` · `urgency` · `requested_by` ·
+`requested_by_name` · `created_at` · `detail_path` · `verdict` · `requires_override`
+
+- **`/api/po` 의 경로·응답 형태는 불변이다.** 형태를 흔들면 `spikes/api_contract.py` 28건 +
+  프론트 `mappers.tsx` + **완료 기준 "권한 위반 403 차단 100%" 의 판정 경로**가 함께 흔들린다.
+  `services/po.py` 의 `_PO_SELECT` 가 `parts`·`suppliers` 를 JOIN 하므로 처분서를 담으면
+  응답의 절반이 NULL 이 된다.
+- **`state` 는 각 종류의 원 어휘 그대로다** (변환 금지). `approved`(발주 승인)와 `signed`(처분 확정)는
+  **다른 사건**이고, 한 필드로 뭉개면 D39·D63 이 구분해 둔 책임 귀속이 API 경계에서 사라진다.
+- **없는 값은 `null` 이지 `false` 가 아니다** — 발주에는 처분 판정이 없으므로 `verdict: null`,
+  처분서에는 긴급도가 없으므로 `urgency: null`. 지어내지 않는다 (D62).
+- **`kind` enum 밖 값은 422** — 모르는 종류를 0건으로 돌려주면 오타가 "해당 없음"으로 읽힌다.
+- **`repair` 는 현재 항상 0건이다.** 조회하지 않는 게 아니라 **원천이 아직 없다**(Sprint 8).
+  enum 에 미리 넣은 이유는 Sprint 8 이 **계약 변경 없이** 추가되게 하기 위함이다.
+- **POST 가 없다.** 전이는 종류별 경로(`/api/po/*`·`/api/decisions/*`)가 각자의 역할 게이트와 함께
+  수행한다. 통합 경로에 전이를 두면 `kind` 마다 다른 역할 규칙을 한 함수가 분기하게 되고,
+  **그 분기가 곧 403 지표의 구멍**이 된다.
+- 정렬은 `created_at DESC`. `/api/po` 의 긴급 우선 정렬을 여기로 옮기지 않는다 — 통합 큐에 발주 전용
+  정렬을 끌어오면 처분서가 항상 뒤로 밀린다. **두 목록은 정렬 기준이 다른 게 정상이다.**
+
 ### 2.4 상태 전이 다이어그램
 
 ```
+[발주 po_drafts]
 draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ approved
                              └──────reject(팀장)──▶ rejected
-※ MCP 도구는 draft 생성만 가능. API는 전이만 담당. 생성/전이 주체 분리.
+
+[처분 decisions]                                    ★ Sprint 7 신설
+draft ──submit(정비사)──▶ pending ──sign(팀장)────▶ signed
+  ▲                          └──────reject(팀장)──▶ rejected
+  └ generate_disposal_document (MCP 도구, INSERT 만 — D10·D81)
+
+※ 생성/전이 주체 분리는 두 테이블에 **동일하게** 적용된다.
+   MCP 도구는 draft INSERT 만 가능하고 UPDATE 권한 자체가 없다 (TEMP TRIGGER).
+※ `signed` 로 가는 길은 네 층이 막는다 (완료 기준 ②③):
+   ⓐ 도구 스키마에 `override` 키 **부재** (D81)
+   ⓑ MCP 커넥션 TEMP TRIGGER (UPDATE/DELETE 거부)
+   ⓒ REST `sign()` 의 409 `override_required` / `evidence_changed`
+   ⓓ **DDL CHECK 2종** — 서명 3필드 완비 · 차단 verdict 는 override=1 필수
+      → 코드 버그·콘솔 SQL·마이그레이션으로도 뚫을 수 없다 (`05 §14`)
 ```
 
 ---

@@ -13,6 +13,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -489,6 +491,85 @@ async def run_all(db: Path) -> None:
         "⑮-h Anthropic 은 JSON 텍스트로 변환 (tool_use 짝 없음 — 주석 참조)",
         a[1]["role"] == "user" and "FAN-IG5-01" in a[1]["content"],
         a[1]["content"][:60],
+    )
+
+    # ── ⑯-a D76-2 ⓑ — 도구 **원본** payload 가 traces.tool_payload 에 남는가
+    #
+    # SSE tool_result 는 요약본이라(D76 ⓓ) 그 안에 원본이 없다. 원본이 DB 에도 없으면
+    # "도구가 정말 그 값을 줬는지"를 사후 검증할 방법이 사라진다 — 3차 평가가 그 상태였다.
+    ev_tp, _, _ = await drive(
+        [
+            [tu("lookup_error_code", model="iG5A", code="OHt")],
+            [("text", "과열입니다.")],
+        ],
+        {"lookup_error_code": LOOKUP_OK},
+        db=db,
+        session="TTP",
+    )
+    con = sqlite3.connect(db)
+    tp = con.execute(
+        "SELECT event_type, tool_payload FROM traces WHERE session_id='TTP' ORDER BY seq"
+    ).fetchall()
+    con.close()
+    tp_map = {t: raw for t, raw in tp}
+    saved_raw = json.loads(tp_map["tool_result"]) if tp_map.get("tool_result") else None
+    sse_result = next(e.data for e in ev_tp if e.event == "tool_result")
+    check(
+        "⑯-a D76-2 도구 원본이 traces.tool_payload 에 저장 (SSE 는 요약본 그대로)",
+        saved_raw == LOOKUP_OK
+        and tp_map.get("tool_call") is None
+        and "related_parts" not in sse_result,
+        f"tool_payload keys={sorted(saved_raw) if saved_raw else None}, "
+        f"sse keys={sorted(sse_result)}",
+    )
+
+    # ── ⑯-b ★ MQ-713a ③ — `("end", stop_reason)` 델타가 기록되는가
+    #
+    # 이 분기가 없어서 **MAX_TOKENS 로 잘린 응답과 스스로 끝낸 응답이 구분되지 않았다.**
+    # 두 기전은 고칠 곳이 완전히 다르다(프롬프트 vs max_output_tokens) — 구분이 안 되면
+    # 3차 분석처럼 "개선인지 요동인지 모른다"로 되돌아간다.
+    #
+    # ★ 음성 검증을 같이 건다: 정상 종료(STOP)는 truncated=0 이어야 한다. 잘림만 확인하면
+    #   "무엇을 넣어도 잘림으로 세는" 계측을 통과시킨다.
+    from backend.agent.loop import LLM_END_MARKER, is_truncated  # noqa: PLC0415
+
+    async def end_lines(reason: object, session: str) -> list[str]:
+        logger = logging.getLogger("backend.agent.loop")
+        captured: list[str] = []
+
+        class Grab(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured.append(record.getMessage())
+
+        h = Grab()
+        logger.addHandler(h)
+        try:
+            await drive(
+                [[("text", "확인해 보겠습니다."), ("end", reason)]],
+                {},
+                db=db,
+                session=session,
+            )
+        finally:
+            logger.removeHandler(h)
+        return [ln for ln in captured if ln.startswith(LLM_END_MARKER)]
+
+    cut = await end_lines("FinishReason.MAX_TOKENS", "TEND1")
+    ok_end = await end_lines("STOP", "TEND2")
+    check(
+        "⑯-b ★ end 델타의 stop reason 기록 (★ 음성: STOP → truncated=0)",
+        len(cut) == 1
+        and "reason=MAX_TOKENS truncated=1" in cut[0]
+        and "session=TEND1" in cut[0]
+        and len(ok_end) == 1
+        and "reason=STOP truncated=0" in ok_end[0],
+        f"잘림={cut}, 정상={ok_end}",
+    )
+    check(
+        "⑯-c 제공자별 표기가 같은 판정으로 정규화 (Gemini enum · Anthropic · length)",
+        [is_truncated(x) for x in ("FinishReason.MAX_TOKENS", "max_tokens", "length")] == [True] * 3
+        and [is_truncated(x) for x in ("STOP", "end_turn", "tool_use", None)] == [False] * 4,
+        "MAX_TOKENS/max_tokens/length → True · STOP/end_turn/tool_use/None → False",
     )
 
     # ── ⑯ A7 — 루프가 error_history 에 쓰지 않는다
