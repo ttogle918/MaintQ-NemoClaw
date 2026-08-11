@@ -80,11 +80,11 @@
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
 스위트 **개수**도 같다 — 위 목록과 `ls spikes/*.py` 가 어긋나면 목록이 낡은 것이다.
 
-**실측 기준선 (2026-08-11, MQ-713b ③)** — spikes **27스위트 / 610건** · seed **21건** · pytest **46건** ·
+**실측 기준선 (2026-08-11, MQ-713b ③)** — spikes **27스위트 / 611건** · seed **21건** · pytest **46건** ·
 프론트 라우트 **10개**(`npm run build`). spikes 스위트별 건수:
 `agent_loop_contract 32` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 13` · `db_concurrency 13` · `disposal_api_contract 26` ·
-`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 33` · `law_fetch_contract 28` ·
+`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 34` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 12` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 23` · `rag_contract 12` · `rules_db_load 25` · `s10_smoke 17` · `s4_smoke 10` ·
 `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` · `trace_persist 17` ·

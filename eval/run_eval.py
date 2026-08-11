@@ -836,9 +836,24 @@ async def check_permission_403(base_url: str) -> tuple[bool, str]:
 async def _run_stage(
     base_url: str, items: list[dict], round_idx: int = 1
 ) -> tuple[list, tuple[bool, str]]:
-    """`_run_all` 과 `check_permission_403` 을 같은 이벤트 루프 안에서 순서대로 실행한다."""
+    """`_run_all` 과 `check_permission_403` 을 같은 이벤트 루프 안에서 순서대로 실행한다.
+
+    **403 점검의 예외를 여기서 삼킨다.** 이 점검은 문항 루프가 **전부 끝난 뒤**의 부가
+    점검인데, 예외가 그대로 올라가면 `main` 이 리포트를 쓰기 전에 죽어 **이미 다 돈 N문항이
+    통째로 버려진다.** 2026-08-11 실측: 20문항을 다 돌린 뒤 서버가 응답을 멈춰
+    `GET /api/po` 가 `httpx.ReadTimeout` 을 냈고, 그 한 줄 때문에 `.json`·`.md` 가 하나도
+    생성되지 않았다(traces 덤프만 `finally` 로 살아남았다). `_run_all` 이 문항별 예외를
+    잡는 것과 같은 이유이며, 같은 보호가 여기에만 없었다.
+
+    ⛔ 실패를 `"N/A"`(pending 건 없음)로 접지 않는다 — **점검을 못 한 것과 점검할 게 없는
+    것은 다르다.** 사유를 그대로 실어 리포트에 `FAIL (점검 실패 — ReadTimeout)` 로 보인다.
+    """
     results = await _run_all(base_url, items, round_idx)
-    perm_result = await check_permission_403(base_url)
+    try:
+        perm_result = await check_permission_403(base_url)
+    except Exception as exc:  # noqa: BLE001 — 부가 점검 하나로 N문항을 버리지 않는다
+        print(f"  [경고] 권한 403 점검 실패: {type(exc).__name__}: {exc}", flush=True)
+        perm_result = (False, f"점검 실패 — {type(exc).__name__}")
     return results, perm_result
 
 

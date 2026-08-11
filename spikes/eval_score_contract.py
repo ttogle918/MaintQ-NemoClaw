@@ -18,6 +18,7 @@ fail 하는지**(음성 검증)를 citation·safety·sequence·S4 4개 지표에
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 from dataclasses import replace
@@ -32,7 +33,9 @@ from eval.run_eval import (  # noqa: E402
     _EXEC_FAILED_PREFIX,
     ItemResult,
     _flip_lines,
+    _free_port,
     _llm_end_lines,
+    _run_stage,
     build_meta,
     enforce_profile_guard,
     estimate_cost,
@@ -629,6 +632,24 @@ def run() -> None:
         == {"passed": 2, "measured": 3, "state": "flipped"},
         f"clean={outcomes_clean['hallucination']} / bad={outcomes_bad['hallucination']} / "
         f"T07={hallu['items']['T07']['hallucination']}",
+    )
+
+    # ── ㉙ 403 점검 실패가 이미 끝난 문항 결과를 날리지 않는가 ──
+    #
+    # 2026-08-11 실측 사고: 20문항을 다 돌린 뒤 `GET /api/po` 가 httpx.ReadTimeout 을 냈고,
+    # 그 예외가 `main` 까지 올라가 **리포트가 하나도 생성되지 않았다**(traces 덤프만 살아남음).
+    # 여기서는 **아무도 듣지 않는 포트**로 `_run_stage` 를 불러 같은 상황을 만든다 —
+    # 연결 거부는 즉시 나므로 네트워크 대기가 없다(items=[] 라 LLM 호출도 0회).
+    dead_url = f"http://127.0.0.1:{_free_port()}"
+    stage_results, stage_perm = asyncio.run(_run_stage(dead_url, []))
+    check(
+        "㉙ 403 점검이 죽어도 실행은 계속 — 결과를 반환하고 사유를 싣는다 (N문항 폐기 금지)",
+        stage_results == []
+        and stage_perm[0] is False
+        and "점검 실패" in stage_perm[1]
+        # ⛔ "N/A"(점검할 pending 건 없음)로 접으면 못 잰 것과 잴 게 없던 것이 뭉개진다
+        and stage_perm[1] != "N/A",
+        f"perm={stage_perm}",
     )
 
     # 비용 문구가 회차를 곱하지 않으면 사람이 1회분에 동의하고 N회분을 쓰게 된다.
