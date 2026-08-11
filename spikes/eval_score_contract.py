@@ -20,16 +20,24 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.agent.loop import format_llm_end  # noqa: E402
+from eval.judge import JudgeVerdict  # noqa: E402
 from eval.run_eval import (  # noqa: E402
+    _EXEC_FAILED_PREFIX,
+    ItemResult,
+    _flip_lines,
     _llm_end_lines,
     build_meta,
     enforce_profile_guard,
+    estimate_cost,
+    flip_analysis,
+    item_outcomes,
     parse_llm_end,
     profile_violations,
     summarize_llm_end,
@@ -497,6 +505,139 @@ def run() -> None:
         and "계측 실패" not in zero_lines
         and "**0건**" in zero_lines,
         f"미계측={none_lines[:52]}… / 0건={zero_lines[:52]}…",
+    )
+
+    # ── ㉓~㉗ MQ-713b — 회차 간 흔들림(flip) 계측 ──
+    #
+    # 후보 3 이 존재하는 이유는 `eval_gap_3rd.md §4` 다: 같은 코드에서 2·3차 판정이 뒤집힌
+    # 문항이 7개였다. 그 위에서 프롬프트를 고치고 단일 실행으로 4차를 돌리면 증감이
+    # 수정 효과인지 요동인지 구분되지 않는다. 여기서는 **합성 ItemResult** 로 그 집계가
+    # 실제로 뒤집힘을 잡는지, 그리고 **재지 않은 것을 안정으로 읽지 않는지**를 본다.
+    exp = {
+        "branch": "s1_pipeline",
+        "part_no": "FAN-IG5-01",
+        "safety_required": False,
+        "expect_not_found": False,
+        "expect_hold": False,
+    }
+
+    def _fake(item_id: str, *, part: bool, failed: bool = False, judged: bool | None = None):
+        """`score_session` 이 만든 진짜 Verdict 를 part 만 갈아끼운다 (Verdict 는 frozen)."""
+        verdicts = [
+            replace(v, passed=part, applicable=True) if v.metric == "part" else v
+            for v in score_session([], exp)
+        ]
+        return ItemResult(
+            item_id=item_id,
+            branch="s1_pipeline",
+            expected=exp,
+            events=[],
+            response_text=(_EXEC_FAILED_PREFIX + "boom") if failed else "ok",
+            verdicts=verdicts,
+            judge=(
+                None
+                if judged is None
+                else JudgeVerdict(hallucinated=judged, rationale="-", raw="-")
+            ),
+            elapsed_s=1.0,
+            session_id=f"EVAL-{item_id}",
+        )
+
+    # T01 = 3회 전부 통과 / T02 = 2/3 (뒤집힘) / T03 = 3회 전부 실패
+    rounds3 = [
+        [_fake("T01", part=True), _fake("T02", part=True), _fake("T03", part=False)],
+        [_fake("T01", part=True), _fake("T02", part=False), _fake("T03", part=False)],
+        [_fake("T01", part=True), _fake("T02", part=True), _fake("T03", part=False)],
+    ]
+    f3 = flip_analysis(rounds3)
+    check(
+        "㉓ 3회차 — 뒤집힌 문항만 flipped, 나머지는 안정 통과/안정 실패",
+        f3["measurable"] is True
+        and f3["by_metric"]["part"] == {
+            "stable_pass": 1,
+            "stable_fail": 1,
+            "flipped": 1,
+            "undetermined": 0,
+        }
+        and f3["flipped_items"] == ["T02"]
+        and f3["items"]["T02"]["part"] == {"passed": 2, "measured": 3, "state": "flipped"},
+        f"flipped={f3['flipped_items']} · part={f3['by_metric']['part']}",
+    )
+
+    # ★ 음성 — 3회 모두 같은 판정이면 흔들림이 0이어야 한다. 무엇을 넣어도 flipped 로
+    #   세는 집계면 4차의 "흔들림 N건"이 아무 의미가 없다.
+    stable = flip_analysis([[_fake("T01", part=True)] for _ in range(3)])
+    check(
+        "㉓-b ★ 음성: 3회 동일 판정 → 흔들림 0칸",
+        stable["n_flipped_cells"] == 0 and stable["by_metric"]["part"]["stable_pass"] == 1,
+        f"flipped={stable['n_flipped_cells']} · part={stable['by_metric']['part']}",
+    )
+
+    # ⛔ 1회차에서 "흔들림 0건"이라고 쓰면 3차 분석이 지적한 그 실패를 리포트가 되풀이한다.
+    f1 = flip_analysis([rounds3[0]])
+    one_round_md = " ".join(_flip_lines(f1))
+    check(
+        "㉔ 1회차 — measurable=False 이고 MD 가 '측정 불가'라고 쓴다(0건이 아니다)",
+        f1["measurable"] is False
+        and f1["n_flipped_cells"] == 0
+        and "측정 불가" in one_round_md
+        and "흔들림이 없다는 뜻이 아니다" in one_round_md,
+        f"measurable={f1['measurable']} / md={one_round_md[:60]}…",
+    )
+
+    # 실행 실패 회차를 fail 로 접으면 흔들림이 부풀려진다 — 분모에서 빠져야 한다(aggregate 와 동일 기준).
+    mixed = flip_analysis(
+        [
+            [_fake("T05", part=True)],
+            [_fake("T05", part=True)],
+            [_fake("T05", part=False, failed=True)],
+        ]
+    )
+    check(
+        "㉕ 실행 실패 회차는 분모 제외 — 통과 2/측정 2 로 '안정 통과'(흔들림 아님)",
+        mixed["items"]["T05"]["part"] == {"passed": 2, "measured": 2, "state": "stable_pass"}
+        and mixed["n_flipped_cells"] == 0,
+        f"T05={mixed['items']['T05']['part']}",
+    )
+
+    # 측정 1회뿐인 칸은 안정도 흔들림도 아니다 — `undetermined` 로 따로 센다.
+    thin = flip_analysis([[_fake("T06", part=True)], [_fake("T06", part=True, failed=True)]])
+    check(
+        "㉖ 측정 회차 <2 인 칸은 undetermined (안정으로 읽지 않는다)",
+        thin["items"]["T06"]["part"]["state"] == "undetermined"
+        and thin["by_metric"]["part"]["undetermined"] == 1
+        and thin["by_metric"]["part"]["stable_pass"] == 0,
+        f"T06={thin['items']['T06']['part']}",
+    )
+
+    # judge 방향 정규화 — hallucinated=True 가 '나쁨'이라 통과 축을 뒤집어 담는다.
+    # 뒤집지 않으면 같은 표에서 환각만 의미가 반대로 읽힌다.
+    hallu = flip_analysis(
+        [
+            [_fake("T07", part=True, judged=False)],
+            [_fake("T07", part=True, judged=False)],
+            [_fake("T07", part=True, judged=True)],
+        ]
+    )
+    outcomes_clean = item_outcomes(_fake("T07", part=True, judged=False))
+    outcomes_bad = item_outcomes(_fake("T07", part=True, judged=True))
+    check(
+        "㉗ hallucination 은 통과 축으로 정규화(hallucinated=True → passed=False)",
+        outcomes_clean["hallucination"] is True
+        and outcomes_bad["hallucination"] is False
+        and hallu["items"]["T07"]["hallucination"]
+        == {"passed": 2, "measured": 3, "state": "flipped"},
+        f"clean={outcomes_clean['hallucination']} / bad={outcomes_bad['hallucination']} / "
+        f"T07={hallu['items']['T07']['hallucination']}",
+    )
+
+    # 비용 문구가 회차를 곱하지 않으면 사람이 1회분에 동의하고 N회분을 쓰게 된다.
+    one = estimate_cost([{"id": "T01"}] * 20, 1)
+    three = estimate_cost([{"id": "T01"}] * 20, 3)
+    check(
+        "㉘ --repeat 비용 추정이 회차를 곱한다 (200 → 600회)",
+        "200회" in one and "600회" in three and "3회차" in three,
+        f"1회차={one[:60]}… / 3회차={three[:64]}…",
     )
 
 
