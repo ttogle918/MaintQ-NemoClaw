@@ -1,0 +1,402 @@
+{
+  "service_id": "0000000212",
+  "service_label": "신청사건 현황",
+  "slug": "apply_cases",
+  "source_url": "https://data.iros.go.kr/openapi/cr/rs/selectCrRsRgsCsOpenApi.rest",
+  "search_type_api": "02 (월별)",
+  "windows": [
+    "202308~202312",
+    "202401~202412",
+    "202501~202512",
+    "202601~202607"
+  ],
+  "empty_windows": [],
+  "tot_unit": "건",
+  "tot_note": "tot 의 단위는 서비스마다 다르다 — 실호출로 확인한 값이 tot_unit 이다. 기관 명세에는 4종 모두 '결과 건수' 로 적혀 있었으나 누적채권액은 원이다.",
+  "citation_guard": "동산·채권 합산 통계다. 동산 중 기계설비 비중은 공개되지 않는다 — '기계설비 담보가 연 N건' 으로 인용하면 사실 왜곡이다.",
+  "rate_limit": "일 1,000회 · 1회 최대 1,000건",
+  "retrieved_at": "2026-08-12T07:32:40+00:00",
+  "record_count": 75,
+  "fields": [
+    "resDate",
+    "srprsCls",
+    "tot"
+  ],
+  "records": [
+    {
+      "resDate": "2023-08",
+      "srprsCls": "법인",
+      "tot": "326"
+    },
+    {
+      "resDate": "2023-08",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "114"
+    },
+    {
+      "resDate": "2023-09",
+      "srprsCls": "법인",
+      "tot": "320"
+    },
+    {
+      "resDate": "2023-09",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "122"
+    },
+    {
+      "resDate": "2023-10",
+      "srprsCls": "법인",
+      "tot": "330"
+    },
+    {
+      "resDate": "2023-10",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "83"
+    },
+    {
+      "resDate": "2023-11",
+      "srprsCls": "법인",
+      "tot": "361"
+    },
+    {
+      "resDate": "2023-11",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "103"
+    },
+    {
+      "resDate": "2023-12",
+      "srprsCls": "법인",
+      "tot": "330"
+    },
+    {
+      "resDate": "2023-12",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "85"
+    },
+    {
+      "resDate": "2024-01",
+      "srprsCls": "법인",
+      "tot": "251"
+    },
+    {
+      "resDate": "2024-01",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "98"
+    },
+    {
+      "resDate": "2024-02",
+      "srprsCls": "법인",
+      "tot": "246"
+    },
+    {
+      "resDate": "2024-02",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "63"
+    },
+    {
+      "resDate": "2024-03",
+      "srprsCls": "법인",
+      "tot": "340"
+    },
+    {
+      "resDate": "2024-03",
+      "srprsCls": "미등기 외국법인",
+      "tot": "1"
+    },
+    {
+      "resDate": "2024-03",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "64"
+    },
+    {
+      "resDate": "2024-04",
+      "srprsCls": "법인",
+      "tot": "274"
+    },
+    {
+      "resDate": "2024-04",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "90"
+    },
+    {
+      "resDate": "2024-05",
+      "srprsCls": "법인",
+      "tot": "333"
+    },
+    {
+      "resDate": "2024-05",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "77"
+    },
+    {
+      "resDate": "2024-06",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "70"
+    },
+    {
+      "resDate": "2024-06",
+      "srprsCls": "법인",
+      "tot": "289"
+    },
+    {
+      "resDate": "2024-07",
+      "srprsCls": "법인",
+      "tot": "337"
+    },
+    {
+      "resDate": "2024-07",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "90"
+    },
+    {
+      "resDate": "2024-08",
+      "srprsCls": "법인",
+      "tot": "248"
+    },
+    {
+      "resDate": "2024-08",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "63"
+    },
+    {
+      "resDate": "2024-09",
+      "srprsCls": "법인",
+      "tot": "240"
+    },
+    {
+      "resDate": "2024-09",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "83"
+    },
+    {
+      "resDate": "2024-10",
+      "srprsCls": "법인",
+      "tot": "326"
+    },
+    {
+      "resDate": "2024-10",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "80"
+    },
+    {
+      "resDate": "2024-11",
+      "srprsCls": "법인",
+      "tot": "268"
+    },
+    {
+      "resDate": "2024-11",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "83"
+    },
+    {
+      "resDate": "2024-12",
+      "srprsCls": "법인",
+      "tot": "229"
+    },
+    {
+      "resDate": "2024-12",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "79"
+    },
+    {
+      "resDate": "2025-01",
+      "srprsCls": "법인",
+      "tot": "200"
+    },
+    {
+      "resDate": "2025-01",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "71"
+    },
+    {
+      "resDate": "2025-02",
+      "srprsCls": "법인",
+      "tot": "183"
+    },
+    {
+      "resDate": "2025-02",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "50"
+    },
+    {
+      "resDate": "2025-03",
+      "srprsCls": "법인",
+      "tot": "227"
+    },
+    {
+      "resDate": "2025-03",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "69"
+    },
+    {
+      "resDate": "2025-04",
+      "srprsCls": "법인",
+      "tot": "292"
+    },
+    {
+      "resDate": "2025-04",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "80"
+    },
+    {
+      "resDate": "2025-05",
+      "srprsCls": "법인",
+      "tot": "277"
+    },
+    {
+      "resDate": "2025-05",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "67"
+    },
+    {
+      "resDate": "2025-06",
+      "srprsCls": "법인",
+      "tot": "267"
+    },
+    {
+      "resDate": "2025-06",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "76"
+    },
+    {
+      "resDate": "2025-07",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "66"
+    },
+    {
+      "resDate": "2025-07",
+      "srprsCls": "법인",
+      "tot": "358"
+    },
+    {
+      "resDate": "2025-08",
+      "srprsCls": "법인",
+      "tot": "188"
+    },
+    {
+      "resDate": "2025-08",
+      "srprsCls": "미등기 외국법인",
+      "tot": "1"
+    },
+    {
+      "resDate": "2025-08",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "72"
+    },
+    {
+      "resDate": "2025-09",
+      "srprsCls": "법인",
+      "tot": "270"
+    },
+    {
+      "resDate": "2025-09",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "42"
+    },
+    {
+      "resDate": "2025-10",
+      "srprsCls": "법인",
+      "tot": "206"
+    },
+    {
+      "resDate": "2025-10",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "60"
+    },
+    {
+      "resDate": "2025-11",
+      "srprsCls": "법인",
+      "tot": "253"
+    },
+    {
+      "resDate": "2025-11",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "66"
+    },
+    {
+      "resDate": "2025-12",
+      "srprsCls": "법인",
+      "tot": "289"
+    },
+    {
+      "resDate": "2025-12",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "67"
+    },
+    {
+      "resDate": "2026-01",
+      "srprsCls": "법인",
+      "tot": "196"
+    },
+    {
+      "resDate": "2026-01",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "57"
+    },
+    {
+      "resDate": "2026-02",
+      "srprsCls": "법인",
+      "tot": "170"
+    },
+    {
+      "resDate": "2026-02",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "54"
+    },
+    {
+      "resDate": "2026-03",
+      "srprsCls": "법인",
+      "tot": "239"
+    },
+    {
+      "resDate": "2026-03",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "34"
+    },
+    {
+      "resDate": "2026-04",
+      "srprsCls": "법인",
+      "tot": "266"
+    },
+    {
+      "resDate": "2026-04",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "52"
+    },
+    {
+      "resDate": "2026-05",
+      "srprsCls": "법인",
+      "tot": "199"
+    },
+    {
+      "resDate": "2026-05",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "66"
+    },
+    {
+      "resDate": "2026-06",
+      "srprsCls": "법인",
+      "tot": "278"
+    },
+    {
+      "resDate": "2026-06",
+      "srprsCls": "미등기 외국법인",
+      "tot": "2"
+    },
+    {
+      "resDate": "2026-06",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "67"
+    },
+    {
+      "resDate": "2026-07",
+      "srprsCls": "법인",
+      "tot": "281"
+    },
+    {
+      "resDate": "2026-07",
+      "srprsCls": "사업자등록을 한 사람",
+      "tot": "27"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "service_id": "0000000239",
+  "service_label": "신청현황(채권최고액별)",
+  "slug": "apply_by_amount",
+  "source_url": "https://data.iros.go.kr/openapi/cr/rs/selectCrRsRgsCsOpenApi.rest",
+  "search_type_api": "02 (월별)",
+  "windows": [
+    "202308~202312",
+    "202401~202412",
+    "202501~202512",
+    "202601~202607"
+  ],
+  "empty_windows": [],
+  "tot_unit": "건",
+  "tot_note": "tot 의 단위는 서비스마다 다르다 — 실호출로 확인한 값이 tot_unit 이다. 기관 명세에는 4종 모두 '결과 건수' 로 적혀 있었으나 누적채권액은 원이다.",
+  "citation_guard": "동산·채권 합산 통계다. 동산 중 기계설비 비중은 공개되지 않는다 — '기계설비 담보가 연 N건' 으로 인용하면 사실 왜곡이다.",
+  "rate_limit": "일 1,000회 · 1회 최대 1,000건",
+  "retrieved_at": "2026-08-12T07:32:49+00:00",
+  "record_count": 0,
+  "fields": [],
+  "records": []
+}
