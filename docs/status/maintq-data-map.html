@@ -216,7 +216,7 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기능 12종(구현 완료 <b>11</b> · 남은 것 1)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>2026-08-12 DB 실측치</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
+      <p class="lede">기능 13종(구현 완료 <b>12</b> · 남은 것 1)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>2026-08-12 DB 실측치</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
     </div>
     <div class="asof">기준 시점<b>2026-08-12</b></div>
   </header>
@@ -225,7 +225,7 @@
     <div class="stat g">
       <div class="n">11</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 611건</div>
+      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 613건</div>
     </div>
     <div class="stat w">
       <div class="n">1</div>
@@ -275,7 +275,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 611건 · 27스위트</span>
+      <span class="count">M1~M4 · 회귀 613건 · 27스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -525,8 +525,8 @@
         <thead><tr><th>데이터</th><th class="num">규모</th><th>출처</th><th>왜 받았나</th><th>쓰는 기능</th></tr></thead>
         <tbody>
           <tr>
-            <td class="mono">LS 매뉴얼 원본 4종<span class="sub">iG5A 사용/트러블슈팅 · S100 · IE5</span></td>
-            <td class="num">35.1MB</td>
+            <td class="mono">LS 매뉴얼 원본 5개<span class="sub">iG5A 사용/트러블슈팅 · S100 · IE5 2종</span></td>
+            <td class="num">36.1MB</td>
             <td>LS Solution Square<span class="sub">공식 자료실</span></td>
             <td><b>프로젝트의 뿌리.</b> 에러코드·점검 절차·안전 경고의 유일한 근거</td>
             <td>1, 2, 5</td>
@@ -702,6 +702,27 @@
         </tbody>
       </table>
     </div>
+
+    <div class="sec-head" style="margin-top:34px"><h2>받았지만 쓰지 않기로 한 것</h2><span class="count">1종 · 14.3GB</span></div>
+    <p class="sec-note">확보 자체가 실패는 아닙니다. <b>왜 안 쓰는지를 적어 두는 편이, 다음에 같은 데이터를 보고 같은 기대를 하지 않게 합니다.</b></p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>데이터</th><th class="num">규모</th><th>왜 안 쓰는가</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono"><b>DACON 236036</b> 기계 고장 진단<span class="sub">월간 데이콘 · 팬 소음</span></td>
+            <td class="num">14.3GB<br>train 1,279 · test 1,514</td>
+            <td>
+              8채널 · 16kHz · 32bit float · 10초 wav.
+              <b>① <code>train.csv</code>의 <code>LABEL</code>이 1,279행 전부 0(정상)</b> — 지도학습 분류가 아니라 비지도 이상탐지 과제다.
+              <b>② <code>test.csv</code>에 <code>LABEL</code>이 없고 정답 미공개</b> → <b>라벨된 고장 샘플 0건</b>이라 "실제 고장 사례" 확보 목적으로도 못 쓴다.
+              ③ 진단 경로가 에러코드 텍스트 기반이고(D1) 도구 15종에 오디오 입력이 없다. 대상도 <b>팬 소리 vs 인버터</b>로 다르다(D6·D13).
+              <span class="sub">붙는다면 백로그 P10(예지보전)이나, 현재 P10 입력이 <code>error_history</code>(D29)라 입력 축 신설이 선행된다. 상세는 <code>data/raw/INDEX.md §4</code></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div class="note crit">
       <b>D65는 유지됩니다.</b> 중진공·캠코로 잔가 추정의 <i>근거</i>는 생겼지만 <i>정확도</i>가 생긴 건 아닙니다. 시장가·감정가 출력에는 추정치 고지가 계속 강제되고, 단정적 금액 표현은 차단됩니다.
     </div>
@@ -767,7 +788,7 @@
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
     <span>기준 2026-08-12 · DB 실측</span>
-    <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/data_list.md</code></span>
+    <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/raw/INDEX.md</code></span>
   </footer>
 
 </div>
