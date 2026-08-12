@@ -1,6 +1,7 @@
 # 매뉴얼 원본 PDF — 저작권상 레포 제외 (출처·버전·해시는 manifest.json으로 추적, D19)
 data/raw/*
 !data/raw/manifest.json
+!data/raw/INDEX.md
 
 # 목업 DB
 *.db

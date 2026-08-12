@@ -15,7 +15,14 @@ PROTECTED = ("data/raw/", "data\\raw\\")
 PROTECTED_FILES = ("eval/testset.json", "eval\\testset.json")
 # manifest.json은 원본이 아니라 관리 대장 — 파이프라인이 sha256을 채우고(D19),
 # 페이지 오프셋 등 메타데이터를 기록한다(D26). raw 보호에서 제외.
-ALLOWED_IN_PROTECTED = ("data/raw/manifest.json", "data\\raw\\manifest.json")
+# INDEX.md도 같은 성격 — 원본이 아니라 "어느 디렉터리에 무엇이 있나"를 적는 문서다.
+# ⛔ 예외는 **파일명 정확 일치**로만 준다. 원본(PDF·CSV·wav)은 그대로 차단된다.
+ALLOWED_IN_PROTECTED = (
+    "data/raw/manifest.json",
+    "data\\raw\\manifest.json",
+    "data/raw/index.md",
+    "data\\raw\\index.md",
+)
 
 try:
     payload = json.load(sys.stdin)
