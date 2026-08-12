@@ -808,7 +808,7 @@ flowchart LR
   A --> ra["RAG 호출 0/9 → 4/9<br/>인용 통과와 1:1 대응"] --> ok1(["채택"])
   C --> rc["안전 안정실패 3 → 1"] --> ok2(["채택"])
   AB --> rab["목표 칸 불변<br/>+ 안정 통과 1칸 후퇴<br/>+ 흔들림 증가"] --> no1(["기각 · 원복"])
-  G --> rg["승격 0칸<br/>표적 T15 가 세 지표 모두 후퇴<br/>거부 후 '선언 후 종료' 재현"] --> no2(["효과 미확인"])
+  G --> rg["승격 0칸<br/>표적 T15 가 세 지표 모두 후퇴<br/>거부 후 '선언 후 종료' 재현"] --> no2(["기각 · 원복"])
 
   classDef okn fill:#E2F3EA,stroke:#1D8A5C,color:#1D8A5C;
   class ok1,ok2 okn;
@@ -846,12 +846,12 @@ flowchart LR
           <tr><td><b>4층 방어</b></td><td class="mono">generate_disposal_document.py(스키마) · mcp_server/db.py decision_writer()(트리거) · routers/decisions.py sign()(409) · data/seed.py DDL CHECK</td></tr>
           <tr><td><b>실사 판정</b></td><td class="mono">data/ownership.py — 9카테고리 · 38항목. MCP 도구는 위임 래퍼(D73)</td></tr>
           <tr><td><b>튜닝 루프 · 흔들림 계측</b></td><td class="mono">eval/run_eval.py — <code>--repeat N</code> · <code>flip_analysis()</code> · <code>item_outcomes()</code> · 회차별 <code>.rN.traces.jsonl</code>·<code>.rN.server.log</code></td></tr>
-          <tr><td><b>반복 조회 가드</b> (MQ-714)</td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → <code>duplicate_call</code> 반환 후 <b>턴 계속</b>. 회귀 <code>agent_loop_contract ⑦-d·⑦-d-b</code></td></tr>
+          <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 618건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 616건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).

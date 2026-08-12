@@ -303,7 +303,7 @@
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 6종</span></div>
-    <p class="sec-note">회귀 <b>spikes 27스위트 / 618건</b> · seed 21 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 27스위트 / 616건</b> · seed 21 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -425,8 +425,8 @@
         <p class="desc">둘 다 <b>같은 실패 서명</b>을 냈습니다 — 목표 칸은 그대로, <b>안정 통과 1칸이 안정 실패로 후퇴</b>, 흔들림 증가. <b>지시를 더 넣는 방향은 이 모델에서 재현되지 않는다</b>는 것이 3회씩 두 번 측정한 결론입니다.</p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>MQ-714 — T15 루프 축</h3><span class="chip blocked">측정 완료 · <b>효과 미확인</b></span></div>
-        <p class="desc">반복 조회 가드가 <b>턴 자체를 끝내고</b> 있어, 중복 호출만 거부하고 진행하도록 고쳤습니다. <b><code class="inline">--repeat 3</code> 결과 승격 0칸</b> — 게다가 표적이던 T15가 <b>세 지표 모두 후퇴</b>했습니다(아래 참조).</p>
+        <div class="card-head"><h3>MQ-714 — T15 루프 축</h3><span class="chip blocked">기각 · <b>원복 완료</b></span></div>
+        <p class="desc">반복 조회 가드가 <b>턴 자체를 끝내고</b> 있어, 중복 호출만 거부하고 진행하도록 고쳤습니다. <b><code class="inline">--repeat 3</code> 결과 승격 0칸</b> — 표적이던 T15가 오히려 <b>세 지표 모두 후퇴</b>해 <b>코드·회귀 모두 원복</b>했습니다(아래 참조).</p>
       </div>
     </div>
 
@@ -472,8 +472,10 @@
         <p><b>기전이 수치보다 분명합니다.</b> 3회차 중 2회차에서 가드가 중복 호출을 거부한 뒤,
           모델은 다음 도구로 가지 않고 <code class="inline">"매뉴얼 절차를 찾아보겠습니다."</code> · <code class="inline">"대체 가능한 부품이 있는지 찾아보겠습니다."</code>로 <b>턴을 끝냈습니다</b> —
           이건 이미 이름 붙여 둔 실패형인 <b>"선언 후 종료"</b> 그 자체입니다. 노리던 <b>거부 → 다음 단계 진행</b>은 한 번도 일어나지 않았습니다.</p>
-        <div class="fix"><b>판정 —</b> 효과 미확인. 이유는 A′·B와 다르지만(그쪽은 안정 통과 후퇴, 이쪽은 표적 악화 + 기전 불성립) <b>결론은 같습니다 — 지시나 메시지로 모델의 종료를 막는 방향은 이 모델에서 재현되지 않습니다.</b>
-          <b>원복 여부는 사람 판단 대기</b>입니다 — 구 동작(<code class="inline">"같은 조회를 반복하고 있어 중단했습니다"</code>를 사용자에게 노출)도 그 자체로 좋지 않아, 수치만으로 되돌릴 일은 아닙니다.</div>
+        <div class="fix"><b>판정 · 조치 —</b> 효과 미확인 → <b>원복 완료</b>(코드 · 회귀 ⑦-d·⑦-d-b 함께). 이유는 A′·B와 다르지만(그쪽은 안정 통과 후퇴, 이쪽은 표적 악화 + 기전 불성립)
+          <b>결론은 같습니다 — 지시로든 메시지로든 모델의 "스스로 끝내기"를 막는 방향은 이 모델에서 재현되지 않습니다.</b>
+          ⛔ 회귀는 <b>618 → 616건</b>으로 <b>줄어드는 것이 정상</b>입니다 — 이 2건은 원복된 동작을 단언하던 것이라 남겨 두면 거짓으로 실패합니다.
+          <b>구 동작의 결함은 그대로 남습니다</b> — 사용자에게 <code class="inline">"같은 조회를 반복하고 있어 중단했습니다"</code>가 그대로 노출됩니다. 지표가 아니라 <b>UX 문제로 따로</b> 다뤄야 합니다.</div>
       </div>
     </div>
     <div class="issue">
@@ -506,7 +508,7 @@
 
   <!-- ============ 문제점 ============ -->
   <section>
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">6건 남음 — 사람 승인 3 · 환경 1 · 품질 한계 1 · 미수집 1</span></div>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">7건 남음 — 사람 승인 3 · 외부 결함 1 · 환경 1 · UX 1 · 품질 한계 1</span></div>
     <div class="issue">
       <span class="sev info">✅ 해결</span>
       <div>
@@ -562,6 +564,14 @@
         <h4>등기정보광장 <code class="inline">0000000239</code>(채권최고액별) — <b>응답은 200인데 값이 전부 빔</b></h4>
         <p>같은 키·같은 코드로 나머지 <b>3종은 75·108·108행이 정상 수집</b>됩니다. 이 1종만 <code class="inline">reqtype</code> json/xml × 조회기간 3구간 <b>6조합 전부에서 0행</b>이었습니다. <b>우리 요청 형식의 문제가 아님을 조합으로 확정</b>했고, 기관 측 결함으로 판단합니다.</p>
         <div class="fix"><b>영향 없음 —</b> S18 <code class="inline">residual_risk</code>는 <b>배경 근거</b>로만 쓰고 개별 담보 조회는 애초에 불가합니다. 나머지 3종으로 충분합니다. 기관 문의는 사람 몫으로 남깁니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">UX</span>
+      <div>
+        <h4>반복 조회 가드가 <b>내부 사정을 사용자에게 그대로 노출</b>합니다</h4>
+        <p>MQ-714 원복으로 구 동작이 돌아왔습니다 — 직전과 동일한 (도구, 인자) 호출을 만나면 <code class="inline">"같은 조회를 반복하고 있어 중단했습니다. 현재까지 확인된 정보로 답변합니다."</code>만 남기고 <b>턴을 끝냅니다.</b> 정비사에게는 <b>답이 아니라 시스템 사정</b>이 도착합니다.</p>
+        <div class="fix"><b>다음 시도는 지표가 아니라 UX 문제로 —</b> MQ-714는 이걸 <b>지표로 풀려다</b> 실패했습니다. 측정으로 확인된 사실은 <b>턴을 이어 줘도 모델이 다음 도구로 가지 않는다</b>는 것이므로, 다음 후보는 "루프를 이어 붙이기"가 아니라 <b>남은 정보로 답을 구성해 내보내는 쪽</b>이어야 합니다.</div>
       </div>
     </div>
     <div class="issue">
@@ -748,11 +758,11 @@
   </section>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>MQ-714 원복 여부 결정 → Sprint 7 종료 → Sprint 8(S19 · <code class="inline">flags</code>)</strong><br>
+    <div>다음 우선순위: <strong>Sprint 7 종료 → Sprint 8(S19 <code class="inline">create_repair_record</code> · <code class="inline">flags</code>)</strong><br>
       <span style="font-size:12.5px">🔴 사람: 처분 문서 문안 검수 · 안전 문구 검수 · <code class="inline">KR-CITA-ENF-31</code> 제목 정정 · <code class="inline">parts.part_class</code> 40종 감수<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> — 5지표가 전부 판정 가능해졌습니다</span></div>
     <div class="figs">
-      <div><b>618</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
+      <div><b>616</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
       <div><b>18</b>DB 테이블 (코어 11 + 확장 7)</div>
       <div><b>88</b>설계 결정 D1~D88</div>
       <div><b>15</b>MCP 도구 (코어 7 + 확장 8)</div>
