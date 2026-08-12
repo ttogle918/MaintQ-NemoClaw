@@ -37,7 +37,7 @@
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |
 | REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. ⚠ `/api/po` 는 **형태 불변** |
 | 프론트 | 라우트 **10개** (실측 `npm run build`) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace |
-| 회귀 (실측 2026-08-12) | spikes **27스위트 / 616건** · seed **21건** · pytest **46건**. ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절) |
+| 회귀 (실측 2026-08-12) | spikes **27스위트 / 618건** · seed **21건** · pytest **46건**. ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절) |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
 | 계층 1 (법령 원문) | ✅ **실수집 완료 (Sprint 7 MQ-701)** — 참조 7건 중 **6건 `FETCHED` · 1건 `PENDING`**(`KR-CITA-ENF-31`). 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
 

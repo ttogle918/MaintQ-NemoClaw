@@ -444,11 +444,39 @@ async def run_turn(
 
             sig = (tu.name, json.dumps(tu.input, sort_keys=True, ensure_ascii=False))
             if sig == st.last_call:
-                yield sse.token(
-                    "같은 조회를 반복하고 있어 중단했습니다. 현재까지 확인된 정보로 답변합니다."
+                # ── 반복 조회 — **턴을 끊지 않고 다음 단계를 유도한다** (MQ-714)
+                #
+                # 이전에는 여기서 `pending=[] ; break` 로 턴을 통째로 끝냈다. 그 결과가
+                # 4차 평가의 T15 다 — 재고 0 을 보고 같은 질의를 다시 던졌고, 가드가
+                # 42자짜리 안내문만 남긴 채 턴을 끝내 **RAG·안전·인용까지 전부 못 갔다**
+                # (세 회차 내내 citation·safety 안정 실패).
+                #
+                # 프롬프트로 막아 봤으나 실패했다(후보 A′ — 규칙 4 에 "재조회 금지 ·
+                # 반복하면 턴이 끊긴다" 를 명시했는데 **행동이 한 칸도 안 바뀌었다**).
+                # 그래서 축을 바꾼다: 모델에게 말로 부탁하는 대신 **중복 호출만 거부하고
+                # 그 사실을 도구 결과로 돌려줘** 다음 수를 두게 한다.
+                #
+                # ⛔ 무한 루프 방지 — 거부도 `tool_calls` 를 소비한다. 모델이 계속
+                #    반복해도 `MAX_TOOL_CALLS_PER_TURN` 에서 멈춘다.
+                st.tool_calls += 1
+                # 도구 실패 계약(D9)과 같은 모양 — 예외를 던지지 않고 status 로 돌려준다.
+                dup = {
+                    "status": "error",
+                    "reason": "duplicate_call",
+                    "message": (
+                        f"{tu.name} 을(를) 직전과 똑같은 인자로 다시 호출했습니다. "
+                        "결과는 같으므로 재조회하지 말고 다음 단계로 진행하십시오 "
+                        "(재고 0 이면 find_alternative_parts, 절차가 필요하면 rag_search_manual)."
+                    ),
+                }
+                yield trace.tool_result(
+                    tu.name, "error", summarize_result(tu.name, dup), 0.0, pages=[], parts=[]
                 )
-                pending = []
-                break
+                store.append(
+                    session_id,
+                    {"role": "tool", "name": tu.name, "content": _history_payload(tu.name, dup)},
+                )
+                continue
             st.last_call = sig
             st.tool_calls += 1
 

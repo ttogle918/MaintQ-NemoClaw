@@ -270,6 +270,53 @@ async def run_all(db: Path) -> None:
         f"safety={len(blocks(ev, 'safety'))}건 · 본문 유지={NO_KEYWORD in texts_c}",
     )
 
+    # ── ⑦-d 반복 조회 — **턴을 끊지 않고 다음 단계를 유도한다** (MQ-714)
+    #
+    # 4차 평가 T15: 재고 0 을 보고 같은 질의를 다시 던졌고, 가드가 턴을 통째로 끝내
+    # **RAG·안전·인용까지 전부 못 갔다**(세 회차 내내 citation·safety 안정 실패).
+    # 프롬프트로 막는 시도(후보 A′)는 **행동을 한 칸도 못 바꿨다** — 그래서 축을 바꿔
+    # 중복 호출만 거부하고 그 사실을 도구 결과로 돌려준다.
+    ev, _, _ = await drive(
+        [
+            [tu("search_inventory", part_no="FAN-IG5-01", model="iG5A")],
+            [tu("search_inventory", part_no="FAN-IG5-01", model="iG5A")],  # ← 완전 동일
+            [tu("rag_search_manual", model="iG5A", query="교체 절차")],  # 다음 단계로 진행
+            [("text", "냉각팬을 교체하십시오.")],
+        ],
+        {
+            "search_inventory": {"status": "ok", "items": [{"part_no": "FAN-IG5-01", "qty": 0}]},
+            "rag_search_manual": RAG_OK,
+        },
+        db=db,
+        session="T7d",
+    )
+    names = [e.data.get("tool") for e in ev if e.event == "tool_result"]
+    dup = [e for e in ev if e.event == "tool_result" and e.data.get("status") == "error"]
+    texts_d = " ".join(str(e.data.get("text", "")) for e in ev if e.event == "token")
+    check(
+        "⑦-d 반복 조회는 **거부만** 하고 턴은 계속된다 (다음 도구까지 간다)",
+        # 중복은 error 로 돌아오고, 그 뒤 rag 가 실제로 호출돼 인용까지 도달해야 한다
+        len(dup) >= 1
+        and "rag_search_manual" in names
+        and bool(blocks(ev, "citation"))
+        and "같은 조회를 반복하고 있어 중단" not in texts_d,
+        f"tool_result={names} · error={len(dup)}건 · citation={len(blocks(ev, 'citation'))}",
+    )
+    # ⚠ `reason` 은 SSE `tool_result` 계약에 없는 필드다(D30·D76 — 필드를 늘리지 않는다).
+    #   `duplicate_call` 은 LLM 이력(`role:"tool"`)으로만 가고, 스트림에는 **요약문**으로 나온다.
+    #   그래서 관측 가능한 것을 단언한다 — 거부 사실 + **다음 단계 지시**가 요약에 있는가.
+    dup_summary = str(dup[0].data.get("summary", "")) if dup else ""
+    # ⚠ `summarize_result` 가 요약을 잘라서 문장 뒤쪽(`rag_search_manual`)은 스트림에
+    #   안 남는다 — 잘린 뒤에도 확인되는 부분만 단언한다. **전문은 LLM 이력으로 간다.**
+    check(
+        "⑦-d-b 거부 요약이 재조회를 막고 다음 단계를 지시한다",
+        bool(dup)
+        and "다시 호출" in dup_summary
+        and "재조회하지 말고" in dup_summary
+        and "find_alternative_parts" in dup_summary,
+        f"{dup_summary[:100] or '없음'}",
+    )
+
     # ── ⑧ citation.page == 도구 결과의 page (D30)
     ev, _, _ = await drive(
         [[tu("lookup_error_code", model="iG5A", code="OHt")], [("text", "과열입니다.")]],
