@@ -270,6 +270,18 @@ async def chat(
     if replay is not None and replay not in REPLAYS:
         raise HTTPException(400, f"replay 는 {REPLAYS} 중 하나여야 합니다: {replay!r}")
 
+    # ── 진입 표식 (MQ-713b 조사) ────────────────────────────────────────────────
+    # **왜 여기인가.** 2026-08-11·12 두 차례 평가에서 문항 10~11개 이후 10문항이
+    # 전부 정확히 180초(클라이언트 읽기 타임아웃)로 죽었는데, 서버 로그에는 그 요청들의
+    # 흔적이 **한 줄도** 없었다. 그래서 두 가지가 구분되지 않았다:
+    #   ⓐ 요청이 서버에 도착했는데 응답이 안 나갔다  (서버 쪽 문제)
+    #   ⓑ 요청이 애초에 나가지 못했다               (클라이언트·OS 소켓 문제)
+    # 이 한 줄이 있으면 다음 재현에서 **로그에 찍혔는지 여부만으로** 갈린다.
+    # WARNING 인 것도 의도다 — uvicorn 기본 설정에서 루트 로거에 핸들러가 없어
+    # INFO 는 `logging.lastResort`(WARNING 하한)에 걸려 조용히 사라진다
+    # (`loop.py:LLM_END_MARKER` 주석과 같은 이유).
+    logger.warning("[CHAT_IN] session=%s replay=%s", req.session_id, replay or "-")
+
     d = TOKEN_DELAY if delay is None else delay
     # 재생이든 실 루프든 **같은 writer** 를 쓴다 — A5(발행=저장)에 예외 경로를 만들지 않는다.
     # 다만 재생은 `replay: true` 표식을 단다 (D55) — 재생이 traces 에 남기는 합성 행이

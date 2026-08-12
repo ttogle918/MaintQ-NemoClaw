@@ -408,9 +408,28 @@
         <p class="desc">① traces 덤프(도구 원본 대조) ② <code class="inline">[LLM_END]</code> 잘림 계측 ③ <code class="inline">--repeat N</code> 회차 간 흔들림. <b>계측 없이 튜닝하면 개선과 요동을 구분할 수 없습니다.</b></p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>후보 5 — 파이프라인 완주</h3><span class="chip partial">적용 · <b>효과 미판정</b></span></div>
-        <p class="desc">trace 원본이 기전을 확정: <code class="inline">search_inventory</code>를 <b>부른 건 인자가 정확했고</b>, 9/11은 <b>아예 호출하지 않고</b> 턴을 끝냈습니다. 프롬프트는 고쳤으나 <b>4차가 무효라 효과는 아직 모릅니다.</b></p>
+        <div class="card-head"><h3>후보 5 — 파이프라인 완주</h3><span class="chip partial">적용 · <code class="inline">--repeat</code> 판정 대기</span></div>
+        <p class="desc">trace 원본이 기전을 확정: <code class="inline">search_inventory</code>를 <b>부른 건 인자가 정확했고</b>, 9/11은 <b>아예 호출하지 않고</b> 턴을 끝냈습니다. 수정 후 3차 대비 <b>부품 +20.0pt · 안전 +11.1pt</b>지만 <b>단일 실행이라 확정하지 않습니다.</b></p>
       </div>
+    </div>
+
+    <div class="datatable-wrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th>지표</th><th class="num">3차 (08-09)</th><th class="num">5차 (08-12)</th><th class="num">증감</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>부품 특정 (≥90%)</td><td class="num">7/15 = 46.7%</td><td class="num"><b>10/15 = 66.7%</b></td><td class="num">+20.0pt</td><td><span class="status-dot pending">판정 불가 (D12)</span></td></tr>
+          <tr><td>근거 인용 (100%)</td><td class="num">15/18 = 83.3%</td><td class="num">15/18 = 83.3%</td><td class="num">±0</td><td><span class="status-dot missing">미달</span></td></tr>
+          <tr><td>안전 경고 (100%)</td><td class="num">13/18 = 72.2%</td><td class="num"><b>15/18 = 83.3%</b></td><td class="num">+11.1pt</td><td><span class="status-dot missing">미달</span></td></tr>
+          <tr><td>시퀀스 (100%)</td><td class="num">5/5 = 100%</td><td class="num">5/5 = 100%</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>환각률 (0%)</td><td class="num">0/2 = 0%</td><td class="num">0/2 = 0%</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>권한 403 (100%)</td><td class="num">PASS</td><td class="num">PASS</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-strip" style="margin-top:14px">
+      <b>⚠ 이 증감을 튜닝의 효과로 확정하지 않습니다.</b> 3차 분석 실측 — <b>코드를 한 줄도 안 고친 상태에서 2·3차 사이에 7문항의 판정이 뒤집혔습니다.</b>
+      단일 실행은 개선과 요동을 구분하지 못합니다. 판정은 <code class="inline">--repeat 3</code>으로 <b>안정 실패 → 안정 통과로 넘어간 칸</b>을 세어서 합니다 —
+      그러라고 만든 계측입니다. 두 회차의 <b>분모가 15/18/18/5/2로 완전히 같다</b>는 점만이 지금 확실한 사실입니다.
     </div>
     <div class="note-strip" style="margin-top:14px">
       <b>지시는 원래도 있었고 모델이 지키지 않았습니다.</b> 그래서 같은 말을 다시 넣지 않고, trace가 보여 준 <b>두 회피 형태</b>를 근거로 범위를 넓혔습니다 —
@@ -427,19 +446,22 @@
           <b>T11~T20 10문항이 실행 실패해 분모에서 빠졌고</b>, 하필 3차의 인용 실패 3건이 전부 <b>T13·T14·T15</b>였습니다.
           즉 <b>실패하던 문항이 사라져서 100%가 된 것</b>이지 고쳐져서가 아닙니다 — 완주한 T01~T10은 3차에서도 이미 전부 PASS였습니다.
           부품은 오히려 46.7% → 30.0%인데 이 역시 분모(15 → 10)가 달라 비교가 성립하지 않습니다.</p>
-        <div class="fix"><b>판정 —</b> 이 회차는 <b>기록만 하고 개선 근거로 쓰지 않습니다.</b> 좋아 보이는 수치를 그대로 인용하는 것이 이 프로젝트에서 가장 하지 말아야 할 일입니다.</div>
+        <div class="fix"><b>판정 —</b> 이 회차는 <b>기록만 하고 개선 근거로 쓰지 않습니다.</b> 좋아 보이는 수치를 그대로 인용하는 것이 이 프로젝트에서 가장 하지 말아야 할 일입니다.
+          <b>원인은 아래에서 확정·수정됐고</b>, 같은 코드로 다시 돌린 5차(<code class="inline">20260812-015934</code>)가 20/20 완주해 3차와 같은 분모를 회복했습니다.</div>
       </div>
     </div>
     <div class="issue">
-      <span class="sev crit">🔴 신규</span>
+      <span class="sev info">✅ 해결</span>
       <div>
-        <h4>서버가 문항 11개째에서 <b>멎습니다</b> — 속도 제한이 아니었습니다</h4>
-        <p>실패 10건이 <b>전부 정확히 180초</b>(문항 읽기 타임아웃)였고, 서버 로그는 <b>T11 도중에 뚝 끊깁니다</b>.
-          T11은 <code class="inline">lookup_error_code</code>까지 정상 반환(0.011초)한 뒤 <b>두 번째 LLM 호출에서 아무 로그도 남기지 않고</b> 멈췄고,
-          그 이후 T12~T20은 <b>클라이언트 생성 로그조차 찍히지 않았습니다</b> — 개별 요청이 아니라 <b>서버 전체가 막혔다</b>는 뜻입니다.
-          <code class="inline">429</code>·quota·예외 흔적은 로그에 <b>하나도 없습니다.</b></p>
-        <div class="fix"><b>다음 —</b> 이벤트 루프를 막는 동기 호출이 유력한 방향입니다(<code class="inline">D42</code>가 워커 태스크를 도입한 것과 같은 계열).
-          <b>이걸 고치기 전에는 20문항 완주가 불가능하므로 튜닝 판정도 불가능합니다.</b> 지금은 실패 사유에 <b>예외 타입과 경과</b>가 남도록 계측을 보강해 둔 상태입니다.</div>
+        <h4>평가 정지 결함 — 원인 확정 · 수정 완료. <b>원인은 우리가 넣은 계측이었습니다</b></h4>
+        <p>py-spy로 멎은 서버 스택을 뜨자 <b>이벤트 루프가 <code class="inline">logging.emit</code>에서 정지</b>해 있었습니다.
+          평가 러너가 <code class="inline">stderr=subprocess.PIPE</code>로 서버를 띄우는데 <b>실행 중에는 아무도 그 파이프를 읽지 않습니다</b>(회수는 종료 시 1회).
+          버퍼가 차자 서버의 로그 쓰기가 막혔고, <code class="inline">logging</code>은 동기라 <b>이벤트 루프째</b> 멈췄습니다 — 그래서 <code class="inline">/health</code>조차 응답하지 않았습니다.</p>
+        <p><b>자연 실험이 확증합니다</b>: 1·2·3차(계측 전) <b>20/20 완주 · 실패 0</b> → 4차(<code class="inline">[LLM_END]</code> 추가 후) <b>실패 10</b> → <b>수정 후 다시 20/20 · 실패 0</b>.
+          진단하려고 넣은 로그가 진단 대상을 망가뜨렸습니다.</p>
+        <div class="fix"><b>수정 —</b> 로그를 줄이는 건 해법이 아닙니다(한 줄만 늘어도 재발). <b>파이프를 없애고 stderr를 파일로 직접</b> 씁니다.
+          덤으로 예외가 전파돼도 로그가 남습니다. 회귀 <code class="inline">eval_score_contract ㉚</code>와 뮤턴트가 잠급니다.
+          <b>가설 3개(핸들 누수 · 포트 고갈 · LLM 호출이 루프 차단)는 고치기 전에 측정으로 전부 반증했습니다.</b></div>
       </div>
     </div>
   </section>
@@ -674,7 +696,7 @@
   </section>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>4차 평가 완주 → 원인 확정(속도 제한 여부) → <code class="inline">--repeat 3</code> 본 측정 → Sprint 7 종료 → Sprint 8(S19)</strong><br>
+    <div>다음 우선순위: <strong><code class="inline">--repeat 3</code> 본 측정(튜닝 효과 판정) → Sprint 7 종료 → Sprint 8(S19)</strong><br>
       <span style="font-size:12.5px">🔴 사람: <b>related_parts 최종 승인</b> · 처분 문서 문안 검수 · 안전 문구 검수</span></div>
     <div class="figs">
       <div><b>611</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>

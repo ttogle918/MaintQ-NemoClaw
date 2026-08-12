@@ -81,6 +81,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import IO
 
 import httpx
 from dotenv import load_dotenv
@@ -120,6 +121,20 @@ MAX_LLM_CALLS_PER_TURN = 10
 #: httpx.AsyncClient(timeout=...) 의 보호 범위 밖이다 — asyncio.wait_for 로 별도로 감싼다
 #: (2026-07-29 실 20문항 실행 중 무제한 대기로 60분+ 멈춤 관측, 사후 수정).
 ITEM_TIMEOUT_S = 180.0
+
+#: 연결 수립에 허용하는 시간. **읽기와 분리한 것이 진단 장치다** (MQ-713b).
+#: httpx 에 단일 실수를 주면 연결 실패도 읽기 실패도 전부 같은 타임아웃 계열로 뭉개져
+#: "요청이 서버에 도달했는가"를 사후에 알 수 없다. 분리하면 예외 타입이 답한다 —
+#: `ConnectTimeout`/`ConnectError` → **도달 못 함**(클라이언트·OS 소켓 쪽) ·
+#: `ReadTimeout` → **도달했는데 응답이 없음**(서버 쪽).
+#: 로컬 루프백이라 15초면 넉넉하다(정상값은 밀리초 단위).
+CONNECT_TIMEOUT_S = 15.0
+
+
+def item_timeout(seconds: float = ITEM_TIMEOUT_S) -> "httpx.Timeout":
+    """문항 요청 타임아웃. 연결/읽기를 갈라 실패 원인이 예외 타입으로 남게 한다."""
+    connect = min(CONNECT_TIMEOUT_S, seconds)
+    return httpx.Timeout(connect=connect, read=seconds, write=seconds, pool=connect)
 
 # X-User 는 ASCII 사용자 ID (D36) — data/seed.py 의 users 시드와 일치해야 한다.
 TECH = {"X-Role": "technician", "X-User": "tech-01"}
@@ -235,14 +250,32 @@ def estimate_cost(items: list[dict], repeat: int = 1) -> str:
 # ────────────────────────────────────────────── 서버 기동 (sp3 패턴 자체 구현, import 의존 없음)
 
 
-def _start_server(db_copy: Path, port: int) -> subprocess.Popen:
+def _start_server(
+    db_copy: Path, port: int, stderr_path: Path
+) -> tuple[subprocess.Popen, IO[bytes]]:
     """`uv run uvicorn backend.main:app` 을 자식 프로세스로 띄운다.
 
     env 는 부모 `os.environ` 을 **그대로 상속**한다 — `MAINTQ_MCP_AUTOSTART` 를 여기서
     건드리지 않는 게 핵심(기본값 1 유지, GEMINI_API_KEY 등도 자연히 상속된다, D56).
+
+    ⛔ **stderr 를 `PIPE` 로 받지 않는다 — 파일로 직접 쓴다.**
+    2026-08-12 실측 사고(py-spy 스택으로 확정): `PIPE` 로 받아 두고 실행 중에는 아무도
+    읽지 않으니(회수는 종료 시 `communicate()` 1회) 파이프 버퍼가 차는 순간 자식 서버의
+    `logging` 쓰기가 막혔고, `logging` 은 동기라 **이벤트 루프째 정지**했다. 증상은
+    "문항 N개 이후 전부 타임아웃 · `/health` 조차 무응답 · 예외 없음"이었다.
+
+        1·2·3차(계측 전)         20/20 완주 · 실행 실패 0
+        4차(`[LLM_END]` 추가 후)  실행 실패 10 · stderr 4,053바이트에서 정지
+
+    즉 **진단하려고 넣은 로그가 대상을 망가뜨렸다.** 로그를 줄이는 건 해법이 아니다 —
+    다음에 한 줄만 늘어도 재발한다. 파일은 버퍼 상한이 없고, 덤으로 **예외가 위로
+    전파돼도 로그가 남는다**(직전에는 `communicate()` 전에 죽어 원본이 유실됐다).
+    `spikes/eval_score_contract.py` ㉚ 이 이 자리를 잠근다.
     """
     env = {**os.environ, "MAINTQ_DB": str(db_copy)}
-    return subprocess.Popen(
+    stderr_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = stderr_path.open("wb")
+    proc = subprocess.Popen(
         [
             "uv",
             "run",
@@ -256,12 +289,24 @@ def _start_server(db_copy: Path, port: int) -> subprocess.Popen:
         cwd=ROOT,
         env=env,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=fh,
     )
+    return proc, fh
 
 
-def _shutdown_server(proc: subprocess.Popen) -> bytes:
-    """스폰한 서버를 **프로세스 트리째** 정리하고 stderr 를 회수한다.
+def _read_log(path: Path) -> str:
+    """서버 로그 파일을 읽는다. 없거나 못 읽어도 평가를 세우지 않는다 — 진단 자료다."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"[경고] 서버 로그 읽기 실패({path.name}): {exc}")
+        return ""
+
+
+def _shutdown_server(proc: subprocess.Popen) -> None:
+    """스폰한 서버를 **프로세스 트리째** 정리한다.
+
+    stderr 는 이제 파일로 직접 나가므로 여기서 회수하지 않는다 (`_start_server` 참조).
 
     `proc` 는 `uv run uvicorn ...` 이라 실제 서버는 손자 프로세스다. `proc.terminate()`
     는 직계 자식(`uv`)만 죽이므로 uvicorn 과 그 밑의 MCP 서버(D15, 프로세스 분리)가
@@ -287,12 +332,11 @@ def _shutdown_server(proc: subprocess.Popen) -> bytes:
 
     for attempt in (10, 5):
         try:
-            _, err = proc.communicate(timeout=attempt)
-            return err or b""
+            proc.wait(timeout=attempt)
+            return
         except subprocess.TimeoutExpired:
             proc.kill()
-    print("[경고] 서버 stderr 회수 실패 — 고아 프로세스가 남았을 수 있습니다(집계는 계속합니다)")
-    return b""
+    print("[경고] 서버 종료 확인 실패 — 고아 프로세스가 남았을 수 있습니다(집계는 계속합니다)")
 
 
 async def _wait_ready(base_url: str, timeout: float = 60.0) -> bool:
@@ -431,7 +475,7 @@ def probe_health() -> dict:
     with tempfile.TemporaryDirectory() as td:
         db_copy = Path(td) / "probe.db"
         shutil.copy2(SOURCE_DB, db_copy)
-        proc = _start_server(db_copy, port)
+        proc, fh = _start_server(db_copy, port, Path(td) / "probe.log")
         try:
             if not asyncio.run(_wait_ready(base_url, timeout=60.0)):
                 print(f"[경고] /health 프로브 서버가 뜨지 않았습니다 ({base_url})")
@@ -442,6 +486,7 @@ def probe_health() -> dict:
             return {}
         finally:
             _shutdown_server(proc)
+            fh.close()
 
 
 def _parse_sse_frame(buf: str, on_event) -> str:
@@ -703,7 +748,7 @@ def flip_analysis(rounds: list[list]) -> dict:
 # ────────────────────────────────────────────── 문항 실행
 
 
-async def run_item(base_url: str, item: dict) -> ItemResult:
+async def run_item(base_url: str, item: dict, timeout_s: float = ITEM_TIMEOUT_S) -> ItemResult:
     """문항 하나를 실 에이전트 루프로 실행하고 채점한다.
 
     `replay` 파라미터 없음(실 루프) — SSE 를 자체 파싱해 `response_text` 를 모으고,
@@ -725,7 +770,7 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
     token_chunks: list[str] = []
     buf = ""
 
-    async with httpx.AsyncClient(timeout=ITEM_TIMEOUT_S) as c:
+    async with httpx.AsyncClient(timeout=item_timeout(timeout_s)) as c:
         async with c.stream("POST", f"{base_url}/api/chat", json=payload, headers=headers) as resp:
             if resp.status_code != 200:
                 body = await resp.aread()
@@ -749,12 +794,12 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
     if expected.get("expect_not_found"):
         try:
             judge = await asyncio.wait_for(
-                judge_hallucination(item["input"], response_text), timeout=ITEM_TIMEOUT_S
+                judge_hallucination(item["input"], response_text), timeout=timeout_s
             )
         except TimeoutError:
             judge = JudgeVerdict(
                 hallucinated=True,
-                rationale=f"judge 호출이 {ITEM_TIMEOUT_S:.0f}초 내 응답하지 않음 — 보수적으로 fail 처리",
+                rationale=f"judge 호출이 {timeout_s:.0f}초 내 응답하지 않음 — 보수적으로 fail 처리",
                 raw="",
             )
 
@@ -771,7 +816,23 @@ async def run_item(base_url: str, item: dict) -> ItemResult:
     )
 
 
-async def _run_all(base_url: str, items: list[dict], round_idx: int = 1) -> list[ItemResult]:
+async def _probe_alive(base_url: str, timeout: float = 5.0) -> str:
+    """실패 직후 서버 생존 확인. **판정을 바꾸지 않는다** — 진단 문자열만 돌려준다.
+
+    ⛔ 여기서 예외를 밖으로 내보내지 않는다. 이 프로브가 실패했다고 문항 결과가
+    달라지면 "재려다 대상을 바꾸는" 계측이 된다.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=item_timeout(timeout)) as c:
+            r = await c.get(f"{base_url}/health")
+        return f"{r.status_code} 응답 (앱 생존 — 채팅 경로만 막힘)"
+    except Exception as exc:  # noqa: BLE001 — 진단 실패도 사실이다
+        return f"{type(exc).__name__} (앱 전체가 응답 없음)"
+
+
+async def _run_all(
+    base_url: str, items: list[dict], round_idx: int = 1, timeout_s: float = ITEM_TIMEOUT_S
+) -> list[ItemResult]:
     """문항 루프. 한 문항이 예외를 내도 나머지는 계속 실행한다(엣지 케이스 명세)."""
     results: list[ItemResult] = []
     total = len(items)
@@ -780,7 +841,7 @@ async def _run_all(base_url: str, items: list[dict], round_idx: int = 1) -> list
         print(f"[r{round_idx}][{i}/{total}] {item_id} 실행 중...", flush=True)
         t0 = time.monotonic()
         try:
-            result = await run_item(base_url, item)
+            result = await run_item(base_url, item, timeout_s)
         except Exception as exc:  # noqa: BLE001 — 이 문항만 "실행 실패", 나머지는 계속
             elapsed = time.monotonic() - t0
             expected = item.get("expected") or {}
@@ -789,6 +850,12 @@ async def _run_all(base_url: str, items: list[dict], round_idx: int = 1) -> list
             #   2026-08-12 4차에서 10문항이 정확히 그렇게 사라졌다(전부 180초 = 읽기 타임아웃
             #   이었는데 그 사실이 결과물 어디에도 없었다). 타입명과 경과를 함께 남긴다.
             detail = f"{type(exc).__name__}: {exc}".rstrip(": ") + f" (경과 {elapsed:.1f}초)"
+            # ★ 실패한 **그 순간** 서버가 살아 있었는지를 잰다 (MQ-713b).
+            #   `/api/chat` 만 안 되는 것과 서버 전체가 선 것은 고칠 곳이 완전히 다른데,
+            #   사후 로그로는 구분되지 않았다 — 실패 문항의 로그가 아예 없기 때문이다.
+            #   `/health` 는 의존성·핸들러가 `/api/chat` 과 같은 경로를 타므로,
+            #   여기서 응답이 오면 "앱은 살아 있고 채팅 경로만 막혔다"가 확정된다.
+            detail += f" · 실패 시점 /health: {await _probe_alive(base_url)}"
             print(f"  [실행 실패] {item_id}: {detail}", flush=True)
             result = ItemResult(
                 item_id=item_id,
@@ -839,7 +906,7 @@ async def check_permission_403(base_url: str) -> tuple[bool, str]:
 
 
 async def _run_stage(
-    base_url: str, items: list[dict], round_idx: int = 1
+    base_url: str, items: list[dict], round_idx: int = 1, timeout_s: float = ITEM_TIMEOUT_S
 ) -> tuple[list, tuple[bool, str]]:
     """`_run_all` 과 `check_permission_403` 을 같은 이벤트 루프 안에서 순서대로 실행한다.
 
@@ -853,7 +920,7 @@ async def _run_stage(
     ⛔ 실패를 `"N/A"`(pending 건 없음)로 접지 않는다 — **점검을 못 한 것과 점검할 게 없는
     것은 다르다.** 사유를 그대로 실어 리포트에 `FAIL (점검 실패 — ReadTimeout)` 로 보인다.
     """
-    results = await _run_all(base_url, items, round_idx)
+    results = await _run_all(base_url, items, round_idx, timeout_s)
     try:
         perm_result = await check_permission_403(base_url)
     except Exception as exc:  # noqa: BLE001 — 부가 점검 하나로 N문항을 버리지 않는다
@@ -1333,6 +1400,7 @@ def _run_round(
     round_idx: int,
     n_rounds: int,
     allow_full_profile: bool,
+    timeout_s: float = ITEM_TIMEOUT_S,
 ) -> dict:
     """한 회차를 통째로 실행한다 — **DB 사본·서버·포트를 회차마다 새로 만든다.**
 
@@ -1347,16 +1415,18 @@ def _run_round(
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
     traces_dump: dict = {}
-    err_bytes = b""
+    # stderr 는 처음부터 이 파일로 나간다 — 파이프를 두지 않는 것이 정지 사고의 수정이다.
+    log_path = out_dir / f"{stamp}{suffix}.server.log"
 
     with tempfile.TemporaryDirectory() as td:
         db_copy = Path(td) / "eval.db"
         shutil.copy2(SOURCE_DB, db_copy)
 
-        proc = _start_server(db_copy, port)
+        proc, fh = _start_server(db_copy, port, log_path)
         try:
             if not asyncio.run(_wait_ready(base_url)):
-                err = proc.stderr.read().decode("utf-8", "replace")[-800:] if proc.stderr else ""
+                fh.flush()
+                err = _read_log(log_path)[-800:]
                 raise SystemExit(f"[중단] 서버가 뜨지 않았습니다(회차 {round_idx})\n{err}")
 
             health = httpx.get(f"{base_url}/health", timeout=10.0).json()
@@ -1375,9 +1445,10 @@ def _run_round(
             meta = build_meta(health)
             print(f"[r{round_idx}/{n_rounds}] 실행 환경 meta: {meta_line(meta)} · port={port}")
 
-            results, perm_result = asyncio.run(_run_stage(base_url, items, round_idx))
+            results, perm_result = asyncio.run(_run_stage(base_url, items, round_idx, timeout_s))
         finally:
-            err_bytes = _shutdown_server(proc)
+            _shutdown_server(proc)
+            fh.close()
             # ★ 임시 디렉터리가 사라지기 **전에** traces 를 결과 옆으로 옮긴다.
             #   덤프 실패로 이미 끝난 문항 결과를 날리지 않는다(집계는 계속한다).
             try:
@@ -1399,16 +1470,9 @@ def _run_round(
             except Exception as exc:  # noqa: BLE001 — 덤프 실패는 평가 실패가 아니다
                 print(f"[경고] traces 덤프 실패: {exc}")
 
-    stderr_text = err_bytes.decode("utf-8", "replace") if err_bytes else ""
+    stderr_text = _read_log(log_path)
     if stderr_text.strip():
         print(f"\n[r{round_idx} 서버 stderr 끝부분]\n{stderr_text[-1200:]}")
-
-    log_path = out_dir / f"{stamp}{suffix}.server.log"
-    try:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text(stderr_text, encoding="utf-8")
-    except OSError as exc:
-        print(f"[경고] 서버 로그 저장 실패: {exc}")
 
     # 잘림 계측 — 서버 stderr 의 [LLM_END] 마커를 집계한다 (loop.py 가 생산자).
     # stderr 회수 자체가 실패하면 `measured: False` 로 떨어져 "0건"과 구분된다.
@@ -1463,6 +1527,17 @@ def main() -> None:
         help="D88 프로파일 가드 우회 — core 가 아닌 프로파일에서 의도적으로 실행할 때만",
     )
     parser.add_argument("--out-dir", type=Path, default=Path("eval/results"))
+    parser.add_argument(
+        "--item-timeout",
+        type=float,
+        default=ITEM_TIMEOUT_S,
+        metavar="SEC",
+        help=(
+            f"문항당 상한(초, 기본 {ITEM_TIMEOUT_S:g}). **진단용으로만 낮춘다** — "
+            "멈춤을 재현할 때 실패 10문항 × 180초를 기다리지 않기 위한 것이고, "
+            "정식 측정은 기본값으로 돌린다(짧은 상한은 느린 정상 응답까지 실패로 만든다)"
+        ),
+    )
     parser.add_argument(
         "--repeat",
         type=int,
@@ -1528,6 +1603,7 @@ def main() -> None:
                 round_idx=k,
                 n_rounds=args.repeat,
                 allow_full_profile=args.allow_full_profile,
+                timeout_s=args.item_timeout,
             )
         )
 

@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+import subprocess
 import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -650,6 +652,64 @@ def run() -> None:
         # ⛔ "N/A"(점검할 pending 건 없음)로 접으면 못 잰 것과 잴 게 없던 것이 뭉개진다
         and stage_perm[1] != "N/A",
         f"perm={stage_perm}",
+    )
+
+    # ── ㉚ 자식 서버 stderr 를 **읽지 않는 파이프**로 두지 않는가 ──
+    #
+    # 2026-08-12 실측 사고(py-spy 스택으로 확정): `_start_server` 가 `stderr=PIPE` 로
+    # 서버를 띄우는데 실행 중에는 아무도 그 파이프를 읽지 않았다(`communicate()` 는
+    # 종료 시 1회). 파이프 버퍼가 차자 서버의 `logging` 쓰기가 막혔고, `logging` 은
+    # 동기라 **이벤트 루프째 정지**했다 — `/health` 조차 응답하지 않았다.
+    #
+    #   1·2·3차(계측 전): 20/20 완주 · 실행 실패 0
+    #   4차(`[LLM_END]` 추가 후): 실행 실패 10 · stderr 4,053바이트에서 멈춤
+    #
+    # ⛔ 즉 **진단하려고 넣은 로그가 대상을 망가뜨렸다.** 로그를 줄이는 것은 해법이
+    #    아니다(다음에 한 줄 더 늘면 재발한다) — 파이프를 쓰지 않는 것이 해법이다.
+    src = (ROOT / "eval" / "run_eval.py").read_text(encoding="utf-8")
+    start_src = src.split("def _start_server", 1)[1].split("\ndef ", 1)[0]
+    check(
+        "㉚ 자식 서버 stderr 를 PIPE 로 두지 않는다 (읽지 않는 파이프 = 이벤트 루프 정지)",
+        "stderr=subprocess.PIPE" not in start_src,
+        "PIPE 미사용" if "stderr=subprocess.PIPE" not in start_src else "⛔ PIPE 그대로",
+    )
+
+    # ★ 뮤턴트 — 이 위험이 이 플랫폼에서 **실재**하는지 직접 확인한다.
+    #   읽지 않는 파이프로 자식이 stderr 를 쏟으면 자식은 끝나지 못한다.
+    flood = "import sys; sys.stderr.write('x'*300000); sys.stderr.flush(); print('DONE')"
+    blocked = None
+    proc = subprocess.Popen(
+        [sys.executable, "-c", flood], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    )
+    try:
+        proc.wait(timeout=6)
+        blocked = False
+    except subprocess.TimeoutExpired:
+        blocked = True
+    finally:
+        proc.kill()
+        try:
+            proc.communicate(timeout=5)
+        except Exception:  # noqa: BLE001 — 정리 실패는 판정과 무관
+            pass
+
+    # 같은 자식을 **파일**로 돌리면 끝난다 — 이게 채택한 수정이다.
+    with tempfile.TemporaryDirectory() as td:
+        log = Path(td) / "child.log"
+        with log.open("wb") as fh:
+            p2 = subprocess.Popen([sys.executable, "-c", flood], stdout=subprocess.DEVNULL, stderr=fh)
+            try:
+                p2.wait(timeout=15)
+                file_ok = p2.returncode == 0
+            except subprocess.TimeoutExpired:
+                p2.kill()
+                file_ok = False
+        wrote = log.stat().st_size
+
+    check(
+        "㉚-b ★ 뮤턴트: 읽지 않는 PIPE 로는 자식이 멈추고, 파일로는 완주한다",
+        blocked is True and file_ok and wrote >= 300000,
+        f"PIPE 차단={blocked} · 파일 완주={file_ok}({wrote}바이트)",
     )
 
     # 비용 문구가 회차를 곱하지 않으면 사람이 1회분에 동의하고 N회분을 쓰게 된다.
