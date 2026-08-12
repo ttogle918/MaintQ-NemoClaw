@@ -784,13 +784,18 @@ async def _run_all(base_url: str, items: list[dict], round_idx: int = 1) -> list
         except Exception as exc:  # noqa: BLE001 — 이 문항만 "실행 실패", 나머지는 계속
             elapsed = time.monotonic() - t0
             expected = item.get("expected") or {}
-            print(f"  [실행 실패] {item_id}: {exc}", flush=True)
+            # ⛔ `{exc}` 만 찍지 않는다. httpx 예외 상당수는 `str(exc)` 가 **빈 문자열**이라
+            #   `[EXECUTION_FAILED] ` 만 남고 무엇이 터졌는지 사후에 알 수 없다 —
+            #   2026-08-12 4차에서 10문항이 정확히 그렇게 사라졌다(전부 180초 = 읽기 타임아웃
+            #   이었는데 그 사실이 결과물 어디에도 없었다). 타입명과 경과를 함께 남긴다.
+            detail = f"{type(exc).__name__}: {exc}".rstrip(": ") + f" (경과 {elapsed:.1f}초)"
+            print(f"  [실행 실패] {item_id}: {detail}", flush=True)
             result = ItemResult(
                 item_id=item_id,
                 branch=expected.get("branch", ""),
                 expected=expected,
                 events=[],
-                response_text=f"{_EXEC_FAILED_PREFIX}{exc}",
+                response_text=f"{_EXEC_FAILED_PREFIX}{detail}",
                 # 근거 없이 pass 를 주지 않는다 — 빈 이벤트로 채점하면 자연히 fail 로 계상된다.
                 verdicts=score.score_session([], expected),
                 judge=None,

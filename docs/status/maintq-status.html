@@ -110,9 +110,15 @@
 
   /* ---------- Milestone rail ---------- */
   .milestones {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
-    margin-bottom: 40px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    margin-bottom: 18px;
   }
+  .note-strip {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 13px 17px; border-radius: 0 9px 9px 0; font-size: 13.5px;
+    color: var(--ink); margin-bottom: 40px;
+  }
+  .note-strip b { font-weight: 680; }
   .ms {
     background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
     padding: 14px 16px; position: relative; overflow: hidden;
@@ -246,9 +252,9 @@
     <div class="title-block">
       <p class="eyebrow">MaintQ · 도구 오케스트레이션</p>
       <h1>설비 진단 → 부품 발주 AI 에이전트, 진행 현황</h1>
-      <p>에러코드 진단부터 재고 확인·발주서 초안·팀장 승인까지 이어지는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
+      <p>에러코드 진단 → 부품 발주에서 시작해, <b>설비를 팔 때와 살 때</b>(법정 조건 검사 · 근거 번들 · 사람 서명)까지 하나의 대화로 잇는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-07-31</b></div>
+    <div class="asof">기준 시점<b>2026-08-12</b></div>
   </header>
 
   <div class="milestones">
@@ -267,17 +273,28 @@
       <div class="ms-name">UI 2종 + trace</div>
       <span class="ms-state">완료</span>
     </div>
-    <div class="ms active">
+    <div class="ms done">
       <div class="ms-id">M4</div>
       <div class="ms-name">평가 · 마무리</div>
-      <span class="ms-state">진행 중 · 중단</span>
+      <span class="ms-state">완료</span>
     </div>
+    <div class="ms active">
+      <div class="ms-id">Sprint 5~7</div>
+      <div class="ms-name">확장 · 자산 생애주기</div>
+      <span class="ms-state">S7 Stage 7 진행 중</span>
+    </div>
+  </div>
+
+  <div class="note-strip">
+    <b>MVP(M1~M4)는 완주했습니다.</b> 이후 <code class="inline">D67</code>로 범위를 넓혀 <b>설비 처분·취득</b>을 본 범위에 넣었고,
+    Sprint 6이 F1·F2·F4(룰 엔진 · 처분 판정 · 실사)를, <b>Sprint 7이 F3(근거 계층 3 — 사람 서명)</b>을 닫았습니다.
+    지금 남은 것은 Sprint 7의 마지막 태스크인 <b>지표 튜닝 + 4차 평가</b> 하나입니다.
   </div>
 
   <!-- ============ 구현 완료 ============ -->
   <section>
-    <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">M1~M3 전체 + M4 파이프라인 코드</span></div>
-    <p class="sec-note">회귀 스위트 248건(고정) + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 6종</span></div>
+    <p class="sec-note">회귀 <b>spikes 27스위트 / 611건</b> · seed 21 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -318,150 +335,270 @@
 
       <div class="card">
         <div class="card-head"><h3>MCP 서버 · 백엔드 · Agent Loop</h3><span class="chip done">완료</span></div>
-        <p class="desc">도구 7종(읽기 6 + 쓰기 1), 프로세스 분리 구조(D15). LLM 제공자는 Gemini로 실 API 검증 완료 — 스트리밍·도구 호출·정직한 실패(D50) 전부 실측.</p>
-        <div class="meta"><span class="tag">D9·D15·D40·D56</span><span class="tag">GeminiClient 실검증</span></div>
+        <p class="desc">도구 <b>15종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 8. 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
+        <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88</span><span class="tag">core 7 · full 15</span></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>UI 2종 (정비사 콘솔 / 승인 큐)</h3><span class="chip done">완료</span></div>
-        <p class="desc">화면 A(진단 콘솔, 실 SSE 라이브 배선)·화면 B(승인 큐)가 브라우저 수동 검증 전 항목 통과. S1~S4 재생(<code class="inline">?replay=</code>)과 라이브 모드 모두 동작.</p>
-        <div class="meta"><span class="tag">D18·D42·D45</span><span class="tag">Claude in Chrome 검증</span></div>
+        <div class="card-head"><h3>UI — 라우트 10개</h3><span class="chip done">완료</span></div>
+        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · 팀장 통합 승인 큐 · <b>처분서 상세/서명</b> · trace. 실측 <code class="inline">npm run build</code> 기준 10 라우트.</p>
+        <div class="meta"><span class="tag">D18·D42·D45·D85·D87</span><span class="tag">ui_honesty_contract 68건</span></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>평가 하네스 (5지표 채점 파이프라인)</h3><span class="chip partial">코드 완료 · 실행 미완주</span></div>
-        <p class="desc"><code class="inline">eval/run_eval.py</code>(실 20문항 실행) + <code class="inline">eval/judge.py</code>(환각 LLM judge) + replay/실행실패 분모 제외 로직. 20문항 <code class="inline">testset.json</code> 사람 검수·반영 완료.</p>
-        <div class="meta"><span class="tag">D40·D54·D55</span><span class="tag">아래 "진행 중" 참조</span></div>
+        <div class="card-head"><h3>평가 하네스 (5지표 채점 파이프라인)</h3><span class="chip done">완료 · 3회 실행</span></div>
+        <p class="desc"><code class="inline">eval/run_eval.py</code> + <code class="inline">judge.py</code>. D88 이중 게이트(프로파일 위반 시 exit 2) · <code class="inline">--repeat N</code> <b>회차 간 흔들림 계측</b> · traces 덤프 · <code class="inline">[LLM_END]</code> 잘림 계측이 추가됐습니다.</p>
+        <div class="meta"><span class="tag">D40·D54·D55·D88</span><span class="tag">1·2·3차 결과 보존</span></div>
+      </div>
+    </div>
+
+    <div class="sec-head" style="margin-top:34px"><h2>확장 — 설비 처분 · 취득</h2><span class="count">Sprint 5~7 · F1~F4</span></div>
+    <p class="sec-note">"고장 났으니 부품을 산다"에서 <b>"이 설비를 팔아도 되는가 / 사도 되는가"</b>로 넓힌 축입니다(D67). 판정은 AI가 조립하고 <b>확정은 사람이 서명</b>합니다.</p>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-head"><h3>근거 3계층 — 법령 · 해석 · 서명 ★</h3><span class="chip done">완료</span></div>
+        <p class="desc">계층 1 = <b>법제처 API 실수집 조문 원문</b>(append-only, <code class="inline">text_hash</code>) · 계층 2 = 해석 룰 5종(근거 미인용 시 로드 거부) · 계층 3 = <b>사람 서명</b>(번들 해시 고정). <code class="inline">build_evidence_bundle</code>이 5키(laws·rules·evaluated·contracts·facts)로 조립.</p>
+        <div class="meta"><span class="tag">D59·D60·D61·D75·D83</span><span class="tag">bundle_integrity 25건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>처분 법정 조건 검사 (S9)</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">check_disposal_blockers</code> + <code class="inline">POST /api/assets/{id}/disposal/precheck</code>(무저장, D71). 판정 5종 <code class="inline">BLOCKED</code>/<code class="inline">HOLD</code>/<code class="inline">INSUFFICIENT_FACTS</code>/<code class="inline">CONDITIONAL</code>/<code class="inline">CLEAR</code>이 시드에서 <b>전부 도달 가능</b>함을 실증(D77·D78·D79).</p>
+        <div class="meta"><span class="tag">D71·D77·D78·D79·D82</span><span class="tag">룰 5종 · 자산 9건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>처분 서명 — "서명 없는 확정 0건" ★</h3><span class="chip done">완료 · 4층 방어</span></div>
+        <p class="desc"><code class="inline">generate_disposal_document</code>는 <b>draft INSERT만</b>. 서명은 <code class="inline">POST /api/decisions/{id}/sign</code> 사람 전용. 우회는 <b>4층</b>이 각각 독립으로 막습니다 — 도구 스키마에 <code class="inline">override</code> 키 <b>부재</b> · TEMP TRIGGER · REST 409 · <b>DDL CHECK</b>(코드 버그로도 못 뚫음).</p>
+        <div class="meta"><span class="tag">D10·D81·D84</span><span class="tag">disposal_sign_contract 26 · s10_smoke 17</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>중고 취득 실사 (S18)</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">verify_ownership</code> — 9카테고리 × 자산당 38항목. <b><code class="inline">PARTIAL</code>→<code class="inline">VERIFIED</code> 승격 분기가 코드에 아예 없습니다</b> — 동산은 등기가 없어 "확인 완료"가 원리적으로 불가능하기 때문. 판정 로직은 <code class="inline">data/ownership.py</code>로 이관하고 도구는 위임(D73).</p>
+        <div class="meta"><span class="tag">D62·D73·D87</span><span class="tag">9자산 전부 PARTIAL</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>통합 승인 큐 (발주 + 처분)</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">GET /api/approvals</code> — <code class="inline">kind</code>로 <code class="inline">po</code>·<code class="inline">decision</code>·<code class="inline">repair</code>를 한 큐에 싣습니다(읽기 전용, D85). <b><code class="inline">/api/po</code>는 형태 불변</b>이라 기존 발주 흐름이 무회귀입니다. <code class="inline">repair</code> 자리는 계약만 잡아 두고 현재 항상 0건.</p>
+        <div class="meta"><span class="tag">D85</span><span class="tag">approvals_contract 26건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>보전지표 · 수리 가치 판단</h3><span class="chip partial">도구 완료 · 목업 근거</span></div>
+        <p class="desc"><code class="inline">get_maintenance_metrics</code>(MTBF·예방보전 비율) · <code class="inline">assess_repair_value</code>(수리/교체/매각 3지) · <code class="inline">classify_expenditure</code> · <code class="inline">classify_part_criticality</code>. 잔가곡선은 <b>목업 정률 공식</b>입니다 — 실데이터로 감가를 식별할 수 없다는 한계를 실증해 보존했습니다(D74).</p>
+        <div class="meta"><span class="tag">D64·D68·D74</span><span class="tag">repair_records 12 · residual_curve 42</span></div>
       </div>
     </div>
   </section>
 
   <!-- ============ 진행 중 / 막힘 ============ -->
   <section>
-    <div class="sec-head"><h2>진행 중 — M4 Stage 4</h2><span class="count">유일한 실비용 실행 단계</span></div>
-    <p class="sec-note">평가 파이프라인 자체는 완성됐고, 실 20문항 1회 전체 실행만 남았습니다. 세 차례 시도에서 버그 3건을 발견·수정했고, 네 번째 시도는 환경 문제로 중단된 상태입니다.</p>
+    <div class="sec-head"><h2>진행 중 — Sprint 7 Stage 7 (MQ-713)</h2><span class="count">지표 튜닝 + 4차 평가</span></div>
+    <p class="sec-note">스프린트의 마지막 태스크 하나만 남았습니다. <b>측정 → 원인 분석 → 튜닝</b> 루프이며, 3차 측정과 원인 분석은 끝났고 지금은 튜닝의 효과를 4차로 검증하는 단계입니다.</p>
     <div class="grid cols-3">
       <div class="card">
-        <div class="card-head"><h3>fix 1 — judge 무제한 대기</h3><span class="chip done">수정완료</span></div>
-        <p class="desc">환각 judge 호출에 타임아웃이 없어 1차 시도가 60분+ 정지. <code class="inline">asyncio.wait_for</code>로 보호 + 타임아웃 시 보수적 fail 처리.</p>
+        <div class="card-head"><h3>3차 측정 · 원인 분석</h3><span class="chip done">완료</span></div>
+        <p class="desc">부품 46.7% · 안전 72.2% · 인용 83.3% · 환각 0% · 시퀀스 100%. <b>실패가 한 뿌리</b>임을 확인 — 파이프라인 다음 단계를 밟지 않고 되물으며 턴을 끝낸다.</p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>fix 2 — .env 미로드</h3><span class="chip done">수정완료</span></div>
-        <p class="desc"><code class="inline">run_eval.py</code> 자신의 프로세스가 <code class="inline">.env</code>를 로드하지 않아 S4 문항(T19·T20)만 매번 실패. 모듈 상단 로드 추가.</p>
+        <div class="card-head"><h3>계측 3종 추가</h3><span class="chip done">완료</span></div>
+        <p class="desc">① traces 덤프(도구 원본 대조) ② <code class="inline">[LLM_END]</code> 잘림 계측 ③ <code class="inline">--repeat N</code> 회차 간 흔들림. <b>계측 없이 튜닝하면 개선과 요동을 구분할 수 없습니다.</b></p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>fix 3 — 이벤트 루프 재개방</h3><span class="chip done">수정완료</span></div>
-        <p class="desc">문항 루프 종료 후 새 동기 클라이언트가 Windows 소켓에서 정지. <code class="inline">check_permission_403</code>을 async로 바꿔 같은 루프 안에서 실행.</p>
+        <div class="card-head"><h3>후보 5 — 파이프라인 완주</h3><span class="chip partial">적용 · <b>효과 미판정</b></span></div>
+        <p class="desc">trace 원본이 기전을 확정: <code class="inline">search_inventory</code>를 <b>부른 건 인자가 정확했고</b>, 9/11은 <b>아예 호출하지 않고</b> 턴을 끝냈습니다. 프롬프트는 고쳤으나 <b>4차가 무효라 효과는 아직 모릅니다.</b></p>
+      </div>
+    </div>
+    <div class="note-strip" style="margin-top:14px">
+      <b>지시는 원래도 있었고 모델이 지키지 않았습니다.</b> 그래서 같은 말을 다시 넣지 않고, trace가 보여 준 <b>두 회피 형태</b>를 근거로 범위를 넓혔습니다 —
+      금지 문구가 <code class="inline">"확인해 드릴까요?"</code> 리터럴 하나뿐이라 <code class="inline">"확인해 볼까요?"</code>로 새어 나갔고,
+      <b><code class="inline">"확인해 보겠습니다."</code>(선언 후 종료)는 아예 걸리지 않았습니다.</b>
+      <code class="inline">[LLM_END]</code>는 전부 <code class="inline">reason=STOP</code> — 잘려서 끊긴 게 아니라 모델이 스스로 끝냈습니다.
+    </div>
+
+    <div class="issue" style="margin-top:16px">
+      <span class="sev crit">⛔ 무효</span>
+      <div>
+        <h4>4차 평가(2026-08-12)는 <b>튜닝 효과를 판정할 수 없습니다</b> — 지표가 좋아 보이지만 착시입니다</h4>
+        <p>표면 수치는 <b>인용 83.3% → 100%</b> · <b>안전 72.2% → 90%</b>로 목표에 닿은 것처럼 보입니다. 그러나
+          <b>T11~T20 10문항이 실행 실패해 분모에서 빠졌고</b>, 하필 3차의 인용 실패 3건이 전부 <b>T13·T14·T15</b>였습니다.
+          즉 <b>실패하던 문항이 사라져서 100%가 된 것</b>이지 고쳐져서가 아닙니다 — 완주한 T01~T10은 3차에서도 이미 전부 PASS였습니다.
+          부품은 오히려 46.7% → 30.0%인데 이 역시 분모(15 → 10)가 달라 비교가 성립하지 않습니다.</p>
+        <div class="fix"><b>판정 —</b> 이 회차는 <b>기록만 하고 개선 근거로 쓰지 않습니다.</b> 좋아 보이는 수치를 그대로 인용하는 것이 이 프로젝트에서 가장 하지 말아야 할 일입니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev crit">🔴 신규</span>
+      <div>
+        <h4>서버가 문항 11개째에서 <b>멎습니다</b> — 속도 제한이 아니었습니다</h4>
+        <p>실패 10건이 <b>전부 정확히 180초</b>(문항 읽기 타임아웃)였고, 서버 로그는 <b>T11 도중에 뚝 끊깁니다</b>.
+          T11은 <code class="inline">lookup_error_code</code>까지 정상 반환(0.011초)한 뒤 <b>두 번째 LLM 호출에서 아무 로그도 남기지 않고</b> 멈췄고,
+          그 이후 T12~T20은 <b>클라이언트 생성 로그조차 찍히지 않았습니다</b> — 개별 요청이 아니라 <b>서버 전체가 막혔다</b>는 뜻입니다.
+          <code class="inline">429</code>·quota·예외 흔적은 로그에 <b>하나도 없습니다.</b></p>
+        <div class="fix"><b>다음 —</b> 이벤트 루프를 막는 동기 호출이 유력한 방향입니다(<code class="inline">D42</code>가 워커 태스크를 도입한 것과 같은 계열).
+          <b>이걸 고치기 전에는 20문항 완주가 불가능하므로 튜닝 판정도 불가능합니다.</b> 지금은 실패 사유에 <b>예외 타입과 경과</b>가 남도록 계측을 보강해 둔 상태입니다.</div>
       </div>
     </div>
   </section>
 
   <!-- ============ 문제점 ============ -->
   <section>
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">5건 — 코드 결함 아님, 대부분 환경·데이터 게이트</span></div>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">7건 — 대부분 사람 승인 게이트 · 코드 결함 1건은 수정 완료</span></div>
     <div class="issue">
-      <span class="sev crit">환경</span>
+      <span class="sev crit">사람 승인</span>
       <div>
-        <h4>WinError 10014 — Windows 소켓 계층 불안정 (미해결)</h4>
-        <p>새 이벤트 루프 생성·서버 기동 시 간헐적으로 "잘못된 포인터 주소" 오류 발생. 반복된 강제 종료(<code class="inline">Stop-Process -Force</code>) 누적 효과로 추정 — 코드 문제 아님.</p>
-        <div class="fix"><b>다음 조치 —</b> 터미널/PC 재시작으로 소켓 상태 리셋 후 <code class="inline">run_eval.py --yes</code> 재시도. fix①②③은 회귀로 검증 완료된 상태라 코드는 준비돼 있음.</div>
+        <h4>related_parts — 위임 판정 8건 완료, <b>사람 최종 승인 미완</b></h4>
+        <p>실측 <code class="inline">reviewed_by</code>는 전부 <code class="inline">"claude (사용자 위임, 2026-08-05)"</code>입니다. 근거는 실제 매뉴얼 조치문이지만 <b>매핑 판단은 위임된 것</b>이라, D12상 부품 특정 정확률은 <b>"미달"이 아니라 "판정 불가"</b>입니다 — 완료 기준 5지표 중 1개가 구조적으로 확정되지 않습니다.</p>
+        <div class="fix"><b>필요 조치 —</b> <code class="inline">data/related_parts.seed.json</code> 8건을 사람이 최종 승인. 이 전까지 어떤 수치도 실적으로 인용 금지.</div>
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">데이터 게이트</span>
+      <span class="sev crit">사람 승인</span>
       <div>
-        <h4>related_parts 7건 전부 미검수 (reviewed: false)</h4>
-        <p>부품 특정 정확률(≥90% 목표) 지표의 데이터 근거. 사람 검수 전까지는 평가 결과를 실적으로 인용 금지(D12) — 지금 20문항 testset의 part_no 기대값도 전부 이 임시 매핑에서 파생된 초안 상태.</p>
-        <div class="fix"><b>필요 조치 —</b> <code class="inline">data/related_parts.seed.json</code> 7건을 매뉴얼 원인/조치와 대조해 사람이 직접 검수.</div>
+        <h4>처분 승인서 · 진술보장서 문안 검수 대기</h4>
+        <p><b>법적 효력이 있는 문서</b>라 안전 문구(D2)와 같은 성격입니다. 승인 전까지 <code class="inline">generate_disposal_document</code> 출력에 <code class="inline">unreviewed_template_notice</code>가 붙습니다.</p>
+        <div class="fix"><b>런타임 영향 —</b> 초안 생성·서명 흐름은 동작하되 문서에 미검수 고지가 실립니다.</div>
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">데이터 게이트</span>
+      <span class="sev warn">사람 승인</span>
       <div>
         <h4>SAFETY_BASELINE / QUALIFIED_WORKER_NOTE 문안 최종 검수 대기</h4>
         <p>방전 대기 "10분 이상" 기준값 자체는 승인 완료. 남은 건 paraphrase된 문장이 매뉴얼 의미를 넘지 않는지, 인용 페이지(iG5A p.4 / S100 p.2)가 정확한지 확인.</p>
-        <div class="fix"><b>런타임 영향 없음 —</b> 검수 전에도 안전 블록은 계속 발행됨(게이트하면 더 위험해지므로).</div>
+        <div class="fix"><b>런타임 영향 없음 —</b> 검수 전에도 안전 블록은 계속 발행됨(게이트하면 더 위험해지므로). ⛔ 지표가 미달이어도 <b>문구는 고치지 않고 발행 조건만</b> 조정합니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">사람 승인</span>
+      <div>
+        <h4>법령 1건 <code class="inline">KR-CITA-ENF-31</code> — 제목 불일치로 미수집</h4>
+        <p>등록 제목 <code class="inline">즉시상각의제</code>가 법제처 API 값 <code class="inline">즉시상각의 의제</code>(공백)와 달라 <code class="inline">apply_fetch</code>가 <b>파일을 손대기 전에 중단</b>했습니다. 조용히 덮어쓰지 않은 것이 정상 동작입니다(D75).</p>
+        <div class="fix"><b>S10 영향 없음 —</b> <code class="inline">classify_expenditure</code> 전용이라 처분 룰 5종은 인용하지 않습니다. 나머지 <b>6/7이 실수집 완료</b>.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">실행 안정성</span>
+      <div>
+        <h4>평가 러너 결함 2건 — 수정 완료</h4>
+        <p>① 부가 점검(<code class="inline">check_permission_403</code>)의 예외가 <b>완주한 20문항 결과를 통째로 버렸습니다</b> — 리포트가 0건 생성됐습니다.
+          ② 실패 사유를 <code class="inline">{exc}</code>로만 찍어, <code class="inline">str(exc)</code>가 빈 httpx 예외 10건이 <b><code class="inline">[EXECUTION_FAILED] </code>만 남고 사라졌습니다.</b></p>
+        <div class="fix"><b>둘 다 수정 —</b> 403 점검 예외는 삼키고 사유를 실어 내려보내며(<code class="inline">"점검 실패 — ReadTimeout"</code>), 실패 문항은 <b>예외 타입과 경과 시간</b>을 남깁니다. 회귀 <code class="inline">eval_score_contract ㉙</code>가 죽은 포트로 잠급니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">환경</span>
+      <div>
+        <h4>회귀 러너 — Windows 소켓 고갈로 산발 실패</h4>
+        <p>27스위트를 <b>연속</b> 실행하면 매번 <b>다른</b> 스위트가 1건 실패하는 일이 있습니다(<code class="inline">WinError 10014</code>). 코드 결함이 아니며 단독 재실행하면 통과합니다.</p>
+        <div class="fix"><b>규칙 —</b> 실패한 스위트는 <b>반드시 단독 재실행해 확인</b>하고 재시도 사실을 보고에 적습니다. 무시하는 습관이 들면 진짜 실패도 함께 넘깁니다.</div>
       </div>
     </div>
     <div class="issue">
       <span class="sev info">품질 한계</span>
       <div>
         <h4>안전 가드레일이 표면형 키워드 매칭 — 의미 변주는 못 잡음</h4>
-        <p>실 Gemini 스모크에서 "냉각 팬"(띄어쓰기)·"히트싱크"(외래어) 변주는 키워드 확장으로 잡았지만, "팬 상태를 점검"처럼 의미는 같고 표현이 다른 문장은 원리적으로 탐지 불가.</p>
-        <div class="fix"><b>후보 —</b> 분류기 또는 LLM judge 도입은 M4 평가 결과와 함께 판단 예정(현재 미착수).</div>
-      </div>
-    </div>
-    <div class="issue">
-      <span class="sev info">미검증</span>
-      <div>
-        <h4>AnthropicClient 실 API 미검증</h4>
-        <p>사용자 키가 Gemini로만 확보되어 Anthropic 경로는 ScriptedClient(회귀)로만 커버. 인터페이스(D40)는 제공자를 모르므로 클래스 하나 추가로 대응 가능한 구조.</p>
+        <p>"냉각 팬"(띄어쓰기)·"히트싱크"(외래어) 변주는 키워드 확장으로 잡았지만, "팬 상태를 점검"처럼 의미는 같고 표현이 다른 문장은 원리적으로 탐지 불가. <b>프롬프트 회피 문구에서도 같은 한계가 실측됐습니다</b>(위 "진행 중" 참조).</p>
+        <div class="fix"><b>후보 —</b> 분류기 또는 LLM judge 도입은 4차 평가 결과와 함께 판단.</div>
       </div>
     </div>
   </section>
 
   <!-- ============ 데이터 현황 ============ -->
   <section>
-    <div class="sec-head"><h2>데이터 현황</h2><span class="count">보유 데이터 · 검수 상태 · 필요한 것</span></div>
+    <div class="sec-head"><h2>데이터 현황</h2><span class="count">2026-08-12 DB 실측 — 18테이블</span></div>
+    <p class="sec-note">아래 규모는 문서가 주장하는 값이 아니라 <code class="inline">data/maintq.db</code>를 직접 조회한 실측치입니다. <b>Sprint 6~7에서 실데이터가 하나 늘었습니다</b> — 법령 조문 원문(계층 1)이 "앞으로 만들 것"에서 "받은 것"으로 옮겨갔습니다.</p>
     <div class="datatable-wrap">
       <table>
         <thead>
-          <tr><th>데이터</th><th>현재 상태</th><th class="num">규모</th><th>검수/필요 조치</th></tr>
+          <tr><th>데이터</th><th>현재 상태</th><th class="num">실측 규모</th><th>검수/필요 조치</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>LS일렉트릭 매뉴얼 원본 (iG5A·S100 PDF)</td>
+            <td>LS일렉트릭 매뉴얼 원본 (iG5A·S100·IE5 PDF)</td>
             <td><span class="status-dot ok">확보 완료</span></td>
-            <td class="num">2종</td>
+            <td class="num">4종 · 35.1MB</td>
             <td><code class="inline">data/raw/</code> — 읽기 전용, git 미포함(저작권)</td>
           </tr>
           <tr>
-            <td>error_codes (에러코드 정의)</td>
+            <td><code class="inline">error_codes</code> (에러코드 정의)</td>
             <td><span class="status-dot ok">승인·적재 완료</span></td>
-            <td class="num">iG5A 24 + S100 41 = 65건</td>
-            <td>2026-07-28 사람 승인, <code class="inline">seed.py --with-error-codes</code>로 실적재</td>
+            <td class="num">65건<br>iG5A 24 + S100 41</td>
+            <td>2026-07-28 사람 승인. ⚠ <code class="inline">seed.py</code>를 <code class="inline">--with-error-codes</code> 없이 돌리면 <b>0행으로 리셋</b>됩니다(D33)</td>
           </tr>
           <tr>
-            <td>매뉴얼 청크 (RAG 벡터스토어 원천)</td>
+            <td>매뉴얼 청크 (RAG 원천)</td>
             <td><span class="status-dot ok">생성 완료</span></td>
-            <td class="num">manual_chunks.jsonl</td>
-            <td>추가 조치 불필요</td>
+            <td class="num">1,035청크<br>56.8만자</td>
+            <td>page 무가공 보존(D26) — 인용 페이지 추적의 전제</td>
           </tr>
           <tr>
-            <td>related_parts (에러코드→부품 매핑)</td>
-            <td><span class="status-dot pending">임시·미검수</span></td>
-            <td class="num">7건, 전부 reviewed:false</td>
-            <td><b>부품 특정 정확률 지표의 뿌리</b> — 매뉴얼 원인/조치 대조 검수 필요</td>
+            <td><b><code class="inline">law_refs</code> — 법령 조문 원문 ★신규</b></td>
+            <td><span class="status-dot ok">6/7 실수집</span></td>
+            <td class="num">7건 중 <b>FETCHED 6</b><br>PENDING 1</td>
+            <td><b>법제처 API 실호출</b>로 본문 수집(<code class="inline">text_hash</code> 포함). 최장 <code class="inline">KR-STTC-24</code> 3,574자. 1건은 제목 불일치로 사람 승인 대기</td>
           </tr>
           <tr>
-            <td>eval/testset.json (평가 문항 20개)</td>
+            <td><code class="inline">rules</code> — 해석 룰 카탈로그</td>
+            <td><span class="status-dot ok">적재 · 전수 검증</span></td>
+            <td class="num">5종<br>BLOCKING 2 · PRECONDITION 3</td>
+            <td>근거 미인용 룰은 <b>로드 자체가 거부</b>됩니다(D61). 발화·해제 가능성까지 pytest로 잠금</td>
+          </tr>
+          <tr>
+            <td><b><code class="inline">assets</code> — 호스트 설비 ★신규</b></td>
+            <td><span class="status-dot ok">시드 완료</span></td>
+            <td class="num">9건 · 카테고리 6종</td>
+            <td>D68 — <code class="inline">equipment.location</code>에 문자열로 있던 호스트를 <b>승격</b>한 것(지어내지 않음)</td>
+          </tr>
+          <tr>
+            <td><b><code class="inline">repair_records</code> — 수리 이력 ★신규</b></td>
+            <td><span class="status-dot ok">시드 완료</span></td>
+            <td class="num">12건<br>PLANNED 5 · UNPLANNED 7</td>
+            <td>보전지표(예방보전 비율)의 뿌리. 쓰기 도구는 Sprint 8(P25)</td>
+          </tr>
+          <tr>
+            <td><b><code class="inline">residual_curve</code> — 잔가율 ★신규</b></td>
+            <td><span class="status-dot pending">목업 공식</span></td>
+            <td class="num">42행<br>7카테고리 × 6</td>
+            <td>⚠ <b>실데이터로는 감가를 식별할 수 없음이 실증됐습니다</b>(D74). 목업임을 출력에 고지</td>
+          </tr>
+          <tr>
+            <td><code class="inline">related_parts</code> (에러코드→부품 매핑)</td>
+            <td><span class="status-dot pending">위임 판정 완료 · 사람 승인 미완</span></td>
+            <td class="num">8건 · reviewed_by=claude</td>
+            <td><b>부품 특정 정확률 지표의 뿌리</b> — 사람 최종 승인 전까지 "판정 불가"(D12)</td>
+          </tr>
+          <tr>
+            <td><code class="inline">eval/testset.json</code> (평가 문항)</td>
             <td><span class="status-dot ok">사람 반영 완료</span></td>
-            <td class="num">S1 12 · S2 3 · S3 3 · S4 2</td>
-            <td>related_parts 검수 전까지 결과는 "잠정치"로 취급</td>
+            <td class="num">20문항<br>S1 12 · S2 3 · S3 3 · S4 2</td>
+            <td>⛔ 수정 금지 — 고치면 회차 간 비교가 성립하지 않습니다</td>
           </tr>
           <tr>
-            <td>eval/results (실행 결과 리포트)</td>
-            <td><span class="status-dot missing">미생성</span></td>
-            <td class="num">0건</td>
-            <td>Stage 4 완주 필요(위 "진행 중" 참조) — README 결과표가 아직 TBD</td>
+            <td><code class="inline">eval/results</code> (실행 결과)</td>
+            <td><span class="status-dot ok">3회 실행 · 4차 진행 중</span></td>
+            <td class="num">1·2·3차 보존</td>
+            <td>3차(2026-08-09, core/7): 부품 46.7 · 인용 83.3 · 안전 72.2 · 환각 0 · 시퀀스 100</td>
           </tr>
           <tr>
             <td>SAFETY_BASELINE 문안</td>
-            <td><span class="status-dot pending">기준값 승인·표현 검수 대기</span></td>
+            <td><span class="status-dot pending">기준값 승인 · 표현 검수 대기</span></td>
             <td class="num">iG5A p.4 · S100 p.2</td>
             <td>paraphrase 표현이 매뉴얼 의미 초과하지 않는지 대조</td>
           </tr>
           <tr>
-            <td>SQLite 목업 DB (11테이블 + 시드 케이스)</td>
+            <td>SQLite 목업 DB</td>
             <td><span class="status-dot ok">구축 완료</span></td>
-            <td class="num">7종 시드 케이스</td>
-            <td>추가 조치 불필요</td>
+            <td class="num"><b>18테이블</b><br>seed 검증 21건</td>
+            <td>코어 11 + 확장 7. <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>는 런타임 생성이라 시드 0행이 정상</td>
           </tr>
           <tr>
             <td>데모 영상 / README 데모 GIF</td>
             <td><span class="status-dot missing">촬영 전</span></td>
             <td class="num">7컷 큐시트 준비됨</td>
-            <td>Stage 4 완주 후 S1→S2→S3→S4 순서로 촬영</td>
+            <td>4차 평가 완주 후 S1→S2→S3→S4 + S9→S10 순서로 촬영</td>
           </tr>
         </tbody>
       </table>
@@ -470,8 +607,8 @@
 
   <!-- ============ 앞으로 구현할 것 ============ -->
   <section>
-    <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P21 · MVP 이후</span></div>
-    <p class="sec-note">MVP 완료(M4) 이후 순위. 각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다.</p>
+    <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P29</span></div>
+    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b>가장 가까운 것은 Sprint 8</b>입니다 — <code class="inline">create_repair_record</code>(P25·S19)와 <code class="inline">flags</code> 발생·해소. 통합 승인 큐가 이미 <code class="inline">kind: "repair"</code> 자리를 계약으로 잡아 두어 <b>계약 변경 없이 추가</b>됩니다.</p>
 
     <details class="backlog-group" open>
       <summary>진단 입력 확장<span class="n">4</span></summary>
@@ -523,13 +660,25 @@
         <div class="backlog-item"><span class="bid">P10</span><span class="bname">예지보전 연계</span><p>반복 감지로 축적되는 실 이력(D29)을 고장 예측 모델 입력으로 연결. 이력 적재 경로는 이미 있음.</p></div>
       </div>
     </details>
+
+    <details class="backlog-group" open>
+      <summary>확장 범위 — Sprint 8 이후<span class="n">5</span></summary>
+      <div class="backlog-body">
+        <div class="backlog-item"><span class="bid">P25</span><span class="bname">수리 증빙 서명 (S19)</span><p><b>Sprint 8 착수 예정.</b> <code class="inline">create_repair_record</code> — <code class="inline">repair_records</code> 12건은 이미 시드돼 <code class="inline">get_maintenance_metrics</code>가 소비 중이고, 승인 큐도 <code class="inline">kind: "repair"</code> 자리를 잡아 뒀습니다(현재 항상 0건).</p></div>
+        <div class="backlog-item"><span class="bid">—</span><span class="bname">flags 발생 · 해소</span><p>법정 조건의 생애주기(발생 → 이행 → 해소). 테이블은 있고 0행 — 지금은 판정 시점에 매번 재계산합니다.</p></div>
+        <div class="backlog-item"><span class="bid">—</span><span class="bname">증빙 패키지 해시 고정</span><p>Sprint 7은 <b>"고정되지 않는다"를 명시하는 선까지만</b> 갔습니다(D86). 실제 고정은 다음 범위.</p></div>
+        <div class="backlog-item"><span class="bid">—</span><span class="bname">S18 화면 L3 검증 (실 데이터 렌더)</span><p>지금은 순수 함수·소스 정적 검사 2층뿐입니다. 백엔드가 불변식을 깨는 응답을 내도 CI가 모릅니다.</p></div>
+        <div class="backlog-item"><span class="bid">v2</span><span class="bname">법령 개정 감지 (S17)</span><p>사용자 명시 제외. ⚠ <code class="inline">check_revisions()</code>는 <b>이미 코드에 살아 있고</b> 조문 수집이 채워지며 자동으로 동작합니다 — 도구로 노출하지 않을 뿐입니다.</p></div>
+      </div>
+    </details>
   </section>
 
   <div class="footer-strip">
-    <div>다음 세션 우선순위: <strong>터미널 재시작 → run_eval.py --yes 완주 → eval/results 생성 → README 결과표 채움 → 데모 영상 촬영</strong></div>
+    <div>다음 우선순위: <strong>4차 평가 완주 → 원인 확정(속도 제한 여부) → <code class="inline">--repeat 3</code> 본 측정 → Sprint 7 종료 → Sprint 8(S19)</strong><br>
+      <span style="font-size:12.5px">🔴 사람: <b>related_parts 최종 승인</b> · 처분 문서 문안 검수 · 안전 문구 검수</span></div>
     <div class="figs">
-      <div><b>593</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
-      <div><b>65</b>error_codes 실데이터</div>
+      <div><b>611</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
+      <div><b>18</b>DB 테이블 (코어 11 + 확장 7)</div>
       <div><b>88</b>설계 결정 D1~D88</div>
       <div><b>15</b>MCP 도구 (코어 7 + 확장 8)</div>
     </div>

@@ -156,9 +156,9 @@
       <p class="eyebrow">MaintQ · 다이어그램</p>
       <h1>유스케이스 · 데이터 흐름 · 사용자 액션</h1>
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
-      <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 시퀀스) · <code>06_REPO_API §2.2·2.4</code>(전이·권한) · <code>09_RUNTIME §1·§2</code>(A1~A8·루프 상한).</p>
+      <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-07</b></div>
+    <div class="asof">기준 시점<b>2026-08-12</b></div>
   </header>
 
   <nav class="toc">
@@ -168,11 +168,21 @@
     <a href="#seq">③ 데이터 흐름 (S1)</a>
     <a href="#ux-a">④ 사용자 액션 — 진단 콘솔</a>
     <a href="#ux-b">⑤ 사용자 액션 — 승인 큐 · 상태 전이</a>
+    <a href="#evidence">⑥ 근거 3계층 · 번들 5키</a>
+    <a href="#s10">⑦ 데이터 흐름 (S9→S10 처분·서명)</a>
+    <a href="#defense">⑧ 4층 방어 — 두 개의 0건</a>
+    <a href="#model">⑨ 자산 ↔ 설비 데이터 모델</a>
   </nav>
+
+  <div class="note" style="margin:-24px 0 42px">
+    <b>2026-08-12 갱신 — 그림 4개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
+    도구가 7 → <b>15종</b>, 테이블이 11 → <b>18개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
+    새 그림 넷은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보입니다.
+  </div>
 
   <!-- ================= ① 유스케이스 ================= -->
   <section id="uc">
-    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 17</span></div>
+    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 18</span></div>
     <p class="sec-note">행위자는 <b>정비사</b>와 <b>팀장</b> 둘뿐입니다. 이 그림의 요점은 기능 목록이 아니라 <b>두 액터의 권한이 어디서 갈리는가</b> — 승인·반려로 가는 점선이 그것입니다.</p>
 
     <figure>
@@ -196,12 +206,16 @@ flowchart LR
       u8["발주 승인 · 반려"]
       u9["실행 trace 열람"]
     end
-    subgraph NEXT["예정 · F1~F4"]
+    subgraph NEXT["구현 완료 · Sprint 6~7"]
       direction TB
-      x1["처분 법정조건 검사"]
-      x2["처분 서명 · 증빙"]
-      x3["중고 취득 검증"]
-      x4["수리 증빙 서명"]
+      x1["처분 법정조건 검사<br/>S9 · 판정 5종"]
+      x2["처분서 초안 · 서명<br/>S10 · 번들 해시 고정"]
+      x3["중고 취득 실사<br/>S18 · 9카테고리 PARTIAL"]
+      x5["통합 승인 큐<br/>발주 + 처분"]
+    end
+    subgraph S8["다음 · Sprint 8"]
+      direction TB
+      x4["수리 증빙 서명<br/>S19 · 큐 자리만 확보"]
     end
     subgraph LATER["후속 · F5~F6"]
       direction TB
@@ -223,9 +237,11 @@ flowchart LR
   mgr --> u8
   mgr --> u9
   tech --> x3
-  tech --> x4
-  mgr --> x1
+  tech -. "403 차단" .-> x2
+  tech --> x1
   mgr --> x2
+  mgr --> x5
+  tech --> x4
   tech --> y2
   tech --> y3
   mgr --> y1
@@ -233,30 +249,32 @@ flowchart LR
 
   u1 -.->|"repeated=true"| u4
   u2 -.->|"qty=0 또는 단종"| u3
+  x1 -.->|"판정 CONDITIONAL·CLEAR<br/>일 때만 서명 가능"| x2
+  x5 -.->|"kind 로 po · decision 구분"| u8
   y1 -.->|"기한 임박 경고"| x1
   y2 -.->|"자산가치 감점"| x3
 
   classDef blocked stroke-dasharray:5 3,stroke:#BC3B31,color:#BC3B31;
-  class u8 blocked;
+  class u8,x2 blocked;
 </pre>
       </div>
-      <figcaption><b>정비사는 자기가 올린 발주를 스스로 승인할 수 없습니다.</b> 정비사 → 승인 화살표가 점선인 이유이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다. 이 한 줄이 human-in-the-loop을 성립시킵니다(D18). 내부 점선은 조건 분기와 신호 전달입니다 — 반복 고장이 감지되면 발주가 아니라 근본원인 모드로 가고(D2·D35), <b>F5~F6은 새 기능이라기보다 기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다. 기한 임박은 처분 판정보다 <b>먼저</b> 알아야 의미가 있습니다 — 지금은 처분을 요청해야만 "24개월 미달"을 알게 됩니다.</figcaption>
+      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. 남은 건 S19(수리 증빙) 하나이고, 통합 큐가 <code>kind: "repair"</code> 자리를 계약으로 잡아 둬 <b>계약 변경 없이</b> 들어옵니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). F5~F6은 새 기능이라기보다 <b>기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다.</figcaption>
     </figure>
   </section>
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 둘로 갈린다</h2><span class="count">프로세스 2 · 도구 7</span></div>
-    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 한 곳뿐입니다.</p>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 15 · 테이블 18</span></div>
+    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 둘뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해 강화됐습니다.</p>
 
     <figure>
       <div class="plate">
 <pre class="mermaid">
 flowchart TB
-  subgraph FE["프론트엔드 · Next.js"]
+  subgraph FE["프론트엔드 · Next.js · 라우트 10"]
     direction LR
-    scrA["화면 A · /technician<br/>DiagnosticConsole"]
-    scrB["화면 B · /manager<br/>ApprovalQueueScreen"]
+    scrA["정비사 콘솔 · /technician<br/>+ 자산 · 사전판정 · 실사"]
+    scrB["팀장 큐 · /manager<br/>발주 상세 · 처분서 서명"]
   end
 
   subgraph BE["백엔드 프로세스 · FastAPI"]
@@ -265,40 +283,58 @@ flowchart TB
     loop["Agent Loop<br/>턴당 도구 8 · LLM 10<br/>세션 LLM 50"]
     worker["MCP 워커 태스크<br/>lifespan 이 소유 · D42"]
     poapi["routers/po.py<br/>submit · approve · reject"]
+    decapi["routers/decisions.py<br/>submit · sign · reject"]
+    appapi["routers/approvals.py<br/>통합 큐 · 읽기 전용"]
     tw["TraceWriter"]
   end
 
   subgraph MCPP["MCP 서버 · 별도 프로세스 · D15"]
     direction TB
-    rd["읽기 도구 6종<br/>lookup · rag · history<br/>inventory · alternatives · quotes"]
-    wr["create_po_draft<br/>쓰기 1종"]
+    rd["읽기 도구 13종<br/>코어 6 + 확장 7<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …"]
+    wr1["create_po_draft"]
+    wr2["generate_disposal_document"]
   end
 
   llm["Gemini API"]
-  db[("SQLite<br/>11 테이블 · WAL")]
+  db[("SQLite · 18 테이블 · WAL")]
   vec[("매뉴얼 인덱스<br/>1,035 청크")]
+  laws[("법령 원문 6조문<br/>text_hash · append-only")]
 
   scrA -->|"질문 전송"| chat
   chat --> loop
   loop <-->|"도구 선언 + 응답"| llm
   loop -->|"future 를 큐에 넣고 await<br/>세션을 직접 열지 않는다"| worker
   worker -->|"stdio · 세션 1개를 열고 닫음"| rd
-  worker -->|"stdio"| wr
+  worker -->|"stdio"| wr1
+  worker -->|"stdio"| wr2
   rd --> db
   rd --> vec
-  wr ==>|"draft INSERT 만"| db
-  scrB -->|"승인 · 반려 클릭"| poapi
+  rd --> laws
+  wr1 ==>|"draft INSERT 만<br/>db.draft_writer()"| db
+  wr2 ==>|"draft INSERT 만<br/>db.decision_writer()"| db
+  scrB -->|"승인 · 반려"| poapi
+  scrB -->|"서명 · 반려"| decapi
   poapi ==>|"상태 전이 UPDATE"| db
+  decapi ==>|"state → signed UPDATE"| db
   loop --> tw
   tw -->|"tool_call · tool_result · block<br/>발행과 동시 저장"| db
   chat -.->|"SSE 4종"| scrA
-  db -.->|"GET /api/po"| scrB
+  db -.->|"GET /api/approvals<br/>kind: po · decision"| appapi
+  appapi -.-> scrB
 
-  linkStyle 9 stroke:#1D8A5C,stroke-width:3px;
-  linkStyle 11 stroke:#BC3B31,stroke-width:3px;
+  linkStyle 10 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 11 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 14 stroke:#BC3B31,stroke-width:3px;
+  linkStyle 15 stroke:#BC3B31,stroke-width:3px;
 </pre>
       </div>
-      <figcaption><b>굵은 화살표 둘이 이 시스템의 쓰기 경로 전부입니다.</b> 초록(<code>create_po_draft</code> → <code>draft</code> INSERT)과 빨강(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주를 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10). MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
+      <figcaption><b>굵은 화살표 넷이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 둘(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주나 처분을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81). <b>두 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
+      <div class="note" style="margin-top:14px">
+        <b>확장 도구 8종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69).
+        이유는 평가입니다 — 도구를 늘린 채 지표를 재면 <b>"수정의 효과"와 "도구가 늘어난 효과"를 분리할 수 없습니다.</b>
+        <b>D88이 이 기준선을 코드로 잠갔습니다</b>: 평가 러너가 실행 전 <code>/health</code>를 읽어 <code>core</code>가 아니면 <code>exit 2</code>로 멈춥니다.
+        env 에코 하나만 보면 MCP 자식이 다른 env로 떴을 때 통과하므로, <b><code>list_tools()</code> 실측 개수와 겹쳐서</b> 봅니다.
+      </div>
       <div class="note warn" style="margin-top:14px">
         <b>루프와 MCP 사이에 워커 태스크가 하나 끼어 있는 건 실측으로 배운 것입니다(D42).</b> 원래는 스트리밍 제너레이터가 직접 <code>async with</code>로 MCP 세션을 열 계획이었는데, 실험해 보니 <b>소비자가 취소되는 순간 <code>cancel scope</code>가 무너지고 무관한 후속 태스크까지 끌고 죽었습니다.</b> <code>StreamingResponse</code> + 브라우저 조기 종료가 정확히 그 패턴입니다. 그래서 세션은 lifespan이 소유한 워커 하나가 열고 닫고, 루프는 future를 큐에 넣고 <code>shield</code>로 기다립니다 — 스트림이 끊겨도 진행 중인 도구 호출은 살아남습니다. 성능도 같은 결론이었습니다: 호출마다 프로세스를 띄우면 8콜에 +8초입니다.
       </div>
@@ -494,6 +530,227 @@ stateDiagram-v2
     </figure>
   </section>
 
+  <!-- ================= ⑥ 근거 3계층 ================= -->
+  <section id="evidence">
+    <div class="sec-head"><h2>⑥ 근거 3계층 — 사실 · 해석 · 서명</h2><span class="count">신규 · Sprint 6~7</span></div>
+    <p class="sec-note">확장 범위 전체가 이 구조 위에 서 있습니다. 요점은 하나입니다 — <b>"법이 그렇다"(사실)와 "그래서 이렇게 판단한다"(해석)를 물리적으로 분리</b>하고, 그 둘을 묶어 해시로 굳힌 다음에야 사람이 서명한다는 것.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  subgraph L1["계층 1 · 사실 — 법령 원문"]
+    direction TB
+    api["법제처 Open API<br/>lawService.do"]
+    fetch["fetch_from_api<br/>조문내용 + 항 + 호 + 목 평탄화"]
+    gate{"정체성 대조<br/>등록 title == API title ?"}
+    files[("laws/*.json<br/>text · text_hash<br/>effective_from")]
+  end
+
+  subgraph L2["계층 2 · 해석 — 룰 카탈로그"]
+    direction TB
+    rules[("rules/*.json · 5종<br/>BLOCKING 2 · PRECONDITION 3")]
+    integ{"무결성 게이트<br/>law_refs 가 계층 1 에 있나?"}
+    engine["engine.check_disposal_blockers<br/>facts + laws + rules 주입"]
+  end
+
+  subgraph L3["계층 3 · 서명 — 사람"]
+    direction TB
+    bundle["build_evidence_bundle<br/>5키 조립"]
+    sign["POST /api/decisions/{id}/sign<br/>manager 전용"]
+    rec[("decisions<br/>bundle_hash · signed_at<br/>reviewed_by")]
+  end
+
+  api --> fetch --> gate
+  gate -->|"일치"| files
+  gate -->|"불일치"| stop["⛔ 파일 미수정 · MISMATCH<br/>사람 승인 대기"]
+  files --> integ
+  rules --> integ
+  integ -->|"근거 없는 룰이 있으면"| refuse["⛔ 로드 자체를 거부<br/>RuleIntegrityError"]
+  integ -->|"전부 근거 있음"| engine
+  engine --> bundle
+  files -.->|"조문 원문 + text_hash"| bundle
+  bundle --> sign --> rec
+
+  classDef stopn fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class stop,refuse stopn;
+  classDef signn fill:#E2F3EA,stroke:#1D8A5C,color:#1D8A5C;
+  class sign,rec signn;
+</pre>
+      </div>
+      <figcaption><b>붉은 두 갈래가 이 구조의 핵심입니다.</b> ① 등록 제목과 API 제목이 다르면 <b>파일을 손대기 전에 멈춥니다</b> — 실제로 <code>KR-CITA-ENF-31</code>이 <code>즉시상각의제</code> vs <code>즉시상각의 의제</code>(공백)로 걸려 지금도 사람 승인 대기입니다. ② 근거 조문이 없는 룰이 하나라도 있으면 <b>카탈로그 로드 자체가 거부</b>됩니다(D61). 조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 <b>"출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문</b>입니다.</figcaption>
+      <div class="note warn" style="margin-top:14px">
+        <b>실측이 잡은 함정 — <code>조문내용</code>은 본문이 아니라 제목입니다.</b> 법제처 응답에서 <code>조문내용</code>은 <code>"제32조(세금계산서 등)"</code> 같은 <b>15자짜리 제목</b>이고, 본문은 <code>항내용</code>·<code>호내용</code>에 있습니다.
+        그대로 매핑하면 "비어 있지 않음" 검사를 <b>통과</b>해서 <b>제목이 계층 1 '조문 원문'으로 해시되어 서명 번들에 실립니다.</b>
+        평탄화 후 실측: <code>KR-STTC-24</code>가 <b>14자 → 3,574자</b>. 회귀가 <code>len(text) > len(조문내용)</code>을 단언해 이 자리를 잠급니다.
+      </div>
+    </figure>
+
+    <figure style="margin-top:26px">
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  b["evidence_bundle"]
+  b --> k1["laws[]<br/>인용된 조문 원문 + text_hash"]
+  b --> k2["rules[]<br/>rule_id · rule_version · rule_hash"]
+  b --> k3["evaluated[]<br/>평가된 전 룰의 판정 · ID 목록만"]
+  b --> k4["contracts[]<br/>계약 근거 · 해시 대상 아님"]
+  b --> k5["facts{}<br/>판정이 실제로 본 사실"]
+  b -.->|"번들 밖"| hs["hash_spec<br/>산출 규약"]
+
+  k1 --> chk{"조문 원문이<br/>전부 수집됐나?"}
+  chk -->|"아니오"| block["⛔ law_text_unavailable<br/>서명 불가"]
+  chk -->|"예"| ok["bundle_hash 산출"]
+
+  classDef stopn fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class block stopn;
+</pre>
+      </div>
+      <figcaption><b><code>laws[]</code>와 <code>evaluated[]</code>의 경계가 이 설계에서 가장 미묘한 지점입니다.</b> <code>laws[]</code>는 <b>실제로 발화한 findings가 인용한 조문만</b> 담고 <code>text_hash</code>가 필수입니다. <code>evaluated[]</code>는 평가된 <b>전</b> 룰의 판정을 <b>ID 목록으로만</b> 담습니다 — 이래야 "어떤 룰을 평가해서 CLEAR였는지"가 남으면서도, <b>평가만 하고 발화하지 않은 룰의 미수집 조문 1건이 서명 경로 전체를 잠그는 일</b>이 없습니다. <code>hash_spec</code>을 번들 <b>밖</b>에 둔 이유도 같은 성질입니다 — 안에 넣으면 규약 문자열을 한 글자만 고쳐도 <b>과거에 사람이 한 서명이 전부 깨집니다</b>.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= ⑦ S9→S10 ================= -->
+  <section id="s10">
+    <div class="sec-head"><h2>⑦ 데이터 흐름 — S9 처분 판정 → S10 서명</h2><span class="count">신규 · 시퀀스</span></div>
+    <p class="sec-note">"이 컨베이어를 팔아도 되나?"가 <b>서명된 처분 승인서</b>가 되기까지. S1과 대칭입니다 — <b>도구는 초안까지만 만들고 확정은 사람이 합니다.</b> 다른 점은 여기서는 <b>DB가 직접 거부한다</b>는 것입니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor T as 정비사
+  participant UI as 자산 화면
+  participant API as /api/assets
+  participant E as 룰 엔진
+  participant M as MCP (full)
+  participant DB as SQLite
+  actor MG as 팀장
+
+  T->>UI: 자산 선택 → "매각 사전판정"
+  UI->>API: POST /{asset_id}/disposal/precheck
+  API->>E: facts 조립 + laws·rules 주입
+  Note over E: 룰 5종 평가 → 4버킷 분류<br/>BLOCKING · PRECONDITION · CLEAR · 사실부족
+  E-->>API: verdict + findings + facts_used
+  API-->>UI: 200 · 판정 5종 중 하나
+  Note over API,UI: ⛔ 무저장 (D71) — 사전판정은 기록을 남기지 않는다<br/>409 가 아니라 200 이다. "지금은 불가"가 아니라 정상 결과
+
+  UI-->>T: BLOCKED / HOLD / INSUFFICIENT_FACTS<br/>CONDITIONAL / CLEAR + 해소 경로
+
+  T->>UI: "처분서 초안 요청"
+  UI->>M: generate_disposal_document
+  M->>DB: 판정 재실행 + 자산 행 재읽기
+  Note over M,DB: 판정 전후로 자산이 바뀌었으면<br/>asset_modified 로 거부 (레이스 차단)
+  M->>M: build_evidence_bundle 5키 조립
+  M->>DB: INSERT decisions (state=draft)
+  Note over M,DB: decision_writer() 커넥션 · TEMP TRIGGER<br/>⛔ UPDATE 시도는 트리거가 즉시 차단
+  M-->>UI: decision_id + bundle_hash
+
+  T->>API: POST /api/decisions/{id}/submit
+  API->>DB: draft → pending
+
+  MG->>UI: 통합 승인 큐에서 처분서 열람
+  Note over UI: verdict 배너 · 4버킷 · 조문 칩<br/>missing_sections 강제 렌더 · hash_fixed:false 표시
+  MG->>API: POST /api/decisions/{id}/sign
+  API->>DB: UPDATE state → signed
+  Note over API,DB: DDL CHECK 가 마지막 관문<br/>서명 없으면 · BLOCKING 이면 → DB 가 거부
+  DB-->>MG: signed_at · reviewed_by · bundle_hash 고정
+</pre>
+      </div>
+      <figcaption><b>사전판정이 아무것도 저장하지 않는 것(D71)이 의도입니다.</b> "팔아도 되나?"를 물어보는 것만으로 기록이 남으면 사람이 물어보기를 꺼립니다. 그래서 <code>precheck</code>는 <b>200으로 판정만 돌려주고</b>, 실제 기록은 초안을 만들 때 처음 생깁니다. <b><code>PARTIAL</code>이나 <code>BLOCKED</code>를 <code>409</code>로 주지 않는 것도 같은 이유</b>입니다 — 그건 "지금 상태로는 불가"가 아니라 <b>정상적인 판정 결과</b>이기 때문입니다. 마지막 <code>UPDATE</code>에 붙은 <b>DDL CHECK가 이 흐름의 마지막 관문</b>이고, 다음 그림이 그 층들을 펼친 것입니다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= ⑧ 4층 방어 ================= -->
+  <section id="defense">
+    <div class="sec-head"><h2>⑧ 4층 방어 — "우회 0건 · 서명 없는 확정 0건"</h2><span class="count">신규 · 각 층 독립 회귀</span></div>
+    <p class="sec-note">요청은 두 문장이었습니다 — <b>"BLOCKING을 우회한 처분 0건"</b>과 <b>"서명 없는 처분 확정 0건"</b>. 프롬프트로 지키면 지켜졌는지 증명할 수 없으므로, <b>서로 겹치지 않는 네 층</b>으로 막고 각 층을 <b>따로</b> 회귀했습니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  try(["LLM 이 BLOCKING 자산을<br/>처분 확정하려 시도"])
+
+  try --> L1{"층 1 · 도구 스키마<br/>override 파라미터가<br/>존재하는가?"}
+  L1 -->|"키 자체가 없음"| stop1["⛔ 호출 불가<br/>스키마 검증에서 탈락"]
+  L1 -->|"통과 시도"| L2{"층 2 · TEMP TRIGGER<br/>decision_writer() 커넥션"}
+  L2 -->|"UPDATE 시도"| stop2["⛔ 트리거가 차단<br/>state 전이 불가"]
+  L2 -->|"INSERT draft 만"| L3{"층 3 · REST sign()<br/>verdict 가 비차단인가?"}
+  L3 -->|"BLOCKED · HOLD<br/>INSUFFICIENT_FACTS"| stop3["⛔ 409 override_required"]
+  L3 -->|"CONDITIONAL · CLEAR"| L4{"층 4 · DDL CHECK<br/>DB 가 직접 검사"}
+  L4 -->|"서명자 · 시각 · 해시 중<br/>하나라도 비었으면"| stop4["⛔ CHECK constraint failed<br/>코드 버그로도 못 뚫음"]
+  L4 -->|"전부 충족"| ok(["state = signed<br/>사람이 서명한 확정"])
+
+  classDef stopn fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class stop1,stop2,stop3,stop4 stopn;
+  classDef okn fill:#E2F3EA,stroke:#1D8A5C,color:#1D8A5C;
+  class ok okn;
+</pre>
+      </div>
+      <figcaption><b>네 층이 서로 다른 기술로 막는 것이 요점입니다.</b> 하나가 뚫려도 다음이 잡고, 무엇보다 <b>층 4는 DB 자신</b>이라 애플리케이션 코드에 버그가 있어도 뚫리지 않습니다. 검증도 층별로 독립입니다 — 층 1은 스키마 검사, 층 2는 <code>state='pending'</code>으로 시험해 <b>CHECK가 대신 가려 주지 못하게</b> 하고 트리거 문구까지 대조합니다. <b>뮤턴트로 각 층을 일부러 깨뜨려 회귀가 실제로 FAIL하는지 먼저 확인</b>한 뒤 원복했습니다 — 이게 없으면 "검사는 통과하는데 대상은 깨진" 상태를 못 잡습니다.</figcaption>
+      <div class="note crit" style="margin-top:14px">
+        <b>전수 매트릭스에서 세 실패를 한 칸에 뭉개지 않습니다.</b> 시드 9자산 × 처분 3모드를 전부 시도할 때,
+        <code>law_text_unavailable</code>로 <b>번들 자체가 안 만들어진 것</b>과 <b>서명이 거부된 것</b>은 다릅니다.
+        한 칸에 합치면 <b>게이트가 통과한 것처럼 보입니다.</b> 그래서 출력이 <code>[서명거부 N] [번들불가 M] [서명성공 K]</code> 3열로 갈리고,
+        <code>N+M+K == 대상 조합 수</code>를 단언합니다.
+      </div>
+    </figure>
+  </section>
+
+  <!-- ================= ⑨ 데이터 모델 ================= -->
+  <section id="model">
+    <div class="sec-head"><h2>⑨ 자산 ↔ 설비 — 실측이 바꾼 데이터 모델</h2><span class="count">신규 · D68</span></div>
+    <p class="sec-note">중고설비 시장 데이터를 실제로 열어 보니 <b>대상이 어긋나 있었습니다.</b> 매물 16,011건 중 <b>인버터는 4건</b>, 공작기계는 7,048건. 이 시장은 완제품 설비지 부품이 아닌데, 확장 범위의 대상은 <code>equipment_id</code>(인버터)였습니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+erDiagram
+  ASSETS ||--o{ EQUIPMENT : "호스트 설비 : 부착 인버터"
+  ASSETS ||--o{ DECISIONS : "처분 판정 · 서명"
+  ASSETS }o--|| RESIDUAL_CURVE : "category 로 잔가 조회"
+  EQUIPMENT ||--o{ ERROR_HISTORY : "고장 이력"
+  EQUIPMENT ||--o{ REPAIR_RECORDS : "수리 증빙"
+  ERROR_CODES ||--o{ ERROR_HISTORY : "model + code"
+  RULES }o--o{ LAW_REFS : "law_refs · 무결성 게이트"
+  DECISIONS }o--|| RULES : "evidence_bundle 에 rule_hash"
+
+  ASSETS {
+    text asset_id PK "9건"
+    text category "6종 · 잔가 조인 키"
+    int tax_credit_applied "세액공제 · BLOCKING 근거"
+    int has_lien "담보 · BLOCKING 근거"
+    int safety_inspection_target "안전검사 · PRECONDITION"
+  }
+  EQUIPMENT {
+    text equipment_id PK "10대 · 인버터"
+    text asset_id FK "D68 로 신설"
+    text model "iG5A · S100 enum"
+  }
+  DECISIONS {
+    text state "draft · pending · signed · rejected"
+    text bundle_hash "서명 시 고정"
+    text reviewed_by "사람만 채운다"
+  }
+  LAW_REFS {
+    text law_ref_id PK "7건"
+    text fetch_status "FETCHED 6 · PENDING 1"
+    text text_hash "append-only"
+  }
+</pre>
+      </div>
+      <figcaption><b>해결의 실마리는 이미 데이터 안에 있었습니다.</b> <code>equipment.location</code>에 호스트가 이미 문자열로 들어 있었습니다 — 반송 컨베이어 · 랩핑기 · 집진기 · 리프터 · 절삭유 펌프. <b>지어낸 게 아니라 있던 정보를 승격한 것</b>입니다. 그래서 <code>assets</code>를 신설하고 <code>equipment.asset_id</code> FK를 걸되, <b>확장 도구만 <code>asset_id</code>를 쓰고 기존 코어 6종은 <code>equipment_id</code>를 그대로</b> 씁니다 — 기존 도구 계약이 한 글자도 바뀌지 않았습니다. <code>11 §1</code>이 처분 서사의 근거로 든 "수명 20~30년 · 신품 납기 수개월~1년"은 <b>공작기계 특성이지 인버터가 아닙니다.</b></figcaption>
+      <div class="note warn" style="margin-top:14px">
+        <b><code>확인불가</code> 함정.</b> 원본 CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code>라는 <b>문자열</b>이 채워져 있습니다.
+        그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도+가격 교집합 5,396건(33.7%)</b>이고,
+        그렇게 걸러 보니 <b>연차-가격 상관이 사실상 0</b>이었습니다 — 호가는 연차가 아니라 기계 규격이 지배합니다.
+        그래서 잔가곡선은 <b>실데이터 파생이 아니라 목업 정률 공식</b>으로 확정됐고(D74), 실데이터는 <b>"왜 못 쓰는가"의 한계 실증</b>으로 보존됩니다.
+      </div>
+    </figure>
+  </section>
+
   <!-- ================= 근거 ================= -->
   <section>
     <div class="sec-head"><h2>그림이 참조한 실제 코드</h2><span class="count">대조표</span></div>
@@ -501,23 +758,34 @@ stateDiagram-v2
       <table>
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
         <tbody>
-          <tr><td>REST 엔드포인트 10종</td><td class="mono">backend/routers/ — chat.py · equipment.py · po.py</td></tr>
-          <tr><td>MCP 도구 7종</td><td class="mono">mcp_server/tools/ — 파일당 1개</td></tr>
-          <tr><td>화면 A · B 라우트</td><td class="mono">frontend/app/(console)/technician · /manager</td></tr>
+          <tr><td>REST 엔드포인트 <b>20종</b></td><td class="mono">backend/routers/ — chat · equipment · po · <b>disposal(/api/assets) · decisions · approvals</b></td></tr>
+          <tr><td>MCP 도구 <b>15종</b> (코어 7 + 확장 8)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b></td></tr>
+          <tr><td>프론트 라우트 <b>10개</b></td><td class="mono">frontend/app/(console)/ — technician{,/asset/[id]/disposal,/ownership} · manager{,/po/[poId],/decision/[decisionId],/trace/[sid]}</td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
-          <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
+          <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · <b>DecisionDetail · SignBar</b> · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
+          <tr><td>자산 화면 컴포넌트</td><td class="mono">components/asset/ — AssetHeader · DisposalPanel · FindingList · <b>VerificationMatrix · ResidualRiskCard</b></td></tr>
           <tr><td>trace 패널</td><td class="mono">components/trace/ — TracePanel · TraceStep</td></tr>
           <tr><td>루프 상한</td><td class="mono">backend/agent/loop.py — MAX_LLM_CALLS_PER_TURN 10 · PER_SESSION 50</td></tr>
-          <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · po.py 3곳에서만 호출</td></tr>
+          <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · <b>po.py · decisions.py 에서만</b> 호출 (precheck·ownership 에는 없음, D71)</td></tr>
+          <tr><td><b>근거 3계층</b></td><td class="mono">data/rules/ — fetch_laws.py(계층 1) · engine.py + rules/*.json(계층 2) · mcp_server/tools/build_evidence_bundle.py(계층 3)</td></tr>
+          <tr><td><b>4층 방어</b></td><td class="mono">generate_disposal_document.py(스키마) · mcp_server/db.py decision_writer()(트리거) · routers/decisions.py sign()(409) · data/seed.py DDL CHECK</td></tr>
+          <tr><td><b>실사 판정</b></td><td class="mono">data/ownership.py — 9카테고리 · 38항목. MCP 도구는 위임 래퍼(D73)</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 611건</b> — 특히
+      <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
+      <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
+      <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).
+      도구에 UPDATE를 추가하는 코드는 리뷰 이전에 회귀에서 먼저 잡힙니다.
     </div>
   </section>
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-07</span>
-    <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code></span>
+    <span>기준 2026-08-12</span>
+    <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 
 </div>
