@@ -223,9 +223,9 @@
 
   <div class="stats">
     <div class="stat g">
-      <div class="n">11</div>
+      <div class="n">12</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 613건</div>
+      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 618건</div>
     </div>
     <div class="stat w">
       <div class="n">1</div>
@@ -235,7 +235,7 @@
     <div class="stat a">
       <div class="n">8</div>
       <div class="l">실제 데이터</div>
-      <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 6조문 ★</b></div>
+      <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 7조문 ★</b></div>
     </div>
     <div class="stat">
       <div class="n">13</div>
@@ -250,6 +250,14 @@
     이 축에서 <b>"받아야만 옮길 수 있는"</b> 유일한 항목이었습니다.
     나머지 신규 데이터(<code>assets</code> 9 · <code>repair_records</code> 12 · <code>residual_curve</code> 42)는 <b>전부 우리가 만든 것</b>이라
     생성 데이터에 남습니다 — 늘었다고 신뢰도가 올라가지 않습니다.
+  </div>
+
+  <div class="note" style="margin:-18px 0 34px;border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-08-12 — 이 표에서 가장 오래 걸려 있던 자물쇠가 풀렸습니다.</b>
+    <code>related_parts</code> 8건에 <b>사람 최종 승인</b>이 떨어져, <b>부품 특정 정확률을 실적으로 인용할 수 있게 됐습니다</b>(D12 게이트 해제).
+    다만 배지는 <span class="d mock" style="display:inline-block">생성한 데이터</span> 에 <b>그대로 남습니다</b> —
+    승인은 <b>"검수를 통과했다"</b>는 뜻이지 <b>"외부 원천에서 받았다"</b>는 뜻이 아니기 때문입니다. 이 문서에서 두 축은 끝까지 섞지 않습니다.<br>
+    같은 날 <b>법령 조문이 7건</b>(<code>KR-OSHA-ENR-126</code> 추가)이 되고, <b>등기정보광장 통계 4종이 파일 스냅샷으로 실수집</b>됐습니다.
   </div>
 
   <div class="legend">
@@ -275,7 +283,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 613건 · 27스위트</span>
+      <span class="count">M1~M4 · 회귀 618건 · 27스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -300,13 +308,13 @@
       <div class="card">
         <div class="card-head">
           <div><span class="fno">기능 2 · S1·S2</span><h3>부품 특정 → 재고 · 견적</h3></div>
-          <span class="chip wip">코드 완료 · 검수 대기</span>
+          <span class="chip done">완료 · 검수까지</span>
         </div>
-        <p class="desc"><code>search_inventory</code> · <code>find_alternative_parts</code> · <code>get_supplier_quotes</code>. 진단→부품 연결고리는 LLM 추측이 아니라 <code>related_parts</code> 데이터(D12).</p>
+        <p class="desc"><code>search_inventory</code> · <code>find_alternative_parts</code> · <code>get_supplier_quotes</code>. 진단→부품 연결고리는 LLM 추측이 아니라 <code>related_parts</code> 데이터(D12) — <b>2026-08-12 사람 최종 승인 완료</b>.</p>
         <div class="dblock">
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
-            <span class="d mock">related_parts · 8건 <b>사람 승인 미완</b></span>
+            <span class="d mock">related_parts · 8건 <b>★ 사람 승인 완료</b></span>
             <span class="d mock">parts 40 · inventory 40</span>
             <span class="d mock">suppliers 4 · supplier_parts 80</span>
             <span class="d mock">part_alternatives 4</span>
@@ -384,12 +392,12 @@
   <!-- ================= 예정 기능 ================= -->
   <section>
     <div class="sec-head">
-      <h2>확장 기능 — 6종 중 5종 완료</h2>
+      <h2>확장 기능 — 7종 중 6종 완료</h2>
       <span class="count">D67 본 범위 편입 · Sprint 5~7에서 F1~F4 착지</span>
     </div>
     <p class="sec-note">
       계획했던 순서 제약(<b>① S1~S4 관통 → ② F1 근거 계층 → ③ 나머지</b>)이 그대로 지켜졌습니다. <b>F1(근거 3계층)이 먼저 서고 나머지가 그 위에 얹혔습니다.</b>
-      ⚠ 여전히 <code>related_parts</code> 사람 승인은 미완이고, 그래서 부품 특정 지표는 "미달"이 아니라 <b>"판정 불가"</b>입니다(D12).
+      ✅ <code>related_parts</code> 사람 승인이 2026-08-12 에 완료돼, 부품 특정 지표가 <b>"판정 불가" → "미달(40.0%)"</b>로 바뀌었습니다(D12 해제).
     </p>
 
     <div class="grid cols-2">
@@ -404,7 +412,7 @@
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d mock">rules/ · 5종 + 엔진 + pytest 46</span>
-            <span class="d real">laws/ 원문 <b>6조문 FETCHED</b> · text_hash</span>
+            <span class="d real">laws/ 원문 <b>7조문 FETCHED · 6,560자</b> · text_hash</span>
             <span class="d todo">KR-CITA-ENF-31 · <b>제목 대조 대기</b></span>
             <span class="d mock">decisions 테이블 (런타임 · 현재 0행)</span>
           </div>
@@ -421,7 +429,8 @@
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d mock">rules · 5종 <b>DB 적재</b> (BLOCKING 2 · PRECONDITION 3)</span>
-            <span class="d real">laws/ 원문 6조문 (근거 인용)</span>
+            <span class="d real">laws/ 원문 7조문 (근거 인용)</span>
+            <span class="d real"><b>산안법 시행규칙 126조 ★</b> — 안전검사 <b>주기</b></span>
             <span class="d mock">assets 9건 · 법정 조건 필드</span>
             <span class="d todo">flags 테이블 (0행 — Sprint 8)</span>
           </div>
@@ -487,7 +496,7 @@
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d real">국세청 사업자등록 (매도인 실체)</span>
-            <span class="d real">등기정보광장 통계 (배경 근거뿐)</span>
+            <span class="d real"><b>등기정보광장 통계 291행 ★</b> — 배경 근거뿐</span>
             <span class="d mock">실사 항목 38개 · <code>data/ownership.py</code> (D73)</span>
           </div>
         </div>
@@ -518,7 +527,7 @@
 
   <!-- ================= 실제 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar real"></span>실제 데이터 — 외부 원천에서 받은 것</h2><span class="count">8종 · ★1종 신규</span></div>
+    <div class="sec-head"><h2><span class="srcbar real"></span>실제 데이터 — 외부 원천에서 받은 것</h2><span class="count">8종 · ★2종 갱신 (법령 · 등기통계)</span></div>
     <p class="sec-note">근거로 인용할 수 있는 데이터입니다. 매뉴얼 인용은 페이지까지, 법령 인용은 조문까지 추적됩니다.</p>
     <div class="twrap">
       <table>
@@ -546,8 +555,8 @@
             <td>1, 5</td>
           </tr>
           <tr>
-            <td class="mono"><b>법령 조문 원문 ★신규</b><span class="sub">조특법 24·146 · 부가세법 32 · 산안법 93 · 상법 652 · 민법 388</span></td>
-            <td class="num">6조문<br><b>5,038자</b></td>
+            <td class="mono"><b>법령 조문 원문 ★</b><span class="sub">조특법 24·146 · 부가세법 32 · 산안법 93 · <b>산안법 시행규칙 126 ★08-12</b> · 상법 652 · 민법 388</span></td>
+            <td class="num">7조문<br><b>6,560자</b></td>
             <td><a href="https://open.law.go.kr">국가법령정보 API</a><span class="sub">법제처 · <code>lawService.do</code></span></td>
             <td><b>계층 1 = 사실.</b> 처분 판정이 인용하는 조문의 유일한 근거<span class="sub">⚠ <code>조문내용</code>은 <b>제목</b>이라 <code>항·호·목</code>을 평탄화해야 본문이 된다 — <code>KR-STTC-24</code>가 14자 → 3,574자</span></td>
             <td>7, 8, 9</td>
@@ -574,24 +583,25 @@
             <td>12, 11</td>
           </tr>
           <tr>
-            <td class="mono">등기정보광장 동산담보 통계</td>
-            <td class="num">API 4종</td>
-            <td><a href="https://data.iros.go.kr/rp/oa/openOapiIntro.do">대법원</a><span class="sub">집계 통계뿐</span></td>
-            <td>S18 <code>residual_risk</code>의 배경 근거<span class="sub">⚠ 개별 담보 조회는 불가</span></td>
+            <td class="mono"><b>등기정보광장 동산담보 통계 ★실수집</b><span class="sub">신청사건 · 설정자유형별 현황 · 누적채권액 · <s>채권최고액별</s></span></td>
+            <td class="num"><b>291행</b><br>75 + 108 + 108<br><span class="sub">1종 0행</span></td>
+            <td><a href="https://data.iros.go.kr/rp/oa/openOapiIntro.do">대법원</a><span class="sub">집계 통계뿐 · <code>data/fetch_iros.py</code></span></td>
+            <td>S18 <code>residual_risk</code>의 배경 근거<span class="sub">⚠ 개별 담보 조회 불가 · <b>동산·채권 합산이라 "기계설비 담보 N건" 인용 금지</b> — 파일에 <code>citation_guard</code>로 박아 뒀다<br>⚠ <code>0000000239</code>(채권최고액별)는 <b>6조합 전부 0행</b> — 기관 측 결함으로 확정</span></td>
             <td>12</td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <b>법령 원문 6조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
+      <b>법령 원문 7조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
+      <b>126조가 채운 것은 "주기"입니다.</b> 93조는 <i>안전검사를 받아야 한다</i>까지만 말하고 <b>몇 년마다인지는 시행규칙에 있습니다</b> — 컨베이어는 <b>설치 후 3년 이내 최초, 이후 2년마다</b>. 이 값 없이 <code>SAFETY-INSPECTION</code> 룰이 기한을 말하면 그건 근거 없는 해석입니다. 그래서 룰의 <code>law_refs</code>가 2건이 되고 <code>rule_version</code>이 올라갔습니다.<br>
       남은 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인 대기</b>입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b>
     </div>
   </section>
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">13종 · DB 18테이블 실측</span></div>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">13종 · DB 18테이블 실측 · 2026-08-12</span></div>
     <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> 규모는 2026-08-12 <code>data/maintq.db</code> 조회 결과입니다.</p>
     <div class="twrap">
       <table>
@@ -605,7 +615,7 @@
           <tr><td class="mono"><b>repair_records ★신규</b></td><td class="num">12건<br>PLANNED 5 · UNPLANNED 7</td><td><code>seed.py</code><span class="sub"><code>work_type</code> 필수 · append-only</span></td><td>실 수리 이력 없음. <b><code>work_type</code>이 예방보전 비율의 뿌리</b>라 분포를 의도적으로 갈랐다</td><td>10, 13</td></tr>
           <tr><td class="mono"><b>residual_curve ★신규</b></td><td class="num">42행<br>7카테고리 × 6</td><td><code>seed.py</code><span class="sub">법정 내용연수 정률 공식</span></td><td>⚠ <b>실데이터로 감가를 식별할 수 없음이 실증됐다</b>(D74). 중진공 5,396건에서 연차-가격 상관이 사실상 0 — 목업이 정직한 선택</td><td>11</td></tr>
           <tr><td class="mono">po_drafts · users</td><td class="num">5 · 3</td><td><code>seed.py</code></td><td>발주·계정은 데모용</td><td>3</td></tr>
-          <tr><td class="mono">related_parts.seed.json</td><td class="num">8건<span class="sub">reviewed_by = claude</span></td><td>위임 판정<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이지만 매핑 판단은 위임된 것.</b> 부품 특정 정확률의 뿌리(D12) — <b>사람 최종 승인 대기</b></td><td>2</td></tr>
+          <tr><td class="mono"><b>related_parts.seed.json ★승인</b></td><td class="num">8건<span class="sub">위임 08-05 → <b>승인 08-12</b></span></td><td>위임 판정 → 사람 승인<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이고 매핑 판단은 위임 후 사람이 확인했습니다.</b> 부품 특정 정확률의 뿌리(D12) — <b>게이트 해제, 실적 인용 가능</b>. ⛔ 그래도 배지는 <b>생성 데이터</b>입니다 — 검수 통과와 외부 원천은 다른 축</td><td>2</td></tr>
           <tr><td class="mono">data/rules/rules/*.json → <code>rules</code></td><td class="num">5종<span class="sub">BLOCKING 2 · PRECONDITION 3</span></td><td>직접 작성<span class="sub">엔진 + pytest 46</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
           <tr><td class="mono">eval/testset.json</td><td class="num">20문항</td><td>초안 생성 → 사람 검수<span class="sub">S1 12·S2 3·S3 3·S4 2</span></td><td>평가 기준은 우리가 정의. ⛔ 수정 금지 — 고치면 회차 간 비교가 깨진다</td><td>6</td></tr>
           <tr><td class="mono">traces</td><td class="num">런타임 · 시드 0</td><td>에이전트 루프가 발행<span class="sub">＋<code>tool_payload</code> 원본 보존</span></td><td>실행할 때 생성됨. <b>평가 5지표의 판정 소스가 전부 이 테이블</b></td><td>6</td></tr>
@@ -625,7 +635,7 @@
         <tbody>
           <tr>
             <td class="mono"><b>laws/*.json</b>의 <code>text</code></td>
-            <td><span class="srcbar real"></span>✅ <b>완료 — 6/7 실수집</b><span class="sub">법제처 API 실호출 · <code>text_hash</code>·<code>effective_from</code> 포함</span></td>
+            <td><span class="srcbar real"></span>✅ <b>완료 — 7/8 실수집</b><span class="sub">법제처 API 실호출 · <code>text_hash</code>·<code>effective_from</code> 포함 · 08-12 <code>KR-OSHA-ENR-126</code> 추가</span></td>
             <td>7, 8, 9</td>
             <td><code>KR-CITA-ENF-31</code> 1건만 제목 대조 대기(S10 무영향)</td>
           </tr>
@@ -769,13 +779,25 @@
         <p>D68 반영 → S9 판정 → S10 서명까지 <b>실 시드로 관통</b>.</p>
       </div>
       <div class="step">
+        <div class="sn">완료</div>
+        <h4>IROS 통계 실수집</h4>
+        <p>4종 중 3종 · <b>291행</b>을 파일 스냅샷으로. 1종은 기관 측 빈 값으로 확정.</p>
+      </div>
+      <div class="step">
         <div class="sn">지금</div>
-        <h4>4차 평가 · Sprint 8</h4>
-        <p>지표 튜닝 검증 → <code>create_repair_record</code>(S19) · <code>flags</code>.</p>
+        <h4>지표 튜닝 판정 · Sprint 8</h4>
+        <p><code>--repeat 3</code> 5세트 완료 → <code>create_repair_record</code>(S19) · <code>flags</code>.</p>
       </div>
     </div>
     <div class="note">
-      <b>데이터가 순서를 앞지르지 않게 합니다.</b> 범위는 넓어졌지만 <b><code>related_parts</code> 사람 승인은 여전히 미완</b>이고, 그래서 부품 특정 지표는 지금도 <b>"판정 불가"</b>입니다 — 범위를 넓히는 것과 품질 기준을 느슨하게 하는 것은 다른 일입니다.
+      <b>데이터가 순서를 앞지르지 않게 합니다.</b> <b><code>related_parts</code> 승인으로 부품 특정 지표가 "판정 불가"에서 풀렸지만, 풀려서 나온 값은 <span style="white-space:nowrap">40.0%</span>(목표 90%)입니다.</b>
+      게이트가 열린 것과 지표가 좋아진 것은 다른 일입니다 — <b>오히려 이제서야 얼마나 미달인지 말할 수 있게 됐습니다.</b>
+    </div>
+    <div class="note warn">
+      <b>파일이 정본, DB는 질의용 사본입니다(D60).</b> IROS 291행을 받고 가장 먼저 물은 것이 "DB에 넣을까, 벡터 DB에 넣을까"였는데 <b>둘 다 지금은 아닙니다</b> —
+      소비처(기능 12의 <code>residual_risk</code>)가 아직 이 통계를 읽지 않기 때문입니다.
+      특히 <b>벡터 DB는 이 데이터에 원리적으로 안 맞습니다</b> — 연도별 집계 수치를 의미 유사도로 찾을 일이 없고,
+      근사 검색은 <b>"2024년 3분기 108건"을 "2023년 3분기"로 바꿔 놓을 수 있습니다.</b> 근거로 인용할 숫자에는 결정론적 조회만 씁니다(D59와 같은 성질).
     </div>
     <div class="note warn">
       <b>실데이터가 늘었다고 신뢰도가 자동으로 오르지 않습니다.</b> 이번에 늘어난 것 중 <b>실제 데이터는 법령 조문 6개뿐</b>이고,

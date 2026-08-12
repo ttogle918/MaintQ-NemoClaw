@@ -291,10 +291,19 @@
     지금 남은 것은 Sprint 7의 마지막 태스크인 <b>지표 튜닝 + 4차 평가</b> 하나입니다.
   </div>
 
+  <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-08-12 — 지표 하나가 "판정 불가"에서 풀려났습니다.</b>
+    <code class="inline">related_parts</code> 8건에 <b>사람 최종 승인</b>이 떨어져 D12 게이트가 해제됐습니다.
+    이 문서에서 <b>부품 특정 정확률을 실적으로 인용할 수 있게 된 것은 이번이 처음</b>입니다 —
+    지금까지는 수치가 있어도 "인용 금지"였습니다. 승인이 바꾼 것은 <b>인용 가능 여부이지 수치 자체가 아닙니다.</b>
+    같은 날 근거 계층 1에 <b>산안법 시행규칙 제126조</b>가 실수집으로 더해져 조문이 <b>7건</b>이 됐고,
+    등기정보광장 통계 <b>4종을 파일 스냅샷으로 실수집</b>했습니다.
+  </div>
+
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 6종</span></div>
-    <p class="sec-note">회귀 <b>spikes 27스위트 / 611건</b> · seed 21 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 27스위트 / 618건</b> · seed 21 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -304,9 +313,9 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>부품 재고·대체품·공급사 견적</h3><span class="chip done">완료</span></div>
-        <p class="desc"><code class="inline">search_inventory</code>(단종 여부 포함) → <code class="inline">find_alternative_parts</code>(재고 0/단종 시 분기) → <code class="inline">get_supplier_quotes</code>(2개 이상 비교 제시). 추천 로직은 백로그(P2).</p>
-        <div class="meta"><span class="tag">D12·D20·D28</span><span class="tag">S2 시나리오</span></div>
+        <div class="card-head"><h3>부품 재고·대체품·공급사 견적</h3><span class="chip done">완료 · 검수까지</span></div>
+        <p class="desc"><code class="inline">search_inventory</code>(단종 여부 포함) → <code class="inline">find_alternative_parts</code>(재고 0/단종 시 분기) → <code class="inline">get_supplier_quotes</code>(2개 이상 비교 제시). 진단→부품 연결은 LLM 추측이 아니라 <code class="inline">related_parts</code> 데이터이고, <b>2026-08-12 사람 최종 승인 완료</b>. 추천 로직은 백로그(P2).</p>
+        <div class="meta"><span class="tag">D12·D20·D28</span><span class="tag">S2 시나리오</span><span class="tag">★ D12 게이트 해제</span></div>
       </div>
 
       <div class="card">
@@ -358,8 +367,8 @@
     <div class="grid cols-2">
       <div class="card">
         <div class="card-head"><h3>근거 3계층 — 법령 · 해석 · 서명 ★</h3><span class="chip done">완료</span></div>
-        <p class="desc">계층 1 = <b>법제처 API 실수집 조문 원문</b>(append-only, <code class="inline">text_hash</code>) · 계층 2 = 해석 룰 5종(근거 미인용 시 로드 거부) · 계층 3 = <b>사람 서명</b>(번들 해시 고정). <code class="inline">build_evidence_bundle</code>이 5키(laws·rules·evaluated·contracts·facts)로 조립.</p>
-        <div class="meta"><span class="tag">D59·D60·D61·D75·D83</span><span class="tag">bundle_integrity 25건</span></div>
+        <p class="desc">계층 1 = <b>법제처 API 실수집 조문 원문 7건 · 6,560자</b>(append-only, <code class="inline">text_hash</code>) · 계층 2 = 해석 룰 5종(근거 미인용 시 로드 거부) · 계층 3 = <b>사람 서명</b>(번들 해시 고정). <code class="inline">build_evidence_bundle</code>이 5키(laws·rules·evaluated·contracts·facts)로 조립.</p>
+        <div class="meta"><span class="tag">D59·D60·D61·D75·D83</span><span class="tag">bundle_integrity 25건</span><span class="tag">law_refs 8건 중 FETCHED 7</span></div>
       </div>
 
       <div class="card">
@@ -408,37 +417,66 @@
         <p class="desc">① traces 덤프(도구 원본 대조) ② <code class="inline">[LLM_END]</code> 잘림 계측 ③ <code class="inline">--repeat N</code> 회차 간 흔들림. <b>계측 없이 튜닝하면 개선과 요동을 구분할 수 없습니다.</b></p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>후보 5 — 파이프라인 완주</h3><span class="chip partial">적용 · <code class="inline">--repeat</code> 판정 대기</span></div>
-        <p class="desc">trace 원본이 기전을 확정: <code class="inline">search_inventory</code>를 <b>부른 건 인자가 정확했고</b>, 9/11은 <b>아예 호출하지 않고</b> 턴을 끝냈습니다. 수정 후 3차 대비 <b>부품 +20.0pt · 안전 +11.1pt</b>지만 <b>단일 실행이라 확정하지 않습니다.</b></p>
+        <div class="card-head"><h3>후보 A·C — 코드 축</h3><span class="chip done">확정 · 3회차 검증</span></div>
+        <p class="desc">trace 원본이 기전을 확정: <code class="inline">search_inventory</code>를 <b>부른 건 인자가 정확했고</b>, 9/11은 <b>아예 호출하지 않고</b> 턴을 끝냈습니다. A(RAG 유도) · C(근거 있는 교체 안내에 안전 트리거)로 <b>인용·안전 안정실패가 3 → 1</b>이 됐습니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>후보 A′·B — 프롬프트 축</h3><span class="chip blocked">기각 · 원복</span></div>
+        <p class="desc">둘 다 <b>같은 실패 서명</b>을 냈습니다 — 목표 칸은 그대로, <b>안정 통과 1칸이 안정 실패로 후퇴</b>, 흔들림 증가. <b>지시를 더 넣는 방향은 이 모델에서 재현되지 않는다</b>는 것이 3회씩 두 번 측정한 결론입니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>MQ-714 — T15 루프 축</h3><span class="chip blocked">측정 완료 · <b>효과 미확인</b></span></div>
+        <p class="desc">반복 조회 가드가 <b>턴 자체를 끝내고</b> 있어, 중복 호출만 거부하고 진행하도록 고쳤습니다. <b><code class="inline">--repeat 3</code> 결과 승격 0칸</b> — 게다가 표적이던 T15가 <b>세 지표 모두 후퇴</b>했습니다(아래 참조).</p>
       </div>
     </div>
 
     <div class="datatable-wrap" style="margin-top:16px">
       <table>
-        <thead><tr><th>지표</th><th class="num">3차 (08-09)</th><th class="num">최종 3회차 (08-12)</th><th class="num">증감</th><th>판정</th></tr></thead>
+        <thead><tr><th>지표</th><th class="num">3차 (08-09)<br>단일 실행</th><th class="num">A+C · 3회차<br><code class="inline">060312</code></th><th class="num">+MQ-714 · 3회차<br><code class="inline">075303</code></th><th>판정 (사전 등록 규칙)</th></tr></thead>
         <tbody>
-          <tr><td>부품 특정 (≥90%)</td><td class="num">7/15 = 46.7%</td><td class="num">18/45 = 40.0%</td><td class="num">흔들림 지배</td><td><span class="status-dot pending">판정 불가 (D12)</span></td></tr>
-          <tr><td>근거 인용 (100%)</td><td class="num">15/18 = 83.3%</td><td class="num"><b>50/54 = 92.6%</b></td><td class="num">+9.3pt</td><td><span class="status-dot missing">미달 · 안정실패 <b>0</b></span></td></tr>
-          <tr><td>안전 경고 (100%)</td><td class="num">13/18 = 72.2%</td><td class="num"><b>44/54 = 81.5%</b></td><td class="num">+9.3pt</td><td><span class="status-dot missing">미달 · 안정실패 <b>1</b></span></td></tr>
-          <tr><td>시퀀스 (100%)</td><td class="num">5/5 = 100%</td><td class="num">5/5 = 100%</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
-          <tr><td>환각률 (0%)</td><td class="num">0/2 = 0%</td><td class="num">0/2 = 0%</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
-          <tr><td>권한 403 (100%)</td><td class="num">PASS</td><td class="num">PASS</td><td class="num">±0</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>부품 특정 (≥90%)</td><td class="num">7/15 = 46.7%</td><td class="num">18/45 = 40.0%</td><td class="num">18/45 = <b>40.0%</b></td><td><span class="status-dot missing">미달 −50.0pt · <b>이제 인용 가능</b></span></td></tr>
+          <tr><td>근거 인용 (100%)</td><td class="num">15/18 = 83.3%</td><td class="num">50/54 = 92.6%</td><td class="num">49/54 = <b>90.7%</b></td><td><span class="status-dot missing">미달 · 안정실패 <b>0</b></span></td></tr>
+          <tr><td>안전 경고 (100%)</td><td class="num">13/18 = 72.2%</td><td class="num">44/54 = 81.5%</td><td class="num">43/54 = <b>79.6%</b></td><td><span class="status-dot missing">미달 · 안정실패 <b>0</b></span></td></tr>
+          <tr><td>시퀀스 (100%)</td><td class="num">5/5 = 100%</td><td class="num">15/15 = 100%</td><td class="num">15/15 = 100%</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>환각률 (0%)</td><td class="num">0/2 = 0%</td><td class="num">0/6 = 0%</td><td class="num">0/6 = 0%</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>권한 403 (100%)</td><td class="num">PASS</td><td class="num">PASS</td><td class="num">PASS</td><td><span class="status-dot ok">PASS</span></td></tr>
+          <tr><td>잘린 턴</td><td class="num">—</td><td class="num">0건</td><td class="num">0 / LLM 188회<br><code class="inline">STOP</code> 188</td><td><span class="status-dot ok">잘림 아님 — 모델이 스스로 종료</span></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note-strip" style="margin-top:14px">
-      <b>⚠ 이 증감을 튜닝의 효과로 확정하지 않습니다.</b> 3차 분석 실측 — <b>코드를 한 줄도 안 고친 상태에서 2·3차 사이에 7문항의 판정이 뒤집혔습니다.</b>
-      단일 실행은 개선과 요동을 구분하지 못합니다. 판정은 <code class="inline">--repeat 3</code>으로 <b>안정 실패 → 안정 통과로 넘어간 칸</b>을 세어서 합니다 —
-      그러라고 만든 계측입니다. 두 회차의 <b>분모가 15/18/18/5/2로 완전히 같다</b>는 점만이 지금 확실한 사실입니다.
+      <b>⚠ 표의 "증감"은 여전히 효과의 증거가 아닙니다 — 흔들림이 지배합니다.</b> 3차 분석 실측 — <b>코드를 한 줄도 안 고친 상태에서 2·3차 사이에 7문항의 판정이 뒤집혔습니다.</b>
+      그래서 판정은 <code class="inline">--repeat 3</code>으로 <b>안정 실패 → 안정 통과로 넘어간 칸</b>만 세어서 합니다(사전 등록 규칙).
+      실제로 이 규칙이 한 번 일을 했습니다 — <b>단일 실행에서 "부품 +20.0pt"로 보고했던 수치가 3회차(40.0 / 46.7 / 40.0)에서 이상치로 드러나</b> 철회됐습니다.
+      부품은 지금도 <b>흔들림 9~11칸</b>으로 가장 시끄러운 지표입니다.
     </div>
     <div class="note-strip" style="margin-top:14px">
-      <b>지시는 원래도 있었고 모델이 지키지 않았습니다.</b> 그래서 같은 말을 다시 넣지 않고, trace가 보여 준 <b>두 회피 형태</b>를 근거로 범위를 넓혔습니다 —
-      금지 문구가 <code class="inline">"확인해 드릴까요?"</code> 리터럴 하나뿐이라 <code class="inline">"확인해 볼까요?"</code>로 새어 나갔고,
-      <b><code class="inline">"확인해 보겠습니다."</code>(선언 후 종료)는 아예 걸리지 않았습니다.</b>
-      <code class="inline">[LLM_END]</code>는 전부 <code class="inline">reason=STOP</code> — 잘려서 끊긴 게 아니라 모델이 스스로 끝냈습니다.
+      <b>축이 갈렸습니다 — 코드는 먹혔고 프롬프트는 안 먹혔습니다.</b>
+      <b>코드 축</b>(A: 부품 교체 안내에도 <code class="inline">rag_search_manual</code> 요구 · C: 근거 있는 교체 안내에 안전 트리거 확대)는 <b>RAG 호출 0/9 → 4/9</b>와 인용 통과가 1:1로 맞아떨어졌습니다.
+      <b>프롬프트 축</b>(A′·B)은 두 번 모두 <b>목표 칸 불변 + 안정 통과 1칸 후퇴 + 흔들림 증가</b>라는 동일한 실패 서명을 냈습니다.
+      <code class="inline">[LLM_END]</code>는 전부 <code class="inline">reason=STOP</code> — 잘려서 끊긴 게 아니라 <b>모델이 스스로 끝냈습니다.</b> 그래서 지시를 더 넣는 대신 <b>루프가 끝낼 수 없게</b> 만드는 쪽(MQ-714)으로 옮겼습니다.
+    </div>
+    <div class="note-strip" style="margin-top:14px;border-left-color:var(--good);background:var(--good-soft)">
+      <b>부품 특정 40.0%는 이제 "판정 불가"가 아니라 "미달"입니다.</b> <code class="inline">related_parts</code> 사람 승인으로 D12 게이트가 풀려
+      이 수치를 <b>처음으로 실적으로 인용</b>할 수 있습니다. 목표 90% 대비 <b>-50.0pt</b>이고, 이것이 5지표 중 가장 먼 지표입니다.
+      ⛔ 승인이 수치를 올려 주지는 않습니다 — <b>인용해도 되는 상태가 됐을 뿐</b>입니다.
     </div>
 
     <div class="issue" style="margin-top:16px">
+      <span class="sev crit">✕ 기각</span>
+      <div>
+        <h4>MQ-714(반복 조회 가드) — <b>승격 0칸.</b> 표적이던 T15가 오히려 세 지표 모두 후퇴했습니다</h4>
+        <p><b>사전 등록 규칙대로 세면 결과는 명확합니다</b> — <code class="inline">안정 실패 → 안정 통과</code> <b>0칸</b>, <code class="inline">안정 통과 → 안정 실패</code> <b>0칸</b>.
+          집계는 인용 92.6 → 90.7 · 안전 81.5 → 79.6(각 −1건)이고, <b>줄어든 1건이 정확히 T15입니다.</b>
+          T15 실측: 부품 <b>2/3 → 0/3</b> · 인용 <b>2/3 → 1/3</b> · 안전 <b>2/3 → 1/3</b>.</p>
+        <p><b>기전이 수치보다 분명합니다.</b> 3회차 중 2회차에서 가드가 중복 호출을 거부한 뒤,
+          모델은 다음 도구로 가지 않고 <code class="inline">"매뉴얼 절차를 찾아보겠습니다."</code> · <code class="inline">"대체 가능한 부품이 있는지 찾아보겠습니다."</code>로 <b>턴을 끝냈습니다</b> —
+          이건 이미 이름 붙여 둔 실패형인 <b>"선언 후 종료"</b> 그 자체입니다. 노리던 <b>거부 → 다음 단계 진행</b>은 한 번도 일어나지 않았습니다.</p>
+        <div class="fix"><b>판정 —</b> 효과 미확인. 이유는 A′·B와 다르지만(그쪽은 안정 통과 후퇴, 이쪽은 표적 악화 + 기전 불성립) <b>결론은 같습니다 — 지시나 메시지로 모델의 종료를 막는 방향은 이 모델에서 재현되지 않습니다.</b>
+          <b>원복 여부는 사람 판단 대기</b>입니다 — 구 동작(<code class="inline">"같은 조회를 반복하고 있어 중단했습니다"</code>를 사용자에게 노출)도 그 자체로 좋지 않아, 수치만으로 되돌릴 일은 아닙니다.</div>
+      </div>
+    </div>
+    <div class="issue">
       <span class="sev crit">⛔ 무효</span>
       <div>
         <h4>4차 평가(2026-08-12)는 <b>튜닝 효과를 판정할 수 없습니다</b> — 지표가 좋아 보이지만 착시입니다</h4>
@@ -468,13 +506,13 @@
 
   <!-- ============ 문제점 ============ -->
   <section>
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">7건 — 대부분 사람 승인 게이트 · 코드 결함 1건은 수정 완료</span></div>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">6건 남음 — 사람 승인 3 · 환경 1 · 품질 한계 1 · 미수집 1</span></div>
     <div class="issue">
-      <span class="sev crit">사람 승인</span>
+      <span class="sev info">✅ 해결</span>
       <div>
-        <h4>related_parts — 위임 판정 8건 완료, <b>사람 최종 승인 미완</b></h4>
-        <p>실측 <code class="inline">reviewed_by</code>는 전부 <code class="inline">"claude (사용자 위임, 2026-08-05)"</code>입니다. 근거는 실제 매뉴얼 조치문이지만 <b>매핑 판단은 위임된 것</b>이라, D12상 부품 특정 정확률은 <b>"미달"이 아니라 "판정 불가"</b>입니다 — 완료 기준 5지표 중 1개가 구조적으로 확정되지 않습니다.</p>
-        <div class="fix"><b>필요 조치 —</b> <code class="inline">data/related_parts.seed.json</code> 8건을 사람이 최종 승인. 이 전까지 어떤 수치도 실적으로 인용 금지.</div>
+        <h4>related_parts — <b>사람 최종 승인 완료(2026-08-12)</b>. D12 게이트 해제</h4>
+        <p>판정 자체는 2026-08-05에 <b>사용자 위임</b>으로 Claude가 매뉴얼 조치문을 직접 읽고 8건(수정 2 · 신규 1 · 반려 1 포함)을 내렸고, <b>2026-08-12에 사용자가 내용을 확인하고 최종 승인</b>했습니다. 두 단계를 파일에 모두 남겼습니다 — 누가 무엇을 판단했는지가 지워지면 승인의 의미가 사라지기 때문입니다.</p>
+        <div class="fix"><b>영향 —</b> 부품 특정 정확률이 <b>"판정 불가" → "미달(40.0%)"</b>로 바뀝니다. 완료 기준 5지표가 <b>전부 판정 가능</b>해진 것은 이번이 처음입니다.</div>
       </div>
     </div>
     <div class="issue">
@@ -519,6 +557,14 @@
       </div>
     </div>
     <div class="issue">
+      <span class="sev warn">외부 결함</span>
+      <div>
+        <h4>등기정보광장 <code class="inline">0000000239</code>(채권최고액별) — <b>응답은 200인데 값이 전부 빔</b></h4>
+        <p>같은 키·같은 코드로 나머지 <b>3종은 75·108·108행이 정상 수집</b>됩니다. 이 1종만 <code class="inline">reqtype</code> json/xml × 조회기간 3구간 <b>6조합 전부에서 0행</b>이었습니다. <b>우리 요청 형식의 문제가 아님을 조합으로 확정</b>했고, 기관 측 결함으로 판단합니다.</p>
+        <div class="fix"><b>영향 없음 —</b> S18 <code class="inline">residual_risk</code>는 <b>배경 근거</b>로만 쓰고 개별 담보 조회는 애초에 불가합니다. 나머지 3종으로 충분합니다. 기관 문의는 사람 몫으로 남깁니다.</div>
+      </div>
+    </div>
+    <div class="issue">
       <span class="sev info">품질 한계</span>
       <div>
         <h4>안전 가드레일이 표면형 키워드 매칭 — 의미 변주는 못 잡음</h4>
@@ -557,10 +603,16 @@
             <td>page 무가공 보존(D26) — 인용 페이지 추적의 전제</td>
           </tr>
           <tr>
-            <td><b><code class="inline">law_refs</code> — 법령 조문 원문 ★신규</b></td>
-            <td><span class="status-dot ok">6/7 실수집</span></td>
-            <td class="num">7건 중 <b>FETCHED 6</b><br>PENDING 1</td>
-            <td><b>법제처 API 실호출</b>로 본문 수집(<code class="inline">text_hash</code> 포함). 최장 <code class="inline">KR-STTC-24</code> 3,574자. 1건은 제목 불일치로 사람 승인 대기</td>
+            <td><b><code class="inline">law_refs</code> — 법령 조문 원문 ★</b></td>
+            <td><span class="status-dot ok">7/8 실수집</span></td>
+            <td class="num">8건 중 <b>FETCHED 7</b><br>본문 <b>6,560자</b> · PENDING 1</td>
+            <td><b>법제처 API 실호출</b>로 본문 수집(<code class="inline">text_hash</code> 포함). 최장 <code class="inline">KR-STTC-24</code> 3,574자. <b>08-12 <code class="inline">KR-OSHA-ENR-126</code> 추가</b>(안전검사 주기 · 522자) — 1건은 제목 불일치로 사람 승인 대기</td>
+          </tr>
+          <tr>
+            <td><b>등기정보광장 동산담보 통계 ★신규</b></td>
+            <td><span class="status-dot ok">3/4 실수집</span></td>
+            <td class="num">291행<br>75 + 108 + 108</td>
+            <td><code class="inline">data/iros/*.json</code> 스냅샷(파일이 정본, D60). <b>1종은 기관 측 빈 값</b>. ⚠ 동산·채권 <b>합산</b> 통계라 "기계설비 담보 N건"으로 인용 금지 — <code class="inline">citation_guard</code>로 파일에 박아 뒀습니다</td>
           </tr>
           <tr>
             <td><code class="inline">rules</code> — 해석 룰 카탈로그</td>
@@ -588,9 +640,9 @@
           </tr>
           <tr>
             <td><code class="inline">related_parts</code> (에러코드→부품 매핑)</td>
-            <td><span class="status-dot pending">위임 판정 완료 · 사람 승인 미완</span></td>
-            <td class="num">8건 · reviewed_by=claude</td>
-            <td><b>부품 특정 정확률 지표의 뿌리</b> — 사람 최종 승인 전까지 "판정 불가"(D12)</td>
+            <td><span class="status-dot ok">★ 사람 최종 승인 완료</span></td>
+            <td class="num">8건<br>승인 2026-08-12</td>
+            <td><b>부품 특정 정확률 지표의 뿌리</b> — D12 게이트 해제. 위임 판정(08-05)과 사람 승인(08-12) <b>두 단계를 모두 파일에 남깁니다</b></td>
           </tr>
           <tr>
             <td><code class="inline">eval/testset.json</code> (평가 문항)</td>
@@ -600,9 +652,9 @@
           </tr>
           <tr>
             <td><code class="inline">eval/results</code> (실행 결과)</td>
-            <td><span class="status-dot ok">3회 실행 · 4차 진행 중</span></td>
-            <td class="num">1·2·3차 보존</td>
-            <td>3차(2026-08-09, core/7): 부품 46.7 · 인용 83.3 · 안전 72.2 · 환각 0 · 시퀀스 100</td>
+            <td><span class="status-dot ok">단일 3회 + <b><code class="inline">--repeat 3</code> 5세트</b></span></td>
+            <td class="num">전 회차 보존<br>+ 회차별 traces·stderr</td>
+            <td>최신 <code class="inline">20260812-075303</code>(core/7 · 3회차): 부품 40.0 · 인용 90.7 · 안전 79.6 · 환각 0 · 시퀀스 100. <b>회차별 <code class="inline">.rN.traces.jsonl</code>·<code class="inline">.rN.server.log</code>가 같이 남아</b> 판정을 도구 원본과 대조할 수 있습니다</td>
           </tr>
           <tr>
             <td>SAFETY_BASELINE 문안</td>
@@ -696,10 +748,11 @@
   </section>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong><code class="inline">--repeat 3</code> 본 측정(튜닝 효과 판정) → Sprint 7 종료 → Sprint 8(S19)</strong><br>
-      <span style="font-size:12.5px">🔴 사람: <b>related_parts 최종 승인</b> · 처분 문서 문안 검수 · 안전 문구 검수</span></div>
+    <div>다음 우선순위: <strong>MQ-714 원복 여부 결정 → Sprint 7 종료 → Sprint 8(S19 · <code class="inline">flags</code>)</strong><br>
+      <span style="font-size:12.5px">🔴 사람: 처분 문서 문안 검수 · 안전 문구 검수 · <code class="inline">KR-CITA-ENF-31</code> 제목 정정 · <code class="inline">parts.part_class</code> 40종 감수<br>
+      ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> — 5지표가 전부 판정 가능해졌습니다</span></div>
     <div class="figs">
-      <div><b>611</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
+      <div><b>618</b>회귀 단언 (27스위트) + seed 21 + pytest 46</div>
       <div><b>18</b>DB 테이블 (코어 11 + 확장 7)</div>
       <div><b>88</b>설계 결정 D1~D88</div>
       <div><b>15</b>MCP 도구 (코어 7 + 확장 8)</div>

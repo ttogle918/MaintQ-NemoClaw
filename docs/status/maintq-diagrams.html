@@ -172,12 +172,14 @@
     <a href="#s10">⑦ 데이터 흐름 (S9→S10 처분·서명)</a>
     <a href="#defense">⑧ 4층 방어 — 두 개의 0건</a>
     <a href="#model">⑨ 자산 ↔ 설비 데이터 모델</a>
+    <a href="#tuning">⑩ 지표 튜닝 루프 · 흔들림</a>
   </nav>
 
   <div class="note" style="margin:-24px 0 42px">
-    <b>2026-08-12 갱신 — 그림 4개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
+    <b>2026-08-12 갱신 — 그림 5개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
     도구가 7 → <b>15종</b>, 테이블이 11 → <b>18개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
-    새 그림 넷은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보입니다.
+    새 그림 넷(⑥~⑨)은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보이고,
+    <b>⑩은 다른 종류입니다</b> — <b>지표가 좋아진 것과 운이 좋았던 것을 어떻게 구분하는가.</b>
   </div>
 
   <!-- ================= ① 유스케이스 ================= -->
@@ -298,7 +300,7 @@ flowchart TB
   llm["Gemini API"]
   db[("SQLite · 18 테이블 · WAL")]
   vec[("매뉴얼 인덱스<br/>1,035 청크")]
-  laws[("법령 원문 6조문<br/>text_hash · append-only")]
+  laws[("법령 원문 7조문 · 6,560자<br/>text_hash · append-only")]
 
   scrA -->|"질문 전송"| chat
   chat --> loop
@@ -735,8 +737,8 @@ erDiagram
     text reviewed_by "사람만 채운다"
   }
   LAW_REFS {
-    text law_ref_id PK "7건"
-    text fetch_status "FETCHED 6 · PENDING 1"
+    text law_ref_id PK "8건"
+    text fetch_status "FETCHED 7 · PENDING 1"
     text text_hash "append-only"
   }
 </pre>
@@ -747,6 +749,79 @@ erDiagram
         그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도+가격 교집합 5,396건(33.7%)</b>이고,
         그렇게 걸러 보니 <b>연차-가격 상관이 사실상 0</b>이었습니다 — 호가는 연차가 아니라 기계 규격이 지배합니다.
         그래서 잔가곡선은 <b>실데이터 파생이 아니라 목업 정률 공식</b>으로 확정됐고(D74), 실데이터는 <b>"왜 못 쓰는가"의 한계 실증</b>으로 보존됩니다.
+      </div>
+    </figure>
+  </section>
+
+  <!-- ================= ⑩ 튜닝 루프 ================= -->
+  <section id="tuning">
+    <div class="sec-head"><h2>⑩ 지표 튜닝 루프 — 개선과 요동을 어떻게 구분하는가</h2><span class="count">신규 · <code>--repeat N</code></span></div>
+    <p class="sec-note">이 프로젝트에서 가장 비싸게 배운 것입니다. <b>코드를 한 줄도 안 고친 상태에서 2·3차 사이에 7문항의 판정이 뒤집혔습니다.</b> 그 뒤로는 단일 실행의 증감을 효과로 읽지 않습니다 — <b>판정 규칙을 측정 전에 고정</b>하고, 규칙이 세라는 것만 셉니다.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  cand(["튜닝 후보 하나<br/>코드 또는 프롬프트 1곳"]) --> run["eval/run_eval.py --repeat 3<br/>20문항 × 3회차 · 프로파일 core 고정"]
+
+  run --> per["문항 × 지표 칸마다<br/>3회 중 몇 번 통과했나"]
+  per --> cls{"칸 분류"}
+  cls -->|"3/3"| sp["안정 통과<br/>stable_pass"]
+  cls -->|"0/3"| sf["안정 실패<br/>stable_fail"]
+  cls -->|"1/3 · 2/3"| fl["흔들림<br/>flipped"]
+  cls -->|"측정 0회<br/>해당 지표 대상 아님"| un["판정 불가<br/>undetermined"]
+
+  sf --> rule{"사전 등록 규칙<br/>기준선 대비"}
+  sp --> rule
+  fl -.->|"세지 않는다"| ignore["⛔ 흔들림은 근거가 아니다<br/>양방향 모두"]
+
+  rule -->|"안정 실패 → 안정 통과"| gain["✅ 승격 — 효과의 유일한 증거"]
+  rule -->|"안정 통과 → 안정 실패"| lose["⛔ 후퇴 — 즉시 기각"]
+  rule -->|"둘 다 0칸"| none["효과 미확인<br/>채택하지 않는다"]
+
+  gain --> mech{"기전이 trace 에<br/>보이는가?"}
+  mech -->|"도구 호출 순서가<br/>실제로 바뀌었다"| keep(["채택"])
+  mech -->|"수치만 움직였다"| none
+
+  classDef okn fill:#E2F3EA,stroke:#1D8A5C,color:#1D8A5C;
+  class gain,keep okn;
+  classDef stopn fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class lose,ignore stopn;
+  classDef warnn fill:#FAF0DC,stroke:#B4700D,color:#B4700D;
+  class fl,none warnn;
+</pre>
+      </div>
+      <figcaption><b>흔들림 칸을 양방향 모두 근거에서 빼는 것이 규칙의 핵심입니다.</b> 빼지 않으면 아무 변경이나 "개선"으로 보입니다 — 부품 지표는 45칸 중 <b>10칸이 흔들림</b>이라, 운만으로 ±10pt가 움직입니다. 실제로 이 규칙이 한 번 일을 했습니다: 단일 실행에서 <b>"부품 +20.0pt"</b>로 보고했던 수치가 3회차(40.0 / 46.7 / 40.0)에서 <b>이상치로 드러나 철회</b>됐습니다. 마지막 <b>기전 확인</b>이 붙어 있는 이유도 같습니다 — 승격 칸이 나와도 <b>trace에서 도구 호출 순서가 실제로 바뀌었는지</b>를 보지 않으면, 우연히 3/3이 나온 것과 구분되지 않습니다.</figcaption>
+    </figure>
+
+    <figure style="margin-top:26px">
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  base["기준선<br/>3차 · 단일 실행"]
+
+  base --> A["후보 A · 코드<br/>부품 교체 안내에도<br/>rag_search_manual 요구"]
+  base --> C["후보 C · 코드<br/>근거 있는 교체 안내에<br/>안전 트리거 확대"]
+  base --> AB["후보 A′ · B · 프롬프트<br/>회피 문구 차단 확대"]
+  base --> G["MQ-714 · 루프<br/>반복 가드가 턴을<br/>끝내지 않게"]
+
+  A --> ra["RAG 호출 0/9 → 4/9<br/>인용 통과와 1:1 대응"] --> ok1(["채택"])
+  C --> rc["안전 안정실패 3 → 1"] --> ok2(["채택"])
+  AB --> rab["목표 칸 불변<br/>+ 안정 통과 1칸 후퇴<br/>+ 흔들림 증가"] --> no1(["기각 · 원복"])
+  G --> rg["승격 0칸<br/>표적 T15 가 세 지표 모두 후퇴<br/>거부 후 '선언 후 종료' 재현"] --> no2(["효과 미확인"])
+
+  classDef okn fill:#E2F3EA,stroke:#1D8A5C,color:#1D8A5C;
+  class ok1,ok2 okn;
+  classDef stopn fill:#FAE6E3,stroke:#BC3B31,color:#BC3B31;
+  class no1,no2 stopn;
+</pre>
+      </div>
+      <figcaption><b>축이 갈렸습니다 — 코드는 먹혔고 프롬프트는 안 먹혔습니다.</b> A′·B는 서로 다른 문구였는데 <b>같은 실패 서명</b>을 냈고, MQ-714는 방향이 달랐는데도 결론이 같았습니다. <b><code>[LLM_END]</code>가 188회 전부 <code>reason=STOP</code></b>이라는 사실이 이걸 설명합니다 — 턴이 <b>잘려서</b> 끝난 게 아니라 <b>모델이 스스로 끝냈습니다.</b> 그래서 "끝내지 말라"고 말하는 방향(A′·B)도, 끝낼 구실을 뺏는 방향(MQ-714)도 듣지 않았고, <b>실제로 움직인 것은 도구를 부를 조건 자체를 바꾼 A·C였습니다.</b> MQ-714에서는 가드가 중복 호출을 거부한 뒤 모델이 <code>"매뉴얼 절차를 찾아보겠습니다."</code>로 턴을 끝냈습니다 — 이미 이름 붙여 둔 실패형인 <b>"선언 후 종료"</b>가 그대로 재현된 것입니다.</figcaption>
+      <div class="note crit" style="margin-top:14px">
+        <b>계측이 대상을 망가뜨린 사건도 이 루프에서 나왔습니다.</b> <code>[LLM_END]</code> 로그를 추가한 4차에서 <b>20문항 중 10개가 실행 실패</b>했는데,
+        원인은 러너가 서버를 <code>stderr=subprocess.PIPE</code>로 띄우고 <b>실행 중 아무도 그 파이프를 읽지 않은 것</b>이었습니다.
+        버퍼가 차자 <code>logging</code>이 동기라 <b>이벤트 루프째</b> 멈췄습니다. 자연 실험이 확증합니다 — <b>1·2·3차 20/20 → 4차 실패 10 → 수정 후 다시 20/20.</b>
+        고치기 전에 세운 <b>가설 3개(핸들 누수 · 포트 고갈 · LLM 호출이 루프 차단)는 측정으로 전부 반증</b>했고, 진범은 py-spy 스택 덤프가 지목했습니다.
       </div>
     </figure>
   </section>
@@ -770,11 +845,13 @@ erDiagram
           <tr><td><b>근거 3계층</b></td><td class="mono">data/rules/ — fetch_laws.py(계층 1) · engine.py + rules/*.json(계층 2) · mcp_server/tools/build_evidence_bundle.py(계층 3)</td></tr>
           <tr><td><b>4층 방어</b></td><td class="mono">generate_disposal_document.py(스키마) · mcp_server/db.py decision_writer()(트리거) · routers/decisions.py sign()(409) · data/seed.py DDL CHECK</td></tr>
           <tr><td><b>실사 판정</b></td><td class="mono">data/ownership.py — 9카테고리 · 38항목. MCP 도구는 위임 래퍼(D73)</td></tr>
+          <tr><td><b>튜닝 루프 · 흔들림 계측</b></td><td class="mono">eval/run_eval.py — <code>--repeat N</code> · <code>flip_analysis()</code> · <code>item_outcomes()</code> · 회차별 <code>.rN.traces.jsonl</code>·<code>.rN.server.log</code></td></tr>
+          <tr><td><b>반복 조회 가드</b> (MQ-714)</td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → <code>duplicate_call</code> 반환 후 <b>턴 계속</b>. 회귀 <code>agent_loop_contract ⑦-d·⑦-d-b</code></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 611건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 618건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).
