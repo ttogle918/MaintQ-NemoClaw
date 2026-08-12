@@ -110,8 +110,8 @@ def run(tmp: Path) -> None:
         or raws[k]["text_hash"] != engine.text_hash(raws[k]["text"])
     ]
     check(
-        "⓪ laws/ 7건 · FETCHED 는 원문+해시 일치 · 미승인 건은 PENDING 유지",
-        len(files) == 7
+        "⓪ laws/ 8건 · FETCHED 는 원문+해시 일치 · 미승인 건은 PENDING 유지",
+        len(files) == 8
         and not broken
         and raws.get(target, {}).get("fetch_status") == "PENDING"
         and raws.get(target, {}).get("text") is None,

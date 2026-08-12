@@ -1,0 +1,17 @@
+{
+  "law_ref_id": "KR-OSHA-ENR-126",
+  "law_name": "산업안전보건법 시행규칙",
+  "article": "126",
+  "clause": null,
+  "title": "안전검사의 주기와 합격표시 및 표시방법",
+  "text": null,
+  "fetch_status": "PENDING",
+  "effective_from": null,
+  "effective_to": null,
+  "promulgation_no": null,
+  "source_url": "https://www.law.go.kr/법령/산업안전보건법 시행규칙",
+  "retrieved_at": null,
+  "text_hash": null,
+  "supersedes": null,
+  "verification_note": "KR-OSHA-93 ③ 이 '검사 주기는 고용노동부령으로 정한다' 고 위임한 그 하위 규칙이다. 93조 본문만으로는 SAFETY-INSPECTION 룰이 '주기'를 근거로 인용할 수 없어 추가한다. 접미사 ENR = Enforcement Rule(시행규칙) — 기존 KR-CITA-ENF-31 의 ENF(시행령)와 구분한다. text 는 비워 두고 fetch_from_api 가 채운다 (⛔ 손으로 타이핑하지 않는다, 11 §2)."
+}
