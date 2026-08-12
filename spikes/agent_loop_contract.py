@@ -220,6 +220,56 @@ async def run_all(db: Path) -> None:
         f"safety={len(blocks(ev, 'safety'))}건",
     )
 
+    # ── ⑦-b·⑦-c 안전 블록 트리거 ⓑ — 근거 있는 부품 교체 맥락 (MQ-713 후보 C)
+    #
+    # 트리거가 `DANGER_KEYWORDS` **응답 텍스트 매칭** 하나뿐이라, 모델이 같은 작업을
+    # 그 단어들 없이 서술하면 블록이 안 붙었다(4차 실측 — RAG 를 부르고 교체를 안내했는데도
+    # safety FAIL). 그래서 "근거가 이미 확보된 부품 교체 맥락"을 트리거로 더했다.
+    #
+    # ⛔ **⑦-c 가 이 변경의 안전핀이다.** 트리거를 넓히면 억제 분기("근거 없으면 위험
+    #    서술도 막는다")까지 함께 넓어져 **근거 없는 턴의 답변이 새로 잘려 나갈** 수 있다.
+    #    ⓑ 는 조건에 `st.pages` 를 포함해 그 분기에 도달하지 않는다 — 그걸 여기서 잠근다.
+    SEARCH_OK = {"status": "ok", "items": [{"part_no": "FAN-IG5-01", "qty": 2}]}
+    NO_KEYWORD = "해당 부품을 교체하시면 됩니다."  # DANGER_KEYWORDS 어디에도 안 걸린다
+    check(
+        "⑦-b 전제: 이 문장은 키워드 트리거에 안 걸린다 (안 그러면 ⑦-c 가 공회전)",
+        not prompts.needs_safety_block(NO_KEYWORD),
+        f"{NO_KEYWORD!r}",
+    )
+    ev, _, _ = await drive(
+        [
+            [tu("rag_search_manual", model="iG5A", query="교체 절차")],
+            [tu("search_inventory", part_no="FAN-IG5-01", model="iG5A")],
+            [("text", NO_KEYWORD)],
+        ],
+        {"rag_search_manual": RAG_OK, "search_inventory": SEARCH_OK},
+        db=db,
+        session="T5b",
+    )
+    texts_b = " ".join(str(e.data.get("text", "")) for e in ev if e.event == "token")
+    check(
+        "⑦-b ⓑ 트리거 — 근거 O + 부품 조회 O 면 키워드 없이도 안전 블록 발행",
+        bool(blocks(ev, "safety")) and NO_KEYWORD in texts_b,
+        f"safety={len(blocks(ev, 'safety'))}건 · 본문 유지={NO_KEYWORD in texts_b}",
+    )
+
+    # 근거(pages) 없이 부품 조회만 성공한 턴 — ⓑ 는 발동하면 **안 된다**.
+    ev, _, _ = await drive(
+        [
+            [tu("search_inventory", part_no="FAN-IG5-01", model="iG5A")],
+            [("text", NO_KEYWORD)],
+        ],
+        {"search_inventory": SEARCH_OK},
+        db=db,
+        session="T5c",
+    )
+    texts_c = " ".join(str(e.data.get("text", "")) for e in ev if e.event == "token")
+    check(
+        "⑦-c ★ 안전핀: 근거 없으면 ⓑ 미발동 — 블록도 없고 **본문도 안 잘린다**",
+        not blocks(ev, "safety") and NO_KEYWORD in texts_c and "확인하지 못해" not in texts_c,
+        f"safety={len(blocks(ev, 'safety'))}건 · 본문 유지={NO_KEYWORD in texts_c}",
+    )
+
     # ── ⑧ citation.page == 도구 결과의 page (D30)
     ev, _, _ = await drive(
         [[tu("lookup_error_code", model="iG5A", code="OHt")], [("text", "과열입니다.")]],
