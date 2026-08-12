@@ -275,6 +275,16 @@ class _TurnState:
         self.safety_sent = False
         self.citation_sent = False
         self.pages: list[int] = []  # 이 턴에 인용 가능한 페이지 (도구 결과 출처)
+        #: 이 턴이 **부품 교체를 다루고 있는가** (MQ-713 후보 C).
+        #: 안전 블록 트리거가 `DANGER_KEYWORDS` **응답 텍스트 매칭** 하나뿐이라,
+        #: 모델이 같은 작업을 그 단어들 없이 서술하면 블록이 안 붙었다 —
+        #: 4차 실측: `rag_search_manual` 을 부르고 교체를 안내했는데도 safety FAIL
+        #: (T13 r2·r3 · T15 전 회차). 인버터 부품 교체는 함체 개방을 전제하므로
+        #: (parts 카테고리 제어 8·전원 10·구동 8·냉각 7 — 소모품 3만 예외)
+        #: 표현이 달라도 위험 작업이다.
+        #: ⛔ 이 플래그는 **발행 조건을 넓히기만 한다.** 억제(근거 없을 때 서술 차단)
+        #:    경로는 건드리지 않는다 — 넓히면 근거 없는 턴의 답변까지 잘려 나간다.
+        self.replacement_ctx = False
         self.sections: dict[int, str] = {}  # page -> 절 제목 (rag 결과에서)
         self.repeated: dict | None = None
         #: get_error_history 호출 시 쓴 조회 창. 도구 **출력**에는 window_days 가 없어서
@@ -341,7 +351,13 @@ async def run_turn(
         if not text or (not force and not text.endswith(_SENTENCE_ENDINGS)):
             return
         buf.clear()
-        if prompts.needs_safety_block(text) and not st.safety_sent:
+        # 트리거 2종 — **넓히기만 한다** (후보 C).
+        #   ⓐ 기존: 응답 텍스트의 위험 작업 키워드 (safety-guardrail 규칙 2)
+        #   ⓑ 신규: **근거가 이미 확보된** 부품 교체 맥락. `st.pages` 를 조건에 포함해
+        #      두었으므로 이 갈래는 아래 `else`(억제) 분기에 **도달하지 않는다** —
+        #      즉 근거 없는 턴의 답변이 새로 잘려 나가는 일이 없다.
+        grounded_replacement = bool(st.pages) and st.replacement_ctx
+        if (prompts.needs_safety_block(text) or grounded_replacement) and not st.safety_sent:
             safety_page = st.safety_page()
             # `st.pages` 는 "이 턴에 매뉴얼 근거를 실제로 조회했는가"의 **게이트**일 뿐이다.
             # 인용 페이지는 거기서 오지 않는다 — 아래 참조.
@@ -491,6 +507,9 @@ async def run_turn(
                 st.repeat_window_days = tu.input["days"]
 
             if status == "ok":
+                # 부품 조회가 성공한 턴 = 교체를 다루는 턴 (후보 C).
+                if tu.name in ("search_inventory", "find_alternative_parts"):
+                    st.replacement_ctx = True
                 for p in pages:
                     if p not in st.pages:
                         st.pages.append(p)
