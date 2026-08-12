@@ -224,3 +224,4 @@ uv run python spikes/asset_tools_contract.py           # 49건 · 기대값을 l
   네트워크 없는 순수 함수로 분리해 합성 응답으로 덮는다. 키·네트워크·법령 개정에 좌우되는 검사는 회귀가 아니다.
 - 재시드를 빠뜨리면 **파일만 바뀌고 도구·REST 는 옛 DB 를 본다.** `evidence_completeness` 가
   `LAW_TEXT_PENDING` 에 머물러 다음 스테이지가 전부 어긋난다.
+
