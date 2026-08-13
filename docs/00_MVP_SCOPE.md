@@ -141,7 +141,7 @@
 | 목적 | 문서 |
 |---|---|
 | 무엇을 만드는가 (목록) | **이 문서** |
-| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D89) |
+| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D90) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
 | 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P27) |
@@ -161,7 +161,7 @@
 | 8 | **보전지표** — MTBF 추세 · 예방보전 비율 · 누적 수리비 | `12 §2` · `04 §10·§11` | ✅ **Sprint 6** — `get_maintenance_metrics` · `classify_part_criticality`. MTBF 는 **달력 기준**(D70) |
 | 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 8** (실측: `mcp_server/tools/` 에 파일 없음). 계약 자리는 확보돼 있다 — `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**(D85) |
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
-| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집(7건 중 **6 `FETCHED` · 1 `PENDING`** — `KR-CITA-ENF-31`, 제목 불일치로 사람 승인 대기). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ⚠ 남은 것: **문서 문안 사람 검수**(그때까지 `unreviewed_template_notice`) |
+| 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집 **8건 전부 `FETCHED`** (2026-08-13 — `KR-CITA-ENF-31` 등록 제목 `즉시상각의제` → `즉시상각의 의제` 사람 승인 후 수집 완료). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ✅ 문안 **2026-08-13 사람 검수 완료**(`template_review_notice` · D90) — **F1~F3 잔여 사람 검수 없음** |
 | 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` · `06 §2.5` | ✅ **Sprint 6·7** — `verify_ownership` + REST `GET /api/assets/{id}/ownership` + 실사 화면. 9카테고리, `PARTIAL` 승격 경로 없음(코드에 분기 자체가 없다). UI 도 `PARTIAL` 을 성공색으로 그리지 않는다 (**D87**) |
 
 > **노출은 기본 꺼져 있다 (D69).** 확장 **8종**은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.

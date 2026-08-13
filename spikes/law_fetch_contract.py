@@ -93,34 +93,43 @@ def as_pending(path: Path) -> dict:
 
 def run(tmp: Path) -> None:
     laws, pending = sandbox(tmp)
-    # 정체성 불일치가 **사람 승인 전**이라 수집되지 않은 유일한 건이다
-    # (`즉시상각의제` vs API `즉시상각의 의제`). 그래서 "최초 수집" 경로의 대상이 된다.
+    # "최초 수집" 경로의 대상. 어느 건이든 상관없다 — 아래에서 `as_pending()` 으로
+    # **픽스처 쪽에서 수집 전 상태를 만들기** 때문이다.
     target = "KR-CITA-ENF-31"
     path = laws / f"{target}.json"
 
-    # ── ⓪ 전제: 등록 7건 · FETCHED 는 원문+해시를 갖고 해시가 실제로 맞는다 ·
-    #    미승인 정체성 불일치 건은 **여전히 PENDING** 이어야 한다 (자동 정정 금지, D75)
+    # ── ⓪ 전제: 등록 8건 · FETCHED 는 원문+해시를 갖고 해시가 실제로 맞는다 ·
+    #    PENDING 이 남아 있다면 원문이 비어 있어야 한다 (수집 안 됐다는 뜻이므로)
+    #
+    # 🚨 여기에 "특정 건이 PENDING 이어야 한다" 를 박지 않는다. 2026-08-13 에
+    #    `KR-CITA-ENF-31` 이 사람 승인 후 수집되면서(D75 게이트 통과) 그 단언이
+    #    **정상적인 상태 변화 때문에** 깨졌고, 뒤따라 ⓐ~ⓒ-7 이 연쇄 실패했다.
+    #    스위트는 **불변식**(FETCHED 면 원문+해시 일치 / PENDING 이면 원문 없음)만 본다.
     files = sorted(laws.glob("*.json"))
     raws = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in files}
     fetched_ids = sorted(k for k, r in raws.items() if r["fetch_status"] == "FETCHED")
+    pending_ids = sorted(k for k, r in raws.items() if r["fetch_status"] != "FETCHED")
     broken = [
         k
         for k in fetched_ids
         if not (raws[k]["text"] or "").strip()
         or raws[k]["text_hash"] != engine.text_hash(raws[k]["text"])
     ]
+    # PENDING 인데 원문이 있으면 "수집 안 됐다"는 표시가 거짓이다
+    lying = [k for k in pending_ids if (raws[k].get("text") or "").strip()]
     check(
-        "⓪ laws/ 8건 · FETCHED 는 원문+해시 일치 · 미승인 건은 PENDING 유지",
-        len(files) == 8
-        and not broken
-        and raws.get(target, {}).get("fetch_status") == "PENDING"
-        and raws.get(target, {}).get("text") is None,
-        f"{len(files)}건 · FETCHED {len(fetched_ids)}건 {fetched_ids} · "
-        f"해시 불일치 {broken or '없음'} · {target}=PENDING(사람 승인 대기)",
+        "⓪ laws/ 8건 · FETCHED 는 원문+해시 일치 · PENDING 은 원문 없음",
+        len(files) == 8 and not broken and not lying,
+        f"{len(files)}건 · FETCHED {len(fetched_ids)}건 · PENDING {pending_ids or '없음'} · "
+        f"해시 불일치 {broken or '없음'} · 원문 있는 PENDING {lying or '없음'}",
     )
 
     # 정체성 키는 **파일에서 읽는다.** 기대값을 코드에 박으면 사람 승인 정정이 스위트를 죽인다.
     ident = {"article": raws[target]["article"], "title": raws[target]["title"]}
+
+    # ⓐ 는 "최초 수집" 경로다 — 정본이 이미 수집됐으면 tmp 사본을 되돌려 놓고 시작한다.
+    # (`as_pending` 의 독스트링이 말하는 그 용도. 정본은 건드리지 않는다.)
+    as_pending(path)
 
     # ── ⓐ 최초 수집: PENDING → FETCHED. text_hash 가 파일에 기입된다
     before = digest(path)

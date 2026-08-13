@@ -348,7 +348,7 @@ async def run(db: Path) -> tuple[str, str, str]:
                 and cond["override"] is False
                 and cond["asset_id"] == ASSET_CONDITIONAL
                 and set(preview) == {"approval", "representation_warranty"}
-                and all(cond["unreviewed_template_notice"] in v for v in preview.values()),
+                and all(cond["template_review_notice"] in v for v in preview.values()),
                 f"decision_id={cond.get('decision_id')} verdict_at_signing="
                 f"{cond.get('verdict_at_signing')} · 문서={sorted(preview)}",
             )

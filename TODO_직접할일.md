@@ -63,9 +63,10 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 ### 📄 Stage 1 — 조문 정정 승인
 
-- [ ] **`KR-CITA-ENF-31` 제목 정정** — 등록 `즉시상각의제` vs API `즉시상각의 의제`
-  - 계층 1의 **마지막 `PENDING` 1건**. 처분 룰이 인용하지 않아 S9/S10 은 막지 않는다
-  - 승인 시: `data/rules/laws/KR-CITA-ENF-31.json` 제목 수정 → `fetch_laws.py --fetch-all` → 재시드
+- [x] ✅ **`KR-CITA-ENF-31` 제목 정정 — 2026-08-13 승인·수집 완료.** 등록 `즉시상각의제` → `즉시상각의 의제`
+  - **계층 1 이 8/8 `FETCHED` 로 완성됐다** (총 8,197자 · 해시 전건 무결)
+  - 부수 확인: `verification_note` 가 물었던 *"자본적 지출 정의가 몇 조 몇 항인가"* 도 답이 나왔다 —
+    **이 조 제2항**이 맞고 `law_ref_id` 정정은 불필요했다 (제3항에 소액수선비 기준 600만원·5%·3년)
 - [ ] **`KR-STTC-146` 정정 확인** (`세액공제액의 추징` → `감면세액의 추징`, 2026-08-09 승인분)
   - BLOCKING 룰 `TAX-CREDIT-2Y` 의 **근거 조문 정체성 키**를 바꾼 변경이라 눈으로 한 번 더 볼 값
 
@@ -87,14 +88,22 @@ Claude가 대신 못 하는 것들. 순서대로.
   - **풀린 것**: 조문 6건 수집 완료 → `build_evidence_bundle` 이 9자산 × SALE/SCRAP **18조합 전부 `ok`**
     (`law_text_unavailable` 0건) → 계층 3 서명·S10 의 하드 선행 조건이 사라졌다
 
-- [ ] 🟡 **`KR-CITA-ENF-31` 등록 제목 정정 승인** ← 계층 1 의 마지막 `PENDING` 1건
-  - 등록값 `즉시상각의제` vs 법제처 `조문제목` `즉시상각의 의제` (**공백 1칸 차이**)
-  - 수집기는 **자동 정정하지 않고 중단**했다(`LawMismatchError`, D75) — 파일 md5 불변. 조용히 덮어쓰면
-    다른 조문을 같은 조문으로 읽는 경로가 열리므로 **중단이 정상 동작**이다
-  - 사람이 판단할 것: 등록 제목을 API 값으로 고칠 것인가. 고치면 `data/rules/laws/KR-CITA-ENF-31.json` 의
-    `title` 만 정정 → `uv run python data/rules/fetch_laws.py --fetch-all` → `uv run python data/seed.py --with-error-codes`
-  - **막히는 것**: `classify_expenditure` 의 `evidence_completeness` 뿐이다. 처분 룰 5종은 이 조문을
-    **인용하지 않으므로**(참조 0건) S9·S10 영향은 없다
+- [x] ✅ **`KR-CITA-ENF-31` 등록 제목 정정 승인 — 2026-08-13 완료** (위 §조문 정정 승인 항목과 같은 건)
+  - 등록값 `즉시상각의제` → 법제처 `조문제목` `즉시상각의 의제` (**공백 1칸 차이**)
+  - 수집기가 **자동 정정하지 않고 중단**한 것(`LawMismatchError`, D75)이 정상 동작이었다 —
+    사람이 제목을 고친 뒤에야 수집됐다. 파일에 원문을 손으로 쓰지 않고 `fetch_laws` 로 받았다
+  - **계층 1 = 8/8 `FETCHED`.** `classify_expenditure` 의 `evidence_completeness` 도 풀렸다
+
+### ✍️ 처분 문서 문안 검수
+
+- [x] ✅ **처분 승인서·진술보장서 문안 검수 — 2026-08-13 완료 (수정 없이 승인, D90)**
+  - 검수 자료: `data/analysis/disposal_docs_review.md` — **19시나리오 · 판정 5종 전부** 렌더링본
+  - 지적 5개 지점을 **전부 현행대로 수용**: 진술보장서 책임이전 구조 · `BLOCKED` 문서의 이중 문장 ·
+    `확인되지 않음` 잔존 · 해시 미고정 계약근거 · 호칭 혼용
+  - 출력 키 개명 `unreviewed_template_notice` → **`template_review_notice`** + 불리언
+    **`template_reviewed`** 추가. 값이 "검수 완료"인데 키에 `unreviewed` 가 남으면 자기모순이다
+  - 문구·상태는 **`data/doc_review.py` 한 곳**에서만 나온다 (종전엔 backend·mcp_server 두 곳에 리터럴 중복)
+  - ⚠ **줄은 사라지지 않는다** — 법적 문서라 "언제 검수했는가"가 남아야 한다
 - [x] 🔴 ~~**`N = 8` 법령 원문 대조**~~ — **2026-08-13 완료. `N = 8 → 10` 으로 정정** (**D89**)
   - 별표서식 API(`target=licbyl`) 로 **별표6**(업종별 자산의 기준내용연수) 실수집 + PDF 추출 대조
   - **종전 값은 두 가지가 틀렸다**: ⓐ *"범위 6~10의 중앙"* 이라는 유도 서술 — 표에는 `8년`과

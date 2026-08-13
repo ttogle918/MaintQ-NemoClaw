@@ -826,9 +826,16 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
     "approval": "[설비 처분 승인서 — 초안] …",
     "representation_warranty": "[진술 및 보장서 — 초안] …"
   },
-  "unreviewed_template_notice": "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
+  "template_reviewed": true,              // ★ D90 — 문구가 아니라 이 값으로 UI 톤을 정한다
+  "template_review_notice": "문안 사람 검수 완료 (2026-08-13)"
 }
 ```
+
+> 🔑 **키 이름이 `unreviewed_template_notice` → `template_review_notice` 로 바뀌었다 (D90, 2026-08-13).**
+> 문안 검수가 끝나 값이 *"검수 완료"* 가 되는데 키 이름에 `unreviewed` 가 남으면 자기모순이다.
+> 두 값 모두 `data/doc_review.py` 에서 나온다 — `backend` 와 `mcp_server` 가 **같은 모듈**을
+> 읽는다(D73). ⛔ 어느 쪽에도 문구를 리터럴로 두지 않는다.
+> **검수가 끝나도 줄은 사라지지 않는다** — 법적 문서라 "언제 검수했는가"가 남아야 한다.
 
 ### ★ 이 도구가 지키는 경계 (전부 코드로 확인 가능)
 
@@ -840,7 +847,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | **D23·D37** | `requested_by`·`session_id` 도 파라미터가 아니다 | INSERT 직후 백엔드가 stamp 한다 (`create_po_draft` 와 같은 패턴) |
 | **D80** | `reason` 에 기본값을 두지 않는다 | 승인자가 판단 근거를 추적할 수 있어야 한다 |
 | **D86** | `documents_preview` 를 **저장하지 않는다** | 저장하면 템플릿이 바뀔 때 저장본이 조용히 낡는다. 정식 렌더는 `GET /api/decisions/{id}` 가 응답 조립 시점에 번들에서 만든다 |
-| **D2 태도** | 문안은 **코드 상수**다 — LLM 이 생성하지 않는다 | 진술보장서는 법적 효력이 있는 문서다. 안전 문구와 같은 성격으로 템플릿에 번들 값만 치환하고, 사람 검수 전임을 `unreviewed_template_notice` 로 **출력과 문서 본문 양쪽에** 싣는다 |
+| **D2 태도** | 문안은 **코드 상수**다 — LLM 이 생성하지 않는다 | 진술보장서는 법적 효력이 있는 문서다. 안전 문구와 같은 성격으로 템플릿에 번들 값만 치환하고, 검수 상태를 `template_review_notice` 로 **출력과 문서 본문 양쪽에** 싣는다 (2026-08-13 검수 완료 · D90) |
 | **D62** | 사실이 번들에 없으면 `"확인되지 않음"` 으로 적는다 | 빈칸으로 두면 "해당 없음"으로 읽힌다 |
 
 ### 근거 없는 서류는 만들지 않는다 — §14 실패의 **그대로 전파**

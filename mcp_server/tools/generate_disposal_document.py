@@ -43,9 +43,13 @@
 ★ 문안은 코드 상수다 — LLM 이 생성하지 않는다
 ────────────────────────────────────────────────────────────────────────────────
 진술보장서는 법적 효력이 있는 문서다. 안전 문구(D2·safety-guardrail 규칙 1)와 같은
-성격으로 **문장을 모델이 짓게 두지 않고** 템플릿에 번들의 값만 치환한다. 그리고 문안이
-아직 사람 검수를 거치지 않았다는 사실을 `unreviewed_template_notice` 로 출력과 문서
-본문 **양쪽에** 싣는다 (`TODO_직접할일.md`).
+성격으로 **문장을 모델이 짓게 두지 않고** 템플릿에 번들의 값만 치환한다. 그리고 문안의
+**검수 상태**를 `template_review_notice` 로 출력과 문서 본문 **양쪽에** 싣는다.
+
+  ✅ **2026-08-13 사람 검수 완료** (수정 없이 승인 — `data/analysis/disposal_docs_review.md`).
+  ⛔ 문구를 여기 하드코딩하지 않는다. 상태는 `data/doc_review.py` 가 갖고 `backend` 도 같은
+    모듈을 읽는다(D73·**D90**) — 두 곳에 리터럴을 두면 도구 출력과 REST 응답이 갈린다.
+    **검수가 끝나도 줄을 없애지 않는다** — 법적 문서에는 "언제 누가 검수했는가"가 남아야 한다.
 
   사실이 번들에 없으면 `확인되지 않음` 으로 적는다 — 빈칸으로 두면 "해당 없음"으로
   읽힌다. 모른다를 통과로 반올림하지 않는 D62 의 문서 판이다.
@@ -57,6 +61,8 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Any
+
+import data.doc_review as _doc_review  # D73 — 공유 데이터 계층. backend 를 import 하지 않는다
 
 from ..db import decision_writer
 from ._asset_ref import NOT_TEXT, as_text, err as _err
@@ -73,7 +79,10 @@ DESCRIPTION = (
 
 # 출력 상수. 값이 계약이므로 호출부에서 조립하지 않는다 (`sprint-7 MQ-706` 출력 예시).
 NEXT_STEP = "이 초안은 확정이 아니다. 팀장 승인 큐에서 서명해야 처분이 확정된다."
-UNREVIEWED_TEMPLATE_NOTICE = "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
+
+# ⛔ 문구를 여기 하드코딩하지 않는다 — `backend/services/decisions.py` 와 **같은 값**이어야 하고,
+#    두 곳에 리터럴을 두면 한쪽만 바뀌어 도구 출력과 REST 응답이 갈린다 (D73 공유 계층, **D90**).
+TEMPLATE_REVIEW_NOTICE = _doc_review.template_review_notice()
 
 DECISION_TYPE = "DISPOSAL"
 
@@ -219,7 +228,7 @@ def render_documents(
      · 서명자 / 서명일시: (미기재 — 서명 시 기록된다)
 
 {_UNKNOWN_LINE}
-※ {UNREVIEWED_TEMPLATE_NOTICE}"""
+※ {TEMPLATE_REVIEW_NOTICE}"""
 
     warranty = f"""[진술 및 보장서 — 초안]
 문서번호: {decision_id} (초안 · 확정 아님)
@@ -259,7 +268,7 @@ def render_documents(
 7. 근거 번들 해시: {bundle_hash}
 
 {_UNKNOWN_LINE}
-※ {UNREVIEWED_TEMPLATE_NOTICE}"""
+※ {TEMPLATE_REVIEW_NOTICE}"""
 
     return {"approval": approval, "representation_warranty": warranty}
 
@@ -369,5 +378,6 @@ def generate_disposal_document(
         "next_step": NEXT_STEP,
         # D86 — 미리보기다. 저장하지 않는다. 정식 렌더는 GET /api/decisions/{id}.
         "documents_preview": documents,
-        "unreviewed_template_notice": UNREVIEWED_TEMPLATE_NOTICE,
+        "template_reviewed": _doc_review.TEMPLATE_REVIEWED,
+        "template_review_notice": TEMPLATE_REVIEW_NOTICE,
     }

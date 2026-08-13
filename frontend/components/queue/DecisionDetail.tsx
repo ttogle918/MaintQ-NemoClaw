@@ -90,8 +90,14 @@ export function DecisionDetail({
       </Section>
 
       {/* ── 문서 미리보기 (D86 — 저장하지 않고 조립 시점 렌더) ─────────────── */}
-      {str(docs.unreviewed_template_notice) && (
-        <Notice tone="warn">⚠ {str(docs.unreviewed_template_notice)}</Notice>
+      {/* 톤을 문구에서 추측하지 않는다 — 상태값(template_reviewed)으로 정한다 (D87·D90).
+          미검수면 경고, 검수 완료면 정보. 검수가 끝나도 줄을 없애지 않는 이유는
+          법적 문서에 "언제 검수했는가" 가 남아야 하기 때문이다. */}
+      {str(docs.template_review_notice) && (
+        <Notice tone={docs.template_reviewed === true ? "info" : "warn"}>
+          {docs.template_reviewed === true ? "✓ " : "⚠ "}
+          {str(docs.template_review_notice)}
+        </Notice>
       )}
 
       <Section

@@ -67,6 +67,7 @@ from typing import Any
 from backend.db import connect
 from backend.services.disposal import RuleCatalogError, _load_catalog, read_only
 from backend.services.po import iso_utc
+import data.doc_review as _doc_review  # D73 — 공유 데이터 계층 (mcp_server 와 같은 문구를 읽는다)
 from data.rules import engine  # D73 — 공유 데이터 계층
 
 # ── 판정 어휘 ────────────────────────────────────────────────────────────────
@@ -786,7 +787,11 @@ def render_documents(bundle: dict, con: sqlite3.Connection, *, asset_id: str) ->
         "missing_sections": list(MISSING_SECTIONS),
         "hash_fixed": False,
         "hash_fixed_note": HASH_FIXED_NOTE,
-        "unreviewed_template_notice": "문서 문안은 미검수 초안이다 (TODO_직접할일.md)",
+        # ⛔ 리터럴 금지 — mcp_server 쪽과 **같은 값**이어야 한다 (D73 공유 계층, D90)
+        # 불리언을 함께 싣는 이유: UI 가 문구를 파싱해 톤을 정하면 문구가 바뀔 때 조용히
+        # 어긋난다. 상태→표시 매핑은 상태값으로 한다 (D87).
+        "template_reviewed": _doc_review.TEMPLATE_REVIEWED,
+        "template_review_notice": _doc_review.template_review_notice(),
     }
 
 
