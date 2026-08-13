@@ -653,11 +653,30 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     (`#` 주석은 `ast` 가 애초에 버린다.)
   - 파일별로 남은 문자열 상수를 이어붙인 뒤:
     ```python
-    STMT = re.compile(r"(?is)(insert\s+into\s+traces|update\s+traces)(.{0,400}?)(?=;|insert\s+into|update\s+|$)")
-    hit  = any("request_chain_id" in m.group(2) for m in STMT.finditer(sql_blob))
+    # ⚠ 아래는 초안이며 **쓰지 말 것** — Stage 4 실측으로 폐기됐다(사유는 바로 아래).
+    # STMT = re.compile(r"(?is)(insert\s+into\s+traces|update\s+traces)(.{0,400}?)(?=;|insert\s+into|update\s+|$)")
+    ANCHOR     = re.compile(r"(?is)insert\s+into\s+traces|update\s+traces")
+    STMT_END   = re.compile(r"(?is);|insert\s+into|update\s+")
+    STMT_WINDOW = 400
+    # 앵커마다 윈도우를 떠서, 종결자가 있으면 거기서 자르고 없으면 400자까지 본다
     ```
-    → **전 파일에서 `hit` 이 0건**이어야 통과. (`backend/agent/trace.py:195` 처럼 SQL 이 인접 문자열
-    리터럴로 쪼개져 있어도, 상수를 이어붙였으므로 잡힌다.)
+    → **전 파일에서 `hit` 이 0건**이고 **`anchors > 0`** 이어야 통과. (`backend/agent/trace.py:195`
+    처럼 SQL 이 인접 문자열 리터럴로 쪼개져 있어도, 상수를 이어붙였으므로 잡힌다.)
+
+    ⚠ **초안 단일 정규식을 폐기한 이유 (Stage 4 교차 검증, 2026-08-13).** 그 정규식은
+    lookahead 종결자(`;`·두 번째 `insert into`·`update `·`$`)가 400자 안에 없으면 **매치 자체가
+    실패**하고, 그러면 `hit` 이 항상 `False` 가 되어 검사가 **공허하게 통과**한다.
+    더 나쁜 것은 **생사가 blob 조립 방식에 좌우된다**는 점이다 — 같은 `backend/agent/trace.py` 라도
+    `ast.walk()` 순서 + `""` 조인이면 뮤턴트를 **잡고**, `lineno` 정렬 + `"\n"` 조인(= 구현이 쓰는
+    방식)이면 **놓친다**(양쪽 다 실측). 앵커에서 종결자까지의 거리가 창(400)에 **근접**해 있어
+    조립 순서·조인 문자·로그 문구 한 줄이 결과를 뒤집는다.
+    ⛔ **구체 매치 수를 논거로 적지 말 것** — 소스가 바뀌면 그 수치가 낡고, 수치가 틀리면 이 문단
+    전체의 신뢰가 무너진다. 불변인 명제는 *"판정의 생사가 무관한 구현 세부에 좌우된다"* 이고,
+    재현이 필요하면 `sql_blob()` 로 blob 을 만들어 두 판정식을 각각 돌려 비교한다.
+    즉 결함은 "정규식이 틀렸다"가 아니라
+    **"판정식의 생사가 무관한 구현 세부에 좌우된다"** 이다.
+    → 그래서 **`anchors > 0` 을 판정에 넣는다.** 앵커가 0이면 *"쓰는 코드가 없다"* 가 아니라
+    *"판정식이 죽었다"* 이고, 둘을 구분하지 못하면 이 검사는 언제든 조용히 공허해진다.
 
 - **엣지 케이스**:
   | 상황 | 처리 |
@@ -677,7 +696,8 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     지금은 소비자가 없어 무해하지만, 호출부가 생기는 스프린트의 `JSONResponse(asdict(cred))`
     같은 사고를 앞단에서 막는다.
   - 뮤턴트 5종이 **각각 다른 검사**를 FAIL 시킨다(직접 확인 후 원복):
-    ⓐ CHECK `IS`→`=` → ③⑤ / ⓑ `subject_ref` `NOT NULL` 제거 → ⑨ /
+    ⓐ CHECK `IS`→`=` → ③⑤ / ⓑ `subject_ref` `NOT NULL` 제거 → **①·⑨**(① 에 `subject_ref.notnull` 이
+    들어 있어 필연적으로 겹친다 — 1:1 을 강제하면 방어선을 하나 지우는 셈이라 **중복이 정답**이다) /
     ⓒ `.env.example` 4키 제거 → ⑭ / ⓓ `mcp_server/db.py` 에 `partner_links` 참조 1줄 → ⑮ /
     ⓔ **`backend/agent/trace.py` 의 INSERT 컬럼 목록에 `request_chain_id` 추가 → ⑪-b**.
   - **오탐 확인**: MQ-803 의 DDL 주석과 `trace.py` docstring 이 `request_chain_id` 를 언급해도
