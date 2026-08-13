@@ -21,7 +21,9 @@ Stage $ARGUMENTS 를 실행합니다.
    (frontend 변경 시) npx tsc --noEmit && npx next build
    ```
    실패 시 해당 태스크 tool-builder만 재실행.
-5. **reviewer** 로 설계 준수를 점검한다 (D1~D39 + `docs/04_MCP_TOOLS.md` 계약).
+5. **reviewer** 로 설계 준수를 점검한다 (`docs/10_DECISIONS.md` **전 범위** + `docs/04_MCP_TOOLS.md` 계약).
+   ⚠ 여기에 D 번호 범위를 **박아 두지 말 것** — 낡으면 리뷰 범위가 조용히 좁아진다
+   (실제로 `D1~D39` 로 57단계 낡아 있었다. 2026-08-13 Stage 5 reviewer 발견).
    FAIL이면 수정 후 재검증 — **커밋 불가**.
 6. reviewer PASS 즉시 커밋한다 (접두어 `[M1]`~`[M4]`, 한국어 OK).
 7. `docs/sprints/sprint-{N}.md` 체크리스트를 갱신한다.

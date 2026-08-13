@@ -823,11 +823,25 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
   - `docs/sprints/**` 의 과거 문서(이 문서 포함)는 **당시 사실의 기록**이므로 숫자를 고치지 않는다.
 - **지켜야 할 결정**: 전 범위(D95·D96 포함). **새 결정을 만들지 않는다.**
 - **DoD**:
-  - `rg -n "D1~D94" -g '!docs/sprints/**'` → **0건** · `rg -n "D1~D96" -g '!docs/sprints/**'` → **5건**.
+  - **D 범위** — `rg -n "D1~D[0-9]+" -g '!docs/sessions/**' -g '!docs/sprints/**'` 로 **전 히트를 뽑아**
+    각각을 **선언 / 과거 기록**으로 분류하고, **선언은 전부 `D1~D96`** 이어야 한다.
+    ⚠ **열거 목록만 믿지 말 것** — Stage 5 에서 열거 밖 선언이 둘 나왔다:
+    `docs/status/maintq-status.html`(`D1~D88`, **8단계 낡음**) · `.claude/commands/stage.md`(`D1~D39`,
+    **57단계 낡아 리뷰 범위를 좁히고 있었다**). 그래서 스코프에 **`.claude/**` 와 `docs/status/*.html`** 를 포함한다.
+    ⛔ **기록은 검사에 맞추지 않는다** — 전역 카운트로 재면 `A2A_IDENTITY` 의 **D 번호 부여 이력**이
+    섞여, 검사를 맞추려고 **과거 기록의 표기를 고치는** 일이 벌어진다(Stage 5 에서 실제로 발생 → 원표기 복원).
   - `rg -n "a2a_identity_contract" CLAUDE.md docs/06_REPO_API.md` → 각 파일에 존재(CLAUDE.md 는 **2곳**).
   - `rg -n "27스위트|593건|616건|17절|테이블 18개|seed 21" -g '!docs/sprints/**' -g '!docs/status/maintq-status.html:477'`
     → 갱신 누락 0건(과거 기록 줄 제외).
-  - `rg -n "create_repair_record" docs/` 결과에 *"Sprint 8"* 이 남아 있지 않다.
+  - `create_repair_record`·`flags` 에 대해 **일정을 Sprint 8 로 지정하는 줄이 0건**이다.
+    ⚠ *"Sprint 8 은 이 도구를 만들지 않았다"* 류의 **이월 사실 서술은 남긴다**(그게 이 태스크의 요구다).
+    ⛔ **문자열 부재로 재지 말 것** — `docs/sprints/**`·`docs/sessions/**` 는 당시 기록이라 원리상 0건이
+    불가능하고, `create_repair_record` 토큰이 **같은 줄에 없는** 일정 지정(status HTML 7곳)은
+    그 grep 이 놓친다(Stage 5 reviewer 실측).
+    ✅ **탐지축을 도구명이 아니라 스프린트 번호로 뒤집는다**:
+    `rg -n "Sprint 8" docs/status/*.html docs/00_MVP_SCOPE.md docs/07_BACKLOG.md docs/02_SCENARIOS.md`
+    `  docs/README.md TODO_직접할일.md` → 히트 전건을 **일정 지정 / 이월 사실 서술**로 육안 분류.
+    (이번에 놓친 7곳이 전부 이 grep 에 걸린다. 다음 스프린트에는 토큰이 `Sprint 9` 로 바뀐다.)
   - `rg -n "policy_id 를 읽으므로|판정 로직.*policy_id" docs/A2A_IDENTITY.md` → **0건**(거짓 문장 제거 확인).
   - ⚠ **`A2A_IDENTITY.md §4.3` 의 DDL 스케치를 실제 `data/seed.py` 와 동기화**한다. 현재 **3곳이 어긋나 있다**
     (Stage 2 시점 실측): ⓐ `subject_ref TEXT` → **`NOT NULL`** 이고 회사 결은 `''`(주석의 *"company 는

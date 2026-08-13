@@ -5,12 +5,19 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 → 구현 정합화에서 **9개**로 확정: `traces`(실행 로그 영속화, D21) 추가.
 → **Sprint 6 (F1·F2·F4)에서 7개 추가** — `assets`·`law_refs`·`rules`·`decisions`·`flags`·
 `repair_records`·`residual_curve` (§11~§17).
+→ **Sprint 8 (A2A 신원 식별)에서 1개 추가** — `partner_links` (§18).
 
-> **세는 단위 주의:** 위 숫자는 아래 **절(§) 개수**다. §7이 `suppliers`와 `supplier_parts`
-> 두 테이블을 함께 다루므로 실제 `CREATE TABLE` 은 코어 **11개** + Sprint 6 **7개 = 18개**다
-> (`data/seed.py` 기준). 절 번호는 `§1`~`§9`(+`§1-B`)로 10절, Sprint 6 이 `§11`부터 이어받는다
-> — **`§10`은 존재하지 않는다**(`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
-> `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
+> **세는 단위 주의 — "18"이 두 뜻으로 등장한다.** 아래 두 숫자는 서로 다른 것을 센다.
+> 문장을 읽을 때 *"절"* 을 세는지 *"`CREATE TABLE`"* 을 세는지 반드시 구분할 것.
+>
+> - **`CREATE TABLE` 은 19개다** (`data/seed.py` 의 `SCHEMA` 기준) —
+>   코어 **11개** + Sprint 6 **7개** + Sprint 8 **1개**(`partner_links`).
+> - **절(§)은 18절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**.
+> - 절보다 `CREATE TABLE` 이 1개 많은 이유는 **`§7`이 `suppliers`와 `supplier_parts`
+>   두 테이블을 함께 다루기 때문**이다.
+> - **`§10`은 존재하지 않는다** (`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
+>   `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
+>   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 끝에 `§18`을 잇기만 한다.
 
 ---
 
@@ -34,6 +41,8 @@ parts ──< inventory
   └──< po_drafts >── suppliers
          │ (session_id)
        traces                        ← 세션별 실행 로그 (D21)
+
+partner_links   ← 외부 파트너 subject 대장. FK 없음(building_id 가 FK 없는 것과 같은 이유) · 인증 정보 아님
 ```
 
 ---
@@ -287,7 +296,10 @@ CREATE TABLE traces (
   tool         TEXT,                   -- 도구명 (block 이벤트는 NULL 가능)
   payload      TEXT NOT NULL,          -- SSE data 와 **바이트 동일** (D30)
   tool_payload TEXT,                   -- 도구 결과 원본 JSON. tool_result 행만 (D76-2)
+  request_chain_id TEXT,               -- A2A 멀티홉 추적용 (D94-ⓐ). nullable
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
+  CHECK (event_type IN ('tool_call','tool_result','block')),
   -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
   -- 깨진 걸 아무도 모른다 (D41)
   UNIQUE (session_id, seq)
@@ -303,6 +315,22 @@ CREATE INDEX idx_traces_session ON traces(session_id, seq);
 
 > ⚠ **Sprint 6 은 컬럼만 만든다.** 값을 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은
 > D76-2 담당이 별도로 처리한다. 시드는 `traces` 에 행을 넣지 않는다.
+
+**`request_chain_id` 를 컬럼으로 둔 이유 (D94-ⓐ).** A2A 는 한 요청이 여러 파트너를 거치므로
+*"이 이벤트들이 같은 호출 사슬인가"* 를 사후에 이어 붙일 키가 필요하다. 이 키는 **이벤트 종류가
+아니라 이벤트의 속성**이므로 컬럼이며, `event_type` 은 **3종 그대로**다 — `a2a_call` 같은 종류를
+신설하면 DDL CHECK·SSE 4종 고정(D14·D22)·`sp3_sse_events`·`trace_persist` 를 동시에 고쳐야 한다.
+나간 **요청+응답 봉투 원문**은 `tool_result` 행의 **`tool_payload`** 에 싣고(`tool` = `'a2a:<skill>'`),
+`tool_call` 행은 그대로 NULL 이다(`trace_persist ⑫-b` 가 검사). subject(company/policy 매핑값)는
+**trace 컬럼으로 복제하지 않는다** — `link_state` 는 변할 수 있어(연결 해지) 과거 행에 박힌 값이
+현재 매핑과 어긋나면 어느 쪽이 맞는지 판정할 근거가 없다. *"그때 어느 subject 로 보냈나"* 는
+**그 이벤트의 원문을 여는 것**이 정식 경로다. ⛔ **인증 헤더는 저장 대상에서 제외**한다 — 대장에
+자격증명을 두지 않는 것(D93)과 같은 이유다.
+
+> ⚠ **Sprint 8 은 컬럼만 만든다.** 쓰는 쪽(A2A 호출부)은 **미착수**이며 **현재 전 행 NULL 이
+> 정상**이다. `spikes/a2a_identity_contract.py` 와 시드 검사 ㉕ 가 *"값이 비었다"* 가 아니라
+> *"쓰는 쪽이 없다"* 를 명시적 라벨로 기록한다 — `tool_payload` 가 컬럼만 있고 쓰는 쪽이 없어
+> 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기 위해서다.
 
 **테이블로 두지 않는 것:** 제조사 A/S 연락처(S4 안내용)는 데이터가 아니라 **설정(config) 상수** — 공급사(suppliers.contact)와 성격이 다르고 기종당 1개뿐이라 테이블이 과함.
 
@@ -616,6 +644,171 @@ CREATE TABLE residual_curve (
 
 ---
 
+# Sprint 8 확장 — A2A 신원 식별 기반층
+
+> `docs/A2A_IDENTITY.md`·`docs/A2A_CONTRACTS.md` 가 참조하는 **기반층 1종**.
+> 이 절이 더해져 `CREATE TABLE` 은 **19개**, 절은 **18절**이 된다(서두 "세는 단위 주의" 참조).
+> ⚠ **A2A 호출부는 미착수다** — 이 스프린트가 만드는 것은 **대장(테이블)과 계측 자리**뿐이다.
+
+## 18. partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D95·D96)
+
+> *"나가는 A2A 요청의 **subject**(누구 건인가)를 무엇으로 적을 것인가"* 의 원천.
+> `link_state` 가 연결 승인 여부를, `external_ref` 가 상대 시스템 식별자를 담는다.
+> **DDL 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고 아래는 그 사본이다.
+
+```sql
+CREATE TABLE partner_links (
+  partner      TEXT NOT NULL,   -- 'finallq' | 'insuq'  ★ CHECK 를 걸지 않는다 (D96-ⓒ)
+  subject_type TEXT NOT NULL,   -- 'company' | 'building' | 'asset'  (결/grain)
+  subject_ref  TEXT NOT NULL,   -- MaintQ 로컬 키. **회사 결은 ''** (D96 — NULL 이면 PK 가 무력화된다)
+  -- ★ D78 패턴: 판정과 식별자를 분리한다. NULL=모름 / 'NOT_LINKED'=확인된 미연결 / 'LINKED'=사람 승인 완료
+  link_state   TEXT,
+  -- 상대 시스템 식별자(subject 지정용). **판정 근거가 아니다.**
+  -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
+  --    여기에 복제하지 않는다 (D95).
+  external_ref TEXT,
+  -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
+  -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ) — 자격증명 발급이 이 시점에 붙으므로 감사에는
+  --    "며칠"이 아니라 "몇 시 몇 분"이 필요하다. **저장은 UTC** (D39, `traces.ts` 와 같은 규약).
+  linked_at    DATETIME,
+  PRIMARY KEY (partner, subject_type, subject_ref),
+  -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
+  CHECK (link_state IN ('NOT_LINKED','LINKED')),
+  -- ★ null-safe `IS` (D96). `=` 로 쓰면 (link_state NULL, external_ref 있음) 이 조용히 통과한다
+  CHECK (external_ref IS NULL OR link_state IS 'LINKED')
+);
+```
+
+### ⛔ 인증 정보가 아니다 (actor / subject 분리)
+
+여기 행이 있다는 사실은 **"우리가 아는 상대 식별자"** 일 뿐이며 상대 시스템의 **승인 근거가
+되지 않는다.** **actor**(누가 호출했나)는 파트너 토큰이 담당하고(D93 — `.env` + 프로세스 메모리
+캐시, `backend/a2a/credentials.py` 한 곳), 이 대장은 **나가는 요청 payload 의 subject 값**만
+공급한다. 그래서 **자격증명을 이 테이블에 넣지 않는다** — 넣는 순간 D91 이 세운 actor/subject
+분리가 스키마에서 무너진다. MCP 도구는 이 테이블에 쓰지 않는다(절대 규칙 1 — 쓰기 도구는 2종뿐).
+
+### 왜 `assets` 확장이 아닌가 (결/grain, D91)
+
+A2A_Q 의 원 요청은 `assets.finallq_company_id` 컬럼 추가였는데 **결이 어긋난다.**
+`finallq_company_id` 는 **회사 1개** 단위 사실인데 `assets` 는 **9행**이라 같은 값이 9번 복제되고,
+한 행만 안 고쳐지는 종류의 drift 가 시작된다(D60 — 원본은 하나). 이건 가정이 아니라 **이미 벌어져
+있는 일**이다: `policy_id` 가 9건 중 **8건 모두 `POL-2026-FIRE-01`** 로, 이름과 달리 자산 단위가
+아니라 **건물·회사 단위 사실이 자산 행에 복제된 상태**다(화재보험 목적물은 원래 건물이다).
+그래서 사실의 결마다 행을 갖는 **별도 대장**으로 두고, 결은 `subject_type`(`company`/`building`/
+`asset`)이 표현한다.
+
+### 왜 판정(`link_state`)과 식별자(`external_ref`)를 나누는가 (D78 패턴)
+
+`insured` / `policy_id` 를 나눈 것과 **같은 이유**다. 한 컬럼이 *"연결돼 있는가"* 와 *"상대 키가
+무엇인가"* 를 겸하면 **"확인된 미연결"을 적을 자리가 없고**, 더 나쁘게는 **식별자 존재가 곧 승인
+판정이 되어** *"식별자만으로 승인"* 상태가 스키마에 박힌다. 나누면 그 성격이 주석이 아니라
+**구조**로 표현된다.
+
+| `link_state` | 뜻 | `external_ref` |
+|---|---|---|
+| `NULL` | **모름** (아직 확인 안 함) — D62 의 3상태 | NULL 만 가능 |
+| `'NOT_LINKED'` | **확인된 미연결** | NULL 만 가능 |
+| `'LINKED'` | 사람 **연결 승인 완료** | NULL 도 값도 가능 |
+
+CHECK 가 막는 것은 *"식별자가 있는데 승인이 없다"* 이지 *"승인은 있는데 식별자가 없다"* 가
+**아니다** — 그래서 InsuQ 의 `LINKED` + `external_ref IS NULL` 행이 DDL 상 성립한다.
+
+### 왜 `=` 가 아니라 `IS` 인가 (D96-ⓐ — 3값 논리)
+
+SQLite CHECK 는 **결과가 NULL 이면 통과**시킨다. sqlite 3.50.4 에서 직접 재현한 결과:
+
+```
+-- 원문 CHECK (link_state = 'LINKED' OR external_ref IS NULL) 에
+INSERT (link_state=NULL, external_ref='CMP-001')  →  NULL OR 0 → NULL  →  ★ 통과했다
+-- 정정 CHECK (external_ref IS NULL OR link_state IS 'LINKED') 에서 같은 행
+INSERT (link_state=NULL, external_ref='CMP-001')  →  0 OR 0  → 0       →  거부
+INSERT (link_state=NULL, external_ref=NULL)       →  1                 →  통과 (=모름은 살아 있다)
+```
+
+즉 `=` 로 쓰면 D91 이 금지한 *"식별자 존재가 곧 승인"* 이 **가장 애매한 칸에서 통과**한다.
+`IS` 로 바꾸면 그 행만 죽고 **D62 의 "모름"(NULL+NULL)은 그대로 통과**한다 — D78 이 분리한
+판정/식별자를 되붙이지 않는다. 시드 검사 ㉓ 이 **음성 3 + 양성 2** 로 이 두 CHECK 를 잠근다
+(양성이 없으면 "전부 거부하는 CHECK" 도 통과해 검사가 방어선이 아니게 된다).
+
+### 왜 회사 결의 `subject_ref` 가 `''` 인가 (D96-ⓑ)
+
+SQLite 는 `INTEGER PRIMARY KEY` 가 아닌 PK 컬럼의 NULL 을 허용하고 **NULL 끼리는 서로 다르다.**
+실제로 `subject_ref=NULL` 인 **동일 행을 3회 INSERT 했더니 전부 통과해 3행이 남았다** — 회사 매핑이
+2행·3행으로 갈려도 아무도 모른다. 그래서 `NOT NULL` + **확인된 해당 없음은 `''`** 이다.
+이 레포의 기존 선례 그대로다 — `lien_creditor`/`lien_consent_ref` 가 *"담보 없음은 `''`, 모름은
+NULL"* 이고 검사 ⑱ 이 그 규약을 지킨다(D62). 가짜 로컬 키(`'MAINTQ'`)를 지어내지 않는 것은 D65.
+
+**`partner`·`subject_type` 에는 CHECK 를 걸지 않는다** (D96-ⓒ) — 파트너가 늘 때마다 DDL 을 고치게
+된다. 값 규약은 **회귀가 본다**(시드 검사 ㉒-ⓑ). `traces.tool` 이 CHECK 없는 자유 TEXT 이고
+`a2a:<skill>` 접두어를 규약으로만 둔 것(D94-ⓑ)과 같은 태도다.
+
+### `assets.policy_id` 와의 관계 (D95)
+
+**증권 식별자의 정본은 `assets.policy_id` 하나**이고, **InsuQ 행의 `external_ref` 는 NULL 이다.**
+`partner_links` 는 **연결 승인 여부만** 담는다. 옮기지도 복제하지도 않으며, **복제 0건**을 시드
+검사 ㉔ 가 음성 검사로 확인한다(`external_ref IN (SELECT policy_id FROM assets …)` = 0).
+건물 3행에 `POL-2026-FIRE-01` 을 복제하면 D91 이 기각한 형태(단위가 다른 사실의 복제)를 **결만
+바꿔 재발**시키는 것이 된다.
+
+⚠ **판정은 `insured` 가 한다 (D78) — `policy_id` 는 증권 식별자일 뿐**이며 있어도 판정을 바꾸지
+않는다(`data/rules/test_rules.py` 가 직접 검사). 그러므로 이 컬럼을 옮기지 않는 이유는 *"룰이
+읽어서"* 가 아니라 **의존처가 룰 밖에 흩어져 있어서**다(`data/rules/engine.py` 의
+`ASSET_FACT_COLUMNS` · `generate_disposal_document` 의 증권 식별자 렌더 · `data/ownership.py` ·
+`spikes/rules_db_load.py` · `spikes/approvals_contract.py`).
+
+### 시드 5행 (D92) — `BLD-D` 가 대조군인 이유
+
+| partner | subject_type | subject_ref | link_state | external_ref |
+|---|---|---|---|---|
+| `finallq` | `company` | `''` | `LINKED` | `CMP-MAINTQ-001` ← 유일하게 식별자를 갖는 행 |
+| `insuq` | `building` | `BLD-A` | `LINKED` | **NULL** |
+| `insuq` | `building` | `BLD-B` | `LINKED` | **NULL** |
+| `insuq` | `building` | `BLD-C` | `LINKED` | **NULL** |
+| `insuq` | `building` | **`BLD-D`** | **`NOT_LINKED`** | **NULL** ← **대조군** |
+
+`LINKED` 만 심으면 *"연결 승인은 사람 단계"* 라는 전제가 **데모에서 한 번도 드러나지 않는다.**
+`NOT_LINKED` 건물이 1건 있으면 *"연결 안 된 건물에는 S11·S14 를 못 쏜다"* 가 실제로 보인다 —
+D78 이 `AST-L3-LIFT` 한 건만 `insured=0` 으로 남겨 `CLEAR` 경로를 확보한 것과 **같은 설계**다.
+
+대조군을 `BLD-D` 로 고른 근거 (시드 실측):
+
+| building | 자산 | `insured` / `policy_id` |
+|---|---|---|
+| `BLD-A` | `AST-L1-CONV` | 1 / `POL-2026-FIRE-01` |
+| `BLD-B` | `AST-L2-SPDL`·`AST-L2-CLNT` | 1 / `POL-2026-FIRE-01` |
+| `BLD-C` | `AST-L3-CONV`·`AST-L3-EXFAN` / **`AST-L3-LIFT`** | 1 / `POL…` · **0 / NULL** |
+| **`BLD-D`** | `AST-L4-CONV`·`AST-L4-WRAP`·`AST-L4-DUST` | **전부 1 / `POL-2026-FIRE-01`** |
+
+- `BLD-C` 를 대조군으로 쓰면 **미부보(`insured=0`)와 미연결(`NOT_LINKED`)이 한 건물에 겹쳐**
+  두 축이 섞인다 — 데모에서 *"보험이 없어서 못 쏘는 것"* 으로 오독된다.
+- `BLD-D` 는 **자산 3건이 전부 부보돼 있는데도 미연결**이다. 그래서 *"부보돼 있어도 A2A 연결
+  승인이 없으면 S11·S14 를 못 쏜다"* 가 한눈에 보인다 — D91 의 actor/subject 분리를 **데이터가
+  직접 증명**한다. 자산 수가 가장 많아(3건) 화면·쿼리에서도 눈에 띈다.
+
+> ⛔ **`link_state` 와 `insured` 를 엮지 않는다 — 별개 축이다.** *"부보돼 있다"(보험 사실)* 와
+> *"InsuQ 와 A2A 연결이 승인됐다"(파트너 대장)* 는 서로 다른 사실이며, `NOT_LINKED` 건물의 자산이
+> `policy_id` 를 갖고 있는 것은 **모순이 아니다.** 두 축을 엮는 검사·쿼리를 만들면 **D78 이 분리한
+> 두 사실을 되붙이는** 셈이 된다 — 검사 ㉔ 도 그래서 `link_state` 조건을 넣지 않는다.
+
+> ⚠ **시드 전제(목업)다 — 실제 발급값·연결 승인이 아니다.** `LINKED` 4행도 `CMP-MAINTQ-001` 도
+> 사람이 받은 실값이 아니고 **A2A 호출부 자체가 미착수**다. 고지 문구는 하드코딩이 아니라
+> `data/seed.py` 의 `PARTNER_LINKS_MOCK` **상태에서 유도**되며(`partner_links_caveat()`, D90 —
+> `part_class_caveat()` 선례), **시드 검사 ㉒-ⓕ 가 문구와 접두 기호 두 축을 함께 잠근다**
+> (문구 축만 보면 *"`[사람 확인]` ⚠ … 목업 …"* 같은 **자기모순 라벨**이 통과한다).
+> 사람이 실값을 받으면 플래그를 `False` 로 바꾸고, **줄은 없애지 않고 문구만 바꾼다**(D90).
+
+**FK 를 걸지 않는다.** `subject_ref` 는 결에 따라 회사(`''`)·건물(`assets.building_id`)·자산을
+가리키는 **다형 참조**라 걸 대상이 하나로 정해지지 않는다 — `building_id` 자체가 FK 없는 것과 같은
+이유다. 대신 **검사 ㉒-ⓒ 가 insuq 의 `building` 결 행 집합을 `assets` 의 distinct `building_id` 와
+동적으로 대조**한다(하드코딩 4종이 아니라 동적 대조여야, 건물이 늘 때 대장 누락을 즉시 잡는다).
+
+**`linked_at` 은 실행일 기준 상대 시각이고 UTC 로 적는다** (D96-ⓓ·D39). 고정 값을 박으면 해가
+바뀔 때 조용히 밀리고, 로컬 시각을 쓰면 검증(㉒-ⓓ)이 다른 시계를 보고 **자정 근처에서 위양성
+FAIL** 한다. ⛔ `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보다 미래"* 가 되어 같은 검사가
+위양성 FAIL 한다 — 감사 시점은 재현 대상이 아니다.
+
+---
+
 ## 시드 데이터 전략 — "일부러 꼬아놓은" 케이스 맵
 
 | 케이스 | 시드 | 검증 시나리오 |
@@ -687,6 +880,10 @@ CREATE TABLE residual_curve (
 | ⑲ | `decisions` 신규 컬럼 3종 + `requested_by` FK + 부가 컬럼(`decision_note`·`created_at`) | MQ-706 draft 계약 |
 | ⑳ | 서명 없는 확정 / BLOCKING 우회 INSERT → CHECK 거부 (**양성 대조 포함** — 정상 서명은 통과해야 한다) | 완료 기준 ②③ |
 | ㉑ | DDL 의 비차단 verdict 목록 == `engine.VERDICTS` 파생 (하드코딩 대조가 아니라 **파싱 대조**) | D79 |
+| ㉒ | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · `subject_ref` 집합 == `assets.building_id` **동적 대조** · 회사 결 `''` · `linked_at` UTC·과거 · **목업 고지(문구+접두 기호 두 축)** | D92·D95·D96·D90 |
+| ㉓ | `partner_links` CHECK **음성 3 + 양성 2** (`NULL`+식별자 거부 ← `IS` 가 아니면 통과한다 / `NULL`+`NULL` 은 통과) | D91·D96·D62 |
+| ㉔ | **`partner_links` 가 증권 식별자를 복제하지 않는다 — 음성 검사** (insuq `external_ref` 전부 NULL · 값 복제 0건 · 정본 존재 확인). ⛔ `link_state` 와 `insured` 를 엮지 않는다 | D95·D78 |
+| ㉕ | `traces.request_chain_id` 컬럼 존재 · nullable — detail 에 **"쓰는 쪽 없음(A2A 호출부 미착수)"** 을 명시 | D94-ⓐ |
 
-> **실측 (2026-08-10)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (21건)**.
+> **실측 (2026-08-13)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (25건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.

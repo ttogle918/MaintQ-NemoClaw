@@ -136,6 +136,19 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 세법 잔존가액 `0.05` 를 **그대로 쓰지 않은 이유**는 `residual_curve.md §2-3` 에 있다(세무상 상각 한도이지 시장가가 아니다)
   - 이건 **법령 근거가 없는 순수 가정**이다. 동의하지 않으면 값과 함께 `source` 문구를 고칠 것
 
+## Sprint 8 — A2A
+
+- [ ] **A2A 연결 승인·파트너 자격증명 실값 — 미착수.** 시드 `partner_links` 5행은 **목업 전제**
+      (`data/seed.py` 의 `PARTNER_LINKS_MOCK = True`)이고 `.env` 의 A2A 4키
+      (`MAINTQ_A2A_{FINALLQ,INSUQ}_CLIENT_{ID,SECRET}`)는 **전부 비어 있다**.
+      FinAllQ ADMIN 과 사람 간 연결 승인을 거쳐 실값을 받으면 `.env` 에 기입하고
+      **`PARTNER_LINKS_MOCK` 을 `False` 로** 바꾼다(시드 출력의 "사람 확인 대기" 고지가 사라진다).
+  - ⛔ **값 자체는 저장소·세션 로그·문서 어디에도 적지 않는다** — `.env.example` 은 키 이름만 둔다
+    (`LAW_API_OC` 와 같은 규칙). 회귀 `spikes/a2a_identity_contract.py ⑭` 가 `.env.example` 의
+    4키에 **실값이 없음**을, ⑮ 가 `mcp_server/**` 에서 **안 보임**(D15·D93)을 단언한다
+  - 지금 막히는 것은 **없다** — 자격증명을 쓰는 A2A 호출부 자체가 미착수다(QMesh 착수 후).
+    이 항목은 "실값이 없다는 사실이 문서·시드에 정직하게 드러나 있는가"를 지키기 위한 것이다
+
 ## M2~M4 중
 
 - [ ] **시스템 프롬프트의 안전 경고 문구 최종 검수** (안전 관련은 사람이 승인) — safety-guardrail 스킬 규칙 5

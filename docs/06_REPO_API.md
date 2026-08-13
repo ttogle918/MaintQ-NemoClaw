@@ -99,14 +99,15 @@ MaintQ/
 │   │   ├── disposal.py        # /api/assets — 목록·상세·소유권·처분 사전판정 (D71 HTTP 매핑)
 │   │   ├── decisions.py       # /api/decisions — 상세·제출·서명·반려 (§2.6)
 │   │   └── approvals.py       # /api/approvals — 통합 승인 큐, **읽기 전용** (§2.7)
-│   └── rag/
-│       ├── ingest.py          # 매뉴얼 청킹·임베딩 (model 메타데이터 부착)
-│       └── retriever.py
+│   ├── rag/
+│   │   ├── ingest.py          # 매뉴얼 청킹·임베딩 (model 메타데이터 부착)
+│   │   └── retriever.py
+│   └── a2a/                   # 파트너 자격증명 읽기 (D93). MCP 는 참조하지 않는다 (D15)
 │
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
-│   │                          # **27종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
+│   │                          # **28종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
 │   ├── write_tool_contract.py # 쓰기 도구 **2종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84)
@@ -115,7 +116,8 @@ MaintQ/
 │   ├── approvals_contract.py  # 통합 큐 (D85) · BLOCKING 우회 0건 · 서명 없는 확정 0건
 │   ├── disposal_sign_contract.py  # 27조합 전수 — 4층 방어선이 각각 독립으로 막는가
 │   ├── s10_smoke.py           # 실 서버·실 MCP 로 S9→S10 관통
-│   └── ui_honesty_contract.py # D87 — 미확인 상태가 "확인됨"으로 렌더되지 않는가
+│   ├── ui_honesty_contract.py # D87 — 미확인 상태가 "확인됨"으로 렌더되지 않는가
+│   └── a2a_identity_contract.py # D91~D96 — partner_links CHECK · request_chain_id "쓰는 쪽 없음" · 자격증명 격리
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기

@@ -94,7 +94,7 @@
 - **MCP 서버 ↔ 백엔드 프로세스 분리** — 목업 DB를 실제 ERP로 교체 시 MCP 서버만 교체 (**D15**). `data/`(매뉴얼·시드·룰 카탈로그)는 두 프로세스가 공유해도 되는 **데이터 계층**이다 (**D73**)
 - **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 8종**(읽기 7 + **쓰기 1**, `§8~§15`, 프로파일 게이트 **D69**)
   - ⚠ **쓰기 도구는 2종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설). 둘 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81)
-- **SQLite 목업 DB** (**17절·실제 테이블 18개** — 코어 11 + 확장 7. 실측: `data/seed.py` 의 `CREATE TABLE` **18개**) + 벡터스토어(매뉴얼) + `seed.py`(시드 케이스 7종, 자가검증 **21건**) (`05_DB_SCHEMA`)
+- **SQLite 목업 DB** (**18절·실제 테이블 19개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8). 실측: `data/seed.py` 의 `CREATE TABLE` **19개**) + 벡터스토어(매뉴얼) + `seed.py`(시드 케이스 7종, 자가검증 **25건**) (`05_DB_SCHEMA`)
 - **UI 2종**: 정비사 진단 콘솔(화면 A) / 팀장 승인 큐(화면 B) (`03_WIREFRAME`)
 - **환경**: uv + venv, Docker는 MVP 제외 (**D27**)
 
@@ -141,10 +141,10 @@
 | 목적 | 문서 |
 |---|---|
 | 무엇을 만드는가 (목록) | **이 문서** |
-| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D94) |
+| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D96) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
-| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P27) |
+| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P30) |
 | MVP 이후 설계 (확장 범위) | `11_ASSET_LIFECYCLE` · `12_MAINT_VALUE` |
 
 ## 범위 확장 — 자산 생애주기 (D67)
@@ -159,7 +159,7 @@
 |---|---|---|---|
 | 7 | **수리 / 교체 / 매각 3지 판단** — 발주 전에 자산가치 관점을 넣는다 | `12 §3` · `04 §13` | ✅ **Sprint 6** — `assess_repair_value`. 판정 순서가 계약(`ROOT_CAUSE_FIRST` → `HOLD` → `REPLACE` → `SELL_AS_IS` → `REPAIR`) |
 | 8 | **보전지표** — MTBF 추세 · 예방보전 비율 · 누적 수리비 | `12 §2` · `04 §10·§11` | ✅ **Sprint 6** — `get_maintenance_metrics` · `classify_part_criticality`. MTBF 는 **달력 기준**(D70) |
-| 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 8** (실측: `mcp_server/tools/` 에 파일 없음). 계약 자리는 확보돼 있다 — `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**(D85) |
+| 9 | **수리 증빙 서명** — `work_type` 필수, append-only | `12 §7` | 🟡 **부분** — `repair_records` 테이블·시드는 완료(지표가 소비 중). **쓰기 도구 `create_repair_record` 는 Sprint 9 로 다시 이월됐다** (실측: `mcp_server/tools/` 에 파일 없음). ⚠ **Sprint 8 은 이 도구를 만들지 않았다** — 스프린트 범위가 A2A 신원(`partner_links`·자격증명·`request_chain_id`)으로 확정돼 쓰기 도구가 들어갈 자리가 없었다. 계약 자리는 그대로 확보돼 있다 — `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**(D85) |
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
 | 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집 **8건 전부 `FETCHED`** (2026-08-13 — `KR-CITA-ENF-31` 등록 제목 `즉시상각의제` → `즉시상각의 의제` 사람 승인 후 수집 완료). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ✅ 문안 **2026-08-13 사람 검수 완료**(`template_review_notice` · D90) — **F1~F3 잔여 사람 검수 없음** |
 | 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` · `06 §2.5` | ✅ **Sprint 6·7** — `verify_ownership` + REST `GET /api/assets/{id}/ownership` + 실사 화면. 9카테고리, `PARTIAL` 승격 경로 없음(코드에 분기 자체가 없다). UI 도 `PARTIAL` 을 성공색으로 그리지 않는다 (**D87**) |
@@ -172,9 +172,16 @@
 > 단 **사람용 REST(`/api/assets/…`)는 `core` 에서도 동작한다** (D73).
 
 **Sprint 7 결과** — ⓐ ✅ 법제처 조문 원문 실수집(`fetch_from_api`, 6/7) ⓑ ✅ 계층 3 서명 API + `decisions` 저장
-ⓒ 🟡 쓰기 도구 — `generate_disposal_document` **완료** / `create_repair_record` **Sprint 8 이월**
+ⓒ 🟡 쓰기 도구 — `generate_disposal_document` **완료** / `create_repair_record` **이월**
+(Sprint 7 → Sprint 8 → **Sprint 9**. Sprint 8 도 손대지 않았다 — 아래 참조)
 ⓓ ✅ 확장 도구의 UI 노출(자산 목록·처분 사전판정·실사·처분서 서명 화면).
-**Sprint 8 잔여** — `create_repair_record`(P25·S19) · 문서 문안 사람 검수 · `related_parts` 최종 승인.
+
+**Sprint 8 결과** — A2A 신원 계층(`partner_links` 테이블·시드 5행·자격증명 env 층·`traces.request_chain_id`).
+D91~D96 이 여기서 나왔고 스키마·시드·env 계층까지 구현됐다. **호출부(나가는 A2A 요청)는 미착수.**
+
+**Sprint 9 잔여** — `create_repair_record`(P25·S19). ⚠ **두 번 미뤄졌다**: Sprint 7 은 처분 서명(F3)에,
+Sprint 8 은 A2A 신원에 범위를 썼다. 기능이 취소된 것이 아니라 **범위 확정에서 계속 밀린 것**이고,
+계약 자리(`kind: "repair"`)는 두 스프린트 내내 비어 있는 채로 유지됐다.
 
 ### 범위를 넓히되 순서는 지킨다
 
@@ -191,4 +198,4 @@
 | 매뉴얼 **근거 페이지** 인용 | **법령 조문** 인용 |
 | 반복 고장 **감지** (S3) | 그걸 **자산가치 감점 신호로 재사용** |
 | 발주서 승인 큐 | 같은 큐에 **처분서·수리 증빙** 추가 |
-| 쓰기 도구 1종 | **현재 2종** (`create_po_draft`·`generate_disposal_document`) → Sprint 8 에 `create_repair_record` 로 3종. **전부 draft 만 생성, 동일 패턴** |
+| 쓰기 도구 1종 | **현재 2종** (`create_po_draft`·`generate_disposal_document`) → **Sprint 9** 에 `create_repair_record` 로 3종(Sprint 8 이월). **전부 draft 만 생성, 동일 패턴** |

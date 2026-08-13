@@ -225,22 +225,22 @@
     <div class="stat g">
       <div class="n">12</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 616건</div>
+      <div class="s">MCP 도구 15종(코어 7 + 확장 8) · 회귀 635건</div>
     </div>
     <div class="stat w">
       <div class="n">1</div>
       <div class="l">남은 기능</div>
-      <div class="s">S19 수리 증빙 서명 — Sprint 8</div>
+      <div class="s">S19 수리 증빙 서명 — Sprint 9</div>
     </div>
     <div class="stat a">
       <div class="n">8</div>
       <div class="l">실제 데이터</div>
-      <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 7조문 ★</b></div>
+      <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 8조문 ★</b></div>
     </div>
     <div class="stat">
       <div class="n">13</div>
       <div class="l">생성한 데이터</div>
-      <div class="s">DB 18테이블 · 시드 21건 검증</div>
+      <div class="s">DB 19테이블 · 시드 25건 검증</div>
     </div>
   </div>
 
@@ -283,7 +283,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 616건 · 27스위트</span>
+      <span class="count">M1~M4 · 회귀 635건 · 28스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -412,8 +412,8 @@
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d mock">rules/ · 5종 + 엔진 + pytest 46</span>
-            <span class="d real">laws/ 원문 <b>7조문 FETCHED · 6,560자</b> · text_hash</span>
-            <span class="d todo">KR-CITA-ENF-31 · <b>제목 대조 대기</b></span>
+            <span class="d real">laws/ 원문 <b>8조문 FETCHED · 8,197자</b> · text_hash</span>
+            <span class="d real">KR-CITA-ENF-31 · <b>제목 정정 승인 완료(2026-08-13)</b></span>
             <span class="d mock">decisions 테이블 (런타임 · 현재 0행)</span>
           </div>
         </div>
@@ -429,10 +429,10 @@
           <div class="dlabel">소비 데이터</div>
           <div class="dlist">
             <span class="d mock">rules · 5종 <b>DB 적재</b> (BLOCKING 2 · PRECONDITION 3)</span>
-            <span class="d real">laws/ 원문 7조문 (근거 인용)</span>
+            <span class="d real">laws/ 원문 8조문 (근거 인용)</span>
             <span class="d real"><b>산안법 시행규칙 126조 ★</b> — 안전검사 <b>주기</b></span>
             <span class="d mock">assets 9건 · 법정 조건 필드</span>
-            <span class="d todo">flags 테이블 (0행 — Sprint 8)</span>
+            <span class="d todo">flags 테이블 (0행 — Sprint 9)</span>
           </div>
         </div>
       </div>
@@ -504,7 +504,7 @@
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 13 · Sprint 8 · S19</span><h3>수리 증빙 서명</h3></div>
+          <div><span class="fno">기능 13 · Sprint 9 · S19</span><h3>수리 증빙 서명</h3></div>
           <span class="chip">남은 1종</span>
         </div>
         <p class="desc"><code>create_repair_record</code> — 부품·시리얼·작업자·<code>work_type</code>을 묶어 서명. append-only. <b>나중에 팔 때 증명하려면 그때 서류가 있어야 합니다.</b> 읽기 경로는 이미 동작 중이라 <b>쓰기만</b> 남았습니다.</p>
@@ -556,7 +556,7 @@
           </tr>
           <tr>
             <td class="mono"><b>법령 조문 원문 ★</b><span class="sub">조특법 24·146 · 부가세법 32 · 산안법 93 · <b>산안법 시행규칙 126 ★08-12</b> · 상법 652 · 민법 388</span></td>
-            <td class="num">7조문<br><b>6,560자</b></td>
+            <td class="num">8조문<br><b>8,197자</b></td>
             <td><a href="https://open.law.go.kr">국가법령정보 API</a><span class="sub">법제처 · <code>lawService.do</code></span></td>
             <td><b>계층 1 = 사실.</b> 처분 판정이 인용하는 조문의 유일한 근거<span class="sub">⚠ <code>조문내용</code>은 <b>제목</b>이라 <code>항·호·목</code>을 평탄화해야 본문이 된다 — <code>KR-STTC-24</code>가 14자 → 3,574자</span></td>
             <td>7, 8, 9</td>
@@ -593,15 +593,15 @@
       </table>
     </div>
     <div class="note">
-      <b>법령 원문 7조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
+      <b>법령 원문 8조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
       <b>126조가 채운 것은 "주기"입니다.</b> 93조는 <i>안전검사를 받아야 한다</i>까지만 말하고 <b>몇 년마다인지는 시행규칙에 있습니다</b> — 컨베이어는 <b>설치 후 3년 이내 최초, 이후 2년마다</b>. 이 값 없이 <code>SAFETY-INSPECTION</code> 룰이 기한을 말하면 그건 근거 없는 해석입니다. 그래서 룰의 <code>law_refs</code>가 2건이 되고 <code>rule_version</code>이 올라갔습니다.<br>
-      남은 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인 대기</b>입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b>
+      마지막 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인을 거쳐 2026-08-13 수집 완료</b>됐습니다 — 계층 1 은 <b>8/8 FETCHED</b> 입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b>
     </div>
   </section>
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">13종 · DB 18테이블 실측 · 2026-08-12</span></div>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">13종 · DB 19테이블 실측 · 2026-08-13</span></div>
     <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> 규모는 2026-08-12 <code>data/maintq.db</code> 조회 결과입니다.</p>
     <div class="twrap">
       <table>
@@ -619,7 +619,7 @@
           <tr><td class="mono">data/rules/rules/*.json → <code>rules</code></td><td class="num">5종<span class="sub">BLOCKING 2 · PRECONDITION 3</span></td><td>직접 작성<span class="sub">엔진 + pytest 46</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
           <tr><td class="mono">eval/testset.json</td><td class="num">20문항</td><td>초안 생성 → 사람 검수<span class="sub">S1 12·S2 3·S3 3·S4 2</span></td><td>평가 기준은 우리가 정의. ⛔ 수정 금지 — 고치면 회차 간 비교가 깨진다</td><td>6</td></tr>
           <tr><td class="mono">traces</td><td class="num">런타임 · 시드 0</td><td>에이전트 루프가 발행<span class="sub">＋<code>tool_payload</code> 원본 보존</span></td><td>실행할 때 생성됨. <b>평가 5지표의 판정 소스가 전부 이 테이블</b></td><td>6</td></tr>
-          <tr><td class="mono">decisions · flags</td><td class="num">둘 다 0행</td><td>런타임 생성<span class="sub">decisions 는 CHECK 2종</span></td><td>시드 0행이 <b>정상</b>이다 — 처분 서명은 사람이 해야 생긴다. <code>flags</code>는 Sprint 8</td><td>9</td></tr>
+          <tr><td class="mono">decisions · flags</td><td class="num">둘 다 0행</td><td>런타임 생성<span class="sub">decisions 는 CHECK 2종</span></td><td>시드 0행이 <b>정상</b>이다 — 처분 서명은 사람이 해야 생긴다. <code>flags</code>는 Sprint 9</td><td>9</td></tr>
         </tbody>
       </table>
     </div>
@@ -637,7 +637,7 @@
             <td class="mono"><b>laws/*.json</b>의 <code>text</code></td>
             <td><span class="srcbar real"></span>✅ <b>완료 — 7/8 실수집</b><span class="sub">법제처 API 실호출 · <code>text_hash</code>·<code>effective_from</code> 포함 · 08-12 <code>KR-OSHA-ENR-126</code> 추가</span></td>
             <td>7, 8, 9</td>
-            <td><code>KR-CITA-ENF-31</code> 1건만 제목 대조 대기(S10 무영향)</td>
+            <td><code>KR-CITA-ENF-31</code> 제목 정정 승인 완료(2026-08-13) — 계층 1 <b>8/8 FETCHED</b></td>
           </tr>
           <tr>
             <td class="mono"><b>assets</b> + <code>equipment.asset_id</code></td>
@@ -655,7 +655,7 @@
             <td class="mono"><b>repair_records</b></td>
             <td><span class="srcbar mock"></span>✅ <b>시드 12건 완료</b> · 읽기 경로 동작<span class="sub">PLANNED 5 / UNPLANNED 7</span></td>
             <td>10, 13</td>
-            <td><b>쓰기 도구</b> <code>create_repair_record</code> — Sprint 8</td>
+            <td><b>쓰기 도구</b> <code>create_repair_record</code> — Sprint 9 (7·8 에서 연속 이월)</td>
           </tr>
           <tr>
             <td class="mono"><b>decisions</b> (서명 레코드)</td>
@@ -679,7 +679,7 @@
             <td class="mono"><b>flags</b> (법정 조건 생애주기)</td>
             <td><span class="srcbar todo"></span>⬜ <b>테이블만 · 0행</b> — 발생 → 이행 → 해소<span class="sub">지금은 판정 시점에 매번 재계산</span></td>
             <td>8</td>
-            <td>Sprint 8. <b><code>flags</code> 0행으로도 S9·S10은 완결</b></td>
+            <td>Sprint 9. <b><code>flags</code> 0행으로도 S9·S10은 완결</b></td>
           </tr>
           <tr>
             <td class="mono">캠코 온비드 감정가·낙찰가</td>
@@ -788,8 +788,8 @@
       </div>
       <div class="step">
         <div class="sn">지금</div>
-        <h4>지표 튜닝 판정 · Sprint 8</h4>
-        <p><code>--repeat 3</code> 5세트 완료 → <code>create_repair_record</code>(S19) · <code>flags</code>.</p>
+        <h4>지표 튜닝 판정 · Sprint 8(A2A 신원)</h4>
+        <p><code>--repeat 3</code> 5세트 완료. Sprint 8 은 <b>A2A 신원 계층</b>(<code>partner_links</code>·자격증명 env 층·<code>request_chain_id</code>)을 깔았고, <code>create_repair_record</code>(S19) · <code>flags</code> 는 <b>Sprint 9</b> 로 이월됐습니다.</p>
       </div>
     </div>
     <div class="note">

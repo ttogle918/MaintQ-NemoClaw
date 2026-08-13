@@ -1,6 +1,9 @@
 # A2A 신원 식별 — MaintQ 측 현황 조사 및 설계 메모
 
 > 작성 2026-08-13. **조사·정리 문서이며 구현은 하지 않았다.**
+> → **갱신 2026-08-13 (Sprint 8 MQ-801~807).** 이 문서가 확정한 것 중 **스키마(§4)·시드(§5)·
+> 자격증명 env 층(§7)·`request_chain_id` 컬럼(§6-ⓐ)이 구현됐다.** 아직 **없는 것은 A2A 호출부**다 —
+> 나가는 요청도, 원문 보관도, 토큰 캐시도 없다. 절별 실제 상태는 **§8.1 표**가 정본이다.
 > 상대 문서: `A2A_Q/docs/A2A_IDENTITY.md`(2026-08-13 개정, QMesh 확정본) ·
 > `FinAllQ/docs/A2A_IDENTITY.md`(원본 조사, 훨씬 상세). 절 구성은 나중에 합치기 쉽도록
 > FinAllQ 문서의 뼈대(조사 → 스키마 판단 → 온보딩 → 미해결)를 따라갔다.
@@ -15,7 +18,7 @@ FinAllQ 문서와 같은 구분을 쓴다.
 | 층 | 내용 | 이 문서의 상태 |
 |---|---|---|
 | **① 조사** | 지금 이 레포에 무엇이 있고 무엇이 없는가 (실측) | §1~§3. 확정 사실 |
-| **② 설계** | 무엇을 어떤 모양으로 채울 것인가 | §4~§7. **2026-08-13 확정.** 아직 **코드는 없다** — D 번호 부여와 구현은 별도 |
+| **② 설계** | 무엇을 어떤 모양으로 채울 것인가 | §4~§7. **2026-08-13 확정** (D91~D94, DDL 은 D95·D96 이 개정). ~~아직 코드는 없다~~ → **Sprint 8 에서 스키마·시드·env 층까지 구현됐다. 호출부는 여전히 없다** — §8.1 |
 
 ## 0.5. 네 줄 요약
 
@@ -27,6 +30,8 @@ FinAllQ 문서와 같은 구분을 쓴다.
    시드돼 있다. **`insuq_policy_id`를 새로 만들면 안 된다** — 기존 컬럼과 이중 진실이 된다.
 3. **`request_chain_id` 자리는 trace에 없다.** 전제가 사실과 다르다 — §6에서 정정한다.
    `traces` 테이블에는 없고, `docs/A2A_CONTRACTS.md`의 **payload 스펙 문장**에만 있다.
+   → **조사 시점 실측이다. Sprint 8(D94-ⓐ)이 nullable 컬럼을 만들었다** — 단 **쓰는 쪽은 아직 없어
+   전 행 NULL** 이다(§8.1).
 4. **"이 값만으로 승인하면 안 된다"는 요구는 이 레포가 이미 푼 문제다** — D78(`insured` ↔
    `policy_id` 분리)이 정확히 같은 모양이다. §4는 그 패턴을 그대로 재사용한다.
 
@@ -126,6 +131,11 @@ CREATE TABLE traces (
 `docs/A2A_CONTRACTS.md`의 payload 스펙 두 줄에만 존재한다 — 즉 **"계약 문서에 자리가
 있다"이지 "trace에 자리를 마련해뒀다"가 아니다.** §6에서 다시 다룬다.
 
+> 📌 **위 DDL 블록·grep 결과는 조사 시점(2026-08-13 오전) 실측이다.** Sprint 8 이후 `traces` 에는
+> `request_chain_id TEXT` (nullable, 기본 NULL) 가 **한 줄 추가돼 있다** — CHECK 3종·`payload`
+> 바이트 동일 계약은 그대로다. **쓰는 코드는 아직 0건**이고 `spikes/a2a_identity_contract.py ⑪-b`
+> 가 그 사실을 검사 이름에 적어 둔다.
+
 주의할 제약 2가지:
 
 - `event_type`에 **DDL CHECK 3종**이 걸려 있다. A2A 호출을 `a2a_call` 같은 새 이벤트로
@@ -168,36 +178,50 @@ QMesh 결정 1은 이렇게 말한다:
 
 ### 4.3 확정 형태 — 새 테이블 `partner_links`
 
-§2에서 본 결(grain) 문제 때문에 `assets` 확장이 아니라 별도 테이블을 제안한다.
+§2에서 본 결(grain) 문제 때문에 `assets` 확장이 아니라 별도 테이블을 둔다.
+
+> ⚠ **아래 블록은 `data/seed.py` 의 실제 DDL 이다** (Sprint 8 MQ-801 구현분, D96 반영).
+> 이 절의 최초 스케치와 **세 곳이 다르다** — 각주 참조. 정본은 `data/seed.py §18` ·
+> `docs/05_DB_SCHEMA.md §18` 이고, 여기서 두 벌로 관리하지 않는다.
 
 ```sql
--- 외부 파트너 시스템과의 연결 대장. (미확정 제안)
+-- §18 partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D96)
 -- ⛔ 이 테이블은 **인증 정보가 아니다.** 여기 행이 있다는 사실은
 --    "우리가 아는 상대 식별자"일 뿐, 상대 시스템의 승인 근거가 되지 않는다.
---    실제 인증은 파트너 자격증명(토큰, §5)이 한다 — A2A_Q A2A_IDENTITY 결정 1.
+--    실제 인증은 파트너 자격증명(토큰, §7)이 한다 — A2A_Q A2A_IDENTITY 결정 1.
 CREATE TABLE partner_links (
-  partner        TEXT NOT NULL,      -- 'finallq' | 'insuq'
-  subject_type   TEXT NOT NULL,      -- 'company' | 'building' | 'asset'  (§2의 결)
-  subject_ref    TEXT,               -- MaintQ 로컬 키. company 는 NULL(회사가 하나뿐)
+  partner      TEXT NOT NULL,   -- 'finallq' | 'insuq'  ★ CHECK 를 걸지 않는다 (D96-ⓒ)
+  subject_type TEXT NOT NULL,   -- 'company' | 'building' | 'asset'  (§2의 결/grain)
+  subject_ref  TEXT NOT NULL,   -- MaintQ 로컬 키. **회사 결은 ''** (D96-ⓑ)
   -- ★ D78 패턴: 판정과 식별자를 분리한다
-  link_state     TEXT,               -- NULL=모름 / 'NOT_LINKED'=확인된 미연결
-                                     -- / 'LINKED'=사람 승인 완료(§5 2단계 중 1단계 끝)
-  external_ref   TEXT,               -- 상대 시스템 식별자(subject 지정용). 판정 근거 아님
-  linked_at      DATE,               -- 연결 승인 시점 (사람 단계)
+  link_state   TEXT,            -- NULL=모름 / 'NOT_LINKED'=확인된 미연결
+                                -- / 'LINKED'=사람 승인 완료(§5 2단계 중 1단계 끝)
+  external_ref TEXT,            -- 상대 시스템 식별자(subject 지정용). 판정 근거 아님
+                                -- ⚠ InsuQ building 행은 NULL — 증권 정본은 assets.policy_id (D95)
+  linked_at    DATETIME,        -- 연결 승인 시점 (사람 단계). **UTC 저장** (D96-ⓓ·D39)
   PRIMARY KEY (partner, subject_type, subject_ref),
   CHECK (link_state IN ('NOT_LINKED','LINKED')),
-  -- 미연결인데 식별자가 있으면 모순이다. 조용히 통과시키지 않는다
-  CHECK (link_state = 'LINKED' OR external_ref IS NULL)
+  -- ★ null-safe `IS` (D96-ⓐ). `=` 면 (link_state NULL, external_ref 있음) 이 조용히 통과한다
+  CHECK (external_ref IS NULL OR link_state IS 'LINKED')
 );
 ```
 
 - `link_state`가 **NULL 3상태**를 그대로 재현한다(D62·D78의 "모른다"를 0으로 적지 않는다).
 - 마지막 CHECK가 **"식별자만 있고 승인은 없는 상태"를 DDL 레벨에서 불가능**하게 만든다.
   D81·D84가 CHECK로 잠근 것과 같은 태도다("두 문장의 마지막 층").
-- `policy_id`는 **여기로 옮기지 않고 `assets`에 그대로 둔다.** D78 판정 로직
-  (`INSURANCE-NOTIFY` 룰·`test_rules.py`)이 그 컬럼을 읽고 있어 건드리면 회귀가 깨진다.
-  `partner_links`의 InsuQ 행은 `assets.policy_id`와 **중복이 아니라 상위 사실**
-  (건물 단위 증권)이라는 정리가 필요하다 — **미결, §8-2**.
+- `policy_id`는 **여기로 옮기지 않고 `assets`에 그대로 둔다** — 근거는 **D95**이고,
+  이 절의 최초 초안이 적었던 근거("룰이 읽으니까")는 **틀렸다**(§8.2-1 참조).
+
+#### 각주 — 왜 스케치와 달라졌는가 (3곳, 전부 D96 이 supersede)
+
+| # | 스케치 (2026-08-13 초안) | 실제 (`data/seed.py`) | 왜 |
+|---|---|---|---|
+| ⓐ | `CHECK (link_state = 'LINKED' OR external_ref IS NULL)` | `CHECK (external_ref IS NULL OR link_state IS 'LINKED')` | **`=` 는 SQLite 3값 논리에 뚫린다.** `link_state=NULL, external_ref='CMP-001'` 이면 `NULL OR 0 → NULL` 이라 CHECK 가 **통과**시킨다 — D91 이 금지한 *"식별자만 있고 승인은 없는 상태"* 가 **가장 애매한 칸에서** 살아남는다. null-safe `IS` 로 바꾸면 그 행만 거부되고 `(NULL, NULL)`(모름)은 그대로 통과한다 (D96-ⓐ, sqlite 3.50.4 실측) |
+| ⓑ | `subject_ref TEXT` + 주석 *"company 는 NULL"* | `subject_ref TEXT NOT NULL`, **회사 결은 `''`** | 주석이 **거짓이었다.** SQLite 는 `INTEGER PRIMARY KEY` 가 아닌 PK 컬럼의 NULL 을 허용하고 NULL 끼리는 서로 다르므로, `subject_ref=NULL` 인 **동일 행을 3회 INSERT 해도 전부 통과해 3행이 남는다** — 회사 매핑이 갈려도 아무도 모른다. `''`(확인된 해당 없음) 규약은 `lien_creditor`/`lien_consent_ref` 선례 그대로다 (D96-ⓑ·D62) |
+| ⓒ | `linked_at DATE` | `linked_at DATETIME` (UTC) | **사람 확정 (2026-08-13).** 이 시점은 단순 사건 날짜가 아니라 **파트너 자격증명이 발급되는 순간**이고 그 자격증명으로 돈이 움직이는 요청(S5)이 나간다 — 감사에 필요한 것은 *"며칠"* 이 아니라 *"몇 시 몇 분"* 이다. `decisions.signed_at`·`repair_records.signed_at`·`flags.raised_at` 이 이미 전부 `DATETIME` 이라 **예외가 아니라 기존 규약에 맞춘 정정**이다 (D96-ⓓ) |
+
+⛔ **이 각주를 지우지 말 것.** 초안을 그대로 둔 채 실제와 어긋나게 방치하면 §8.2-1 이 겪은
+것과 **같은 유형의 부채**(문서가 자신 있게 틀린 사실을 말하는 상태)가 된다.
 
 ### 4.4 검토했으나 권하지 않는 대안
 
@@ -217,10 +241,24 @@ CREATE TABLE partner_links (
 ### A안 — seed에 심는다 (전제로 고정)
 
 ```python
-# data/seed.py — 예시
-("finallq", "company",  None,    "LINKED", "CMP-MAINTQ-001", "2026-07-01"),
-("insuq",   "building", "BLD-A", "LINKED", "POL-2026-FIRE-01", "2026-07-01"),
+# data/seed.py — 실제 시드 5행 (D92·D95·§A 확정형)
+# (partner, subject_type, subject_ref, link_state, external_ref, linked_days_ago)
+("finallq", "company",  "",      "LINKED",     "CMP-MAINTQ-001", 30),
+("insuq",   "building", "BLD-A", "LINKED",     None,             30),
+("insuq",   "building", "BLD-B", "LINKED",     None,             30),
+("insuq",   "building", "BLD-C", "LINKED",     None,             30),
+("insuq",   "building", "BLD-D", "NOT_LINKED", None,             None),  # ★ 대조군
 ```
+
+> ⚠ **초안은 InsuQ 행의 `external_ref` 에 `POL-2026-FIRE-01` 을 넣었는데 그건 폐기됐다** (§A·**D95**).
+> 증권 식별자의 정본은 `assets.policy_id` 하나이고 `partner_links` 에 **복제하지 않는다** —
+> 건물 3행에 같은 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
+> **결(grain)만 바꿔 재발**시키는 것이 된다. 확정안에서 복제는 **0건**이고 seed 검사 **㉔** 가 그걸 본다.
+> 회사 행의 `subject_ref` 가 `None` 이 아니라 `''` 인 이유는 §4.3 각주 ⓑ.
+>
+> **`BLD-D` 를 대조군으로 고른 이유**: 그 건물의 자산 3건이 **전부 부보(`insured=1`)** 인데도
+> A2A 미연결이다 — *"부보돼 있어도 연결 승인이 없으면 못 쏜다"* 가 한눈에 보인다.
+> `BLD-C` 를 쓰면 미부보(`AST-L3-LIFT`)와 미연결이 한 건물에 겹쳐 **별개인 두 축이 섞인다**(D78·D95).
 
 - **근거:** 이 레포는 이미 같은 방식을 쓴다. `policy_id = POL-2026-FIRE-01`이
   "이 건물은 이미 화재보험에 가입돼 있다"는 전제를 시드로 심은 것이고,
@@ -400,27 +438,49 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
 
 | 항목 | 상태 |
 |---|---|
-| §4 `partner_links`(D78 패턴) | ✅ 확정. **A2A_Q 표의 원 요청("`assets`에 `finallq_company_id` 컬럼 추가")과 다른 답이므로**, A2A_Q 갱신 시 그 행을 함께 고쳐야 한다 |
-| §5 seed A안 + `NOT_LINKED` 1건 | ✅ 확정 |
-| §6 trace(원문 보관·컬럼 신설·event_type 유지) | ✅ 확정 |
-| §7 자격증명 위치 | ✅ 확정 |
-| `docs/A2A_CONTRACTS.md` 갱신 | ✅ **2026-08-13 완료** — actor/subject 구분 반영, 해소된 "미해결" 문구 제거 |
-| **D 번호 부여** | ✅ **2026-08-13 완료** — **D91**(`partner_links`) · **D92**(seed A안) · **D93**(자격증명 위치) · **D94**(trace). 넷 다 *"⚠ 설계 확정·미구현"* 으로 표기했다. D 범위 표기 5곳(`CLAUDE.md` · 루트 `README.md` · `docs/README.md` · `.claude/agents/reviewer.md` · `docs/00_MVP_SCOPE.md`)도 `D1~D94` 로 갱신 |
+| §4 `partner_links`(D78 패턴) | ✅ 확정 · **Sprint 8 구현 완료 (MQ-801~807)** — `data/seed.py §18`. DDL 세부 3곳은 **D96 이 개정**했다(§4.3 각주). **A2A_Q 표의 원 요청("`assets`에 `finallq_company_id` 컬럼 추가")과 다른 답이므로**, A2A_Q 갱신 시 그 행을 함께 고쳐야 한다 |
+| §5 seed A안 + `NOT_LINKED` 1건 | ✅ 확정 · **Sprint 8 구현 완료** — 5행(`LINKED` 4 / `NOT_LINKED` 1 = `BLD-D`). ⚠ **목업 전제**다(`PARTNER_LINKS_MOCK=True`) — 실제 연결 승인·발급값이 아니며 시드 출력이 그 사실을 고지한다 |
+| §6 trace(원문 보관·컬럼 신설·event_type 유지) | 🟡 **부분** — `traces.request_chain_id` 컬럼만 생겼다(D94-ⓐ). **쓰는 쪽(A2A 호출부)은 미착수라 전 행 NULL 이 정상**이고, 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 **명시적 라벨로** 기록한다(D76-2 재발 방지). 원문 보관(ⓑ)·`a2a:` 접두어는 호출부와 함께 |
+| §7 자격증명 위치 | 🟡 **env 층 구현** — `.env.example` 4키(값 전부 빈칸) + `backend/a2a/credentials.py`(상태 4종). **토큰 캐시는 미착수** — 호출부가 없다. `mcp_server/**` 에서 보이지 않음을 스파이크 ⑮ 가 단언한다(D15·D93) |
+| `docs/A2A_CONTRACTS.md` 갱신 | ✅ **2026-08-13 완료** — actor/subject 구분 반영, 해소된 "미해결" 문구 제거. Sprint 8 종료 시 *"이 레포가 채워야 할 자리"* 표를 구현 상태로 재갱신 |
+| **D 번호 부여** | ✅ **2026-08-13 완료** — **D91**(`partner_links`) · **D92**(seed A안) · **D93**(자격증명 위치) · **D94**(trace). 넷 다 *"⚠ 설계 확정·미구현"* 으로 표기했다. D 범위 표기 5곳(`CLAUDE.md` · 루트 `README.md` · `docs/README.md` · `.claude/agents/reviewer.md` · `docs/00_MVP_SCOPE.md`)도 그때 `D1~D94` 로 갱신 → **Sprint 8 에서 D96 까지 확장**(D95 증권 정본 · D96 DDL 정정)되어 같은 5곳이 `D1~D96` 으로 다시 갱신됐고, D91~D94 의 미구현 마커도 부분 구현 문구로 바뀌었다 |
 
-### 8.2 여전히 미해결 — 결정이 필요한 것
+### 8.2 미해결이었던 것 — 2건 종결, 2건 남음
 
-1. **`assets.policy_id`와 `partner_links`의 InsuQ 행 관계.** 중복인가 상하 관계인가.
-   `insuq_policy_id`를 새로 만들지 않는다는 것과, D78 판정 로직(`INSURANCE-NOTIFY` ·
-   `test_rules.py`)이 `assets.policy_id`를 읽으므로 **그 컬럼은 못 옮긴다**는 것까지가 확정.
-   남은 건 "건물 단위 증권(`partner_links`) ↔ 자산 행의 사본(`assets.policy_id`)"을
-   **어느 쪽이 정본인지** 정하고 seed 자가검증으로 대조를 거는 일이다(D60과 같은 꼴).
-2. **`tool_payload` 조회 수단** (§6.4-3). "원문을 여는 것이 정식 판정 경로"인데
+1. ✅ **종결 (2026-08-13, D95) — `assets.policy_id` ↔ `partner_links` InsuQ 행 관계.**
+   **정본은 `assets.policy_id` 하나**이고 `partner_links` 의 InsuQ 행은 **subject 지정용일 뿐**이다.
+   `policy_id` 를 **옮기지도 복제하지도 않는다** — InsuQ 건물 행의 `external_ref` 는 **NULL** 이고,
+   대조는 *"어디에도 복제되지 않았다"* 를 확인하는 **음성 검사**(seed ㉔)가 된다.
+
+   > 🚨 **이 항목이 적고 있던 근거는 거짓이었다 — 기록으로 남긴다.**
+   > 초안은 *"D78 판정 로직(`INSURANCE-NOTIFY` 룰·`test_rules.py`)이 그 컬럼을 읽으므로
+   > 못 옮긴다"* 고 썼지만 **사실이 아니다.** `INSURANCE-NOTIFY.json` 의 `required_facts` 는
+   > **`["insured"]` 뿐**이고, `data/rules/test_rules.py:222` 는 오히려
+   > *"`policy_id` 는 이제 증권 식별자일 뿐 — 있어도 판정을 바꾸지 않는다"* 를 **직접 검사**한다.
+   > **판정은 `insured` 가 한다 (D78).** 룰은 그 컬럼을 읽지 않는다.
+   >
+   > **못 옮기는 진짜 이유는 의존처가 룰 밖에 흩어져 있다는 것이다** (D95 본문과 같은 실측 목록):
+   > `data/rules/engine.py:301~302`(`ASSET_FACT_COLUMNS` 가 `assets` 에서 사실을 조립 — `:301` 이 `insured`, `:302` 가 `policy_id`) ·
+   > `mcp_server/tools/generate_disposal_document.py:252`(증권 식별자 렌더) ·
+   > `data/ownership.py:533` · `spikes/rules_db_load.py:220` ·
+   > `spikes/approvals_contract.py:330`(`UPDATE assets SET policy_id=…` 로 번들 무결성 시나리오를 만든다).
+   > **컬럼을 옮기면 이 다섯이 동시에 깨진다.**
+   >
+   > ⛔ **`NOT_LINKED` 건물의 자산이 `policy_id` 를 갖고 있는 것은 모순이 아니다** —
+   > *"부보돼 있다"(보험 사실)* 와 *"InsuQ 와 A2A 연결이 승인됐다"(파트너 대장)* 는 **별개 축**이다.
+   > 두 축을 엮는 검사를 만들지 않는 이유이기도 하다(엮으면 D78 이 분리한 두 사실을 되붙인다).
+
+2. **미결 — `tool_payload` 조회 수단** (§6.4-3). "원문을 여는 것이 정식 판정 경로"인데
    `read_trace`(D43)가 의도적으로 싣지 않아 **지금은 DB 직접 조회뿐이다.**
    사람 전용 조회 API를 둘지, 감사 목적이므로 DB 조회로 충분하다고 볼지.
-3. **`risk_profile` 우선순위 재조정.** §1.2 — A2A 편입으로 "후순위" 판단의 근거가 바뀌었다.
-   S14가 보낼 내용(`risk_grade`·`fire_handling`)이 그 테이블에 있다.
-4. **`seed.py` 자가검증 항목 추가.** `partner_links`가 생기면 검증 목록(현재 21건)에
-   최소 2건이 붙는다 — `NOT_LINKED` 대조군 존재 · `link_state`/`external_ref` CHECK 정합.
+   ⚠ **Sprint 8 범위 밖이다** — 아직 쓰는 쪽이 없어 열어 볼 원문 자체가 0건이다.
+3. **미결 — `risk_profile` 우선순위 재조정.** §1.2 — A2A 편입으로 "후순위" 판단의 근거가 바뀌었다.
+   S14가 보낼 내용(`risk_grade`·`fire_handling`)이 그 테이블에 있다. **Sprint 8 범위 밖.**
+4. ✅ **종결 (2026-08-13) — `seed.py` 자가검증 항목 추가.** 예상은 "최소 2건"이었으나
+   **4건이 붙어 21건 → 25건**이 됐다: **㉒** 시드 정합·`NOT_LINKED` 대조군·목업 고지(D92) ·
+   **㉓** CHECK 음성 3 + 양성 2(D91·D96·D62 — *"모름"을 여전히 적을 수 있다*를 양성 축으로 함께 본다) ·
+   **㉔** 증권 식별자 복제 0건(D95, 음성 검사) · **㉕** `traces.request_chain_id` 존재·nullable(D94-ⓐ).
+   회귀 스파이크는 `spikes/a2a_identity_contract.py`(**19건**)가 따로 본다.
 
 ## 관련 문서
 
@@ -429,4 +489,6 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
 - `docs/A2A_CONTRACTS.md` — 이 레포의 outbound 호출 목록
 - `docs/05_DB_SCHEMA.md` §9(traces)·§11(assets) — 실측 근거
 - `spikes/trace_persist.py` ⑫-b·⑫-c·⑫-d — §6.3 배치를 좁힌 회귀
+- `spikes/a2a_identity_contract.py` — Sprint 8 구현분 회귀 **19건** (CHECK 음성/양성 · `⑪-b` 쓰는 쪽 없음 · 자격증명 격리)
+- `data/seed.py §18` · `docs/05_DB_SCHEMA.md §18` — `partner_links` DDL **정본** (§4.3 은 사본)
 - `docs/11_ASSET_LIFECYCLE.md` §10-2 — `risk_profile`(건물 마스터) 제안 원본

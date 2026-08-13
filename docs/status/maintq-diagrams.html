@@ -177,7 +177,7 @@
 
   <div class="note" style="margin:-24px 0 42px">
     <b>2026-08-12 갱신 — 그림 5개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
-    도구가 7 → <b>15종</b>, 테이블이 11 → <b>18개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
+    도구가 7 → <b>15종</b>, 테이블이 11 → <b>19개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
     새 그림 넷(⑥~⑨)은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보이고,
     <b>⑩은 다른 종류입니다</b> — <b>지표가 좋아진 것과 운이 좋았던 것을 어떻게 구분하는가.</b>
   </div>
@@ -215,7 +215,7 @@ flowchart LR
       x3["중고 취득 실사<br/>S18 · 9카테고리 PARTIAL"]
       x5["통합 승인 큐<br/>발주 + 처분"]
     end
-    subgraph S8["다음 · Sprint 8"]
+    subgraph S8["다음 · Sprint 9"]
       direction TB
       x4["수리 증빙 서명<br/>S19 · 큐 자리만 확보"]
     end
@@ -266,7 +266,7 @@ flowchart LR
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 15 · 테이블 18</span></div>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 15 · 테이블 19</span></div>
     <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 둘뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해 강화됐습니다.</p>
 
     <figure>
@@ -298,9 +298,9 @@ flowchart TB
   end
 
   llm["Gemini API"]
-  db[("SQLite · 18 테이블 · WAL")]
+  db[("SQLite · 19 테이블 · WAL")]
   vec[("매뉴얼 인덱스<br/>1,035 청크")]
-  laws[("법령 원문 7조문 · 6,560자<br/>text_hash · append-only")]
+  laws[("법령 원문 8조문 · 8,197자<br/>text_hash · append-only")]
 
   scrA -->|"질문 전송"| chat
   chat --> loop
@@ -738,7 +738,7 @@ erDiagram
   }
   LAW_REFS {
     text law_ref_id PK "8건"
-    text fetch_status "FETCHED 7 · PENDING 1"
+    text fetch_status "FETCHED 8 · PENDING 0"
     text text_hash "append-only"
   }
 </pre>
@@ -851,7 +851,7 @@ flowchart LR
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>27스위트 / 616건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>28스위트 / 635건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).

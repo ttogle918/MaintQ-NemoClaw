@@ -79,5 +79,5 @@
 | **S9** 처분 차단 | **check_disposal_blockers** → 해소 경로 안내 | REST 는 409 (D71). "안 된다"로 끝내지 않는다 |
 | **S10** 근거 번들 → 서명 | precheck → **[요청] `/technician?prefill=…` 로 이동해 사용자가 전송** → 에이전트가 `generate_disposal_document`(draft INSERT) → **[제출] 자산 화면의 `submitDecision`** → `/api/approvals` → 팀장 `sign` | ⚠ **요청은 prefill, 제출은 자산 화면.** `decision_card` block 은 **만들지 않았다** — block 3종(`safety`·`po_card`·`citation`) 고정이 계약이다(D14·D22) |
 | **S18** 중고 취득 검증 | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 | `PARTIAL` → `VERIFIED` 승격 경로 없음. UI 도 성공색으로 그리지 않는다(D87) |
-| **S19** 수리 증빙 서명 | `create_repair_record` | **미구현 — Sprint 8** (P25) |
+| **S19** 수리 증빙 서명 | `create_repair_record` | **미구현 — Sprint 9** (P25). ⚠ Sprint 7·8 에서 연속 이월됐다 — 취소가 아니라 범위 확정에서 밀린 것이다 |
 | ~~**S17** 법령 개정 감지~~ | — | **v2 로 제외.** `fetch_laws.check_revisions()` 는 코드에 살아 있으나(D75 가 쓴다) **MCP 도구로 노출하지 않는다** (`11 §10-3`) |

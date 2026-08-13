@@ -310,14 +310,17 @@ assets (신규 테이블) — ⚠ 당초 "equipment 확장"이라 썼으나 D68 
 | `classify_expenditure` | 읽기 — 자본적/수익적 판정 + 근거 | `04 §12` | ✅ |
 | `build_evidence_bundle` | 읽기 — 근거 5키 묶고 해시 (D83) | `04 §14` | ✅ |
 | `generate_disposal_document` | **쓰기** — 처분서 draft (`decisions` INSERT, D81) | `04 §15` | ✅ (Sprint 7) |
-| `create_repair_record` | **쓰기** — 수리 증빙 draft | — | **미구현 — Sprint 8** (P25·S19) |
+| `create_repair_record` | **쓰기** — 수리 증빙 draft | — | **미구현 — Sprint 9** (P25·S19) |
 
 노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만 (D69). **입출력 계약의 정본은 `04_MCP_TOOLS`** 이며 여기서 복제하지 않는다.
 
-> **`create_repair_record` 는 Sprint 7 이 아니라 Sprint 8 이다** (실측 — `mcp_server/tools/` 에 파일이 없다).
-> F3(서명)은 **처분 축만** 완료됐다. 수리 증빙 축은 계약 자리만 비워 뒀다 —
+> **`create_repair_record` 는 Sprint 9 다** (실측 — `mcp_server/tools/` 에 파일이 없다).
+> Sprint 7 에서 한 번, **Sprint 8 에서 다시 이월됐다** — Sprint 7 은 처분 서명(F3)에,
+> Sprint 8 은 A2A 신원(`partner_links`·자격증명·`request_chain_id`)에 범위를 썼다.
+> 기능이 취소된 것이 아니라 범위 확정에서 두 번 밀린 것이다.
+> F3(서명)은 여전히 **처분 축만** 완료됐고 수리 증빙 축은 계약 자리만 비워 둔 상태다 —
 > `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**이라(D85)
-> Sprint 8 은 계약 변경 없이 채운다.
+> 착수하는 스프린트는 계약 변경 없이 채운다.
 
 ---
 
