@@ -1,13 +1,13 @@
 {
   "_status": "D74 목업 공식 산출 — 실거래 데이터 아님. 값 원천은 §2 의 가정 3개",
-  "generated_at": "2026-08-09",
+  "generated_at": "2026-08-13",
   "method": "declining_balance_mock_from_statutory_life",
   "parameters": {
-    "statutory_life_years": 8,
+    "statutory_life_years": 10,
     "residual_at_life_end": 0.5,
-    "declining_rate": 0.082996,
+    "declining_rate": 0.066967,
     "floor": 0.1,
-    "floor_binds_from_age": 27,
+    "floor_binds_from_age": 34,
     "bucket_rep_age": {
       "0-2": 1,
       "3-5": 4,
@@ -31,422 +31,422 @@
     {
       "category": "공작 기계",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공작 기계",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공작 기계",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공작 기계",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공작 기계",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공작 기계",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "가공기계",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "기타",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "일반산업",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "전기전자계측",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "환경  설비",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "0-2",
-      "residual_ratio": 0.917,
+      "residual_ratio": 0.933,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "3-5",
-      "residual_ratio": 0.7071,
+      "residual_ratio": 0.7579,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "6-10",
-      "residual_ratio": 0.5,
+      "residual_ratio": 0.5743,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "11-15",
-      "residual_ratio": 0.3242,
+      "residual_ratio": 0.4061,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "16-20",
-      "residual_ratio": 0.2102,
+      "residual_ratio": 0.2872,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     },
     {
       "category": "공조냉각유공압",
       "age_bucket": "21-30",
-      "residual_ratio": 0.1146,
+      "residual_ratio": 0.1768,
       "n_samples": null,
       "p25_ratio": null,
       "p75_ratio": null,
       "base_n": null,
-      "source": "법정 기준내용연수 8년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0830, floor=0.1, D74]"
+      "source": "법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"
     }
   ]
 }
