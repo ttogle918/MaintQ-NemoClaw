@@ -217,6 +217,12 @@ CREATE TABLE traces (
   --    섞으면 평가의 두 소스 대조가 조용히 깨진다.
   -- ⚠ 이 스프린트는 **컬럼만** 만든다. 값을 쓰는 쪽(backend/agent/trace.py)은 D76-2 담당.
   tool_payload TEXT,
+  -- A2A 멀티홉 추적용 (D94-ⓐ). nullable — 기존 행·기존 INSERT 문에 영향이 없다.
+  -- ⚠⚠ **쓰는 쪽이 아직 없다.** A2A 호출부(QMesh)가 미착수라 **현재 전 행 NULL 이 정상**이며,
+  --     spikes/a2a_identity_contract.py 가 그 사실을 **명시적 라벨로 기록**한다.
+  --     D76-2 가 컬럼만 만들고 쓰는 쪽이 없어 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기
+  --     위해, "값이 비었다"가 아니라 "쓰는 쪽이 없다"를 회귀가 말하게 한다.
+  request_chain_id TEXT,
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
   CHECK (event_type IN ('tool_call','tool_result','block')),
@@ -354,6 +360,28 @@ CREATE TABLE residual_curve (
   base_n    INTEGER,                 -- 목업이면 NULL (D74)
   source TEXT NOT NULL,              -- 목업임이 이 필드에 명시된다
   PRIMARY KEY (category, age_bucket)
+);
+
+-- §18 partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D96)
+-- ⛔ **인증 정보가 아니다.** 여기 행이 있다는 사실은 "우리가 아는 상대 식별자"일 뿐이며
+--    상대 시스템의 승인 근거가 되지 않는다 — actor(누가 호출했나)는 파트너 토큰(D93)이 담당하고,
+--    **나가는 요청 payload 의 subject 값을 이 대장에서 가져온다** (A2A_Q A2A_IDENTITY 결정 1).
+CREATE TABLE partner_links (
+  partner      TEXT NOT NULL,   -- 'finallq' | 'insuq'  ★ CHECK 를 걸지 않는다 (D96-ⓒ)
+  subject_type TEXT NOT NULL,   -- 'company' | 'building' | 'asset'  (결/grain)
+  subject_ref  TEXT NOT NULL,   -- MaintQ 로컬 키. **회사 결은 ''** (D96 — NULL 이면 PK 가 무력화된다)
+  -- ★ D78 패턴: 판정과 식별자를 분리한다. NULL=모름 / 'NOT_LINKED'=확인된 미연결 / 'LINKED'=사람 승인 완료
+  link_state   TEXT,
+  -- 상대 시스템 식별자(subject 지정용). **판정 근거가 아니다.**
+  -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
+  --    여기에 복제하지 않는다 (D95).
+  external_ref TEXT,
+  linked_at    DATE,            -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL
+  PRIMARY KEY (partner, subject_type, subject_ref),
+  -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
+  CHECK (link_state IN ('NOT_LINKED','LINKED')),
+  -- ★ null-safe `IS` (D96). `=` 로 쓰면 (link_state NULL, external_ref 있음) 이 조용히 통과한다
+  CHECK (external_ref IS NULL OR link_state IS 'LINKED')
 );
 """
 
