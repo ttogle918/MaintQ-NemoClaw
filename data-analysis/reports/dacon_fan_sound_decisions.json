@@ -1,0 +1,58 @@
+{
+  "dataset": "dacon_fan_sound",
+  "column_total": 5,
+  "column_used": 4,
+  "column_decisions": [
+    {
+      "column": "SAMPLE_ID",
+      "used": true,
+      "reason": "행 식별자"
+    },
+    {
+      "column": "SAMPLE_PATH",
+      "used": true,
+      "reason": "wav 경로 — 실제로 열지는 않았다"
+    },
+    {
+      "column": "FAN_TYPE",
+      "used": true,
+      "reason": "0/2 두 종류. 이 데이터셋에서 유일하게 변별력 있는 축"
+    },
+    {
+      "column": "LABEL",
+      "used": false,
+      "reason": "🚨 train 1,279행 전부 0 이고 test 엔 열 자체가 없다 — 학습 신호가 0"
+    },
+    {
+      "column": "split",
+      "used": true,
+      "reason": "train/test 구분 (이 노트북에서 만든 파생)"
+    }
+  ],
+  "source_url": "https://dacon.io/competitions/official/236036/data",
+  "collected_at": "2026-08-12",
+  "adopted": false,
+  "size_on_disk": "14.3GB",
+  "row_count_raw": 2793,
+  "wav_files": {
+    "train": 1279,
+    "test": 1514
+  },
+  "wav_format": "8ch · 16,000Hz · 32bit IEEE float · 10.0s · 5.1MB/file",
+  "generated_columns": [
+    "split",
+    "라벨있음",
+    "채택"
+  ],
+  "rejection_reasons": [
+    "① train.csv 의 LABEL 이 1,279행 전부 0(정상) — 지도학습 분류가 아니라 비지도 이상탐지",
+    "② test.csv 에 LABEL 열이 없고 정답 미공개 → 라벨된 고장 샘플 0건. '실제 고장 사례 확보' 목적으로도 못 쓴다",
+    "③ 진단 경로가 에러코드 텍스트 기반이고(D1) MCP 도구 15종에 오디오 입력이 없다",
+    "④ 대상이 팬 소리 — MaintQ 는 인버터(model enum 2종 고정, D6·D13)와 호스트 설비",
+    "⑤ 14.3GB 는 git 불가 · 멜스펙트로그램 등 특징 추출 파이프라인이 통째로 추가된다"
+  ],
+  "caveats": [
+    "32bit float 라 표준 wave 모듈로 못 읽는다 (unknown format: 3)",
+    "붙는다면 백로그 P10 — 단 현재 P10 입력이 error_history(D29)라 입력 축 신설이 선행"
+  ]
+}

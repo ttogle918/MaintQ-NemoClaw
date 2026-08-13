@@ -3,6 +3,10 @@ data/raw/*
 !data/raw/manifest.json
 !data/raw/INDEX.md
 
+# data-analysis 파생 산출물 — 노트북을 다시 돌리면 재생된다 (D60: 원본이 정본)
+# reports/*.json·*.md 는 결정 로그라서 커밋한다 — 제외하지 않는다.
+data-analysis/data/processed/
+
 # 목업 DB
 *.db
 *.sqlite3

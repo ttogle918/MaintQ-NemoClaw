@@ -1,0 +1,103 @@
+{
+  "dataset": "law_articles",
+  "column_total": 15,
+  "column_used": 12,
+  "column_decisions": [
+    {
+      "column": "law_ref_id",
+      "used": true,
+      "reason": "룰의 law_refs 가 참조하는 조인 키"
+    },
+    {
+      "column": "law_name",
+      "used": true,
+      "reason": "인용 표기에 필요"
+    },
+    {
+      "column": "article",
+      "used": true,
+      "reason": "조 번호 — 인용 앵커"
+    },
+    {
+      "column": "title",
+      "used": true,
+      "reason": "조문 제목. PENDING 판정의 대조 대상이기도 하다"
+    },
+    {
+      "column": "text",
+      "used": true,
+      "reason": "조문 원문 = 계층 1 사실 본체. ⛔ 편집 금지"
+    },
+    {
+      "column": "text_hash",
+      "used": true,
+      "reason": "무결성 검증. 재계산과 대조해 편집 여부를 판정"
+    },
+    {
+      "column": "fetch_status",
+      "used": true,
+      "reason": "FETCHED/PENDING — 인용 가능 여부를 가른다"
+    },
+    {
+      "column": "effective_from",
+      "used": true,
+      "reason": "시행일. 판정 시점의 법이 맞는지 확인"
+    },
+    {
+      "column": "promulgation_no",
+      "used": true,
+      "reason": "공포번호 — 버전 식별"
+    },
+    {
+      "column": "source_url",
+      "used": true,
+      "reason": "출처 추적"
+    },
+    {
+      "column": "retrieved_at",
+      "used": true,
+      "reason": "스냅샷 시점"
+    },
+    {
+      "column": "verification_note",
+      "used": true,
+      "reason": "PENDING 사유가 여기 적힌다"
+    },
+    {
+      "column": "clause",
+      "used": false,
+      "reason": "전건 None — 항 단위로 쪼갠 조문이 아직 없다"
+    },
+    {
+      "column": "effective_to",
+      "used": false,
+      "reason": "전건 None — 폐지된 조문이 없다"
+    },
+    {
+      "column": "supersedes",
+      "used": false,
+      "reason": "전건 None — 개정 이력 체인 미구축"
+    }
+  ],
+  "source_url": "https://open.law.go.kr",
+  "collected_at": "2026-08-12",
+  "fetch_script": "data/rules/fetch_laws.py",
+  "row_count_raw": 8,
+  "col_count_raw": 15,
+  "fetched": 7,
+  "pending": 1,
+  "total_chars": 6560,
+  "hash_verified": 7,
+  "generated_columns": [
+    "글자수",
+    "수집됨",
+    "해시검증"
+  ],
+  "caveats": [
+    "⛔ 조문 텍스트를 손으로 고치면 계층 1 이 무너진다 — 정정은 재수집으로만",
+    "text_hash 는 'sha256:' + sha256(NFKC 정규화 + 공백 단일화) 다. 단순 sha256(text) 로 검증하면 전건 불일치가 나온다 — engine.text_hash 를 import 해서 쓸 것",
+    "API 의 조문내용 은 제목뿐일 수 있다. 항·호·목 평탄화 필수 (KR-STTC-24: 14자 → 3,574자)",
+    "KR-CITA-ENF-31 은 제목 불일치로 PENDING — 자동 덮어쓰기 안 하는 게 D75 설계",
+    "clause·effective_to·supersedes 는 전건 None — 스키마만 있고 채워지지 않았다"
+  ]
+}

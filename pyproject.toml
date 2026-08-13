@@ -19,6 +19,16 @@ dependencies = [
 dev = [
     "ruff>=0.8",
 ]
+# data-analysis/ 노트북 전용 (EDA·전처리). 런타임 서버는 이걸 쓰지 않는다 —
+# 백엔드/MCP 에 pandas 의존을 들이지 않으려고 별도 그룹으로 뺐다.
+#   실행: uv run --group analysis jupyter lab
+analysis = [
+    "pandas>=2.2",
+    "pyarrow>=17",      # parquet 저장
+    "openpyxl>=3.1",    # 조달청 xlsx 읽기
+    "jupyter>=1.1",
+    "nbstripout>=0.7",  # 커밋 전 출력 제거
+]
 
 [tool.ruff]
 line-length = 100

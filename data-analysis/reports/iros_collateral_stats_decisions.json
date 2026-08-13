@@ -1,0 +1,87 @@
+{
+  "dataset": "iros_collateral_stats",
+  "column_total": 7,
+  "column_used": 6,
+  "column_decisions": [
+    {
+      "column": "slug",
+      "used": true,
+      "reason": "서비스 식별자. 단위·의미가 서비스마다 달라 반드시 함께 봐야 한다"
+    },
+    {
+      "column": "서비스명",
+      "used": true,
+      "reason": "사람이 읽는 라벨"
+    },
+    {
+      "column": "tot_unit",
+      "used": true,
+      "reason": "🚨 단위 구분. 이게 없으면 21조(원)를 건수에 더하게 된다"
+    },
+    {
+      "column": "resDate",
+      "used": true,
+      "reason": "월 단위 시점. 연/월로 분해"
+    },
+    {
+      "column": "srprsCls",
+      "used": true,
+      "reason": "담보권설정자 유형 — 법인/개인사업자 분포가 유일한 변별 축"
+    },
+    {
+      "column": "tot",
+      "used": true,
+      "reason": "값. 문자열로 와서 숫자 변환 + 단위별 컬럼 분리"
+    },
+    {
+      "column": "srCls",
+      "used": false,
+      "reason": "status_by_grantor 108행 전부 빈 문자열(''). NaN 이 아니라 isna() 로 안 잡힌다 — 정보량 0"
+    }
+  ],
+  "source_url": "https://data.iros.go.kr/rp/oa/openOapiIntro.do",
+  "collected_at": "2026-08-12",
+  "fetch_script": "data/fetch_iros.py",
+  "services": {
+    "apply_by_amount": {
+      "service_id": "0000000239",
+      "label": "신청현황(채권최고액별)",
+      "record_count": 0,
+      "tot_unit": "건"
+    },
+    "apply_cases": {
+      "service_id": "0000000212",
+      "label": "신청사건 현황",
+      "record_count": 75,
+      "tot_unit": "건"
+    },
+    "debt_by_grantor": {
+      "service_id": "0000000242",
+      "label": "누적채권액 현황(설정자 유형별)",
+      "record_count": 108,
+      "tot_unit": "원"
+    },
+    "status_by_grantor": {
+      "service_id": "0000000213",
+      "label": "현황(담보권설정자 유형별)",
+      "record_count": 108,
+      "tot_unit": "건"
+    }
+  },
+  "row_count_raw": 291,
+  "row_count_processed": 291,
+  "generated_columns": [
+    "tot_건수",
+    "tot_원",
+    "연",
+    "월"
+  ],
+  "citation_guard": "동산·채권 합산 통계다. 동산 중 기계설비 비중은 공개되지 않는다 — '기계설비 담보가 연 N건' 으로 인용하면 사실 왜곡이다.",
+  "caveats": [
+    "⛔ '기계설비 담보가 연 N건' 으로 인용 금지 — 동산·채권 합산이고 기계설비 비중은 비공개",
+    "tot 의 단위가 서비스마다 다르다 (건 vs 원). 서비스 구분 없이 합산 불가",
+    "apply_by_amount(0000000239) 는 0행 — 정상 응답에 전 필드 공백 레코드를 실어 보낸다. empty_windows 가 비어 있다는 게 그 증거이고, 재시도로 해결되지 않는다",
+    "2023 은 8~12월 · 2026 은 1~7월 부분 구간이라 연 합계 비교 불가",
+    "개별 물건의 담보 설정 여부는 조회 불가 — 집계 통계뿐 (등기부 열람은 유료 + 본인확인)"
+  ]
+}

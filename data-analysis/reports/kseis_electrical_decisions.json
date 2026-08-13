@@ -1,0 +1,99 @@
+{
+  "dataset": "kseis_electrical",
+  "column_total": 12,
+  "column_used": 8,
+  "column_decisions": [
+    {
+      "column": "품명",
+      "used": true,
+      "reason": "부품 매칭의 1차 키. 줄바꿈 제거 + strip 필요"
+    },
+    {
+      "column": "규격",
+      "used": true,
+      "reason": "같은 품명 안에서 단가를 가르는 유일한 축"
+    },
+    {
+      "column": "단위",
+      "used": true,
+      "reason": "가격 비교의 전제. m/개/대 가 섞여 있어 단위 무시 비교는 무의미"
+    },
+    {
+      "column": "가격",
+      "used": true,
+      "reason": "신품 단가 기준선 본체. 부가세 별도"
+    },
+    {
+      "column": "자재구분",
+      "used": true,
+      "reason": "분야 구분. ⛔ 끝 공백 1칸이 있어 strip 필수 — 원본은 자재구분_원본 에 보존"
+    },
+    {
+      "column": "물품분류번호",
+      "used": true,
+      "reason": "조달청 품목 분류 코드. 카테고리 매핑의 후보 키"
+    },
+    {
+      "column": "물품식별번호",
+      "used": true,
+      "reason": "행 고유 식별자 — 중복 검사에 사용"
+    },
+    {
+      "column": "게시일자",
+      "used": true,
+      "reason": "단가 스냅샷 시점 (D31 단가 스냅샷 개념과 같은 성격)"
+    },
+    {
+      "column": "NO",
+      "used": false,
+      "reason": "엑셀 행번호. 파일 내 순번일 뿐 의미 없음 — 제거"
+    },
+    {
+      "column": "부가세여부",
+      "used": false,
+      "reason": "전건 '부가가치세별도' — 상수라 변별력 0"
+    },
+    {
+      "column": "인도조건",
+      "used": false,
+      "reason": "전건 '납품장소도' — 상수"
+    },
+    {
+      "column": "관할지역",
+      "used": false,
+      "reason": "'전지역(제주제외)' 편중 · MaintQ 판정에 지역 축이 없다"
+    }
+  ],
+  "source_url": "https://www.kseis.co.kr/bbs/data/dataDetail.do?bbs_seq=67467289780142",
+  "collected_at": "2026-08-07",
+  "file_generated": "2026-04-21",
+  "분야": "전기·정보통신",
+  "row_count_raw": 1519,
+  "col_count_raw": 12,
+  "row_count_processed": 1519,
+  "generated_columns": [
+    "자재구분_원본",
+    "분야"
+  ],
+  "maintq_part_keyword_hits": {
+    "냉각팬": 0,
+    "PCB": 0,
+    "제어보드": 0,
+    "전원모듈": 0,
+    "모터": 0,
+    "전동기": 0,
+    "펌프": 0,
+    "케이블": 958,
+    "인버터": 0,
+    "베어링": 0,
+    "필터": 0,
+    "히트싱크": 0
+  },
+  "caveats": [
+    "헤더가 7행째 — skiprows=6 없이 읽으면 컬럼이 전부 Unnamed",
+    "자재구분에 끝 공백 1칸이 있다 ('시설자재(...분야) ') — join 키로 쓰면 조용히 미스",
+    "품명·규격에 줄바꿈(\\n)이 들어 있다",
+    "공공조달 단가라 규격·수량이 민간과 달라 그대로 시장 신품가가 아니다",
+    "가격은 부가세 별도"
+  ]
+}

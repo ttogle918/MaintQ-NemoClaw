@@ -563,7 +563,7 @@
           </tr>
           <tr>
             <td class="mono">중진공 자산거래중개장터 매물정보</td>
-            <td class="num">16,011건<br><b>유효 5,396</b></td>
+            <td class="num">16,011건<br><b>유효 5,475</b></td>
             <td><a href="https://www.data.go.kr/data/15112833/fileData.do">data.go.kr</a><span class="sub">연 1회 갱신</span></td>
             <td>⚠️ <b>잔가율 값 원천으로는 반증됐다 (D74).</b> 연차-가격 상관이 사실상 0 — 호가는 연차가 아니라 기계 규격이 지배한다<span class="sub">지금은 "왜 실데이터를 못 쓰는가"의 <b>한계 실증</b>으로만 쓰인다 (<code class="inline">residual_curve.md §4</code>). 실사 체크리스트 그라운딩·진부화 신호로는 여전히 유효</span></td>
             <td>11</td>
@@ -613,7 +613,7 @@
           <tr><td class="mono">suppliers · supplier_parts</td><td class="num">4 · 80</td><td><code>seed.py</code><span class="sub">lead_days·unit_price·moq</span></td><td>공급사 계약 단가는 비공개</td><td>2, 3</td></tr>
           <tr><td class="mono">error_history</td><td class="num">200건</td><td><code>seed.py</code><span class="sub">AI허브 고장 유형 분포 참고(D16)</span></td><td>실 고장 이력 없음. <b>단 분포는 실데이터를 참고</b></td><td>4, 10</td></tr>
           <tr><td class="mono"><b>repair_records ★신규</b></td><td class="num">12건<br>PLANNED 5 · UNPLANNED 7</td><td><code>seed.py</code><span class="sub"><code>work_type</code> 필수 · append-only</span></td><td>실 수리 이력 없음. <b><code>work_type</code>이 예방보전 비율의 뿌리</b>라 분포를 의도적으로 갈랐다</td><td>10, 13</td></tr>
-          <tr><td class="mono"><b>residual_curve ★신규</b></td><td class="num">42행<br>7카테고리 × 6</td><td><code>seed.py</code><span class="sub">법정 내용연수 정률 공식</span></td><td>⚠ <b>실데이터로 감가를 식별할 수 없음이 실증됐다</b>(D74). 중진공 5,396건에서 연차-가격 상관이 사실상 0 — 목업이 정직한 선택</td><td>11</td></tr>
+          <tr><td class="mono"><b>residual_curve ★신규</b></td><td class="num">42행<br>7카테고리 × 6</td><td><code>seed.py</code><span class="sub">법정 내용연수 정률 공식</span></td><td>⚠ <b>실데이터로 감가를 식별할 수 없음이 실증됐다</b>(D74). 중진공 5,475건에서 연차-가격 상관이 사실상 0 — 목업이 정직한 선택</td><td>11</td></tr>
           <tr><td class="mono">po_drafts · users</td><td class="num">5 · 3</td><td><code>seed.py</code></td><td>발주·계정은 데모용</td><td>3</td></tr>
           <tr><td class="mono"><b>related_parts.seed.json ★승인</b></td><td class="num">8건<span class="sub">위임 08-05 → <b>승인 08-12</b></span></td><td>위임 판정 → 사람 승인<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이고 매핑 판단은 위임 후 사람이 확인했습니다.</b> 부품 특정 정확률의 뿌리(D12) — <b>게이트 해제, 실적 인용 가능</b>. ⛔ 그래도 배지는 <b>생성 데이터</b>입니다 — 검수 통과와 외부 원천은 다른 축</td><td>2</td></tr>
           <tr><td class="mono">data/rules/rules/*.json → <code>rules</code></td><td class="num">5종<span class="sub">BLOCKING 2 · PRECONDITION 3</span></td><td>직접 작성<span class="sub">엔진 + pytest 46</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
@@ -665,7 +665,7 @@
           </tr>
           <tr>
             <td class="mono"><b>residual_curve</b></td>
-            <td><span class="srcbar mock"></span>⚠ <b>계획 변경</b> — 실데이터 파생 <b>불가</b>로 확정<span class="sub">중진공 5,396건에서 연차-가격 상관 ≈ 0</span></td>
+            <td><span class="srcbar mock"></span>⚠ <b>계획 변경</b> — 실데이터 파생 <b>불가</b>로 확정<span class="sub">중진공 5,475건에서 연차-가격 상관 ≈ 0</span></td>
             <td>11</td>
             <td>목업 정률 공식으로 확정(D74). <b>한계를 문서로 보존</b></td>
           </tr>
@@ -755,7 +755,10 @@
       </div>
     </div>
     <div class="note warn">
-      <b><code>확인불가</code> 함정.</b> CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code> <b>문자열</b>이 채워져 있습니다. 그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도 5,911 · 연도+가격 교집합 5,396(33.7%)</b>입니다.
+      <b><code>확인불가</code> 함정.</b> CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code> <b>문자열</b>이 채워져 있습니다. 그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다.<br>
+      <b>유효 표본은 단일 숫자가 아닙니다</b> — 가격 기준에 따라 달라집니다: 연도만 <b>5,911</b> · 연도+가격&gt;0 <b>5,685</b> · <b>연도+가격≥1만 5,475(34.2%)</b>.
+      <code>D72</code>가 고정한 기준은 <b>≥1만 → 5,475</b>입니다.
+      <span class="sub">⚠ 연도 파싱에 <code>to_datetime</code>을 쓰면 <code>'2022'</code>처럼 연도만 있는 값 <b>81건</b>이 조용히 사라져 5,830이 됩니다 — 정규식으로 뽑아야 합니다. 재현: <code>data-analysis/notebooks/01_joonggomall_assets.ipynb</code></span>
     </div>
   </section>
 
@@ -766,7 +769,7 @@
       <div class="step">
         <div class="sn">완료</div>
         <h4>중진공 CSV 분석</h4>
-        <p>유효 5,396건 확인. 부수적으로 <b>D68을 낳았다</b>. 그리고 <b>잔가 파생 불가를 실증</b>(D74).</p>
+        <p>유효 5,475건 확인(D72 기준). 부수적으로 <b>D68을 낳았다</b>. 그리고 <b>잔가 파생 불가를 실증</b>(D74).</p>
       </div>
       <div class="step">
         <div class="sn">완료</div>

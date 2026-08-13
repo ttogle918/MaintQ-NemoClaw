@@ -1,0 +1,145 @@
+{
+  "dataset": "joonggomall_assets",
+  "column_total": 23,
+  "column_used": 10,
+  "column_decisions": [
+    {
+      "column": "카테고리1",
+      "used": true,
+      "reason": "assets.category 조인 키 (D68). ⛔ 원본 바이트 유지 — '환경  설비' 공백 2칸"
+    },
+    {
+      "column": "카테고리2",
+      "used": true,
+      "reason": "층화 분석용 세부 분류"
+    },
+    {
+      "column": "제조년월",
+      "used": true,
+      "reason": "경과연수의 유일한 원천. '확인불가' 문자열을 NA 로 정규화 (63.1% 가 결측). ⛔ to_datetime 금지 — '2022' 같은 연도-only 값 81건이 조용히 날아간다"
+    },
+    {
+      "column": "희망가격",
+      "used": true,
+      "reason": "가격 축. 단 호가지 실거래가가 아님 — 인용 시 고지 필수"
+    },
+    {
+      "column": "제조사",
+      "used": true,
+      "reason": "기술적 진부화 판별 (제조사 존속 여부)"
+    },
+    {
+      "column": "모델명",
+      "used": true,
+      "reason": "동일 모델 내 연차-가격 상관 검증에 사용 (D74 근거)"
+    },
+    {
+      "column": "제품상태",
+      "used": true,
+      "reason": "실사 체크리스트 그라운딩 (12 §6 물리적 상태)"
+    },
+    {
+      "column": "가동여부",
+      "used": true,
+      "reason": "실사 체크리스트 그라운딩"
+    },
+    {
+      "column": "수리가능여부",
+      "used": true,
+      "reason": "실사 체크리스트 그라운딩"
+    },
+    {
+      "column": "수량",
+      "used": true,
+      "reason": "단가 환산 시 필요"
+    },
+    {
+      "column": "제품명",
+      "used": false,
+      "reason": "자유 텍스트. 도메인 키워드 검색에만 썼고 구조화 불가"
+    },
+    {
+      "column": "키워드",
+      "used": false,
+      "reason": "판매자 입력 자유 텍스트 · 결측 많음"
+    },
+    {
+      "column": "제조국",
+      "used": false,
+      "reason": "'대한민국' 편중 — 변별력 없음"
+    },
+    {
+      "column": "물건위치1",
+      "used": false,
+      "reason": "지역은 MaintQ 판정에 들어가지 않는다"
+    },
+    {
+      "column": "물건위치2",
+      "used": false,
+      "reason": "위와 동일"
+    },
+    {
+      "column": "거래가능지역",
+      "used": false,
+      "reason": "'전체' 편중 · 판정 미사용"
+    },
+    {
+      "column": "조회수",
+      "used": false,
+      "reason": "수집 시점 의존 · 스냅샷이라 시계열 해석 불가"
+    },
+    {
+      "column": "문의갯수",
+      "used": false,
+      "reason": "위와 동일"
+    },
+    {
+      "column": "작성일",
+      "used": false,
+      "reason": "전건 2025-12-31 (파일 생성일) — 변별력 없음"
+    },
+    {
+      "column": "판매상태",
+      "used": false,
+      "reason": "'판매중' 편중"
+    },
+    {
+      "column": "상태",
+      "used": false,
+      "reason": "'정상' 편중 — 게시글 상태지 설비 상태가 아님"
+    },
+    {
+      "column": "사용여부",
+      "used": false,
+      "reason": "'Y' 편중"
+    },
+    {
+      "column": "가격협의가능",
+      "used": false,
+      "reason": "호가의 불확실성을 키울 뿐 판정에 쓸 수 없음"
+    }
+  ],
+  "source_url": "https://www.data.go.kr/data/15112833/fileData.do",
+  "collected_at": "2026-08-07",
+  "encoding": "cp949",
+  "row_count_raw": 16011,
+  "col_count_raw": 23,
+  "row_count_processed": 16011,
+  "analyzable_rows": 5475,
+  "generated_columns": [
+    "제조년월_원본",
+    "제조년",
+    "경과연수",
+    "더미가격_의심",
+    "분석가능"
+  ],
+  "caveats": [
+    "희망가격은 호가지 실거래가가 아니다 — 인용 시 추정치 고지 필수 (D65)",
+    "제조년월 결측은 NaN 이 아니라 '확인불가' 문자열이었다 (결측률 0% 함정)",
+    "제조년 추출에 to_datetime 을 쓰면 연도-only 값 81건이 날아간다 — 정규식으로 뽑았다",
+    "'분석 가능 표본' 은 가격 기준에 따라 5,475(>=1만) ~ 5,911(무관) 로 달라진다. 이 노트북은 >=1만 기준을 쓴다",
+    "잔가율 값 원천으로는 반증됐다 (D74) — 연차-가격 상관 ≈ 0",
+    "카테고리1 은 원본 바이트 유지 — '환경  설비'(공백 2칸) ≠ '환경 / 설비'"
+  ],
+  "discrepancy_note": "[해결됨 2026-08-12] data_list.md §6-1 이 '연도 5,911 · 연도+가격 5,396' 으로 서로 다른 파서의 값을 섞어 쓰고 있었다(5,911=정규식 / 5,396=to_datetime 계열, 재현값 5,394). D72 가 이미 '연도 파싱 ∧ 가격≥10,000 → 5,475' 로 필터를 고정해 둔 상태였고, 이 노트북의 독립 재측정이 D72 의 세 값(5,911/5,685/5,475)과 정확히 일치했다. → data_list.md 를 D72 기준으로 정정 완료. 아직 옛 5,396 이 남은 곳: docs/status/maintq-data-map.html · maintq-diagrams.html · docs/sessions/2026-08-07.md (D68 본문은 결정 기록이라 보존)."
+}

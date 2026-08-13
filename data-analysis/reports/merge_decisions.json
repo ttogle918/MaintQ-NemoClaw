@@ -1,0 +1,115 @@
+{
+  "joins": [
+    {
+      "name": "kseis_all",
+      "method": "concat (세로 결합)",
+      "join_key": null,
+      "reason": "같은 파일 포맷의 분야별 배포본 — 컬럼 12개 완전 동일. join 이 아니다",
+      "rows_before": {
+        "kseis_machinery": 2201,
+        "kseis_electrical": 1519
+      },
+      "rows_after": 3720,
+      "duplicates": 0
+    },
+    {
+      "name": "joonggomall_with_category",
+      "method": "map (태그 부여) — join 아님",
+      "join_key": "카테고리1_정규화 → CATEGORY_MAP",
+      "reason": "분야가 2값뿐이라 실제 join 하면 카티전 곱이 된다. 태그만 붙인다",
+      "rows_before": 16011,
+      "rows_after": 16011,
+      "mapped": 12091,
+      "unmapped": 3920
+    }
+  ],
+  "not_joined": {
+    "iros_collateral_stats": "월별 집계 통계 — 개별 물건 식별자가 없어 결합할 입도가 없다",
+    "law_articles": "법령 조문. rules.law_refs 가 참조하지만 데이터셋 간 join 이 아니다",
+    "dacon_fan_sound": "미채택 데이터셋. 공유 키 0개"
+  },
+  "generated_columns": [
+    {
+      "column": "분야",
+      "logic": "자재구분 문자열에 '기계설비' 포함 여부로 2값 태깅",
+      "source_columns": [
+        "자재구분"
+      ],
+      "dataset": "kseis_machinery / kseis_electrical"
+    },
+    {
+      "column": "단가_표기",
+      "logic": "'{가격:,}원/{단위}' 문자열 — 단위 없는 가격 비교를 막는다",
+      "source_columns": [
+        "가격",
+        "단위"
+      ],
+      "dataset": "kseis_all"
+    },
+    {
+      "column": "가격_로그",
+      "logic": "log10(max(가격,1)) — 가격 분포가 3자릿수 이상 퍼져 있어서",
+      "source_columns": [
+        "가격"
+      ],
+      "dataset": "kseis_all"
+    },
+    {
+      "column": "카테고리1_정규화",
+      "logic": "re.sub(r'[\\s/]+', '', 카테고리1) — 표기 변종 6쌍 흡수. ⛔ 원본 카테고리1 은 조인 키라 그대로 둔다(D68)",
+      "source_columns": [
+        "카테고리1"
+      ],
+      "dataset": "joonggomall_assets"
+    },
+    {
+      "column": "조달청_분야",
+      "logic": "CATEGORY_MAP 수기 매핑 (18개념 → 기계설비/전기정보통신/None). ⚠ 태그일 뿐 join 키로 쓰지 않는다",
+      "source_columns": [
+        "카테고리1_정규화"
+      ],
+      "dataset": "joonggomall_assets"
+    }
+  ],
+  "category_map": {
+    "공작기계": "기계설비",
+    "가공기계": "기계설비",
+    "공조냉각유공압": "기계설비",
+    "환경설비": "기계설비",
+    "동력전달기계": "기계설비",
+    "금형기계": "기계설비",
+    "포장기계": "기계설비",
+    "식품관련": "기계설비",
+    "물류운반하역": "기계설비",
+    "차량운반기계": "기계설비",
+    "농기계": "기계설비",
+    "고무플라스틱": "기계설비",
+    "전기전자계측": "전기정보통신",
+    "정보통신보안": "전기정보통신",
+    "자동화기기": "전기정보통신",
+    "기타": null,
+    "일반산업": null,
+    "소모성자재": null
+  },
+  "category_variants_found": 6,
+  "category_variant_rows": 309,
+  "maintq_part_match": {
+    "냉각팬": 0,
+    "제어보드": 0,
+    "전원모듈": 0,
+    "히트싱크": 0,
+    "서멀 그리스": 0,
+    "흡기 필터": 0,
+    "I/O 확장보드": 0,
+    "모터케이블": 0,
+    "펌프": 0,
+    "베어링": 0,
+    "케이블": 958,
+    "전동기": 21
+  },
+  "findings": [
+    "중진공 카테고리1 에 표기 변종이 6쌍 있다 (문서는 '환경  설비' 1쌍만 경고). 소수 변종에 309행이 묶여 있어 원본 바이트 조인 시 조용히 빠진다",
+    "조달청 자재는 '시설공통자재'(배관·케이블·트레이)이지 설비 부품 카탈로그가 아니다 — 냉각팬·PCB·제어보드·전원모듈·펌프·베어링 전부 0건",
+    "6개 데이터셋을 하나로 묶을 공통 키는 존재하지 않는다"
+  ]
+}
