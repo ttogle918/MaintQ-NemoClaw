@@ -318,9 +318,13 @@ verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다
 완전성 판정과 카탈로그 적재 게이트는 **DB 사본**에서 온다 (D60). 파일과 DB 를 섞어 판정을 조립하지 않는다.
 
 > **현재값 (Sprint 7 MQ-701 실수집 이후)** — 위 출력 예시의 `evidence_completeness:"LAW_TEXT_PENDING"` 과
-> disclaimer 의 "원문은 아직 수집되지 않았으며"는 **수집 전 상태**를 보인 것이다. 조문 7건 중 6건이
-> `FETCHED` 이고 처분 룰 5종이 인용하는 조문은 그 6건에 전부 포함되므로, **실 DB 정상값은 `COMPLETE`**
-> 이며 disclaimer 에 `_LAW_PENDING_NOTE` 접미사가 붙지 않는다. 근거: `../data/analysis/law_fetch.md`
+> disclaimer 의 "원문은 아직 수집되지 않았으며"는 **수집 전 상태**를 보인 것이다. **2026-08-13 부로
+> 조문 8건이 전부 `FETCHED`** 이므로(마지막 `PENDING` 이던 `KR-CITA-ENF-31` 사람 승인 완료),
+> **실 DB 정상값은 `COMPLETE`** 이며 disclaimer 에 `_LAW_PENDING_NOTE` 접미사가 붙지 않는다.
+> 근거: `../data/analysis/law_fetch.md`
+>
+> ⚠ **이 경로가 죽은 것은 아니다** — 새 조문을 등록했는데 아직 안 받았을 때, 개정으로
+> `pending_revisions` 가 열렸을 때 다시 발화한다. 회귀 `law_fetch_contract` 가 합성 응답으로 덮는다.
 > `LAW_TEXT_PENDING` 경로는 **새 조문 등록 직후·개정 대기·정체성 대조 실패** 때 다시 발화한다.
 
 ---
