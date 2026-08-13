@@ -528,7 +528,16 @@ PART_CLASS: dict[str, str] = {
 
 # `part_class` 사람 검수 여부. 검수가 끝나면 사람이 True 로 바꾼다 (TODO_직접할일.md).
 # 문구를 하드코딩하지 않고 이 플래그에서 유도한다 — related_parts_caveat() 와 같은 형태.
-PART_CLASS_REVIEWED = False
+#
+# 승인 이력 (related_parts.seed.json 의 `_승인_이력` 과 같은 수준으로 남긴다 —
+#            누가 무엇을 언제 판단했는지가 지워지면 승인의 의미가 사라진다):
+#   2026-08-05? · Sprint 6 Stage 2 — 초안 분류. `12 §9` 명세 열거를 따르되
+#                 **열거 밖 9종은 추측으로 분류**했다(히트싱크·키패드·센서 3종·접촉기·
+#                 SPD·커플링·제동저항·케이블)
+#   2026-08-13  · 사용자 — 40종 전량 확인 후 **초안 그대로 승인**(변경 0건).
+#                 추측 9종과 `FAN-IG5-01 = CRITICAL`(S1 주인공, 3지 판단 데모 성립 조건)에
+#                 모두 동의. 이로써 `assess_repair_value` 3지 판단을 실적으로 인용할 수 있다.
+PART_CLASS_REVIEWED = True
 
 # ── assets 9건 (D68) ──────────────────────────────────────────────────────
 # `age_years` 는 **실행 연도 기준 상대 연차**다 — acquired_at 의 연도 = today.year - age_years.
@@ -2167,8 +2176,11 @@ def main() -> None:
         if failed:
             sys.exit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
         print(f"\n전부 통과 ({len(results)}건)")
-        # 사람 검수 대기 항목은 통과 표 **뒤에** 찍는다 — PASS 로 덮이면 아무도 안 본다 (D12)
-        print(f"\n[사람 검수 대기] {part_class_caveat()}")
+        # 사람 검수 항목은 통과 표 **뒤에** 찍는다 — PASS 로 덮이면 아무도 안 본다 (D12)
+        # ⚠ 라벨도 상태에서 유도한다. 하드코딩하면 검수가 끝난 뒤 "[사람 검수 대기] ✓ 검수 완료"
+        #   처럼 자기모순 문구가 나온다 — part_class_caveat() 독스트링이 경계한 그 함정이다.
+        caveat = part_class_caveat()
+        print(f"\n[{'사람 검수' if caveat.startswith('✓') else '사람 검수 대기'}] {caveat}")
     finally:
         con.close()
 
