@@ -21,6 +21,15 @@
       "rows_after": 16011,
       "mapped": 12091,
       "unmapped": 3920
+    },
+    {
+      "name": "error_codes_with_citation",
+      "method": "left join",
+      "join_key": "(model, manual_page) ↔ (model, page)",
+      "reason": "의미까지 같은 유일한 쌍. 인용 근거가 없는 코드를 찾는 게 목적이라 left",
+      "rows_before": 65,
+      "rows_after": 65,
+      "uncovered": 0
     }
   ],
   "not_joined": {
@@ -69,6 +78,15 @@
         "카테고리1_정규화"
       ],
       "dataset": "joonggomall_assets"
+    },
+    {
+      "column": "청크수",
+      "logic": "manual_chunks 를 (model, page) 로 집계해 left join — 인용 페이지에 근거 청크가 몇 개 있는지. 0이면 근거를 못 보여준다",
+      "source_columns": [
+        "model",
+        "manual_page"
+      ],
+      "dataset": "error_codes"
     }
   ],
   "category_map": {
@@ -110,6 +128,7 @@
   "findings": [
     "중진공 카테고리1 에 표기 변종이 6쌍 있다 (문서는 '환경  설비' 1쌍만 경고). 소수 변종에 309행이 묶여 있어 원본 바이트 조인 시 조용히 빠진다",
     "조달청 자재는 '시설공통자재'(배관·케이블·트레이)이지 설비 부품 카탈로그가 아니다 — 냉각팬·PCB·제어보드·전원모듈·펌프·베어링 전부 0건",
-    "6개 데이터셋을 하나로 묶을 공통 키는 존재하지 않는다"
+    "8개 데이터셋을 하나로 묶을 공통 키는 없다. 의미까지 같은 조인은 error_codes ↔ manual_chunks 한 쌍뿐이다",
+    "✅ 에러코드 65건 전부 인용 페이지에 청크가 있다 (미커버 0건) — 진단이 근거를 못 보여주는 경우가 없다. 단 페이지 단위 커버리지이지 내용 일치 검증은 아니다"
   ]
 }

@@ -34,8 +34,11 @@ notebooks/
   01_joonggomall_assets.ipynb        중진공 중고매물 CSV       16,011 × 23
   02_kseis_machinery.ipynb           조달청 기계설비 xlsx       2,201 × 12
   03_kseis_electrical.ipynb          조달청 전기·정보통신 xlsx  1,519 × 12
+  04_iros_collateral_stats.ipynb     등기정보광장 통계 JSON       291 × 7
   05_law_articles.ipynb              법령 조문 JSON                8 × 15
   06-1_dacon_fan_sound.ipynb         DACON 팬소음 (미채택)     2,793 × 5
+  07_error_codes.ipynb               에러코드 정의 JSON           65 × 11
+  08_manual_chunks.ipynb             매뉴얼 RAG 청크 JSONL     1,035 × 7
   90_merge_and_features.ipynb        병합 · 파생 컬럼
   99_feature_mapping_report.ipynb    기능 매핑 → 보고서 생성
 data/processed/            *.parquet  (git 제외 — 재생 가능)
@@ -55,20 +58,27 @@ reports/                   *_decisions.json · merge_decisions.json · preproces
 5. `column_decisions` → `reports/{dataset}_decisions.json`
 6. `data/processed/{dataset}.parquet`
 
-## 현재 상태 — 7개 노트북 전부 실행 검증됨
+## 현재 상태 — 10개 노트북 전부 실행 검증됨 (에러 0)
 
-| 노트북 | 데이터 | 원본 | 사용 컬럼 | 생성 |
+| 노트북 | 데이터 | 원본 | 사용 컬럼 | 기능 |
 |---|---|---|---|---|
-| `01_joonggomall_assets` | 중진공 자산거래중개장터 | 16,011 × 23 | 10 / 23 | 5 |
-| `02_kseis_machinery` | 조달청 기계설비 | 2,201 × 12 | 8 / 12 | 2 |
-| `03_kseis_electrical` | 조달청 전기·정보통신 | 1,519 × 12 | 8 / 12 | 2 |
-| `04_iros_collateral_stats` | 대법원 등기정보광장 4종 | 291 × 7 | 6 / 7 | 4 |
-| `05_law_articles` | 법제처 법령 조문 | 8 × 15 | 12 / 15 | 3 |
-| `06-1_dacon_fan_sound` | DACON 236036 (미채택) | 2,793 × 5 | 4 / 5 | 3 |
-| `90_merge_and_features` | 병합 | — | — | 5 |
+| `01_joonggomall_assets` | 중진공 자산거래중개장터 | 16,011 × 23 | 10 / 23 | 11, 12 |
+| `02_kseis_machinery` | 조달청 기계설비 | 2,201 × 12 | 8 / 12 | 2, 11 |
+| `03_kseis_electrical` | 조달청 전기·정보통신 | 1,519 × 12 | 8 / 12 | 2, 11 |
+| `04_iros_collateral_stats` | 대법원 등기정보광장 4종 | 291 × 7 | 6 / 7 | 12 |
+| `05_law_articles` | 법제처 법령 조문 | 8 × 15 | 12 / 15 | 7, 8, 9 |
+| `06-1_dacon_fan_sound` | DACON 236036 (미채택) | 2,793 × 5 | 4 / 5 | — |
+| `07_error_codes` | 에러코드 정의 | 65 × 11 | 9 / 11 | 1, 2, 4 |
+| `08_manual_chunks` | 매뉴얼 RAG 청크 | 1,035 × 7 | 7 / 7 | 1, 5 |
+| `90_merge_and_features` | 병합 | — | — | — |
 | `99_feature_mapping_report` | 보고서 | — | — | — |
 
 최종 산출물: **[`reports/preprocessing_report.md`](reports/preprocessing_report.md)**
+
+비어 있는 기능 **3·6·10·13** 은 원천이 전부 `seed.py` 목업 DB 라 EDA 대상이 아니다.
+
+> ♻ **`90` 은 자기 산출물을 다시 읽지 않는다** (`OWN_OUTPUTS` 로 제외). 두 번 돌려도
+> `총 8개 · 23,923행` 으로 같다 — `assert len(sets) == 8` 로 잠가 뒀다.
 
 ## 이 노트북들이 실제로 잡아낸 것
 
@@ -84,6 +94,14 @@ reports/                   *_decisions.json · merge_decisions.json · preproces
    실제로 겹치는 건 케이블 958건과 전동기 21건뿐.
 5. **IROS `tot` 의 단위가 서비스마다 다르다** (건 vs **원**). 모르고 합산하면 21조를 건수에 더한다.
 
+### ✅ 확인된 것 (문제가 아니라 근거)
+
+- **에러코드 65건 전부 인용 페이지에 청크가 있다** — 근거를 못 보여주는 코드 **0건**.
+  기능 1의 신뢰도를 떠받치는 검사다. 단 페이지 단위 커버리지이지 내용 일치 검증은 아니다.
+- **`(model, code)` 복합키가 필수인 이유** — 12종 코드가 두 기종에 겹친다(D6·D13).
+  다만 갈리는 건 표기(12/12)·인용면(12/12)·심각도(**`HWT` 1건뿐**)이지 "다른 고장"은 아니다.
+- **법령 조문 7건 해시 전건 무결** (`engine.text_hash` 기준).
+
 ### ⚠ 검사기를 직접 짜다 틀렸던 것 (기록)
 
 `05` 초안에서 `sha256(text)` 로 법령 해시를 검증했더니 **7건 전부 "불일치"** 가 나왔다.
@@ -92,6 +110,14 @@ reports/                   *_decisions.json · merge_decisions.json · preproces
 `engine.text_hash` 를 import 해서 쓴다 → **7건 전부 무결 확인**.
 
 > 교훈: 무결성 검사는 **프로덕션과 같은 함수**로 해야 한다. 다시 구현하면 오탐이 난다.
+
+`08` 초안에서는 `section` 컬럼을 *"섹션 제목이 아니라 본문 앞부분이라 못 쓴다"* 고 판정했다가
+**뒤집었다.** 실측은 평균 **16.9자** · **90.8%가 절 번호로 시작**(`1.4 설치 위치 선정`) ·
+60자 초과 **0건** 으로, **정상적인 섹션 제목이고 필터로 쓸 수 있다.**
+`text.startswith(section)` 이 20.7% 라는 수치를 오해한 것이었는데, 그건 **각 절의 첫 청크에서
+제목이 본문 맨 앞에 오는 게 당연**해서 나오는 값이다.
+
+> 교훈: 고유값이 많다(346/1,035)는 것만으로 "오염됐다"고 판정하면 안 된다. **값 자체를 봐야 한다.**
 
 관련 문서: [`data/data_list.md`](../data/data_list.md) (왜 가져왔나) ·
 [`data/raw/INDEX.md`](../data/raw/INDEX.md) (디스크에 뭐가 있나) ·

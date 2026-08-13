@@ -115,11 +115,23 @@
 
 | 파일 | 규모 | 만든 것 | 쓰는 기능 |
 |---|---|---|---|
-| `error_codes.json` | 45.7KB · **65건** | `extract_error_codes.py` | 1 (`lookup_error_code`) |
-| `manual_chunks.jsonl` | 1.2MB · **1,035청크** | `chunk_manual.py` (평균 548자) | 1·5 (`rag_search_manual`) |
+| `error_codes.json` | 45.7KB · **65건** (iG5A 24 + S100 41) | `extract_error_codes.py` | 1·2·4 (`lookup_error_code`) — EDA: [`07`](../data-analysis/notebooks/07_error_codes.ipynb) |
+| `manual_chunks.jsonl` | 1.2MB · **1,035청크 · 56.8만자** | `chunk_manual.py` (평균 548자) | 1·5 (`rag_search_manual`) — EDA: [`08`](../data-analysis/notebooks/08_manual_chunks.ipynb) |
 | `ig5a_code_map.json` | 6.3KB | SP1 표 추출 | 1 |
 | `residual_curve.json` | 16.2KB | `build_residual_curve.py` | 7 (`assess_repair_value` 잔가율) — **목업 정률 공식**(D74), A2 실측값 아님 |
 | `../related_parts.seed.json` | 5.6KB · **8건** (`mappings`) | 수기 매핑 + 검토 | 2 (부품 특정) — ✅ **2026-08-12 사람 최종 승인** (D12 게이트 해제, 실적 인용 가능) |
+
+> ✅ **인용 무결성 실측 (2026-08-13)** — 에러코드 **65건 전부** 인용 페이지(`manual_page`)에
+> 청크가 있다. **근거를 못 보여주는 코드 0건** (인용 면당 평균 1.8청크).
+> 이 검사가 기능 1의 신뢰도를 떠받친다 — 진단은 되는데 근거를 못 대는 경우가 없다는 뜻이다.
+> ⚠ 단 **페이지 단위 커버리지**이지 내용 일치 검증은 아니다(그건 `citation_render` 스위트).
+> 근거: [`90_merge_and_features.ipynb §4-5`](../data-analysis/notebooks/90_merge_and_features.ipynb)
+
+> 🚨 **`(model, code)` 복합키가 필수인 이유가 실측으로 나왔다** — **12종 코드**(`OCT`·`OVT`·`LVT`·
+> `GFT`·`ETH`·`POT`·`IOL`·`OHT`·`OC2`·`HWT`·`NTC`·`FAN`)가 **두 기종에 모두** 있다(D6·D13).
+> 다만 *"같은 코드, 다른 고장"* 은 과장이다 — 물리적 의미는 대체로 같고 실제로 갈리는 것은
+> ① `display_code` 표기 **12/12** (`OCt` vs `oct`) ② `manual_page` **12/12** (202~204 vs 416~419)
+> ③ `severity` **`HWT` 1건뿐** (iG5A `fault` vs S100 `critical`). ③이 판정에 영향을 주는 유일한 차이다.
 
 ## 2-4. 룰 카탈로그 — `data/rules/`
 
@@ -407,7 +419,9 @@ GET https://data.iros.go.kr/openapi/cr/rs/selectCrRsRgsCsOpenApi.rest
 
 **언젠가 붙는다면 어디인가** — 백로그 **P10**(예지보전 연계). 단 현재 P10 의 입력은 `error_history`(D29)라, 음향을 넣으려면 **입력 축 신설이 선행**된다. ⛔ 지금 범위(완료 기준 5지표 · S1~S4 · 처분/취득)와는 무관하므로 `07_BACKLOG` 로 보낸다.
 
-> 💾 **디스크 점유 판단이 남아 있다** — 당장 안 쓸 14.3GB 를 작업 디스크에 둘지는 사람 결정 (`raw/INDEX.md §5`).
+> 💾 **디스크 점유 판단 완료 (2026-08-13) — 14.3GB 를 그대로 보관한다.** 당장 쓰지 않지만
+> 재다운로드 비용이 크고, 백로그 **P10**(예지보전)에서 입력 축을 신설하면 후보가 되기 때문이다.
+> ⛔ git 에는 올리지 않는다. EDA: [`06-1_dacon_fan_sound.ipynb`](../data-analysis/notebooks/06-1_dacon_fan_sound.ipynb)
 
 ## 4-2. AI Hub — D16 의 활용은 이미 끝났고, 4종은 다른 갈래다
 

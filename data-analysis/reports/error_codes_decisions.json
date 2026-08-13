@@ -1,0 +1,107 @@
+{
+  "dataset": "error_codes",
+  "column_total": 11,
+  "column_used": 9,
+  "column_decisions": [
+    {
+      "column": "model",
+      "used": true,
+      "reason": "🚨 복합키의 절반. enum 2종 강제(D6·D13) — 12종 코드가 두 기종에 겹쳐 이게 없으면 조회 불가"
+    },
+    {
+      "column": "code",
+      "used": true,
+      "reason": "복합키의 나머지 절반. 대문자 canonical (D25)"
+    },
+    {
+      "column": "display_code",
+      "used": true,
+      "reason": "키패드 원표기(D25). 사용자가 보는 건 'OCt' 지 'OCT' 가 아니다 — 12종 전부 표기가 다르다"
+    },
+    {
+      "column": "error_name",
+      "used": true,
+      "reason": "응답 표시용. ⛔ 조회 키로는 못 쓴다 — S100 IO Board Trip 이 3개 코드에 중복"
+    },
+    {
+      "column": "severity",
+      "used": true,
+      "reason": "fault/warning/critical. HWT 만 기종 간 값이 다르다"
+    },
+    {
+      "column": "causes",
+      "used": true,
+      "reason": "원인 목록. 응답 본문"
+    },
+    {
+      "column": "actions",
+      "used": true,
+      "reason": "조치 목록. 37건(56.9%)이 빈 배열 — 매뉴얼 원문이 그렇다"
+    },
+    {
+      "column": "manual_page",
+      "used": true,
+      "reason": "🚨 인용 앵커. PDF 물리 페이지(D26). 기종별로 범위가 완전히 다르다(202~204 vs 416~419)"
+    },
+    {
+      "column": "description",
+      "used": true,
+      "reason": "S100 41건에만 있다. 스키마 비대칭 — 소비처가 None 처리 필요"
+    },
+    {
+      "column": "source",
+      "used": false,
+      "reason": "추출 출처 메모. 전건 기종별 상수라 변별력 0 — 계보는 _status 가 갖는다"
+    },
+    {
+      "column": "mapping_confidence",
+      "used": false,
+      "reason": "iG5A 24건 전부 'high' 이고 S100 엔 필드 자체가 없다. 승인 완료 후라 판정에 쓰이지 않는다"
+    }
+  ],
+  "source": "LS 매뉴얼 PDF 2종 (iG5A 표준본 · S100 V4.2)",
+  "generator": "data/extract_error_codes.py",
+  "approved_at": "2026-07-28",
+  "row_count_raw": 65,
+  "col_count_raw": 11,
+  "counts_declared": {
+    "iG5A": 24,
+    "S100": 41
+  },
+  "counts_actual": {
+    "S100": 41,
+    "iG5A": 24
+  },
+  "shared_codes": [
+    "ETH",
+    "FAN",
+    "GFT",
+    "HWT",
+    "IOL",
+    "LVT",
+    "NTC",
+    "OC2",
+    "OCT",
+    "OHT",
+    "OVT",
+    "POT"
+  ],
+  "generated_columns": [
+    "causes_텍스트",
+    "actions_텍스트",
+    "causes_수",
+    "actions_수",
+    "조치있음",
+    "양기종공통",
+    "설명있음",
+    "본문길이"
+  ],
+  "caveats": [
+    "⛔ 승인 완료 산출물이다 — 값을 고치지 않는다. 정정은 extract_error_codes.py 재실행으로만",
+    "12종 코드가 두 기종에 모두 있다 — (model, code) 복합키가 아니면 조회가 결정되지 않는다(D13)",
+    "다만 '같은 코드 다른 고장'은 과장이다. 물리적 의미는 대체로 같고 실제로 갈리는 것은 ① display_code 표기(12/12) ② manual_page(12/12) ③ severity(HWT 1건뿐)",
+    "actions 가 빈 코드가 37건(56.9%) — 매뉴얼 원문이 그렇다. 없는 조치를 지어내면 안 된다",
+    "description 은 S100 41건에만 있다 (스키마 비대칭)",
+    "error_name 은 조회 키로 쓸 수 없다 — S100 IO Board Trip 이 3개 코드에 중복"
+  ]
+}

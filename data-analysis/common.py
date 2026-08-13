@@ -51,14 +51,22 @@ def profile(df: pd.DataFrame, sample: int = 3) -> pd.DataFrame:
     n = len(df)
     for col in df.columns:
         s = df[col]
-        vals = s.dropna().unique()[:sample]
+        # ⚠ list/dict 를 담은 컬럼(error_codes 의 causes·actions)은 unhashable 이라
+        #   unique()·nunique() 가 TypeError 로 터진다. 문자열로 낮춰서 센다.
+        try:
+            vals = list(s.dropna().unique()[:sample])
+            uniq = int(s.nunique(dropna=True))
+        except TypeError:
+            as_str = s.dropna().map(str)
+            vals = list(as_str.unique()[:sample])
+            uniq = int(as_str.nunique())
         rows.append(
             {
                 "컬럼": col,
                 "dtype": str(s.dtype),
                 "null수": int(s.isna().sum()),
                 "null%": round(s.isna().mean() * 100, 2) if n else 0.0,
-                "고유값": int(s.nunique(dropna=True)),
+                "고유값": uniq,
                 "예시값": " | ".join(str(v)[:28] for v in vals),
             }
         )

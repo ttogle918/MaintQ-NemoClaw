@@ -1,9 +1,9 @@
 # MaintQ 전처리 보고서
 
 > 자동 생성 — `data-analysis/notebooks/99_feature_mapping_report.ipynb`
-> 생성일 **2026-08-12**
+> 생성일 **2026-08-13**
 
-이 보고서는 **외부 원천 데이터 6종**의 EDA·전처리 결과다. 기능 정의는 `docs/00_MVP_SCOPE.md` 의 기능 1~13 표를 따른다.
+이 보고서는 **데이터셋 8종**(외부 원천 6 + 매뉴얼 파생 2)의 EDA·전처리 결과다. 기능 정의는 `docs/00_MVP_SCOPE.md` 의 기능 1~13 표를 따른다.
 
 
 ## 1. 데이터셋 요약
@@ -11,22 +11,24 @@
 | 데이터셋 | 출처 | 원본 행 | 원본 컬럼 | 사용 컬럼 | 생성 컬럼 | 사용 기능 |
 |---|---|---|---|---|---|---|
 | dacon_fan_sound | DACON 236036 팬 소음 | 2,793 | 5 | 4 | 3 | — (미채택) |
+| error_codes | LS 매뉴얼 표 추출 (iG5A·S100) | 65 | 11 | 9 | 9 | 1, 2, 4 |
 | iros_collateral_stats | 법원 등기정보광장 | 291 | 7 | 6 | 4 | 12 |
 | joonggomall_assets | 중진공 자산거래중개장터 | 16,011 | 23 | 10 | 7 | 11, 12 |
 | kseis_electrical | 조달청 시설공통자재(전기,정보통신) | 1,519 | 12 | 8 | 3 | 2, 11 |
 | kseis_machinery | 조달청 시설공통자재(기계설비) | 2,201 | 12 | 8 | 3 | 2, 11 |
 | law_articles | 국가법령정보 (법제처) | 8 | 15 | 12 | 3 | 7, 8, 9 |
+| manual_chunks | LS 매뉴얼 청킹 (PDF 3종) | 1,035 | 7 | 7 | 3 | 1, 5 |
 
 
 ## 2. 기능 → 데이터셋
 
 | 기능 | 이름 | 이 분석이 다루는 데이터셋 |
 |---|---|---|
-| 1 | 에러코드 진단 — 룩업 × RAG 이원화 | — (이 분석 범위 밖) |
-| 2 | 부품 특정 → 재고 · 견적 | kseis_machinery, kseis_electrical |
+| 1 | 에러코드 진단 — 룩업 × RAG 이원화 | error_codes, manual_chunks |
+| 2 | 부품 특정 → 재고 · 견적 | error_codes, kseis_machinery, kseis_electrical |
 | 3 | 발주서 초안 + 승인 워크플로우 | — (이 분석 범위 밖) |
-| 4 | 반복 고장 감지 | — (이 분석 범위 밖) |
-| 5 | 안전 가드레일 | — (이 분석 범위 밖) |
+| 4 | 반복 고장 감지 | error_codes |
+| 5 | 안전 가드레일 | manual_chunks |
 | 6 | 실행 trace 시각화 | — (이 분석 범위 밖) |
 | 7 | 근거 3계층 — 법령 · 해석 · 서명 | law_articles |
 | 8 | 처분 법정 조건 검사 | law_articles |
@@ -37,7 +39,7 @@
 | 13 | 수리 증빙 서명 (Sprint 8) | — (이 분석 범위 밖) |
 
 
-> 기능 1~6 이 비어 있는 것은 정상이다 — 코어 기능의 원천(`error_codes.json`·`manual_chunks.jsonl`·시드 DB)은 이미 검증을 마치고 코드가 소비 중인 산출물이라 EDA 대상이 아니다.
+> 비어 있는 기능 **3·6·10·13** 의 원천은 전부 `seed.py` 목업 DB 다 (`po_drafts`·`users`·`traces`·`error_history`·`repair_records`). **외부에서 받은 데이터가 아니라 우리가 만든 것**이라 EDA·전처리 대상이 아니다 — 규모·근거는 `docs/status/maintq-data-map.html` 의 "생성한 데이터" 절이 관리한다.
 
 
 ## 3. 병합
@@ -57,6 +59,13 @@
 - **이유**: 분야가 2값뿐이라 실제 join 하면 카티전 곱이 된다. 태그만 붙인다
 - **행 수**: 16,011 → **16,011행**
 
+### error_codes_with_citation
+
+- **방식**: left join
+- **키**: `(model, manual_page) ↔ (model, page)`
+- **이유**: 의미까지 같은 유일한 쌍. 인용 근거가 없는 코드를 찾는 게 목적이라 left
+- **행 수**: 65 → **65행**
+
 ### 합치지 않은 데이터셋
 
 - `iros_collateral_stats` — 월별 집계 통계 — 개별 물건 식별자가 없어 결합할 입도가 없다
@@ -73,6 +82,7 @@
 | kseis_all | 가격_로그 | log10(max(가격,1)) — 가격 분포가 3자릿수 이상 퍼져 있어서 | `가격` |
 | joonggomall_assets | 카테고리1_정규화 | re.sub(r'[\s/]+', '', 카테고리1) — 표기 변종 6쌍 흡수. ⛔ 원본 카테고리1 은 조인 키라 그대로 둔다(D68) | `카테고리1` |
 | joonggomall_assets | 조달청_분야 | CATEGORY_MAP 수기 매핑 (18개념 → 기계설비/전기정보통신/None). ⚠ 태그일 뿐 join 키로 쓰지 않는다 | `카테고리1_정규화` |
+| error_codes | 청크수 | manual_chunks 를 (model, page) 로 집계해 left join — 인용 페이지에 근거 청크가 몇 개 있는지. 0이면 근거를 못 보여준다 | `model`, `manual_page` |
 
 
 ## 5. 발견 사항 · 주의
@@ -81,6 +91,12 @@
 |---|---|---|
 | dacon_fan_sound | caveat | 32bit float 라 표준 wave 모듈로 못 읽는다 (unknown format: 3) |
 | dacon_fan_sound | caveat | 붙는다면 백로그 P10 — 단 현재 P10 입력이 error_history(D29)라 입력 축 신설이 선행 |
+| error_codes | caveat | ⛔ 승인 완료 산출물이다 — 값을 고치지 않는다. 정정은 extract_error_codes.py 재실행으로만 |
+| error_codes | caveat | 12종 코드가 두 기종에 모두 있다 — (model, code) 복합키가 아니면 조회가 결정되지 않는다(D13) |
+| error_codes | caveat | 다만 '같은 코드 다른 고장'은 과장이다. 물리적 의미는 대체로 같고 실제로 갈리는 것은 ① display_code 표기(12/12) ② manual_page(12/12) ③ severity(HWT 1건뿐) |
+| error_codes | caveat | actions 가 빈 코드가 37건(56.9%) — 매뉴얼 원문이 그렇다. 없는 조치를 지어내면 안 된다 |
+| error_codes | caveat | description 은 S100 41건에만 있다 (스키마 비대칭) |
+| error_codes | caveat | error_name 은 조회 키로 쓸 수 없다 — S100 IO Board Trip 이 3개 코드에 중복 |
 | iros_collateral_stats | caveat | ⛔ '기계설비 담보가 연 N건' 으로 인용 금지 — 동산·채권 합산이고 기계설비 비중은 비공개 |
 | iros_collateral_stats | caveat | tot 의 단위가 서비스마다 다르다 (건 vs 원). 서비스 구분 없이 합산 불가 |
 | iros_collateral_stats | caveat | apply_by_amount(0000000239) 는 0행 — 정상 응답에 전 필드 공백 레코드를 실어 보낸다. empty_windows 가 비어 있다는 게 그 증거이고, 재시도로 해결되지 않는다 |
@@ -108,9 +124,15 @@
 | law_articles | caveat | API 의 조문내용 은 제목뿐일 수 있다. 항·호·목 평탄화 필수 (KR-STTC-24: 14자 → 3,574자) |
 | law_articles | caveat | KR-CITA-ENF-31 은 제목 불일치로 PENDING — 자동 덮어쓰기 안 하는 게 D75 설계 |
 | law_articles | caveat | clause·effective_to·supersedes 는 전건 None — 스키마만 있고 채워지지 않았다 |
+| manual_chunks | caveat | ⛔ 텍스트·page 를 고치면 인용 추적이 무너진다(D26·D32) — 재생성은 chunk_manual.py 로만 |
+| manual_chunks | caveat | section 은 쓸 수 있는 섹션 제목이다 (평균 16.9자 · 90.8% 절 번호). 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다 |
+| manual_chunks | caveat | 빈 페이지는 표·그림만 있는 면이다. 텍스트가 없으면 청크가 없는 게 정상 |
+| manual_chunks | caveat | D1 경계: 이 데이터는 절차 서술용이다. 코드 정의 조회는 error_codes.json 의 exact match |
+| manual_chunks | caveat | ✅ 에러코드 65건 전부 인용 페이지에 청크가 있다 — 근거를 못 보여주는 코드 0건 |
 | 90_merge | finding | 중진공 카테고리1 에 표기 변종이 6쌍 있다 (문서는 '환경  설비' 1쌍만 경고). 소수 변종에 309행이 묶여 있어 원본 바이트 조인 시 조용히 빠진다 |
 | 90_merge | finding | 조달청 자재는 '시설공통자재'(배관·케이블·트레이)이지 설비 부품 카탈로그가 아니다 — 냉각팬·PCB·제어보드·전원모듈·펌프·베어링 전부 0건 |
-| 90_merge | finding | 6개 데이터셋을 하나로 묶을 공통 키는 존재하지 않는다 |
+| 90_merge | finding | 8개 데이터셋을 하나로 묶을 공통 키는 없다. 의미까지 같은 조인은 error_codes ↔ manual_chunks 한 쌍뿐이다 |
+| 90_merge | finding | ✅ 에러코드 65건 전부 인용 페이지에 청크가 있다 (미커버 0건) — 진단이 근거를 못 보여주는 경우가 없다. 단 페이지 단위 커버리지이지 내용 일치 검증은 아니다 |
 
 
 ## 6. 컬럼 결정 상세
@@ -125,6 +147,22 @@
 | FAN_TYPE | ✅ | 0/2 두 종류. 이 데이터셋에서 유일하게 변별력 있는 축 |
 | LABEL | — | 🚨 train 1,279행 전부 0 이고 test 엔 열 자체가 없다 — 학습 신호가 0 |
 | split | ✅ | train/test 구분 (이 노트북에서 만든 파생) |
+
+### error_codes — 9/11 사용
+
+| 컬럼 | 사용 | 이유 |
+|---|---|---|
+| model | ✅ | 🚨 복합키의 절반. enum 2종 강제(D6·D13) — 12종 코드가 두 기종에 겹쳐 이게 없으면 조회 불가 |
+| code | ✅ | 복합키의 나머지 절반. 대문자 canonical (D25) |
+| display_code | ✅ | 키패드 원표기(D25). 사용자가 보는 건 'OCt' 지 'OCT' 가 아니다 — 12종 전부 표기가 다르다 |
+| error_name | ✅ | 응답 표시용. ⛔ 조회 키로는 못 쓴다 — S100 IO Board Trip 이 3개 코드에 중복 |
+| severity | ✅ | fault/warning/critical. HWT 만 기종 간 값이 다르다 |
+| causes | ✅ | 원인 목록. 응답 본문 |
+| actions | ✅ | 조치 목록. 37건(56.9%)이 빈 배열 — 매뉴얼 원문이 그렇다 |
+| manual_page | ✅ | 🚨 인용 앵커. PDF 물리 페이지(D26). 기종별로 범위가 완전히 다르다(202~204 vs 416~419) |
+| description | ✅ | S100 41건에만 있다. 스키마 비대칭 — 소비처가 None 처리 필요 |
+| source | — | 추출 출처 메모. 전건 기종별 상수라 변별력 0 — 계보는 _status 가 갖는다 |
+| mapping_confidence | — | iG5A 24건 전부 'high' 이고 S100 엔 필드 자체가 없다. 승인 완료 후라 판정에 쓰이지 않는다 |
 
 ### iros_collateral_stats — 6/7 사용
 
@@ -219,3 +257,15 @@
 | clause | — | 전건 None — 항 단위로 쪼갠 조문이 아직 없다 |
 | effective_to | — | 전건 None — 폐지된 조문이 없다 |
 | supersedes | — | 전건 None — 개정 이력 체인 미구축 |
+
+### manual_chunks — 7/7 사용
+
+| 컬럼 | 사용 | 이유 |
+|---|---|---|
+| chunk_id | ✅ | 청크 고유 식별자. manual_id+page+면내순번 구조라 페이지 정합성 자가 검증에 쓴다 |
+| manual_id | ✅ | manifest.json 의 매뉴얼 키 — 버전·해시 추적의 연결점(D19) |
+| model | ✅ | 🚨 검색 스코프. enum 2종(D6·D13). 기종을 안 가르면 다른 기계의 절차가 나온다 |
+| page | ✅ | 🚨 인용 앵커. PDF 물리 페이지 무가공(D26). 표시 변환만 오프셋(D32) |
+| text | ✅ | 검색 본문. RAG 가 실제로 읽는 것 |
+| char_len | ✅ | 청킹 품질 지표. len(text) 와 일치 검증에 사용 |
+| section | ✅ | 정상적인 섹션 제목이다 — 평균 16.9자 · 90.8%가 절 번호로 시작 · 60자 초과 0건. 검색 범위를 절 단위로 좁히는 필터로 쓸 수 있다. ⚠ 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다 |

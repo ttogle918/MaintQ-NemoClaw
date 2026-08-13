@@ -1,0 +1,70 @@
+{
+  "dataset": "manual_chunks",
+  "column_total": 7,
+  "column_used": 7,
+  "column_decisions": [
+    {
+      "column": "chunk_id",
+      "used": true,
+      "reason": "청크 고유 식별자. manual_id+page+면내순번 구조라 페이지 정합성 자가 검증에 쓴다"
+    },
+    {
+      "column": "manual_id",
+      "used": true,
+      "reason": "manifest.json 의 매뉴얼 키 — 버전·해시 추적의 연결점(D19)"
+    },
+    {
+      "column": "model",
+      "used": true,
+      "reason": "🚨 검색 스코프. enum 2종(D6·D13). 기종을 안 가르면 다른 기계의 절차가 나온다"
+    },
+    {
+      "column": "page",
+      "used": true,
+      "reason": "🚨 인용 앵커. PDF 물리 페이지 무가공(D26). 표시 변환만 오프셋(D32)"
+    },
+    {
+      "column": "text",
+      "used": true,
+      "reason": "검색 본문. RAG 가 실제로 읽는 것"
+    },
+    {
+      "column": "char_len",
+      "used": true,
+      "reason": "청킹 품질 지표. len(text) 와 일치 검증에 사용"
+    },
+    {
+      "column": "section",
+      "used": true,
+      "reason": "정상적인 섹션 제목이다 — 평균 16.9자 · 90.8%가 절 번호로 시작 · 60자 초과 0건. 검색 범위를 절 단위로 좁히는 필터로 쓸 수 있다. ⚠ 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다"
+    }
+  ],
+  "source": "LS 매뉴얼 PDF 3종",
+  "generator": "data/chunk_manual.py",
+  "row_count_raw": 1035,
+  "col_count_raw": 7,
+  "total_chars": 567541,
+  "avg_chars": 548.3,
+  "by_manual": {
+    "s100-manual": 649,
+    "ig5a-manual": 342,
+    "ig5a-troubleshooting": 44
+  },
+  "error_code_page_coverage": {
+    "total": 65,
+    "covered": 65,
+    "missing": 0
+  },
+  "generated_columns": [
+    "면내순번",
+    "char_len_실측",
+    "에러코드인용면"
+  ],
+  "caveats": [
+    "⛔ 텍스트·page 를 고치면 인용 추적이 무너진다(D26·D32) — 재생성은 chunk_manual.py 로만",
+    "section 은 쓸 수 있는 섹션 제목이다 (평균 16.9자 · 90.8% 절 번호). 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다",
+    "빈 페이지는 표·그림만 있는 면이다. 텍스트가 없으면 청크가 없는 게 정상",
+    "D1 경계: 이 데이터는 절차 서술용이다. 코드 정의 조회는 error_codes.json 의 exact match",
+    "✅ 에러코드 65건 전부 인용 페이지에 청크가 있다 — 근거를 못 보여주는 코드 0건"
+  ]
+}
