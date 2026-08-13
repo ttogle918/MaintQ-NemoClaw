@@ -588,6 +588,10 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     **㉓-ⓑ 가 FAIL** 하는 것을 눈으로 본 뒤 되돌린다. FAIL 하지 않으면 그 검사는 아무것도 지키지 않는다.
     **되돌린 뒤 `git diff --stat data/seed.py` 로 SCHEMA 블록 변경이 0줄임을 확인한다** —
     임시 편집이 남으면 MQ-803 의 산출물이 조용히 뒤집힌다.
+    ⚠ **하드 게이트다 (Stage 2 reviewer 권고 1).** MQ-803 이 넣은 `IS` 를 지키는 검사는
+    **MQ-805 가 아니라 이 ㉓-ⓑ 가 유일한 행동 방어선**이다(MQ-805 ③ 은 "왜 실패했는지"를
+    말해 주는 DDL 파싱 보완이지 대체가 아니다). **FAIL 을 눈으로 본 증거(실제 출력)를
+    보고에 그대로 남길 것** — 통과했다는 말만으로는 이 게이트가 작동한 근거가 되지 않는다.
   - `uv run ruff check data`.
   - 회귀 무증감: `trace_persist 17` · `sp3_sse_events 22` · `api_contract 28` ·
     `uv run --with pytest python -m pytest data/rules/test_rules.py -q` → **46건**.
@@ -795,6 +799,12 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
   - `rg -n "create_repair_record" docs/` 결과에 *"Sprint 8"* 이 남아 있지 않다.
   - `rg -n "policy_id 를 읽으므로|판정 로직.*policy_id" docs/A2A_IDENTITY.md` → **0건**(거짓 문장 제거 확인).
   - `rg -n "설계 확정·미구현" docs/10_DECISIONS.md` → **D91~D94 행에 0건**(부분 구현 문구로 대체).
+  - ⚠ **조건부 이월 (Stage 2 reviewer 권고 2)** — `data/seed.py` 의 `request_chain_id` DDL 주석이
+    *"`spikes/a2a_identity_contract.py` 가 그 사실을 명시적 라벨로 기록한다"* 고 **현재형**으로 쓴다.
+    **MQ-805 가 누락되거나 파일명이 바뀌면 이 주석을 반드시 정정**하라(미래형으로 바꾸거나 파일명 갱신).
+    없는 파일을 계속 가리키면 **D76-2 재발을 막으려고 쓴 문장이 그 자체로 거짓**이 되어,
+    이번 스프린트가 정정하기로 한 `A2A_IDENTITY §8.2-1` 거짓 문장과 **같은 유형의 부채**가 된다.
+    MQ-805 가 정상 완료됐으면 이 항목은 해당 없음으로 넘긴다.
   - `ls spikes/*.py` 개수(28)와 CLAUDE.md·06_REPO_API 목록이 일치.
   - `/done` 의 D 범위 표기 정합성 점검을 통과한다.
 
@@ -884,3 +894,39 @@ spikes **27스위트 / 616건** · seed **21건**(`error_codes` 65) · pytest **
 
 ### 다음
 `/stage 2` — MQ-803 (`data/seed.py` DDL: `partner_links` + `traces.request_chain_id`)
+
+---
+
+## Stage 2 완료 (2026-08-13)
+
+**커밋**: `cb58333` — `[A2A] Sprint 8 Stage 2 — partner_links DDL + traces.request_chain_id`
+
+### MQ-803 — `data/seed.py` DDL
+- `SCHEMA` 문자열만 **+28 / -0**. 삭제 0줄이므로 MQ-804 소유 구역(마스터 상수·시드 함수·
+  `verify()`·`main()`) 무접촉이 **diff 자체로 증명**된다.
+- `PRAGMA table_info(traces)` — `request_chain_id` cid=**7**, notnull=0, `tool_payload`(6)와
+  `ts`(8) 사이. HEAD 의 SCHEMA 를 인메모리 복원해 대조한 결과 **기존 8컬럼 이름·순서 완전 동일**.
+- `PRAGMA table_info(partner_links)` — 6컬럼, `subject_ref.notnull=1`, PK 3열 복합.
+- CHECK 실증 INSERT **7케이스**(명세는 4케이스 요구, 구현이 양성 대조·PK 중복까지 늘림) —
+  전부 기대대로. 확인 후 재시드로 원상복구(`partner_links` 0행 · `traces` 0행 · `error_codes` 65).
+
+### 회귀
+spikes **27스위트 / 616건** · seed **21** · pytest **46** · ruff 통과. 기준선 대비 **증감 0**,
+**재시도 0건**(소켓 고갈 미발생). `trace_persist 17` · `sp3_sse_events 22` · `api_contract 28`
+**무수정 통과** — D94 의 채택 근거가 실측으로 성립했다. 근본 원인까지 확인됨:
+`traces` 접근이 전부 명시적 컬럼 목록이고 `SELECT *` 가 레포 전체 0건이라 중간 위치
+컬럼 삽입이 **구조적으로 무해**하다.
+
+### reviewer
+**PASS** — 블로커 0 · 필수 수정 0 · 권고 2. 권고 2건 모두 계획에 반영:
+- 권고 1 → MQ-804 ㉓-ⓑ 뮤턴트 확인을 **하드 게이트**로 명시(FAIL 실제 출력을 보고에 남길 것).
+  `IS` 를 지키는 **행동 방어선은 MQ-805 가 아니라 ㉓-ⓑ 가 유일**하다는 판단에 따른 것.
+- 권고 2 → MQ-807 DoD 에 **조건부 이월** 1건(주석이 가리키는 스파이크가 안 생기면 주석 정정).
+
+### ⚠ 남은 공백 (Stage 3·4 가 메운다)
+회귀 616건은 이번 변경이 **"깨지지 않았다"만 증명하고 "새 계약이 맞다"는 증명하지 않는다**
+(eval-runner 관찰). `partner_links` 의 두 CHECK 와 `request_chain_id` 의 nullable 성질을
+검증하는 스파이크가 **아직 0건**이다 — MQ-804(행동)·MQ-805(정적)가 채운다.
+
+### 다음
+`/stage 3` — MQ-804 (시드 5행 + 자가검증 4건 21→25 + 목업 고지)
