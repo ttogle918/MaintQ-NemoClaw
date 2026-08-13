@@ -581,6 +581,9 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     `SELECT count(*) FROM error_codes` = **65**.
   - 통과 표 **뒤에** 목업 고지 1줄이 출력된다.
   - ㉓ 의 detail 에 **음성 3·양성 2 가 개별 문자열로** 보인다(뭉뚱그린 True/False 금지).
+  - ⚠ **검사 번호 ㉒·㉔ 가 `D96`·`D95` 본문이 인용한 번호와 일치**하는지 대조한다
+    (Stage 1 reviewer 권고). 번호가 밀리면 **이미 커밋된 D 본문이 조용히 거짓이 된다** —
+    번호를 바꿔야 하면 `docs/10_DECISIONS.md` 도 같은 커밋에서 고친다.
   - **뮤턴트 확인 (제출 전 필수)**: `SCHEMA` 의 두 번째 CHECK 를 `IS` → `=` 로 임시 변경 →
     **㉓-ⓑ 가 FAIL** 하는 것을 눈으로 본 뒤 되돌린다. FAIL 하지 않으면 그 검사는 아무것도 지키지 않는다.
     **되돌린 뒤 `git diff --stat data/seed.py` 로 SCHEMA 블록 변경이 0줄임을 확인한다** —
@@ -657,6 +660,12 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 - **지켜야 할 결정**: D91·D92·D93·D94·D95·D96 · D30 · D62 · D15 · D76-2(재발 방지).
 - **DoD**:
   - `uv run python spikes/a2a_identity_contract.py` → **19건 통과**(실제 건수는 러너 출력 기준).
+  - ⚠ **검사 번호 ②·③ 이 `D96` 본문이 인용한 번호와 일치**하는지 대조한다 (Stage 1 reviewer 권고).
+    어긋나면 `docs/10_DECISIONS.md` 를 같은 커밋에서 고친다.
+  - ⑰ 에 **`dataclasses.asdict(cred)` 경로**를 1건 추가한다 (Stage 1 reviewer 권고) —
+    `repr`/`str` 은 막혀 있으나 `asdict`·`astuple` 은 `client_secret` 원문을 그대로 낸다.
+    지금은 소비자가 없어 무해하지만, 호출부가 생기는 스프린트의 `JSONResponse(asdict(cred))`
+    같은 사고를 앞단에서 막는다.
   - 뮤턴트 5종이 **각각 다른 검사**를 FAIL 시킨다(직접 확인 후 원복):
     ⓐ CHECK `IS`→`=` → ③⑤ / ⓑ `subject_ref` `NOT NULL` 제거 → ⑨ /
     ⓒ `.env.example` 4키 제거 → ⑭ / ⓓ `mcp_server/db.py` 에 `partner_links` 참조 1줄 → ⑮ /
@@ -841,3 +850,37 @@ uv run ruff check data backend mcp_server spikes
 | **D97 신설** | 결함 ①②는 **원인이 하나** — D96 한 건으로 등재한다 |
 | `create_repair_record`(P25·S19) | **Sprint 9 이월** — 사용자 확정 |
 | `docs/07_BACKLOG.md` 항목 승격 | 금지. P25 는 표기 정정만 |
+
+---
+
+## Stage 1 완료 (2026-08-13)
+
+**커밋**: `2f2b7f6` — `[A2A] Sprint 8 Stage 1 — D95·D96 등재 + 파트너 자격증명 읽기 층`
+**브랜치**: `sprint-8-a2a-identity`
+
+### MQ-801 — 결정 2건 등재 + D91 각주
+- `docs/10_DECISIONS.md` — D95(101행) · D96(102행) 추가, D91(97행)에 supersede 각주(취소선 없음)
+- DoD 전부 충족: `^| D9[56] ` **2행** · `D96` **2건**(각주+본문) · `D97` **0건** ·
+  인용 5곳 실재 · 금지 문장 **0건**
+- D 범위 표기 5곳·D91~D94 마커는 **미접촉**(MQ-807 소유)
+
+### MQ-802 — 파트너 자격증명 읽기 층
+- `backend/a2a/__init__.py`(신규) · `backend/a2a/credentials.py`(신규) · `.env.example`(44~47행)
+- import 3개(`os`·`dataclasses`·`typing`) — DB·네트워크 접근이 **구조적으로 불가능**
+- 엣지 케이스 표 8항목 전부 실측 확인. 누출면 9종(`repr`·`str`·f-string·`format`·`%s`·
+  list/dict repr·`status_report`·예외) **전부 leak=False**
+- `raise` **0건** → 예외 메시지 누출 경로 없음
+
+### 회귀
+spikes **27스위트 / 616건** · seed **21건**(`error_codes` 65) · pytest **46** · ruff 통과.
+기준선 대비 **증감 0**. 소켓 고갈 미발생 — **단독 재실행한 스위트 없음**.
+⚠ `eval/run_eval.py`·S1~S4 스모크는 **돌리지 않았다** — 기존 코드 경로 변경이 0이고
+신규 모듈을 import 하는 곳이 없어 지표가 움직일 근거가 없다.
+
+### reviewer
+**PASS** — 블로커 0 · 필수 수정 0. D95 인용 5곳을 실물 대조로 검증.
+권고 3건 중 2건을 **MQ-804·MQ-805 DoD 에 반영**했다(검사 번호 정합 대조 · `asdict` 누출 경로).
+나머지 1건(경로 명시 스테이징)은 이번 커밋에서 이미 적용.
+
+### 다음
+`/stage 2` — MQ-803 (`data/seed.py` DDL: `partner_links` + `traces.request_chain_id`)
