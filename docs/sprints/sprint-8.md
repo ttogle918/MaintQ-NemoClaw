@@ -699,7 +699,12 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     ⓐ CHECK `IS`→`=` → ③⑤ / ⓑ `subject_ref` `NOT NULL` 제거 → **①·⑨**(① 에 `subject_ref.notnull` 이
     들어 있어 필연적으로 겹친다 — 1:1 을 강제하면 방어선을 하나 지우는 셈이라 **중복이 정답**이다) /
     ⓒ `.env.example` 4키 제거 → ⑭ / ⓓ `mcp_server/db.py` 에 `partner_links` 참조 1줄 → ⑮ /
-    ⓔ **`backend/agent/trace.py` 의 INSERT 컬럼 목록에 `request_chain_id` 추가 → ⑪-b**.
+    ⓔ **`backend/agent/trace.py` 의 INSERT 에 `request_chain_id` 추가 → ⑪-b**.
+    ⚠ **ⓔ 는 반드시 "동작하는" 뮤턴트여야 한다** (2026-08-13 실측) — 컬럼만 넣고 placeholder 를
+    안 맞추면(`8컬럼/7값`) `TraceWriter` 쓰기가 실패해 `traces` 가 0행이 되고, ⑬ 이 먼저 죽어
+    **표가 인쇄되기 전에 프로세스가 끝난다.** 그러면 ⑪-b 가 평가조차 되지 않는다.
+    컬럼과 값을 함께 맞출 것: `VALUES (?,?,?,?,?,?,NULL,?)`.
+    (그 크래시 자체는 스파이크 결함이기도 해서 ⑬ 을 `None` 안전하게 고쳤다.)
   - **오탐 확인**: MQ-803 의 DDL 주석과 `trace.py` docstring 이 `request_chain_id` 를 언급해도
     ⑪-b 가 **통과**한다(주석·docstring 제외가 실제로 동작).
   - `ls spikes/*.py` = **28개**.

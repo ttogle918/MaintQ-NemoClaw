@@ -385,9 +385,16 @@ def run_trace(db: Path) -> None:
     rc_rows = con.execute(
         "SELECT event_type, request_chain_id FROM traces WHERE session_id='S-A2A' ORDER BY seq"
     ).fetchall()
-    payload_row = con.execute(
+    # ⛔ `.fetchone()[0]` 로 바로 벗기지 않는다 (2026-08-13 실측).
+    #    `TraceWriter` 가 쓰기에 실패하면 행이 **0개**가 되고, 그때 `[0]` 이 `TypeError` 를 던져
+    #    **표가 인쇄되기 전에 프로세스가 죽는다** — 앞선 12건의 결과가 통째로 사라지고,
+    #    진짜 원인(⑪-b 가 잡았어야 할 회귀)이 무관한 `TypeError` 로 둔갑한다.
+    #    러너가 CLAUDE.md 의 "Windows 산발 실패"로 오진해 재시도만 반복하게 되는 경로다.
+    #    없으면 `None` 을 그대로 넘겨 ⑬ 이 **FAIL 로 보고**하게 둔다.
+    _row = con.execute(
         "SELECT payload FROM traces WHERE session_id='S-A2A' AND seq=1"
-    ).fetchone()[0]
+    ).fetchone()
+    payload_row = _row[0] if _row else None
     con.close()
     check(
         "⑪-a TraceWriter 3종 발행 후 전 행 request_chain_id IS NULL (무관한 세션에 값이 새지 않는다)",
@@ -549,7 +556,14 @@ def main() -> None:
     print("A2A 신원 식별 기반층 계약 검증 — D91~D96 (임시 DB 전용)\n")
     before = REAL_DB.stat().st_mtime_ns if REAL_DB.exists() else None
 
-    with tempfile.TemporaryDirectory() as td:
+    # ⛔ `ignore_cleanup_errors=True` 는 편의가 아니라 **보고 신뢰성**이다 (2026-08-13 실측).
+    #    검사가 실패하는 방식에 따라 임시 DB 커넥션이 열린 채 남고, 그러면 Windows 에서
+    #    `TemporaryDirectory.__exit__` 이 `PermissionError [WinError 32]` 를 던진다.
+    #    표는 이 블록 **뒤에** 인쇄되므로, 그 예외가 **결과 표를 통째로 삼킨다** —
+    #    진짜 회귀(⑪-b FAIL)가 "다른 프로세스가 파일을 사용 중" 이라는 무관한 메시지로 둔갑하고,
+    #    CLAUDE.md 가 경고한 Windows 산발 실패로 오진돼 **재시도만 반복하게 된다.**
+    #    임시 디렉터리 하나가 시스템 temp 에 남는 비용 < 실패 원인을 잃는 비용.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         db = make_db(Path(td))
         # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
         os.environ["MAINTQ_DB"] = str(db)
