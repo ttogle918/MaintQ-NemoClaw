@@ -460,7 +460,9 @@ CREATE TABLE partner_links (
   -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
   --    여기에 복제하지 않는다 (D95).
   external_ref TEXT,
-  linked_at    DATE,            -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL
+  -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
+  -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ). **저장은 UTC** (D39, `traces.ts` 와 같은 규약)
+  linked_at    DATETIME,
   PRIMARY KEY (partner, subject_type, subject_ref),
   -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
   CHECK (link_state IN ('NOT_LINKED','LINKED')),
@@ -529,8 +531,12 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 ```
 
 - **핵심 로직**:
-  1. `linked_at = today - timedelta(days=linked_days_ago)` — **실행일 기준 상대일**.
-     고정 날짜를 박으면 해가 바뀔 때 조용히 밀린다(시드 전체 규약, `acquired_at`·반복 고장과 동일).
+  1. `linked_at` 은 **실행일 기준 상대 시각**이다 (D96-ⓓ 로 `DATE`→`DATETIME` 변경됨).
+     고정 값을 박으면 해가 바뀔 때 조용히 밀린다(시드 전체 규약, `acquired_at`·반복 고장과 동일).
+     ⚠ **저장은 UTC** (D39). `datetime.utcnow()` 기준으로 `timedelta(days=linked_days_ago)` 를 빼고
+     `'YYYY-MM-DD HH:MM:SS'` 로 적는다 — `traces.ts`(`CURRENT_TIMESTAMP`, UTC)와 같은 모양이다.
+     ⛔ **로컬 시각을 쓰지 마라.** 시드는 실행일 기준 상대값인데 검증(㉒-ⓓ)이 다른 시계를 보면
+     자정 근처에서 위양성 FAIL 이 난다 — CLAUDE.md 가 경고한 `--today` 함정과 같은 계열이다.
   2. `main()` 에서 `seed_assets(...)` **직후** 호출한다. FK 는 없지만 `building_id` 를 참조하므로
      자산이 먼저 들어간 뒤가 읽기 쉽다.
   3. **회사 결 `subject_ref = ''`** (D96). `None` 을 쓰면 `NOT NULL` 위반으로 즉시 죽는다 — 그게 맞다.
@@ -561,7 +567,7 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 
   | # | 검사 | 판정 내용 |
   |---|---|---|
-  | **㉒** | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · 목업 고지 (D92) | ⓐ `LINKED` ≥ 1 **그리고** `NOT_LINKED` ≥ 1 ⓑ `partner` ⊆ {`finallq`,`insuq`} · `subject_type` ⊆ {`company`,`building`,`asset`} ⓒ **insuq 행의 `subject_ref` 집합 == `SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL`** — detail 에 **`building_id` NULL 자산 건수를 별도 표기**(현재 0건이지만 생기면 대장에서 조용히 빠진다) ⓓ `linked_at` 은 `LINKED` 행만 non-null 이고 오늘 이전 ⓔ company 행의 `subject_ref == ''` (D96) ⓕ **`PARTNER_LINKS_MOCK` 이 True 인 동안 `partner_links_caveat()` 가 '목업'을 포함한 비어 있지 않은 문구를 돌려준다** (검사 ⑯ 의 `source LIKE '%목업%'` 선례) |
+  | **㉒** | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · 목업 고지 (D92) | ⓐ `LINKED` ≥ 1 **그리고** `NOT_LINKED` ≥ 1 ⓑ `partner` ⊆ {`finallq`,`insuq`} · `subject_type` ⊆ {`company`,`building`,`asset`} ⓒ **insuq 행의 `subject_ref` 집합 == `SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL`** — detail 에 **`building_id` NULL 자산 건수를 별도 표기**(현재 0건이지만 생기면 대장에서 조용히 빠진다) ⓓ `linked_at` 은 `LINKED` 행만 non-null 이고 **현재 UTC 시각 이전**(D96-ⓓ·D39 — 비교도 반드시 UTC 로. 로컬 시계와 섞으면 자정 근처 위양성) · 값이 `'YYYY-MM-DD HH:MM:SS'` 로 **시·분·초를 포함**한다 ⓔ company 행의 `subject_ref == ''` (D96) ⓕ **`PARTNER_LINKS_MOCK` 이 True 인 동안 `partner_links_caveat()` 가 '목업'을 포함한 비어 있지 않은 문구를 돌려준다** (검사 ⑯ 의 `source LIKE '%목업%'` 선례) |
   | **㉓** | `partner_links` **CHECK 음성 3 + 양성 2** (D91·D96·D62) | `SAVEPOINT` 로 실제 INSERT 시도 후 되돌린다(⑩·⑰·⑳ 패턴). **음성** ⓐ `('NOT_LINKED','X')` 거부 ⓑ **`(NULL,'X')` 거부 ← `IS` 가 아니면 통과한다** ⓒ `link_state='linked'` 거부 / **양성** ⓓ `(NULL, NULL)` **통과**(=모름을 적을 수 있다) ⓔ `('LINKED','CMP-X')` 통과. ⚠ 양성이 없으면 "전부 거부하는 CHECK" 도 통과해 검사가 방어선이 아니게 된다 |
   | **㉔** | **`partner_links` 가 증권 식별자를 복제하지 않는다** (D95) — **음성 검사** | ⓐ `partner='insuq'` 행의 `external_ref` 가 **전부 NULL**(`link_state` 무관 — 증권은 `assets.policy_id` 가 정본) ⓑ `SELECT count(*) FROM partner_links WHERE external_ref IN (SELECT policy_id FROM assets WHERE policy_id IS NOT NULL)` = **0** (값 수준 복제 0건) ⓒ finallq 행의 `external_ref` 는 non-null 이고 `'CMP-'` 로 시작 ⓓ detail 에 `assets` 의 distinct `policy_id` 와 건수를 출력해 **"정본은 여기"** 를 보이게 한다. ⛔ **`link_state` 와 `insured` 를 엮는 조건을 넣지 않는다** — 별개 축이다(§A) |
   | **㉕** | `traces.request_chain_id` 컬럼 존재 · nullable (D94-ⓐ) | `PRAGMA table_info(traces)` (검사 ⑲ 의 방식). detail 에 **"쓰는 쪽 없음 — A2A 호출부 미착수, 계측 회귀는 `spikes/a2a_identity_contract.py` 가 본다"** 를 반드시 적는다 |
@@ -798,6 +804,11 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     → 갱신 누락 0건(과거 기록 줄 제외).
   - `rg -n "create_repair_record" docs/` 결과에 *"Sprint 8"* 이 남아 있지 않다.
   - `rg -n "policy_id 를 읽으므로|판정 로직.*policy_id" docs/A2A_IDENTITY.md` → **0건**(거짓 문장 제거 확인).
+  - ⚠ **`A2A_IDENTITY.md §4.3` 의 DDL 스케치를 실제 `data/seed.py` 와 동기화**한다. 현재 **3곳이 어긋나 있다**
+    (Stage 2 시점 실측): ⓐ `subject_ref TEXT` → **`NOT NULL`** 이고 회사 결은 `''`(주석의 *"company 는
+    NULL"* 은 **거짓**) ⓑ `CHECK (link_state = 'LINKED' ...)` → **`IS`** ⓒ `linked_at DATE` → **`DATETIME`**.
+    셋 다 **D96 이 supersede 한 것**이므로 스케치를 고치거나, 그 블록에 *"D96 이전 초안"* 표기를 단다.
+    ⛔ 고치지 않으면 §4.3 이 **`§8.2-1` 거짓 문장과 같은 유형의 부채**가 된다.
   - `rg -n "설계 확정·미구현" docs/10_DECISIONS.md` → **D91~D94 행에 0건**(부분 구현 문구로 대체).
   - ⚠ **조건부 이월 (Stage 2 reviewer 권고 2)** — `data/seed.py` 의 `request_chain_id` DDL 주석이
     *"`spikes/a2a_identity_contract.py` 가 그 사실을 명시적 라벨로 기록한다"* 고 **현재형**으로 쓴다.

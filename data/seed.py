@@ -376,7 +376,10 @@ CREATE TABLE partner_links (
   -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
   --    여기에 복제하지 않는다 (D95).
   external_ref TEXT,
-  linked_at    DATE,            -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL
+  -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
+  -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ) — 자격증명 발급이 이 시점에 붙으므로 감사에는
+  --    "며칠"이 아니라 "몇 시 몇 분"이 필요하다. **저장은 UTC** (D39, `traces.ts` 와 같은 규약).
+  linked_at    DATETIME,
   PRIMARY KEY (partner, subject_type, subject_ref),
   -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
   CHECK (link_state IN ('NOT_LINKED','LINKED')),
