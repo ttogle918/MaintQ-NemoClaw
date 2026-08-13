@@ -2,8 +2,8 @@
 """목업 DB 시드 (M1) — docs/05_DB_SCHEMA.md의 스키마와 시드 케이스 맵 7종을 구현한다.
 
 출력 : data/maintq.db (기존 파일은 .bak 으로 백업 후 재생성)
-검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪)을 SQL로 자가 검증하고
-       통과/실패 표를 출력
+검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪) + Sprint 6~7 확장(⑫~㉑)
+       + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕)를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
   - `PRAGMA foreign_keys=ON` 필수 (기본 OFF, 안 켜면 D33의 FK 보증이 조용히 사라짐)
@@ -1069,6 +1069,26 @@ PART_BY_ACTION = {
     "부품 교체": ["FAN-IG5-01", "FUSE-30A", "CAP-DC-450", "BRG-6205", "BLT-V-A50"],
 }
 
+# ── partner_links 시드 (D92·D95) ─────────────────────────────────────────
+# ⚠ 시드 전제(목업)다 — 실제 연결 승인·발급값이 아니다. PARTNER_LINKS_MOCK 참조.
+# ★ InsuQ building 행의 external_ref 는 **전부 NULL** — 증권 식별자의 정본은 assets.policy_id 다 (D95).
+#   건물 3행에 `POL-2026-FIRE-01` 을 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
+#   결(grain)만 바꿔 재발시키는 것이 된다. 확정안에서 복제는 **0건**이고 검사 ㉔ 가 그걸 본다.
+# ★ BLD-D 가 대조군인 이유: 자산 3건이 **전부 부보(insured=1)** 돼 있는데도 미연결이다 —
+#   "부보돼 있어도 A2A 연결 승인이 없으면 못 쏜다"가 한눈에 보인다. BLD-C 를 쓰면
+#   미부보(AST-L3-LIFT)와 미연결이 한 건물에 겹쳐 **별개인 두 축이 섞인다**(D78·§A).
+# (partner, subject_type, subject_ref, link_state, external_ref, linked_days_ago)
+PARTNER_LINKS: list[tuple[str, str, str, str | None, str | None, int | None]] = [
+    ("finallq", "company", "", "LINKED", "CMP-MAINTQ-001", 30),
+    ("insuq", "building", "BLD-A", "LINKED", None, 30),
+    ("insuq", "building", "BLD-B", "LINKED", None, 30),
+    ("insuq", "building", "BLD-C", "LINKED", None, 30),
+    ("insuq", "building", "BLD-D", "NOT_LINKED", None, None),  # ★ 대조군
+]
+
+# 실제 연결 승인·자격증명 발급 여부. 사람이 실값을 받으면 False 로 바꾼다 (TODO_직접할일.md).
+PARTNER_LINKS_MOCK: bool = True
+
 
 # ────────────────────────────────────────────────────────────── 적재
 
@@ -1219,6 +1239,44 @@ def seed_assets(con: sqlite3.Connection, today: date) -> dict[str, str]:
         rows,
     )
     return acquired
+
+
+def seed_partner_links(con: sqlite3.Connection, now_utc: datetime) -> int:
+    """partner_links 5행 (D92 A안). `seed_assets` **직후** 호출한다.
+
+    FK 는 없지만 `subject_ref` 가 `assets.building_id` 를 참조하는 결(grain)이라
+    자산이 먼저 들어간 뒤가 읽기 쉽다. 검사 ㉒-ⓒ 가 그 대응을 동적으로 대조한다.
+
+    ⚠ 시그니처가 `today: date` 가 아니라 `now_utc: datetime` 인 이유 (D96-ⓓ):
+      `linked_at` 은 날짜가 아니라 **시각**이다. 그리고 기준을 `--today` 가 아니라
+      **실제 UTC 현재 시각**으로 잡는다 — `--today` 로 미래 날짜를 핀하면 `linked_at` 이
+      "지금보다 미래"가 되어 검사 ㉒-ⓓ 가 위양성 FAIL 한다. 이 값은 재현 대상(이력 분포)이
+      아니라 **감사 시점**이므로 벽시계를 따르는 것이 맞다.
+
+    ⛔ 로컬 시각 금지 — 저장은 UTC (D39). `traces.ts`(CURRENT_TIMESTAMP) 와 같은 모양의
+      `'YYYY-MM-DD HH:MM:SS'` 문자열이고 타임존 접미사를 붙이지 않는다. 시드가 로컬,
+      검증이 UTC 를 보면 자정 근처에서 조용히 갈린다 (CLAUDE.md 의 `--today` 함정과 같은 계열).
+    """
+    base = now_utc.astimezone(timezone.utc).replace(tzinfo=None)
+    rows = [
+        (
+            partner,
+            subject_type,
+            subject_ref,
+            link_state,
+            external_ref,
+            None
+            if days_ago is None
+            else (base - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        for partner, subject_type, subject_ref, link_state, external_ref, days_ago in PARTNER_LINKS
+    ]
+    con.executemany(
+        "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state,"
+        " external_ref, linked_at) VALUES (?,?,?,?,?,?)",
+        rows,
+    )
+    return len(rows)
 
 
 def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) -> None:
@@ -1655,6 +1713,27 @@ def part_class_caveat() -> str:
     return f"✓ part_class {total}종 사람 검수 완료 ({dist})"
 
 
+def partner_links_caveat() -> str:
+    """partner_links 시드가 목업 전제인지 한 줄로 돌려준다 (D90 — part_class_caveat 선례).
+
+    문구를 하드코딩하지 않고 `PARTNER_LINKS_MOCK` **상태에서 유도**한다. 하드코딩하면
+    사람이 실값을 받은 뒤에도 "목업"이라고 계속 출력해 거짓 경고가 되고, 반대로 줄을
+    지우면 목업 전제가 조용히 넘어간다 — 검수가 끝나도 **줄을 없애지 않고 문구만 바꾼다**(D90).
+
+    ⚠ **게이트가 아니다.** 값이 목업이라고 시드를 막지 않는다 (part_class_caveat 와 같은 태도).
+    """
+    states = [row[3] for row in PARTNER_LINKS]
+    linked = states.count("LINKED")
+    not_linked = states.count("NOT_LINKED")
+    shape = f"{len(PARTNER_LINKS)}행 (LINKED {linked} / NOT_LINKED {not_linked})"
+    if PARTNER_LINKS_MOCK:
+        return (
+            f"⚠ partner_links {shape}은 **목업 전제**다 — 실제 파트너 연결 승인·자격증명"
+            " 발급이 아니다. A2A 호출부도 미착수. TODO_직접할일.md 참조"
+        )
+    return f"✓ partner_links {shape} 사람 연결 승인 확인 완료"
+
+
 def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
     """추출 JSON → error_codes. related_parts 는 임시 매핑 파일로 덧씌운다 (검수 전)."""
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
@@ -1736,7 +1815,12 @@ def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
 
 
 def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
-    """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증."""
+    """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증.
+
+    Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕)이 뒤에 붙는다.
+    ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를 지목한다.
+      번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
+    """
     q = lambda sql, *a: con.execute(sql, a).fetchone()  # noqa: E731
     results: list[tuple[str, bool, str]] = []
 
@@ -2098,6 +2182,142 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"DDL 비차단={sorted(ddl_non_blocking)} · engine.VERDICTS={list(engine.VERDICTS)}"
         f" · BLOCKING_VERDICTS={list(BLOCKING_VERDICTS)}",
     )
+
+    # ── Sprint 8 (MQ-804) — partner_links 4건 ────────────────────────────────────
+    # ㉒ 시드 정합 · NOT_LINKED 대조군 존재 · 목업 고지 (D92·D95·D96)
+    pl = con.execute(
+        "SELECT partner, subject_type, subject_ref, link_state, external_ref, linked_at"
+        " FROM partner_links ORDER BY partner, subject_type, subject_ref"
+    ).fetchall()
+    n_linked = sum(1 for r in pl if r[3] == "LINKED")
+    n_not_linked = sum(1 for r in pl if r[3] == "NOT_LINKED")
+    a22 = n_linked >= 1 and n_not_linked >= 1  # ⓐ 대조군이 없으면 D92 의 핵심이 사라진다
+
+    # ⓑ 값 규약은 DDL CHECK 가 아니라 여기서 본다 (D96-ⓒ — 파트너가 늘 때마다 DDL 을 고치지 않는다)
+    bad_partner = sorted({r[0] for r in pl} - {"finallq", "insuq"})
+    bad_subject_type = sorted({r[1] for r in pl} - {"company", "building", "asset"})
+    b22 = not bad_partner and not bad_subject_type
+
+    # ⓒ **동적 대조** — 하드코딩 4종으로 적으면 자산이 늘 때 대장 누락을 못 잡는다 (검사 ⑬ 과 같은 논리)
+    bld_rows = {
+        r[0]
+        for r in con.execute(
+            "SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL"
+        )
+    }
+    # ⚠ building 결만 대조한다. insuq 에 company 결 행이 늘면 `''` 때문에 집합이 어긋나는데,
+    #    그 실패는 "대장 누락"이 아니라 "결이 섞였다"이고 메시지가 오독을 부른다 (Stage 3 reviewer 권고 ④)
+    insuq_refs = {r[2] for r in pl if r[0] == "insuq" and r[1] == "building"}
+    bld_null = q("SELECT count(*) FROM assets WHERE building_id IS NULL")[0]
+    c22 = insuq_refs == bld_rows
+
+    # ⓓ linked_at 은 LINKED 행만 non-null · 시·분·초 포함 · 현재 UTC 이전.
+    #    ⛔ 비교도 반드시 UTC 다 — 로컬 시계와 섞으면 자정 근처에서 위양성 FAIL 한다 (D39·D96-ⓓ)
+    now_utc_s = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    ts_pat = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+    ts_shape_bad = [r[2] for r in pl if r[5] is not None and not ts_pat.match(r[5])]
+    ts_future = [r[2] for r in pl if r[5] is not None and r[5] > now_utc_s]
+    ts_pairing_bad = [
+        r[2] for r in pl if (r[5] is not None) != (r[3] == "LINKED")
+    ]  # LINKED ↔ non-null 짝
+    d22 = not ts_shape_bad and not ts_future and not ts_pairing_bad
+
+    # ⓔ 회사 결은 '' (D96-ⓑ). NULL 이면 PK 가 무력화돼 매핑이 2행·3행으로 갈려도 아무도 모른다
+    company_refs = [r[2] for r in pl if r[1] == "company"]
+    e22 = bool(company_refs) and all(ref == "" for ref in company_refs)
+
+    # ⓕ 목업 고지는 **상태에서 유도**된다 (D90 — 검사 ⑯ 의 source LIKE '%목업%' 선례)
+    #    ⚠ 문구(부분문자열)와 **접두 기호** 두 축을 함께 잠근다 — `main()` 은 라벨을
+    #    `startswith('✓')` 로 고르므로, 목업 문구가 실수로 `✓` 로 시작하면
+    #    `[사람 확인] ⚠ … 목업 전제 …` 라는 **자기모순 라벨**이 나오는데 문구 축만 보면 통과한다.
+    #    D90 이 기각한 ③(값은 "검수 완료"인데 이름에 unreviewed 가 남는다)과 같은 유형이다.
+    #    (Stage 3 reviewer 권고 ②)
+    pl_caveat = partner_links_caveat()
+    f22_text = ("목업" in pl_caveat) if PARTNER_LINKS_MOCK else ("목업" not in pl_caveat)
+    f22_mark = pl_caveat.startswith("⚠" if PARTNER_LINKS_MOCK else "✓")
+    f22 = bool(pl_caveat.strip()) and f22_text and f22_mark
+    check(
+        "㉒ partner_links 시드 정합 · NOT_LINKED 대조군 · 목업 고지 (D92)",
+        a22 and b22 and c22 and d22 and e22 and f22,
+        f"ⓐ {len(pl)}행 LINKED={n_linked}/NOT_LINKED={n_not_linked}"
+        f" · ⓑ partner 밖={bad_partner or 0}, subject_type 밖={bad_subject_type or 0}"
+        f" · ⓒ insuq={sorted(insuq_refs)} vs assets.building_id={sorted(bld_rows)}"
+        f" (building_id NULL 자산 {bld_null}건)"
+        f" · ⓓ 형식위반={ts_shape_bad or 0}, 미래={ts_future or 0}, LINKED 짝 어긋남={ts_pairing_bad or 0}"
+        f" (now_utc={now_utc_s})"
+        f" · ⓔ company subject_ref={company_refs!r}"
+        f" · ⓕ MOCK={PARTNER_LINKS_MOCK} 고지={f22}",
+    )
+
+    # ㉓ **두 CHECK 가 실제로 거부하는가** (⑩·⑰·⑳ 프로브와 같은 이유).
+    #    음성 3 + **양성 2**. 양성이 없으면 "전부 거부하는 CHECK" 도 통과해 검사가 방어선이 아니게 된다.
+    #    ⓑ 가 이 스프린트의 핵심이다 — `IS` 가 아니라 `=` 로 되돌아가면 여기서만 잡힌다 (D96-ⓐ).
+    def _pl_probe(label: str, values_sql: str) -> tuple[bool, str]:
+        """SAVEPOINT 안에서 INSERT 를 실제로 시도하고 되돌린다. (거부됨?, 상세)"""
+        con.execute("SAVEPOINT pl_probe")
+        try:
+            con.execute(
+                "INSERT INTO partner_links (partner, subject_type, subject_ref,"  # noqa: S608
+                f" link_state, external_ref) VALUES ('probe','company',{values_sql})"
+            )
+            return False, f"{label}: 통과"
+        except sqlite3.IntegrityError as exc:
+            return True, f"{label}: 거부 ({exc})"
+        finally:
+            con.execute("ROLLBACK TO pl_probe")
+            con.execute("RELEASE pl_probe")
+            con.commit()  # 다음 검사가 다른 커넥션으로 읽으므로 트랜잭션을 남기지 않는다
+
+    neg_a23, det_a23 = _pl_probe("음성ⓐ NOT_LINKED+식별자", "'P1','NOT_LINKED','X'")
+    neg_b23, det_b23 = _pl_probe("음성ⓑ NULL+식별자", "'P2',NULL,'X'")
+    neg_c23, det_c23 = _pl_probe("음성ⓒ 소문자 linked", "'P3','linked',NULL")
+    pos_d23, det_d23 = _pl_probe("양성ⓓ NULL+NULL(모름)", "'P4',NULL,NULL")
+    pos_e23, det_e23 = _pl_probe("양성ⓔ LINKED+식별자", "'P5','LINKED','CMP-X'")
+    check(
+        "㉓ partner_links CHECK 음성 3 + 양성 2 (D91·D96·D62)",
+        neg_a23 and neg_b23 and neg_c23 and not pos_d23 and not pos_e23,
+        f"{det_a23} · {det_b23} · {det_c23} · {det_d23} · {det_e23}",
+    )
+
+    # ㉔ **음성 검사** — partner_links 가 증권 식별자를 복제하지 않는다 (D95).
+    #    ⛔ link_state 와 insured 를 엮지 않는다 — 연결 승인과 부보는 별개 축이고,
+    #      엮으면 D78 이 분리한 두 사실을 되붙인다 (§A · BLD-D 를 대조군으로 고른 이유).
+    insuq_ext = [(r[2], r[4]) for r in pl if r[0] == "insuq" and r[4] is not None]
+    dup = q(
+        "SELECT count(*) FROM partner_links WHERE external_ref IN"
+        " (SELECT policy_id FROM assets WHERE policy_id IS NOT NULL)"
+    )[0]
+    finallq_ext = [r[4] for r in pl if r[0] == "finallq"]
+    finallq_ok = bool(finallq_ext) and all(
+        e is not None and e.startswith("CMP-") for e in finallq_ext
+    )
+    policies = con.execute(
+        "SELECT policy_id, count(*) FROM assets WHERE policy_id IS NOT NULL"
+        " GROUP BY policy_id ORDER BY 1"
+    ).fetchall()
+    # ⚠ `policies` 를 **판정에 넣는다** (Stage 3 reviewer 권고 ③). ⓑ 의 `IN (SELECT policy_id …)` 은
+    #    우변이 공집합이면 **무조건 0** 이라, `assets.policy_id` 가 전부 NULL 이 되는 순간
+    #    ⓑ 는 아무것도 지키지 않는다(공허참). 정본이 살아 있다는 사실이 이 검사의 전제이므로
+    #    표시(detail)가 아니라 조건이어야 한다 — D95 의 "정본은 하나" 가 사라지면 복제 검사도 무의미하다.
+    check(
+        "㉔ partner_links 에 증권 식별자 복제 0건 (D95)",
+        not insuq_ext and dup == 0 and finallq_ok and bool(policies),
+        f"ⓐ insuq external_ref non-null={insuq_ext or 0}건"
+        f" · ⓑ policy_id 값 복제={dup}건"
+        f" · ⓒ finallq external_ref={finallq_ext!r}"
+        f" · ⓓ [정본] assets.policy_id={[f'{p}×{n}' for p, n in policies] or 0}",
+    )
+
+    # ㉕ traces.request_chain_id 컬럼 존재·nullable (D94-ⓐ). 검사 ⑲ 의 PRAGMA 방식
+    tr_cols = {r[1]: r for r in con.execute("PRAGMA table_info(traces)").fetchall()}
+    rc_col = tr_cols.get("request_chain_id")
+    check(
+        "㉕ traces.request_chain_id 존재 · nullable (D94-ⓐ)",
+        rc_col is not None and rc_col[3] == 0,
+        f"존재={rc_col is not None}, notnull={rc_col[3] if rc_col else '-'}"
+        " · **쓰는 쪽 없음 — A2A 호출부 미착수**, 계측 회귀는"
+        " `spikes/a2a_identity_contract.py` 가 본다",
+    )
     return results
 
 
@@ -2144,6 +2364,9 @@ def main() -> None:
         create_schema(con)
         seed_users(con)  # ← po_drafts·error_history 보다 먼저 (FK, D41)
         acquired = seed_assets(con, args.today)  # ← equipment.asset_id 보다 먼저 (FK, D68)
+        # ← assets 직후. subject_ref 가 building_id 를 참조하는 결이라 자산이 먼저다 (D92).
+        #   기준 시각은 `--today` 가 아니라 **실제 UTC 현재 시각** — seed_partner_links 독스트링 참조
+        n_links = seed_partner_links(con, datetime.now(timezone.utc))
         seed_masters(con)
         seed_inventory(con, rng)
         seed_supplier_parts(con, rng)
@@ -2176,6 +2399,8 @@ def main() -> None:
         seed_po_drafts(con, with_codes)
         seed_repair_records(con, with_codes, args.today)
         con.commit()
+
+        print(f"[파트너대장] partner_links {n_links}행 (D92 — 목업 전제, 표 뒤 고지 참조)")
 
         print(f"\n[기준일] {args.today}  (반복 고장 3건 = 기준일 -22/-12/-4일)")
         print(f"[완료] {args.db}\n")
@@ -2212,6 +2437,8 @@ def main() -> None:
         #   처럼 자기모순 문구가 나온다 — part_class_caveat() 독스트링이 경계한 그 함정이다.
         caveat = part_class_caveat()
         print(f"\n[{'사람 검수' if caveat.startswith('✓') else '사람 검수 대기'}] {caveat}")
+        pl_caveat = partner_links_caveat()
+        print(f"[{'사람 확인' if pl_caveat.startswith('✓') else '사람 확인 대기'}] {pl_caveat}")
     finally:
         con.close()
 
