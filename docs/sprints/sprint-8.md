@@ -941,3 +941,36 @@ spikes **27스위트 / 616건** · seed **21** · pytest **46** · ruff 통과. 
 
 ### 다음
 `/stage 3` — MQ-804 (시드 5행 + 자가검증 4건 21→25 + 목업 고지)
+
+---
+
+## Stage 3 완료 (2026-08-13)
+
+**커밋**: `06f264b` — `[A2A] Sprint 8 Stage 3 — partner_links 시드 5행 + 자가검증 4건 (21→25)`
+
+### MQ-804 — 시드 + 자가검증
+- `PARTNER_LINKS` 5행 · `PARTNER_LINKS_MOCK` · `seed_partner_links(con, now_utc: datetime)` ·
+  `partner_links_caveat()` · `verify()` 검사 **㉒~㉕** · `main()` 고지 출력 · 모듈 docstring.
+- **SCHEMA 블록 변경 0줄** — diff hunk 가 전부 1071행 이후(SCHEMA 는 47~389).
+- `linked_at` **UTC 실측 확인**: `08:16` / `CURRENT_TIMESTAMP` `08:19` / 로컬 `17:19`.
+
+### 하드 게이트 — 뮤턴트가 실제로 작동했다
+`IS` → `=` 로 임시 변경 시 ㉓ 의 5개 중 **음성ⓑ 하나만** 거부→통과로 뒤집혔다.
+나머지 4개는 그대로 — 이 검사가 **정확히 `IS`/`=` 하나를 겨냥**한다는 증거다.
+
+### reviewer 권고 4건 반영 (같은 커밋)
+| # | 내용 | 근거 |
+|---|---|---|
+| ② | ㉒-ⓕ 에 **접두 기호 축** 추가 | 문구 축만 보면 *"`[사람 확인]` ⚠ … 목업 …"* 자기모순 라벨이 통과 |
+| ③ | ㉔ 판정에 `and bool(policies)` | `IN (SELECT …)` 우변이 공집합이면 **공허참**. 사본에서 `policy_id` 전부 NULL → ㉔ 가 실제로 **FAIL** 하는 것 확인 |
+| ④ | ㉒-ⓒ 를 `building` 결로 한정 | insuq 에 company 결이 늘면 `''` 로 어긋나는데 "대장 누락"으로 오독 |
+| ① | D96-ⓓ 에 *"기준은 `--today` 가 아니라 벽시계 UTC"* 명시 | 시그니처가 계획 스케치와 달라진 근거 |
+
+권고 ⑤(㉓ 프로브 잔존 자기확인)는 **보류** — ⑩·⑰·⑳ 이 같은 구조라 이번 스프린트 고유 결함이 아니다.
+
+### 회귀
+seed **25건**(21→25, 이 태스크의 산출물) · `error_codes` 65 · spikes **27스위트 616건**(증감 0) ·
+pytest **46** · ruff 통과 · **재시도 0건**.
+
+### 다음
+`/stage 4` — MQ-805 (`spikes/a2a_identity_contract.py` 신설, 27→28스위트)
