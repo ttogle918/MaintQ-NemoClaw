@@ -135,14 +135,34 @@ def run() -> None:
     )
 
     # ── ⑨ manifest 가 오프셋의 단일 원천인가 (D19) — 파일 값과 코드 값 대조
+    #     primary(model 키) 축 + supplement 포함 전 매뉴얼(manual_id 키) 축 둘 다 본다 (MQ-920).
+    #     판정에는 반드시 양성 축(대조한 건수 > 0)을 함께 건다 — 파일이 비거나 경로가 바뀌면
+    #     `all(...)` 은 빈 집합에 대해 True 라 조용히 통과한다 (CLAUDE.md 부재검사 규칙).
     raw = json.loads((ROOT / "data" / "raw" / "manifest.json").read_text(encoding="utf-8"))
     primary = {
         m["model"]: m["print_page_offset"] for m in raw["manuals"] if m.get("role") == "primary"
     }
+    by_id = {m["id"]: m["print_page_offset"] for m in raw["manuals"] if "id" in m}
+    code_by_id = {k: manifest.manual_offset(k) for k in by_id}
+    mismatch = [k for k, v in primary.items() if manifest.print_page_offset(k) != v]
+    mismatch += [k for k, v in by_id.items() if code_by_id[k] != v]
+    n_compared = len(primary) + len(by_id)
+    # ★ 양성 축은 **supplement 를 이름으로** 센다. `len(by_id) > len(primary)` 로는
+    #   "primary 아닌 게 하나 있다" 밖에 못 말하고, 무관한 매뉴얼을 넣거나 supplement 를
+    #   primary 로 승격해도 참이 된다 — 즉 supplement 축이 죽어도 통과한다 (P30 유형).
+    supplements = [m["id"] for m in raw["manuals"] if m.get("role") != "primary" and "id" in m]
+    supp_compared = [s for s in supplements if s in code_by_id]
     check(
-        "⑨ 오프셋 원천은 manifest.json (D19)",
-        all(manifest.print_page_offset(k) == v for k, v in primary.items()),
-        f"manifest={primary} / 코드={ {m: manifest.print_page_offset(m) for m in manifest.MODELS} }",
+        "⑨ 오프셋 원천은 manifest.json — primary+supplement 전건 (D19)",
+        not mismatch
+        and n_compared > 0
+        and len(supplements) > 0
+        and len(supp_compared) == len(supplements),
+        f"대조 {n_compared}건(model {len(primary)} + id {len(by_id)}) "
+        f"supplement {len(supp_compared)}/{len(supplements)}={supplements} / "
+        f"파일={by_id} / 코드={code_by_id} / "
+        f"model축={ {m: manifest.print_page_offset(m) for m in manifest.MODELS} } / "
+        f"불일치={mismatch}",
     )
 
     # ── ⑩ section 은 라벨에만 붙고 payload 스키마를 늘리지 않는다
@@ -212,6 +232,91 @@ def run() -> None:
         except ValueError:
             pass
     check("⑬ page < 1 은 ValueError", not bad, f"{bad or '0·-3 모두 거부'}")
+
+    # ── ⑭ supplement 실측 오프셋 (MQ-920) — pdfplumber 실측: 물리 p.22 → 인쇄 "21"
+    #     양성 축: 항목이 실제로 조회됐는가(entry is not None). 없으면 폴백 0 이 조용히 통과한다.
+    entry = manifest.manual_entry_by_id("ig5a-troubleshooting")
+    measured = {
+        p: manifest.to_print_page_for_manual("ig5a-troubleshooting", p) for p in (20, 22, 24, 28)
+    }
+    check(
+        "⑭ ig5a-troubleshooting offset=1 · 물리 20/22/24/28 → 19/21/23/27 (PDF 실측)",
+        entry is not None
+        and manifest.manual_offset("ig5a-troubleshooting") == 1
+        and measured == {20: 19, 22: 21, 24: 23, 28: 27},
+        f"entry={'있음' if entry else '없음'} offset={manifest.manual_offset('ig5a-troubleshooting')} 환산={measured}",
+    )
+
+    # ── ⑮ model 키와 manual_id 키는 서로 다른 축이다 — 기존 함수 규약 불변 (D19)
+    #     print_page_offset('iG5A') 는 role='primary' 인 ig5a-manual(0) 을 본다.
+    #     같은 기종의 supplement(1) 를 이 함수로는 영원히 볼 수 없다 — 그래서 manual_offset 이 있다.
+    axes = {
+        "print_page_offset('iG5A')": manifest.print_page_offset("iG5A"),
+        "manual_offset('ig5a-manual')": manifest.manual_offset("ig5a-manual"),
+        "manual_offset('ig5a-troubleshooting')": manifest.manual_offset("ig5a-troubleshooting"),
+        "print_page_offset('S100')": manifest.print_page_offset("S100"),
+        "manual_offset('s100-manual')": manifest.manual_offset("s100-manual"),
+    }
+    check(
+        "⑮ model 키(primary 우선)와 manual_id 키의 분리 유지",
+        axes["print_page_offset('iG5A')"] == 0
+        and axes["manual_offset('ig5a-manual')"] == 0
+        and axes["manual_offset('ig5a-troubleshooting')"] == 1
+        and axes["print_page_offset('S100')"] == 16
+        and axes["manual_offset('s100-manual')"] == 16,
+        f"{axes}",
+    )
+
+    # ── ⑯ manual_id 경로도 같은 D49 경계 — 환산 결과 < 1 이면 오프셋 미적용
+    edge = {
+        ("ig5a-troubleshooting", 1): manifest.to_print_page_for_manual("ig5a-troubleshooting", 1),
+        ("s100-manual", 16): manifest.to_print_page_for_manual("s100-manual", 16),
+        ("s100-manual", 17): manifest.to_print_page_for_manual("s100-manual", 17),
+    }
+    check(
+        "⑯ D49 경계 (manual_id 경로): tsg p.1→1 / s100 p.16→16 · p.17→1",
+        edge == {("ig5a-troubleshooting", 1): 1, ("s100-manual", 16): 16, ("s100-manual", 17): 1},
+        f"{ {f'{i} p.{p}': v for (i, p), v in edge.items()} }",
+    )
+
+    # ── ⑰ 미등록 manual_id → 예외 없이 offset 0 폴백 + 1회 경고 (기존 폴백 태도와 동일)
+    handler2 = Capture()
+    lg = logging.getLogger("backend.manifest")
+    prev_level, prev_prop = lg.level, lg.propagate
+    lg.setLevel(logging.WARNING)
+    lg.propagate = False
+    lg.addHandler(handler2)
+    try:
+        manifest.reset_cache()
+        unknown = manifest.manual_offset("없는-매뉴얼-id")
+        unknown_page = manifest.to_print_page_for_manual("없는-매뉴얼-id", 202)
+        manifest.manual_offset("없는-매뉴얼-id")  # 두 번째 호출은 경고를 반복하지 않는다
+        warns = [m for m in handler2.messages if "없는-매뉴얼-id" in m]
+    finally:
+        lg.removeHandler(handler2)
+        lg.setLevel(prev_level)
+        lg.propagate = prev_prop
+        manifest.reset_cache()
+    check(
+        "⑰ 미등록 manual_id → offset 0 폴백 + 경고 1회 (예외 없음)",
+        unknown == 0 and unknown_page == 202 and len(warns) == 1,
+        f"offset={unknown} page 202→{unknown_page} 경고={len(warns)}건",
+    )
+
+    # ── ⑱ manual_id 경로의 입력 검증 — 잘못된 페이지/빈 id 를 조용히 통과시키지 않는다
+    bad2 = []
+    for fn, args in (
+        (manifest.to_print_page_for_manual, ("s100-manual", 0)),
+        (manifest.to_print_page_for_manual, ("s100-manual", -3)),
+        (manifest.to_print_page_for_manual, ("s100-manual", True)),
+        (manifest.manual_offset, ("",)),
+    ):
+        try:
+            fn(*args)
+            bad2.append(f"{fn.__name__}{args} 가 통과됨")
+        except ValueError:
+            pass
+    check("⑱ manual_id 경로 입력 검증 (page<1·bool·빈 id)", not bad2, f"{bad2 or 'ValueError 4/4'}")
 
 
 def main() -> None:

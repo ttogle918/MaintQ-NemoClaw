@@ -1590,15 +1590,15 @@ MQ-902 ──► MQ-905
 | **MQ-901** | D100 셀에 ⓐ `ig5a-troubleshooting` 오프셋을 **1**(MQ-920 정정)로 적는다 — §3 쟁점③ 의 *"`print_page_offset: 0`"* 은 **틀렸다** ⓑ **`actions_source` 는 `{manual_id, page}` 만 담고 `print_page` 는 담지 않는다** 를 명시 | R7 · **R13** |
 | **MQ-903** | ⓐ 범위를 **3종**(metrics·criticality·expenditure)으로 축소 ⓑ 🔴 `REPEAT_THRESHOLD`·`REPEAT_WINDOW_DAYS` 는 **`data/ownership.py:70~71` 의 상수를 쓰고 `verify_ownership.py:34` 와 같은 드리프트 assert 를 건다** — 새 사본을 만들지 않는다 ⓒ `_asset_ref` 엣지케이스 **삭제**(이 4종은 안 쓴다) | R5 · §8-1 |
 | **MQ-904** | ⓐ **`data/repair_hash.py` 를 이 태스크가 만든다**(`HASHED_KEYS`·`canonical_json`·`compute_record_hash`). MQ-909 는 **import 만** ⓑ `ownership_api_contract:62` 엣지케이스 **삭제**(`:57` 은 `COUNT(*)`, 무해) ⓒ `created_at` 신설이 `decisions.py:602` 주석을 낡게 만든다 → **MQ-918 전파 목록에 추가** | R4 · §8-1 |
-| **MQ-905** | ⓐ `IG5A_TROUBLE_PAGES` 주석의 *"print_page_offset 0"* → **1** ⓑ DoD *"해시 불변"* 은 **MQ-921 의 가드가 보장**한다(905 가 따로 구현하지 않는다) ⓒ **조인 소스 후보 추가**: 물리 p.20~21 의 고장/경보 일람표(분류·고장표시·설명·Page)가 더 안정적이다 — 단 그 `Page` 열은 **인쇄 페이지라 +1 보정** 필요 | R6·R7 · §8-3 |
+| **MQ-905** | ⓐ `IG5A_TROUBLE_PAGES` 주석의 *"print_page_offset 0"* → **1** ⓑ DoD *"해시 불변"* 은 **MQ-921 의 가드가 보장**한다(905 가 따로 구현하지 않는다) ⓒ **조인 소스 후보 추가**: 물리 p.20~21 의 고장/경보 일람표(분류·고장표시·설명·Page)가 더 안정적이다 — 단 그 `Page` 열은 **인쇄 페이지라 +1 보정** 필요 ⓓ 🔴 **`EST`(비상정지) 1건은 트러블슈팅본에도 명칭이 없다** — MQ-902 탐침 실측(결측 11건 중 명칭 실재 **10건**). 별도로 다루고 **지어내지 않는다** ⓔ MQ-921 이 만든 `--candidates-only` 의 docstring 은 *"정본을 열지도 쓰지도 않는다"* 인데 905 는 정본을 **읽어야** 한다 → 문구를 *"쓰지 않는다"* 로 좁힌다 | R6·R7 · §8-3 · **Stage 1 실측** |
 | **MQ-906** | 소유 파일 **4개 추가**: `backend/agent/prompts.py`(`_EXT_TOOL_LINES` 에 `create_repair_record` 1행 — **안 넣으면 LLM 에게 도구가 안 보여 S19 를 채팅으로 시연 못 한다**) · `spikes/tools_profile_contract.py`(full 15→**16**) · `spikes/s10_smoke.py`(`EXPECTED_TOOLS_FULL` 15→**16**). ⚠ `EXT_RULES` 확장은 `assert len(EXT_RULES)==len(_EXT_RULE_TOOLS)` 때문에 **신중히** | R1·R2·R8 |
 | **MQ-908** | 🔴 **`decisions._metrics()`(`:517~520`) 방침을 정해야 한다** — ⓐ `data.maint_value.maintenance_metrics` 위임으로 전환하거나 ⓑ 유지하되 **D101 채택 이유에서 `:520` 인용을 뺀다**. ⛔ 지금처럼 두면 *"산식이 두 벌"* 을 근거로 삼고서 두 벌을 그대로 남기는 셈이라 **문서가 거짓이 된다** | R9 |
 | **MQ-909** | ⓐ `data/repair_hash.py` 는 **MQ-904 산출물** — import 만 ⓑ `spikes/approvals_contract.py ③` 정정을 **이 태스크가 한다**(0건 → 12건 실측 + `kind=nope` 422 음성 축) | R3·R4 |
 | **MQ-910** | 🔴 **`print_page` 를 출력에서 뺀다.** `actions_source: {manual_id, page} \| null` 만. 인쇄 환산은 `backend/sse.py:citation_for()` 1곳 유지(D32) — **고치려는 파일 `:11` 의 docstring 이 그렇게 적혀 있다** | **R13** |
 | **MQ-911** | 표 1 의 "인쇄 페이지 병기"는 **MQ-920 정정값(offset 1)** 을 쓴다 | R7 |
-| **MQ-913** | 범위 **축소** — 남는 것: `spikes/repair_flow_contract.py`(신규) · `write_tool_contract` 확장(2→3종) · `lookup_contract` +2. **이관**: `tools_profile_contract`·`s10_smoke` → MQ-906 · `approvals_contract ③` → MQ-909 | R1·R2·R3 |
+| **MQ-913** | 범위 **축소** — 남는 것: `spikes/repair_flow_contract.py`(신규) · `write_tool_contract` 확장(2→3종) · `lookup_contract` +2. **이관**: `tools_profile_contract`·`s10_smoke` → MQ-906 · `approvals_contract ③` → MQ-909 ⓑ 🔴 **추가**: MQ-921 의 정본 쓰기 가드에 **회귀가 0건**이다 — 65→0행 사고를 막는 유일한 코드(`extract_error_codes.write_canonical()`)가 사람이 손으로 두 번 돌리는 DoD 로만 지켜진다. *"정본 쓰기 경로는 `write_canonical` 하나 · exit 1/2 계약 · `--candidates-only` 는 `OUTPUT` 미접촉"* 을 **양성 축과 함께** 넣는다 | R1·R2·R3 · **Stage 1 reviewer 권고 4** |
 | **MQ-917** | `L2_EXTRA` 에 `RepairDetail.tsx` 추가 **삭제**(MQ-916 컷) | 컷 반영 |
-| **MQ-918** | ⓐ 프론트 라우트 **13 → 11**(914 만 추가) ⓑ 전파 대상에 **`data/raw/manifest.json` 오프셋 정정**·**`05_DB_SCHEMA §16` 컬럼 수 15→19** 추가 ⓒ **MQ-915·916 을 `07_BACKLOG` 에 "Sprint 10 이월"로 등재**(조용히 사라지게 두지 않는다) ⓓ `decisions.py:602` 주석 갱신 | 컷 반영 · §8-3 |
+| **MQ-918** | ⓐ 프론트 라우트 **13 → 11**(914 만 추가) ⓑ 전파 대상에 **`data/raw/manifest.json` 오프셋 정정**·**`05_DB_SCHEMA §16` 컬럼 수 15→19** 추가 ⓒ **MQ-915·916 을 `07_BACKLOG` 에 "Sprint 10 이월"로 등재**(조용히 사라지게 두지 않는다) ⓓ `decisions.py:602` 주석 갱신 ⓔ 🔴 **D69 원문이 낡았다** — *"코어 7 + 확장 7"* 로 적혀 있는데 실측은 **확장 8**(Sprint 9 후 9). 갱신 대상 ⓕ **기존 `D74`·`D77` 행은 셀 안 `\|` 가 이스케이프돼 있지 않아** 마크다운에서 열이 밀린다(셀 파싱 6개·5개). **Stage 1 이 발견했고 손대지 않았다** — 여기서 정정 ⓖ **정본 갱신 경로가 바뀐 사실**을 전파한다 — MQ-921 이후 *"정정은 `extract_error_codes.py` 재실행으로만"* 은 더 이상 참이 아니다(`TODO_직접할일.md:24` · `data/analysis/ig5a_code_mapping.md:62` · `data-analysis/reports/preprocessing_report.md:94`). 셋 다 **완료 기록(과거형)이라 당장 거짓은 아니지만** 앞으로의 경로를 함께 적는다 | 컷 반영 · §8-3 · **Stage 1 실측·reviewer 권고 5** |
 | **MQ-919** | 변경 없음 | — |
 
 ### 9-5. 이월 (다음 스프린트)
@@ -1615,5 +1615,70 @@ MQ-902 ──► MQ-905
 ### 9-6. 실행
 
 ```
-/stage 1     →  MQ-901 · MQ-902 · MQ-920 · MQ-921  (4병렬)
+/stage 1     →  MQ-901 · MQ-902 · MQ-920 · MQ-921  (4병렬)   ✅ 완료 (§10)
+/stage 2     →  MQ-903 · MQ-904 · MQ-905           (3병렬)
 ```
+
+---
+
+## 10. Stage 1 완료 (2026-08-14)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+
+### 10-1. 태스크별 결과
+
+| TASK | 산출 | 회귀 |
+|---|---|---|
+| **MQ-901** | `docs/10_DECISIONS.md` **+4행 / −0** (D98·D99·D100·D101). 인용 4곳 전부 실제 파일과 대조 확인 | 문서 |
+| **MQ-902** | `data/extract_triage.py` · `data/analysis/extract_triage.md` · `data/extracted/extract_triage.json` | 계측기 자체가 판정 소스 |
+| **MQ-920** | `data/raw/manifest.json`(**2줄**) · `backend/manifest.py`(함수 3개) · `spikes/citation_render.py` | **13 → 18건** |
+| **MQ-921** | `data/extract_error_codes.py` — `write_canonical()` 가드 + `--candidates-only` | ⚠ **회귀 0건** → MQ-913 |
+
+### 10-2. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+`seed 26` · `sp2 20` · `write_tool 23` · `api 28` · `sse 22` · **`citation_render 18`**(13+5) ·
+`rag 12` · `lookup 12` · `tools_profile 7` · `pytest 46` · `ruff` 통과 · `spikes/*.py` **28개**.
+재시드 후 `error_codes` **65행**. Windows 소켓 고갈 징후 없음(스위트 1개씩 분리 호출).
+
+정본 무접촉 증명: `data/extracted/error_codes.json` sha256 = `2033f896…4a981d` **불변**,
+`generated_at` = `2026-08-05` 유지(오늘 계산값 `2026-08-14` 가 **기록되지 않았다** = 가드 작동),
+`_status` = `승인 완료 (2026-07-28)` 되돌림 0.
+
+### 10-3. 🔴 계획의 가정 하나가 데이터에 뒤집혔다 (MQ-905 에 직접 영향)
+
+MQ-902 DoD 는 *"iG5A 결측 11건이 `SOURCE_MISSING` 으로 라벨링된다"* 를 기대했으나 **실측은 다르다**:
+
+```
+ig5a-manual p.202: missing  3 / code_tokens 0 → SOURCE_MISSING  (anchor_conflict)
+ig5a-manual p.203: missing  8 / code_tokens 4 → CELL_SPLIT      ← 기대와 다름
+s100-manual p.416~419: missing 26 / tokens 5,6,1,3 → CELL_SPLIT (26/26 기대대로)
+```
+
+**원인은 파서가 아니라 양성 축 자체의 적용 범위다.** iG5A 추출은 ASCII 코드 토큰이 아니라
+**한글 명칭**으로 조인해서, 조치문 추출에 **성공한** 코드가 6·4건 있는 페이지에서도 토큰이 0 이다.
+→ ⛔ **iG5A 에서 `code_tokens_found` 를 소스 유무의 증거로 쓰면 안 된다.**
+
+**그래서 독립 축을 하나 더 쟀다** (명세에 없던 추가분 — `probe_supplement()`):
+
+> `ig5a-troubleshooting` 물리 p.20~29 · 6,683자 · **결측 11건 중 명칭 실재 10건** (미발견: `EST` 1건)
+
+**MQ-905 의 전제("소스를 추가하면 풀린다")를 뒷받침하는 것은 라벨이 아니라 이 실측이다.**
+계획이 데이터를 이기지 않도록 라벨을 고치지 않고 **실측을 그대로 적었다**(MQ-902 명세의 명시 규칙).
+
+### 10-4. reviewer 게이트 — 커밋 가능 **Y** (블로커 0건)
+
+커밋 전에 반영한 권고 3건:
+
+| 권고 | 조치 |
+|---|---|
+| 🔴 `anchor_conflict` 가 **산문에만** 있어 `label` 로 필터링하는 MQ-905 에게 통째로 증발한다 | `PageVerdict` 에 **`anchor_conflict: bool`·`scanned: bool`** 신설(`asdict` 로 JSON 자동 반영). 실측 결과 `p.202`·`p.204` 2건이 `True` 로 실렸다 |
+| 스캔 불가를 `SOURCE_MISSING` 으로 접는 것은 *"재지 못함"* 을 **결론**으로 바꾸는 것(D65) | `LABELS` 에 **`UNSCANNED`** 추가 + `scanned=False`. note 에 *"이 0 들은 실측이 아니라 재지 못함"* 명시 |
+| `citation_render ⑨` 의 `len(by_id) > len(primary)` 는 **supplement 축이 죽어도 통과**한다 (P30 유형) | supplement 를 **이름으로** 세도록 교체 — `len(supplements) > 0 and len(supp_compared) == len(supplements)`. detail 에 `supplement 1/1=['ig5a-troubleshooting']` 실측 인쇄 |
+
+다음 스테이지로 넘긴 것: **권고 4**(정본 가드 회귀 → MQ-913) · **권고 5**(갱신 경로 전파 → MQ-918) ·
+**지목 7**(D101 이 인용한 *"산식이 두 벌"* 을 MQ-908 이 해소하지 않으면 **그 시점에 D101 이 거짓이 된다**).
+
+### 10-5. 사전 결함 2건 발견 (이번 변경 아님 — MQ-918 로 이관)
+
+- **`D69` 원문이 낡았다** — *"코어 7 + 확장 7"* 인데 실측은 확장 **8**
+- **`D74`·`D77` 행의 셀 안 `|` 미이스케이프** — 마크다운 열이 밀린다(셀 파싱 6개·5개)

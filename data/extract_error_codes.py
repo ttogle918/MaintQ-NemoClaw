@@ -9,10 +9,21 @@
 주의 : 승인 여부는 `ig5a_code_map.json` 에서 **유도**한다(하드코딩하지 않는다, D19) —
        pending_review 가 남아 있거나 confidence 가 "high" 아닌 항목이 있으면 초안,
        둘 다 해소되면 승인. 재실행할 때마다 사람이 `_status` 를 다시 손으로 칠 필요가 없다.
+
+🔴 정본 쓰기 가드 (D99, MQ-921)
+       `data/extracted/error_codes.json` 은 **사람이 승인한 정본**이고 `seed.error_codes_gate()`
+       가 `_status` 만 보고 65행 전량 적재/미적재를 가른다. 그래서 이 스크립트는 정본을
+       **무조건 덮어쓰지 않는다**:
+         - 내용 동일(`generated_at` 제외) → **쓰지 않고** "변경 없음 — 기록 생략"
+         - 내용 상이                     → **쓰지 않고** diff 요약 + exit 1 (사람이 판단)
+         - `_status` 승인 → 초안 되돌림  → **쓰지 않고** 즉시 중단 + exit 2 (65→0행 사고 차단)
+         - 정본 없음(최초 추출)          → 그대로 기록 (가드는 회귀 방지지 최초 생성 금지가 아니다)
+       후보 추출은 `--candidates-only` 로 돌린다 — 이 모드는 정본을 열지도 쓰지도 않는다.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -454,15 +465,163 @@ def ig5a_approval_status(mapping: dict, pending: list) -> str:
             f"초안 — 확인 대기 항목 {len(not_high)}건({', '.join(not_high)}) "
             "(data/analysis/ig5a_code_mapping.md ②). DB 적재 금지"
         )
-    return mapping.get(
-        "_status", "승인 완료 — data/analysis/ig5a_code_mapping.md 참조"
-    )
+    return mapping.get("_status", "승인 완료 — data/analysis/ig5a_code_mapping.md 참조")
+
+
+# ──────────────────────────────────────────────── 정본 쓰기 가드 (D99 · MQ-921)
+SEED_PY = ROOT / "seed.py"
+VOLATILE_KEYS = ("generated_at",)  # 내용이 같아도 매 실행 바뀐다 — 동등성 비교에서 뺀다
+DRAFT_MARKERS = ("초안", "승인 전")  # data/seed.py `error_codes_gate()` 와 같아야 한다
+
+
+def is_draft_status(status: str) -> bool:
+    """`seed.error_codes_gate()` 가 미적재로 떨어뜨리는 상태인가."""
+    return any(marker in str(status) for marker in DRAFT_MARKERS)
+
+
+def gate_marker_drift() -> str | None:
+    """`DRAFT_MARKERS` 가 `seed.error_codes_gate()` 와 어긋났는지 **정적으로** 대조한다.
+
+    seed 모듈을 import 하지 않는 이유: 이 스크립트는 DB 를 건드리지 않는데 시드 모듈을
+    끌어오면 그 자체가 사고 경로가 된다. 소스를 읽어 그 함수 본문만 본다.
+    ⚠ 양성 축 — **함수를 실제로 찾았을 때만** 판정한다. 못 찾으면 "드리프트 없음"이
+    아니라 *확인 불가*로 돌려준다(CLAUDE.md 부재 검사 규칙).
+    """
+    try:
+        src = SEED_PY.read_text(encoding="utf-8")
+    except OSError as e:  # 경로가 바뀌었거나 읽기 실패
+        return f"확인 불가 — {SEED_PY} 를 읽지 못했다 ({e.__class__.__name__})"
+    m = re.search(r"def error_codes_gate\(.*?(?=\ndef |\Z)", src, re.S)
+    if not m:
+        return "확인 불가 — seed.error_codes_gate() 를 찾지 못했다"
+    body = m.group(0)
+    missing = [k for k in DRAFT_MARKERS if f'"{k}"' not in body]
+    if missing:
+        return f"드리프트 — 게이트 본문({len(body)}자)에 없는 마커 {missing}"
+    return None
+
+
+def canonical_payload(doc: dict) -> str:
+    """`generated_at` 을 제외한 정준 직렬화 — 내용 동등성 판정용."""
+    body = {k: v for k, v in doc.items() if k not in VOLATILE_KEYS}
+    return json.dumps(body, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def _by_code(doc: dict) -> dict[tuple[str, str], dict]:
+    return {(str(e.get("model")), str(e.get("code"))): e for e in (doc.get("entries") or [])}
+
+
+def diff_summary(prev: dict, new: dict, limit: int = 10) -> list[str]:
+    """사람이 판단할 수 있을 만큼의 변경 요약 (전체 diff 가 아니다)."""
+    p, n = _by_code(prev), _by_code(new)
+    removed, added = sorted(set(p) - set(n)), sorted(set(n) - set(p))
+    changed = sorted(k for k in set(p) & set(n) if p[k] != n[k])
+    lines = [
+        f"  entries {len(p)} → {len(n)} "
+        f"(추가 {len(added)} · 삭제 {len(removed)} · 변경 {len(changed)})"
+    ]
+    for key in sorted(set(prev) | set(new)):
+        if key in VOLATILE_KEYS or key == "entries" or prev.get(key) == new.get(key):
+            continue
+        before = json.dumps(prev.get(key), ensure_ascii=False)[:70]
+        after = json.dumps(new.get(key), ensure_ascii=False)[:70]
+        lines.append(f"  [최상위] {key}: {before} → {after}")
+    for model, code in added[:limit]:
+        lines.append(f"  [추가] {model} {code}")
+    for model, code in removed[:limit]:
+        lines.append(f"  [삭제] {model} {code}")
+    for k in changed[:limit]:
+        fields = sorted(f for f in set(p[k]) | set(n[k]) if p[k].get(f) != n[k].get(f))
+        lines.append(f"  [변경] {k[0]} {k[1]}: {', '.join(fields)}")
+    return lines
+
+
+def write_canonical(out: dict) -> None:
+    """정본 기록 — 가드를 통과할 때만 쓴다. 통과 못 하면 **쓰지 않고 중단**한다 (D99).
+
+    exit 1 = 내용이 실제로 달라졌다(사람이 판단) · exit 2 = `_status` 승인→초안 되돌림.
+    """
+    EXTRACTED.mkdir(exist_ok=True)
+    text = json.dumps(out, ensure_ascii=False, indent=2) + "\n"
+
+    if not OUTPUT.exists():
+        # 최초 추출 — 가드는 회귀 방지지 최초 생성 금지가 아니다
+        OUTPUT.write_text(text, encoding="utf-8")
+        print(f"[기록] {OUTPUT} — 정본 신규 생성(최초 추출)")
+        return
+
+    try:
+        prev = json.loads(OUTPUT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        # 기존 정본을 못 읽으면 **덮어쓰지 않는다** — 읽기 실패는 "빈 파일"이 아니다
+        print(f"[중단] 기존 정본을 읽지 못했다 ({e.__class__.__name__}: {e}) — 쓰지 않았다")
+        print(f"  → {OUTPUT} 를 사람이 확인하라(git 이력에 정상본이 있다).")
+        raise SystemExit(1) from None
+
+    prev_entries = prev.get("entries") or []
+    prev_status, new_status = str(prev.get("_status", "")), str(out.get("_status", ""))
+    prev_draft, new_draft = is_draft_status(prev_status), is_draft_status(new_status)
+
+    drift = gate_marker_drift()
+    if drift:
+        print(f"[경고] 초안 마커 대조 {drift} — seed 게이트와 판정이 어긋날 수 있다")
+
+    # 🔴 `_status` 되돌림 차단. 판정에 양성 축(기존 entries 수)을 함께 건다 —
+    #    이것이 `error_codes` 65 → 0행 사고(MQ-708·MQ-713a)의 정확한 조건이다.
+    if len(prev_entries) > 0 and not prev_draft and new_draft:
+        print(f"[중단] `_status` 되돌림 감지 — 정본을 쓰지 않았다 ({OUTPUT})")
+        print(f"  기존 entries {len(prev_entries)}건 · 기존 초안 여부 {prev_draft}")
+        print(f"  기존 _status: {prev_status!r}")
+        print(f"  신규 _status: {new_status!r} (초안 여부 {new_draft})")
+        print("  → 그대로 기록하면 seed.error_codes_gate() 가 전량 미적재로 떨어뜨린다.")
+        print(
+            "  → data/extracted/ig5a_code_map.json 의 pending_review·confidence 를 먼저 확인하라."
+        )
+        raise SystemExit(2)
+
+    if canonical_payload(prev) == canonical_payload(out):
+        print(f"[변경 없음] 기록 생략 — {OUTPUT}")
+        print(
+            f"  generated_at {prev.get('generated_at')!r} → {out.get('generated_at')!r} "
+            "만 다르다. 내용이 같으면 쓰지 않는다 (D99 — 해시 불변)"
+        )
+        return
+
+    print(f"[중단] 내용이 달라졌다 — 정본을 쓰지 않았다 ({OUTPUT})")
+    for line in diff_summary(prev, out):
+        print(line)
+    print("  → 사람이 판단한다. 의도한 갱신이면 검토 후 직접 반영하라(D99·D33 승인 절차).")
+    raise SystemExit(1)
+
+
+def extract_candidates() -> None:
+    """후보 추출 모드 — 정본(`error_codes.json`)을 **열지도 쓰지도 않는다** (D99).
+
+    ⚠ 후보 추출 로직 자체는 아직 없다. MQ-905·907 이 트러블슈팅 조인 결과를
+    후보 파일에 쓰는 코드를 이 함수 안에 채운다. 지금 이 모드의 계약은 하나다 —
+    **정본 미접촉으로 정상 종료**.
+    """
+    print("[후보 모드] 후보 추출 로직 미구현 (MQ-905·907 이 채운다)")
+    print(f"  정본 미접촉: {OUTPUT} 를 열지도 쓰지도 않았다 (D99)")
 
 
 # ──────────────────────────────────────────────── main
 def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # Windows cp949 콘솔 대응
+
+    ap = argparse.ArgumentParser(description="에러코드 추출 (M1) — 정본 쓰기 가드 포함 (D99)")
+    ap.add_argument(
+        "--candidates-only",
+        action="store_true",
+        help="후보 파일만 생성한다. 정본(data/extracted/error_codes.json)을 열지도 쓰지도 않는다",
+    )
+    args = ap.parse_args()
+
+    if args.candidates_only:
+        extract_candidates()
+        return
+
     manifest = check_manifest()
     files = {m["id"]: RAW / m["file"] for m in manifest["manuals"]}
 
@@ -479,10 +638,8 @@ def main() -> None:
         "_pending_review": pending,
         "_unparsed": ig5a_unparsed + s100_unparsed,
     }
-    EXTRACTED.mkdir(exist_ok=True)
-    OUTPUT.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     n_visual = sum(1 for e in ig5a_entries if e.get("mapping_confidence") == "visual")
-    print(f"[완료] {OUTPUT}")
+    print(f"[추출 완료] {len(out['entries'])}건 — 정본 반영 여부는 아래 가드 판정을 따른다")
     print(
         f"  iG5A {len(ig5a_entries)}건 (high {len(ig5a_entries) - n_visual} + "
         f"visual·확인대기 {n_visual}) + S100 {len(s100_entries)}건"
@@ -492,6 +649,8 @@ def main() -> None:
     )
     for u in out["_unparsed"]:
         print(f"    - {u}")
+
+    write_canonical(out)  # 🔴 정본은 가드를 통과할 때만 기록된다 (D99)
 
 
 if __name__ == "__main__":
