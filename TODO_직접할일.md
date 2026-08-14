@@ -176,12 +176,15 @@ Claude가 대신 못 하는 것들. 순서대로.
 - [ ] 🔍 **`inverterdrive.com` 부품 품번 원문 확인** (사람 브라우저 필요)
   - Cloudflare 봇 차단으로 **Claude 가 못 연다** (WebFetch 403 · 브라우저 자동화도 차단.
     우회하지 않았다)
-  - 확인할 것 — 검색 스니펫에서만 본 값이라 **2차 출처**다:
-    `SV-iG5A I/OPCBASSY`(제어보드+키패드) · `SV-iG5ACAB2`/`CAB3`(원격 키패드) ·
-    `LV0110/0150S100-FAN` · `LV0185/0450S100-FAN`
-  - 목록: `inverterdrive.com/m/LS-Industrial-Systems/Spare-Parts-LS-Industrial-Systems-Inverter`
-  - ⚠ **핵심 질문 하나** — **iG5A 소용량(0.4~4.0kW) 냉각팬 단품이 있는가.**
-    없으면 `FAN-IG5-01`(S1 시나리오 주인공) 실품번은 **세상에 공개돼 있지 않다**는 결론이 확정된다
+  - [x] ✅ **`SV-iG5A I/OPCBASSY` 확인 완료 (2026-08-14)** — 페이지가 `Part number:` 로 명시.
+        *"IG5A I/O Control Board - PCB Assembly **0.4~7.5KW-2/4**"* = **MaintQ 자산 용량대(2.2·4.0kW)를 덮는다.**
+        ⚠ 판매점 주문번호 `Order code: 32155` 는 **품번이 아니다** — 같은 물건도 판매점마다 다르다
+  - [ ] 🔴 **남은 핵심 질문 하나 — iG5A 소용량(0.4~7.5kW) 냉각팬 단품이 있는가**
+    - 검색: `inverterdrive.com/Catalogue.aspx?search=fan` (또는 `search=spare`)
+    - **양성 축이 있다** — S100·iS7 팬은 나오는 것을 확인했다(`LV0110/0150S100-FAN` 등).
+      그런데도 iG5A 팬이 안 나오면 검색 실패가 아니라 **품목 부재**다
+    - 없으면 `FAN-IG5-01`(S1 시나리오 주인공) 실품번은 **공개돼 있지 않다**로 확정된다
+  - [ ] 나머지 2차 출처: `SV-iG5ACAB2`/`CAB3` · `LV0110/0150S100-FAN` · `LV0185/0450S100-FAN`
 
 - [ ] 📞 **LS ELECTRIC 고객센터/대리점에 iG5A 팬 품번 문의** (위 항목이 "없음"으로 끝나면)
   - 매뉴얼이 직접 그렇게 지시한다 — *"FAN교체는 구입처나 LS산전 고객센터에 문의하십시오"*
