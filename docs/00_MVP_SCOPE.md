@@ -144,7 +144,7 @@
 | 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D96) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
-| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P30) |
+| 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P32) |
 | MVP 이후 설계 (확장 범위) | `11_ASSET_LIFECYCLE` · `12_MAINT_VALUE` |
 
 ## 범위 확장 — 자산 생애주기 (D67)
