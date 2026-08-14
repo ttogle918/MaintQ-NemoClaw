@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D96**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D97**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 8종** §8~§15). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **18절(실제 19개)** + 시드 케이스 맵
@@ -91,7 +91,7 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-13, Sprint 8 Stage 4)** — spikes **28스위트 / 635건** · seed **25건** · pytest **46건** ·
+**실측 기준선 (2026-08-14)** — spikes **28스위트 / 635건** · seed **26건**(㉖ `mfr_part_no` D97 추가) · pytest **46건** ·
 프론트 라우트 **10개**(`npm run build`). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·

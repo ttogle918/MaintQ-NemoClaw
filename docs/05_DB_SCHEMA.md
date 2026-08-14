@@ -148,7 +148,8 @@ CREATE TABLE parts (
   category     TEXT,                   -- '냉각' | '제어' | '전원' ...
   compatible_models TEXT NOT NULL,     -- JSON array ['iG5A']
   discontinued BOOLEAN DEFAULT 0,      -- 단종 → 대체품 분기 재료
-  part_class   TEXT                    -- 'CONSUMABLE' | 'CRITICAL' (Sprint 6)
+  part_class   TEXT,                   -- 'CONSUMABLE' | 'CRITICAL' (Sprint 6)
+  mfr_part_no  TEXT                    -- 제조사 실품번. NULL = 공개돼 있지 않음 (D97)
 );
 ```
 
@@ -162,6 +163,25 @@ CREATE TABLE parts (
 > ⚠ **사람 미검수 초안이다.** `seed.py` 의 `part_class_caveat()` 가 매 실행 말미에 경고를 찍는다.
 > **게이트가 아니다** — 막으면 스프린트가 선다(`prompts.py` 안전 문구 미검수를 런타임에서
 > 막지 않는 것과 같은 태도). 검수 항목은 `TODO_직접할일.md`.
+
+**`mfr_part_no` 확장 (2026-08-14 · D97).** `part_no` 는 **합성 PK**(`FAN-IG5-01`)이고
+제조사 실품번은 **별도 컬럼**에 얹는다. PK 를 실품번으로 바꾸지 않는 이유는 D97 에 있다 —
+케이스 맵·평가셋·회귀가 이 문자열에 묶여 있고, 실품번이 있는 부품은 **40종 중 1종**뿐이라
+바꾸면 표기 체계가 반반으로 갈린다.
+
+| 상태 | 뜻 |
+|---|---|
+| 값 있음 | 제조사가 **공개한** 품번을 **사람이 원문에서 확인**했다 |
+| **NULL** | **공개돼 있지 않다** — ⛔ *"우리가 아직 못 찾았다"* 가 **아니다** |
+
+현재 **1/40종**: `PCB-IG5-CTRL` → **`SV-iG5A I/OPCBASSY`**(적용 `0.4~7.5KW-2/4`).
+나머지 39종의 NULL 은 4개 축 전수 조사 결과이며 근거는
+[`data/analysis/part_number_sources.md`](../data/analysis/part_number_sources.md) 에 있다
+(핵심: `FAN-IG5-01` 은 **제조사가 대리점 문의로 돌려 품번 자체가 비공개**).
+
+⛔ **넣으면 안 되는 값 3종** — 판매점 주문번호(`32155`) · 완제품 형명(`SV220iG5A-4`) ·
+추측 품번. 앞의 둘은 시드 자가검증 **㉖** 이 정규식으로 거부하고, 셋째는 규칙이다
+(CLAUDE.md 절대규칙 6 과 같은 계열 — **모르면 NULL 이 정답**).
 
 ## 5. part_alternatives — 호환 대체품 (self-reference)
 

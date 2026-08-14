@@ -3,7 +3,8 @@
 
 출력 : data/maintq.db (기존 파일은 .bak 으로 백업 후 재생성)
 검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪) + Sprint 6~7 확장(⑫~㉑)
-       + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕)를 SQL로 자가 검증하고 통과/실패 표를 출력
+       + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕) + parts.mfr_part_no(㉖)
+       를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
   - `PRAGMA foreign_keys=ON` 필수 (기본 OFF, 안 켜면 D33의 FK 보증이 조용히 사라짐)
@@ -143,7 +144,8 @@ CREATE TABLE parts (
   category     TEXT,
   compatible_models TEXT NOT NULL,        -- JSON array
   discontinued BOOLEAN DEFAULT 0,
-  part_class   TEXT                       -- 'CONSUMABLE' | 'CRITICAL' (12 §9). ⚠ 미검수 초안 (D12)
+  part_class   TEXT,                      -- 'CONSUMABLE' | 'CRITICAL' (12 §9). ⚠ 미검수 초안 (D12)
+  mfr_part_no  TEXT                       -- 제조사 실품번. NULL = **공개돼 있지 않음** (D97)
 );
 
 CREATE TABLE part_alternatives (
@@ -569,6 +571,31 @@ PART_CLASS: dict[str, str] = {
 #                 추측 9종과 `FAN-IG5-01 = CRITICAL`(S1 주인공, 3지 판단 데모 성립 조건)에
 #                 모두 동의. 이로써 `assess_repair_value` 3지 판단을 실적으로 인용할 수 있다.
 PART_CLASS_REVIEWED = True
+
+# ── parts.mfr_part_no — 제조사 실품번 (D97) ────────────────────────────────
+#
+# ⛔ **여기 없는 부품은 "우리가 아직 못 찾은 것"이 아니라 "세상에 공개돼 있지 않은 것"이다.**
+#    2026-08-14 에 4개 축을 전수 조사했고 결과가 `data/analysis/part_number_sources.md` 에 있다:
+#      ⓐ 공공데이터(조달청) — 부품 8종 0건 (대조군 케이블 958·전동기 21 정상 검출)
+#      ⓑ LS 매뉴얼 1,035청크 전수 스캔 — 품번 토큰 34종이 제동유닛·EMC필터·MCCB 세 계열뿐.
+#         **냉각/팬 0 · 제어보드 0 · 키패드 0**(같은 스캐너가 제동유닛을 잡으므로 양성 축 살아 있음)
+#      ⓒ 국내 유통(나비엠알오·미스미) — 완제품 SKU 만
+#      ⓓ 해외 전문 판매점 부품 목록 **사람 전수 확인** — iG5A 는 아래 1종뿐.
+#         같은 목록에 팬이 4종 있는데(S100 11~15 · S100 18.5~45 · iS7 30~45 · **iS7 5.5kW**)
+#         **iG5A 팬만 0건**이다. 소용량이라 안 파는 것도 아니다(iS7 5.5kW 존재) → **품목 부재**
+#    근본 원인은 유통 정책이다 — 매뉴얼이 *"FAN교체는 구입처나 LS산전 고객센터에 문의하십시오"*
+#    라고 **명시**한다. 그래서 **검색을 더 해도 채워지지 않는다.** 남은 경로는 대리점 문의(사람).
+#
+# ⚠ **넣으면 안 되는 값 3종** (조사 중 실제로 헷갈렸던 것들):
+#   ① 판매점 주문번호(`Order code: 32155`) — 같은 물건도 판매점마다 다르다. 품번이 아니다
+#   ② 완제품 형명(`SV220iG5A-4`·`LSLV0004G100-2EONN`) — 인버터 1대이지 교체 부품이 아니다
+#   ③ 추측·유추한 품번 — CLAUDE.md 절대규칙 6 과 같은 계열이다. **모르면 NULL 이 정답이다**
+MFR_PART_NO: dict[str, str] = {
+    # 제어보드 + 로컬 키패드 일체형. 판매점 페이지가 `Part number:` 로 명시했고
+    # 적용 범위 `0.4~7.5KW-2/4` 가 MaintQ 자산 용량대(2.2·4.0kW)를 덮는다.
+    # 확인: 2026-08-14 사람 · 출처: `data/analysis/part_number_sources.md §③`
+    "PCB-IG5-CTRL": "SV-iG5A I/OPCBASSY",
+}
 
 # ── assets 9건 (D68) ──────────────────────────────────────────────────────
 # `age_years` 는 **실행 연도 기준 상대 연차**다 — acquired_at 의 연도 = today.year - age_years.
@@ -1114,10 +1141,18 @@ def seed_masters(con: sqlite3.Connection) -> None:
         # 부품 등급을 도구가 추측하면 3지 판단이 근거를 잃는다 (D12). 누락은 조용히 넘기지 않는다
         sys.exit(f"[중단] parts.part_class 미지정: {missing}")
 
+    unknown = sorted(set(MFR_PART_NO) - {p for p, *_ in PARTS})
+    if unknown:
+        # 없는 부품에 실품번이 달려 있으면 조용히 버려진다 — 조사 결과가 사라지는 셈이다
+        sys.exit(f"[중단] MFR_PART_NO 가 존재하지 않는 part_no 를 가리킨다: {unknown}")
+
     con.executemany("INSERT INTO suppliers VALUES (?,?,?)", SUPPLIERS)
     con.executemany(
-        "INSERT INTO parts VALUES (?,?,?,?,?,?)",
-        [(p, n, c, json.dumps(m, ensure_ascii=False), d, PART_CLASS[p]) for p, n, c, m, d in PARTS],
+        "INSERT INTO parts VALUES (?,?,?,?,?,?,?)",
+        [
+            (p, n, c, json.dumps(m, ensure_ascii=False), d, PART_CLASS[p], MFR_PART_NO.get(p))
+            for p, n, c, m, d in PARTS
+        ],
     )
     con.executemany("INSERT INTO equipment VALUES (?,?,?,?,?,?)", EQUIPMENT)
     con.executemany("INSERT INTO part_alternatives VALUES (?,?,?,?)", ALTERNATIVES)
@@ -1817,8 +1852,10 @@ def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
 def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
     """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증.
 
-    Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕)이 뒤에 붙는다.
-    ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를 지목한다.
+    Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
+    parts.mfr_part_no 1건(㉖)이 뒤에 붙는다.
+    ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
+      D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
     """
     q = lambda sql, *a: con.execute(sql, a).fetchone()  # noqa: E731
@@ -2317,6 +2354,44 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"존재={rc_col is not None}, notnull={rc_col[3] if rc_col else '-'}"
         " · **쓰는 쪽 없음 — A2A 호출부 미착수**, 계측 회귀는"
         " `spikes/a2a_identity_contract.py` 가 본다",
+    )
+
+    # ㉖ parts.mfr_part_no — 제조사 실품번 (D97).
+    #
+    # ⚠ 이 검사는 **"대부분 NULL"을 확인하는 검사가 아니다.** 그렇게 짜면 컬럼이 통째로
+    #    비어도(적재 코드가 죽어도) 통과한다 — CLAUDE.md 부재검사 규칙이 금지하는 형태다.
+    #    그래서 **양성 축**(정본 dict 와 DB 가 정확히 일치)과 **음성 축**(넣으면 안 되는 값이
+    #    안 들어왔다)을 함께 걸고, detail 에 결론이 아니라 **두 축의 실측값**을 찍는다.
+    p_cols = {r[1]: r for r in con.execute("PRAGMA table_info(parts)").fetchall()}
+    mp_col = p_cols.get("mfr_part_no")
+    total_parts = con.execute("SELECT count(*) FROM parts").fetchone()[0]
+    filled = dict(
+        con.execute("SELECT part_no, mfr_part_no FROM parts WHERE mfr_part_no IS NOT NULL")
+    )
+    # 음성 축 — 조사 중 실제로 헷갈렸던 두 종류가 들어왔는가
+    bad = [
+        f"{p}={v!r}"
+        for p, v in filled.items()
+        # ① 판매점 주문번호(숫자만) ② 완제품 형명(SV220iG5A-4 · LSLV0004G100-2EONN)
+        if v.strip().isdigit()
+        or (
+            re.match(r"^(SV|LSLV)\d{3,4}(IG5A|G100|S100|IS7)", v.strip(), re.I)
+            and not re.search(r"(FAN|PCB|ASSY|BOARD|KEYPAD|CAB\d)", v, re.I)
+        )
+    ]
+    check(
+        "㉖ parts.mfr_part_no 존재·nullable · 정본 일치 · 금지값 0건 (D97)",
+        mp_col is not None
+        and mp_col[3] == 0
+        and total_parts > 0
+        and filled == MFR_PART_NO
+        and not bad,
+        f"컬럼 존재={mp_col is not None}, notnull={mp_col[3] if mp_col else '-'}"
+        f" · [양성] 적재 {len(filled)}/{total_parts}종, 정본(MFR_PART_NO {len(MFR_PART_NO)}종) 일치"
+        f"={filled == MFR_PART_NO} {sorted(filled.items())}"
+        f" · [음성] 금지값(주문번호·완제품형명) {len(bad)}건 {bad}"
+        f" · NULL {total_parts - len(filled)}종은 **미조사가 아니라 미공개**"
+        " (`data/analysis/part_number_sources.md`)",
     )
     return results
 
