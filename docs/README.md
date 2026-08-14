@@ -14,7 +14,7 @@
 | [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + **확장 범위 P22~P27(진행 표시 — P24 Sprint 7 완료, P25 는 Sprint 9 로 재이월)** + **P28~P32 인프라·데이터 품질** + 아이디어 주차장 + 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
 | [09_RUNTIME](09_RUNTIME.md) | S1 시퀀스 다이어그램, 에이전트 루프 정책, 장애 모드, 스파이크 3종 | 에이전트 루프·SSE 구현 시, 개발 착수 직전 |
-| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D96 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
+| [10_DECISIONS](10_DECISIONS.md) | 설계 결정 D1~D97 + 이유 | "왜 이렇게 했지?" 싶을 때, 설계 변경 전 필독 |
 | [11_ASSET_LIFECYCLE](11_ASSET_LIFECYCLE.md) | 처분 법정 조건 · **근거 3계층(계층 3 = Sprint 7 완료)** · 룰 5종 · S9·S10·S18 | 처분·취득 기능 작업 시, "근거를 어떻게 남기나" 확인할 때 |
 | [12_MAINT_VALUE](12_MAINT_VALUE.md) | 보전지표 · 수리 이력의 자산가치 · 중고 거래 배경 · S1+·S19 | 수리 판단·증빙 기능 작업 시 |
 
@@ -24,10 +24,17 @@
 
 ---
 
-## 진행 상태 (Sprint 8 Stage 5 시점 · 2026-08-13)
+## 진행 상태 (2026-08-14 · 부품 품번 조사 종료 시점)
 
 **M1~M4 는 완주했고, Sprint 6 에서 확장 범위(F1·F2·F4)를 열었으며 Sprint 7 이 F3(계층 3 서명)을 닫았다.
 Sprint 8 은 A2A 신원 계층을 깔았다 — 스키마·시드·자격증명 env 층까지이고 호출부는 없다.**
+
+**2026-08-14 (스프린트 아님 · 데이터 조사)** — `data/part-catalog` 브랜치에서 **P32(부품 품번) 종결**.
+4축 전수 조사 결과 **`parts` 40종 중 공개된 실품번은 1종**(`PCB-IG5-CTRL` → `SV-iG5A I/OPCBASSY`)이고,
+케이스 맵 주인공 `FAN-IG5-01`(iG5A 소용량 냉각팬)은 **제조사가 대리점 문의로 돌려 품번 자체가 비공개**다.
+결과를 **`parts.mfr_part_no`(nullable, D97)** 로 스키마에 고정했다 — **`NULL` = "미조사"가 아니라 "미공개"**.
+전문 [`../data/analysis/part_number_sources.md`](../data/analysis/part_number_sources.md).
+⛔ **부품 특정 42.2% 는 안 움직였다** — 데이터가 세상에 없다는 것이 실증됐을 뿐이다.
 
 | Sprint 8 (A2A 신원) 축 | 상태 |
 |---|---|
