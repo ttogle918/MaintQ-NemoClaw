@@ -149,6 +149,44 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 지금 막히는 것은 **없다** — 자격증명을 쓰는 A2A 호출부 자체가 미착수다(QMesh 착수 후).
     이 항목은 "실값이 없다는 사실이 문서·시드에 정직하게 드러나 있는가"를 지키기 위한 것이다
 
+## 데이터 확보 — 2026-08-14 실측으로 드러난 블로커
+
+> 전문: [`data/analysis/part_number_sources.md`](data/analysis/part_number_sources.md) ·
+> 요약: `data/data_list.md §6-4`
+
+- [ ] 🔑 **data.go.kr 조달청 서비스 활용신청** — **키가 있어도 안 된다는 게 실측됐다**
+  - `.env` 의 `DATA_GO_KR_SERVICE_KEY`(96자, 인코딩키)는 **채워져 있는데**
+    조달청 엔드포인트가 전부 `HTTP 403 SERVICE_KEY_IS_NOT_REGISTERED_ERROR` 를 낸다
+  - ⚠ **대조군으로 확정했다** — 위조 키(`'A'*88`)를 넣어도 **바이트 단위로 동일한 응답**이 온다.
+    즉 "키가 틀렸다"가 아니라 **이 서비스에 활용신청이 안 돼 있는 것**이다
+    (data.go.kr 은 키 발급과 **서비스별 활용신청이 별개**다)
+  - 신청 대상 3개만:
+
+    | # | 데이터셋 | 쓸 곳 |
+    |---|---|---|
+    | 7 | [물품목록정보서비스 / 15129417](https://www.data.go.kr/data/15129417/openapi.do) | 조인 키 — 물품분류번호 ↔ `assets.category` |
+    | 10 | [나라장터 계약정보서비스 / 15129427](https://www.data.go.kr/data/15129427/openapi.do) | 실거래가 |
+    | — | [종합쇼핑몰 품목정보 `ShoppingMallPrdctInfoService`](https://www.data.go.kr/) | 품목별 **계약단가** |
+
+  - 승인 후 확인법: `uv run --with python-dotenv python data/probe_g2b.py`
+    — 위조 키 대조군이 스크립트에 내장돼 있어 **"승인됐다"와 "그냥 응답이 왔다"를 가른다**
+  - ⛔ 이건 **확장 범위(D67)** 다. S1~S4 를 막지 않는다 — `assess_repair_value`·`residual_curve`
+    의 **목업 시장가**를 실측으로 바꾸는 용도일 뿐이다
+
+- [ ] 🔍 **`inverterdrive.com` 부품 품번 원문 확인** (사람 브라우저 필요)
+  - Cloudflare 봇 차단으로 **Claude 가 못 연다** (WebFetch 403 · 브라우저 자동화도 차단.
+    우회하지 않았다)
+  - 확인할 것 — 검색 스니펫에서만 본 값이라 **2차 출처**다:
+    `SV-iG5A I/OPCBASSY`(제어보드+키패드) · `SV-iG5ACAB2`/`CAB3`(원격 키패드) ·
+    `LV0110/0150S100-FAN` · `LV0185/0450S100-FAN`
+  - 목록: `inverterdrive.com/m/LS-Industrial-Systems/Spare-Parts-LS-Industrial-Systems-Inverter`
+  - ⚠ **핵심 질문 하나** — **iG5A 소용량(0.4~4.0kW) 냉각팬 단품이 있는가.**
+    없으면 `FAN-IG5-01`(S1 시나리오 주인공) 실품번은 **세상에 공개돼 있지 않다**는 결론이 확정된다
+
+- [ ] 📞 **LS ELECTRIC 고객센터/대리점에 iG5A 팬 품번 문의** (위 항목이 "없음"으로 끝나면)
+  - 매뉴얼이 직접 그렇게 지시한다 — *"FAN교체는 구입처나 LS산전 고객센터에 문의하십시오"*
+  - **이게 마지막 경로다.** 3개 축(공공데이터·제조사 문서·유통) 모두 닫혔다
+
 ## M2~M4 중
 
 - [ ] **시스템 프롬프트의 안전 경고 문구 최종 검수** (안전 관련은 사람이 승인) — safety-guardrail 스킬 규칙 5
