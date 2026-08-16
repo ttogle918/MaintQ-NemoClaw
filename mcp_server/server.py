@@ -12,10 +12,11 @@
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
 
-확장 8종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
+확장 9종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
   - check_disposal_blockers · verify_ownership · classify_part_criticality ·
     get_maintenance_metrics · classify_expenditure · assess_repair_value ·
-    build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**)
+    build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**) ·
+    create_repair_record (**세 번째 쓰기 도구**, D98)
 
 **기본이 `core` 인 이유(D69)**: `eval/run_eval.py` 가 부모 env 를 상속해 이 서버를 띄우므로
 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — 그러면 "수정 효과 vs
@@ -151,7 +152,7 @@ def create_po_draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 8종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69)
+# 확장 9종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98)
 #
 # ★ 파라미터 타입을 좁히지 않는다. `get_error_history.line_id` 주석과 같은 이유다 —
 #   타입을 좁히면 LLM 이 문자열로 넘긴 순간 pydantic 이 본체 진입 전에 예외를 던져
@@ -201,6 +202,10 @@ if TOOLS_PROFILE == "full":
     from mcp_server.tools.classify_part_criticality import (  # noqa: E402
         DESCRIPTION as CRITICALITY_DESC,
         classify_part_criticality as _classify_part_criticality,
+    )
+    from mcp_server.tools.create_repair_record import (  # noqa: E402
+        DESCRIPTION as REPAIR_RECORD_DESC,
+        create_repair_record as _create_repair_record,
     )
     from mcp_server.tools.generate_disposal_document import (  # noqa: E402
         DESCRIPTION as DISPOSAL_DOC_DESC,
@@ -358,6 +363,55 @@ if TOOLS_PROFILE == "full":
             equipment_id=equipment_id,
             disposal_mode=disposal_mode,
             disposal_date=disposal_date,
+        )
+
+    @mcp.tool(description=REPAIR_RECORD_DESC)
+    def create_repair_record(
+        equipment_id: str,
+        work_type: Annotated[
+            str, Field(description="PLANNED | UNPLANNED. 미기재 거부 — 기본값이 없다 (12 §7).")
+        ],
+        repair_scope: Annotated[
+            str,
+            Field(description="RESTORE | UPGRADE | OVERHAUL | REPLACE_UNIT. 폴백하지 않는다."),
+        ],
+        cost: Annotated[
+            int | str, Field(description="수리 비용(원, 0 초과). 견적·청구 금액만 넣을 것.")
+        ],
+        parts: Annotated[
+            list[dict],
+            Field(
+                description=(
+                    "교체한 부품 배열, 1건 이상. 각 항목은 {part_no(필수), serial, qty} — "
+                    "등록되지 않은 part_no 는 거부된다(unknown_part)."
+                )
+            ),
+        ],
+        downtime_hours: float | int | str | None = None,
+        model: str | None = None,
+        error_code: str | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """⚠️ 세 번째 쓰기 도구. `repair_records` 에 **draft INSERT 만** 한다 (D10·D98).
+
+        ★ `performed_by`·`verified_by`·`signed_at`·`record_hash`·`requested_by`·`session_id`·
+          `state` 는 파라미터에 **없다** — 스키마에 없으므로 LLM 이 채울 수 없고, 도구가
+          NULL 리터럴로 박거나(`state`만 `'draft'` 리터럴) 백엔드가 서명 API 에서 stamp 한다.
+        ★ `part_class`·`expenditure_class` 도 파라미터가 아니다 — 전자는 `parts` 조회,
+          후자는 `data/maint_value.expenditure()` 산출이다. LLM 이 회계 판정을 지어낼
+          경로를 막는다 (D31·D81 과 같은 이유).
+        ★ `equipment_id`·`work_type`·`repair_scope`·`cost`·`parts` 는 필수 (D80).
+        """
+        return _create_repair_record(
+            equipment_id=equipment_id,
+            work_type=work_type,
+            repair_scope=repair_scope,
+            cost=cost,
+            parts=parts,
+            downtime_hours=downtime_hours,
+            model=model,
+            error_code=error_code,
+            note=note,
         )
 
 

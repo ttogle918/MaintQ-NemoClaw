@@ -1,11 +1,14 @@
 # MCP 도구 스키마 v0.3
-설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 8종(읽기 7 + 쓰기 1) = 총 15종**
+설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 9종(읽기 7 + 쓰기 2) = 총 16종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
-- 확장 8종은 자산 생애주기(처분·취득·자산가치) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다 (**D68**).
-- ⚠ **쓰기 도구는 이제 2종이다** — `create_po_draft`(§7) 와 **`generate_disposal_document`(§15, Sprint 7 신설)**.
-  둘 다 draft INSERT 만 하며 UPDATE 권한이 없다 (D10·D81). 확장 도구에 쓰기가 하나도 없다는 이 문서의
-  옛 서술은 **거짓이 됐고 아래에서 정정했다** (실측: `mcp_server/server.py:331-361`).
+- 확장 9종은 자산 생애주기(처분·취득·자산가치·수리 증빙) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다
+  (**D68**) — 단 `create_repair_record`(§16)는 예외로 `equipment_id`(인버터) 를 직접 받는다 (D68 ⓑ, 수리는
+  인버터 단위).
+- ⚠ **쓰기 도구는 이제 3종이다** — `create_po_draft`(§7) · **`generate_disposal_document`(§15, Sprint 7 신설)** ·
+  **`create_repair_record`(§16, Sprint 9 신설, D98)**. 셋 다 draft INSERT 만 하며 UPDATE 권한이 없다
+  (D10·D81·D98). 확장 도구에 쓰기가 하나도 없다는 이 문서의 옛 서술은 **거짓이 됐고 아래에서 정정했다**
+  (실측: `mcp_server/server.py`).
 
 ### 프로파일 게이트 (D69)
 
@@ -14,12 +17,13 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 8 = 15종 (§1~§15) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 9 = 16종 (§1~§16) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
 
-> **실측** — `mcp_server/server.py:183` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
-> **8개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
+> **실측** — `mcp_server/server.py` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
+> **9개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
 > `get_maintenance_metrics`·`classify_expenditure`·`assess_repair_value`·`build_evidence_bundle`·
-> **`generate_disposal_document`**. `spikes/tools_profile_contract.py`(7건)가 양방향으로 잠근다.
+> `generate_disposal_document`·**`create_repair_record`**(Sprint 9, D98). `spikes/tools_profile_contract.py`
+> 가 양방향으로 잠근다.
 
 - **기본이 `core` 인 이유**: `eval/run_eval.py` 가 부모 env 를 상속해 MCP 서버를 띄우므로(D56), 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — "수정 효과 vs 도구 증가 효과"가 영원히 분리되지 않는다.
 - **enum 밖 값은 폴백하지 않고 죽는다.** 조용히 `core` 로 떨어지면 "어느 프로파일로 돌았는지 모르는 실행 결과"가 남는다.
@@ -31,15 +35,15 @@
 ## 공통 설계 원칙
 
 1. **description이 오케스트레이션의 절반이다.** 각 도구 설명에 "언제 사용 / 언제 사용 금지"를 명시한다. LLM의 도구 선택 품질은 스키마 설명 품질에 비례한다.
-   → 확장 8종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
+   → 확장 9종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
 2. **실패도 구조화된 결과로 반환한다.** 예외를 던지지 않고 `status` 필드로 반환해 에이전트가 분기(S2, S4)할 수 있게 한다. `status: "ok" | "not_found" | "empty" | "error"`
-3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 **2종**(`create_po_draft` §7 · `generate_disposal_document` §15)이며 **둘 다 draft INSERT 만** 한다. 확정은 승인 큐(사람)에서만.
-   - `build_evidence_bundle`(§14)은 **여전히 아무것도 쓰지 않는다** — 읽기 전용 커넥션만 갖는다(`build_evidence_bundle.py:320` `with read_only()`). 그러나 §15 는 `decisions` 에 `state='draft'` 한 행을 INSERT 한다 (D81).
-   - 권한은 규율이 아니라 **커넥션이 잠근다**: `db.decision_writer()` 의 TEMP TRIGGER 2개가 `decisions` UPDATE/DELETE 를 거부한다. §15 는 `po_drafts` 전용인 `draft_writer()` 를 재사용하지 않는다(`generate_disposal_document.py:10-13`).
+3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 **3종**(`create_po_draft` §7 · `generate_disposal_document` §15 · `create_repair_record` §16)이며 **셋 다 draft INSERT 만** 한다. 확정은 승인 큐(사람)에서만.
+   - `build_evidence_bundle`(§14)은 **여전히 아무것도 쓰지 않는다** — 읽기 전용 커넥션만 갖는다(`build_evidence_bundle.py:320` `with read_only()`). 그러나 §15·§16 은 각각 `decisions`·`repair_records` 에 `state='draft'` 한 행을 INSERT 한다 (D81·D98).
+   - 권한은 규율이 아니라 **커넥션이 잠근다**: `db.decision_writer()`·`db.repair_writer()` 의 TEMP TRIGGER 2개가 각각 `decisions`·`repair_records` UPDATE/DELETE 를 거부한다. §15·§16 은 `po_drafts` 전용인 `draft_writer()` 를 재사용하지 않는다(`generate_disposal_document.py:10-13`·`create_repair_record.py`).
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
    ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(4종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`).
-6. **확장 8종은 "모른다"를 값으로 표현한다.** 출력에 `not_considered[]`(무엇을 보지 않았는가)·`disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65).
+6. **확장 9종은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다).
 
 ---
 
@@ -224,19 +228,25 @@
 
 ---
 
-# 확장 8종 (프로파일 `full` 에서만 등록 — D69)
+# 확장 9종 (프로파일 `full` 에서만 등록 — D69)
 
-> **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§15 는 인버터가 구동하는
+> **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§14 는 인버터가 구동하는
 > **호스트 설비(`asset_id`)** 를 본다 (**D68**). `equipment_id` 로 불러도 되지만 그건
 > `equipment.asset_id` 로 해석되는 **입력 편의**일 뿐, 판정 대상은 언제나 자산이다.
 > 호스트 자산이 없는 인버터(`INV-L1-01` 분전반)는 `no_host_asset` 이다 — "판정 결과 문제 없음"이 아니다.
+> ⚠ **§16(`create_repair_record`)은 예외다** — 대상이 `asset_id` 가 아니라 **`equipment_id`(인버터)
+> 그 자체**다. 수리는 인버터 단위로 남는다 (D68 ⓑ) — `assets` 로 해석·집계하는 건 `get_maintenance_metrics`
+> 소관이다.
 
-**공통 규약 4가지 (§8~§15 전부)**
+**공통 규약 4가지 (§8~§14, 원칙적으로 §16 도 D9·D80 은 그대로 따른다)**
 
 1. **읽기 전용.** `read_only()` 커넥션만 쓴다. 쓰기 경로가 코드에 없다 (D10).
+   ⚠ **§15·§16 은 이 규약의 예외다** — 둘 다 draft 전용 쓰기 커넥션(`decision_writer()`·
+   `repair_writer()`)을 가지며, 그 커넥션에는 UPDATE/DELETE 를 막는 TEMP TRIGGER 2개가 걸려
+   "쓰기가 없다"가 아니라 "쓰기가 draft 로 한정된다"로 규약이 바뀐다 (D10·D81·D98).
 2. **예외를 던지지 않는다.** 룰 엔진은 `RuleIntegrityError` 말고도 `KeyError`(미등록 법령 참조)·`TypeError`(`trigger` 파손)·`ValueError`(시점 밖 조문)를 던지므로 **광범위하게 포착해** `status:"error"` 로 닫는다 (D9·D46).
-3. **`assets` 행을 판정기에 직접 넘기지 않는다.** 반드시 `engine.build_facts()` 를 경유한다 — 이 함수가 **NULL 컬럼의 키를 아예 만들지 않는다.** `dict(row)` 를 그대로 넘기면 NULL 이 "값 있음"으로 읽혀 `INSUFFICIENT_FACTS` 여야 할 자산이 조용히 `CLEAR` 가 된다 (D62).
-4. **enum 은 폴백하지 않는다.** `disposal_mode` 는 `engine.DISPOSAL_MODES`(`SALE|SCRAP|TRANSFER`)가 단일 출처다. `'SELL'` 을 `'SALE'` 로 고쳐 주면 오타 하나가 `VAT-INVOICE` 트리거를 빗나가 `CONDITIONAL` 을 `CLEAR` 로 만든다.
+3. **`assets` 행을 판정기에 직접 넘기지 않는다.** 반드시 `engine.build_facts()` 를 경유한다 — 이 함수가 **NULL 컬럼의 키를 아예 만들지 않는다.** `dict(row)` 를 그대로 넘기면 NULL 이 "값 있음"으로 읽혀 `INSUFFICIENT_FACTS` 여야 할 자산이 조용히 `CLEAR` 가 된다 (D62). (§16 은 처분 판정기를 부르지 않으므로 이 규약 밖이다.)
+4. **enum 은 폴백하지 않는다.** `disposal_mode` 는 `engine.DISPOSAL_MODES`(`SALE|SCRAP|TRANSFER`)가 단일 출처다. `'SELL'` 을 `'SALE'` 로 고쳐 주면 오타 하나가 `VAT-INVOICE` 트리거를 빗나가 `CONDITIONAL` 을 `CLEAR` 로 만든다. §16 의 `work_type`·`repair_scope`·`model` 도 같은 태도로 폴백하지 않는다.
 
 ---
 
@@ -876,29 +886,97 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 ---
 
-## 확장 8종 reason 색인 (한눈에)
+## 16. create_repair_record — 수리 증빙 초안 생성 (S19) ⚠️ 세 번째 쓰기 도구 (D98)
+
+**description (코드 정본 = `create_repair_record.py:DESCRIPTION`):**
+> "수리 작업의 증빙 '초안'을 생성한다. 확정이 아니다. 수리가 끝난 뒤 무엇을 어떻게 고쳤는지(작업유형·수리범위·비용·교체 부품)를 기록할 때 호출할 것. 이 초안은 팀장이 서명해야 정식 증빙이 되며, 서명 전에는 get_maintenance_metrics 의 보전지표에 들어가지 않는다. 교체한 부품 품번을 정확히 넣을 것 — 등록되지 않은 품번은 거부된다(unknown_part). 지출의 자본적/수익적 분류(expenditure_class)는 시스템이 자동 산출한다 — 파라미터로 받지 않으며 네가 추측하거나 지어내지 말 것. 에러코드로부터 시작된 수리이면 model·error_code 를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다."
+
+`create_po_draft`(§7)·`generate_disposal_document`(§15)와 **같은 패턴**이다: draft 만
+INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백엔드가 stamp 한다. 대상은 §8~§14 의
+`asset_id` 가 아니라 **`equipment_id`(인버터) 그 자체**다 — 수리는 인버터 단위로 남는다(D68 ⓑ).
+
+```json
+// input — equipment_id·work_type·repair_scope·cost·parts 는 필수(기본값 없음, D80)
+{
+  "equipment_id": "INV-L3-01",
+  "work_type": "UNPLANNED",             // PLANNED | UNPLANNED — 미기재 거부 (12 §7)
+  "repair_scope": "RESTORE",            // RESTORE|UPGRADE|OVERHAUL|REPLACE_UNIT
+  "cost": 850000,                       // > 0 인 정수
+  "parts": [{"part_no": "FAN-IG5-01", "serial": "SN-88214", "qty": 2}],  // 1건 이상
+  "downtime_hours": 6.5,                // optional. MTTR 의 유일한 원천 (12 §9)
+  "model": "iG5A", "error_code": "OHT", // optional (짝). enum(D6·D13) + FK 검증(D33)
+  "note": "냉각팬 교체"                  // optional
+}
+// output
+{
+  "status": "ok",
+  "repair_id": "RPR-2413",              // 채번 RPR-%04d — 시드 2401~2412 다음
+  "state": "draft",                     // ★ 리터럴. 파라미터가 아니다
+  "equipment_id": "INV-L3-01", "work_type": "UNPLANNED",
+  "part_class": "CRITICAL",             // parts 테이블 조회 결과. 파라미터가 아니다
+  "expenditure_class": "REVENUE",       // data/maint_value.expenditure() 산출. 파라미터가 아니다
+  "expenditure_reason": "…",            // 산출 근거 (HOLD 도 정상 값이다)
+  "cost": 850000, "downtime_hours": 6.5,
+  "record_hash": null,                  // 서명 시 백엔드가 계산한다 (D84 태도)
+  "next_step": "이 기록은 확정이 아니다. 제출 후 팀장이 서명해야 증빙이 된다.",
+  "disclaimer": "…"                     // 지출 분류는 회계 판단의 참고값이라는 고지 (D65 태도)
+}
+```
+
+### 핵심 로직
+
+1. **입력 검증 → 조회 → 산출 → INSERT** 순서. 거부할 입력으로 DB 를 열지 않는다 (`create_po_draft`·`generate_disposal_document` 와 같은 어휘).
+2. `parts[*].part_no` 를 `parts` 테이블에서 전부 조회한다. 하나라도 없으면 `error`/`unknown_part`(+`missing[]`) — LLM 이 지어낸 품번이 정비 이력에 남을 경로를 막는다(D33 이 에러코드에 건 방어를 부품에도 건다).
+3. `part_class` 산출: 조회한 부품 중 **하나라도 `CRITICAL` 이면 `CRITICAL`**, 전부 `CONSUMABLE` 이면 `CONSUMABLE`, 값이 없는 부품이 섞이면 **`NULL`**(0·임의값으로 메우지 않는다) — 그 사유는 `expenditure_reason` 에 실린다.
+4. `expenditure_class` 산출: `data/maint_value.expenditure(con, part_class=…, repair_scope=…, amount=cost)`. **`HOLD` 는 실패가 아니라 판정**이므로 그대로 저장한다(DDL CHECK 가 허용). `part_class` 가 NULL 이면 지출 분류도 **NULL**이고, `expenditure()` 자체가 `status != "ok"` 를 돌려주면 **그대로 전파**하고 INSERT 하지 않는다(§13 이 하위 도구 실패를 삼키지 않는 것과 같은 태도).
+5. `(model, error_code)` 는 짝이거나 둘 다 NULL. `model` 은 enum(`iG5A`|`S100`) 강제(D6·D13). `error_code` 는 대문자 canonical로 저장하되 **사전 조회를 하지 않는다** — `create_po_draft` 와 달리 실재 검증은 INSERT 시점의 FK(`(model, error_code) REFERENCES error_codes(model, code)`)에 맡기고, 위반은 `status:"error", reason:"integrity"` 로 그대로 드러난다.
+6. `db.repair_writer()` 로 **INSERT 만**. `state='draft'`, `performed_by`/`verified_by`/`signed_at`/`record_hash`/`requested_by`/`session_id` 는 **NULL 리터럴**로 박는다(파라미터로 받지 않는다).
+7. `repair_id` 채번: `SELECT max(...)` 로 `RPR-` 접두 4자리 숫자의 최대 + 1. 동시성 방어는 새로 만들지 않는다(단일 사용자 데모 전제, P19 그대로).
+8. `server.py` 등록은 `if TOOLS_PROFILE == "full":` 블록 안에만.
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `invalid_input` | `equipment_id` 빈 문자열 / `work_type`·`repair_scope` enum 밖 / `cost` ≤0·해석 불가 / `downtime_hours` 음수·해석 불가 / `parts` 가 빈 배열이거나 항목에 `part_no` 없음 / `note` 가 문자열이 아님 |
+| `error` | `model_code_pair` | `model`·`error_code` 가 한쪽만 있음 (D33) |
+| `error` | `invalid_model` | `model` 이 `iG5A`\|`S100` 밖 (D6·D13) |
+| `not_found` | `unknown_equipment` | 등록되지 않은 설비 |
+| `not_found` | `unknown_part` | `parts[*].part_no` 중 `parts` 테이블에 없는 것이 있음. `missing[]` 로 이름을 댄다 |
+| `error` | `integrity` | FK((model,error_code))·CHECK·TEMP TRIGGER(D10) 위반. 매뉴얼에 없는 `error_code` 로 부르면 여기서 걸린다(사전 조회 없음) |
+| `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(D9) |
+| (전파) | `data/maint_value.expenditure()` 의 `error`/`not_found` 계열 reason | `part_class` 확정 후 지출 산출이 실패하면 그대로 전파하고 INSERT 하지 않는다 |
+
+**지켜야 할 결정**: D98(전용 writer·프로파일·비파라미터 목록) · D10(draft INSERT 만) · D9(status 반환) ·
+D80(필수 기본값 없음) · D12 태도(등급을 추측하지 않는다) · D13·D33(복합키 FK) · D6(model enum) ·
+D23·D37(신원 서버 stamp — 이 도구는 아무것도 stamp하지 않고 NULL 로 둔다) · D65(고지) · D69·D88(프로파일)
+
+---
+
+## 확장 9종 reason 색인 (한눈에)
 
 | reason | 나오는 도구 | 성격 |
 |---|---|---|
-| `invalid_input` | 8·9·11·12·13·14 (→15 전파) | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
+| `invalid_input` | 8·9·11·12·13·14·**16** (→15 전파) | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
 | `unknown_asset` | 8·9·11·12·13·14 (→15 전파) | `not_found` |
-| `unknown_equipment` | 8·9·11·13·14 (→15 전파) | `not_found` |
-| `no_host_asset` | 8·9·11·13·14 (→15 전파) | `not_found` — 호스트 자산 미지정. **"문제 없음"이 아니다** |
-| `unknown_part` | 10 (→13 전파) | `not_found` |
-| `part_class_not_set` / `part_class_invalid` | 10 (→13 전파) | 등급 미등록 / 허용값 밖 |
+| `unknown_equipment` | 8·9·11·13·14·**16** (→15 전파) | `not_found` |
+| `no_host_asset` | 8·9·11·13·14 (→15 전파) | `not_found` — 호스트 자산 미지정. **"문제 없음"이 아니다** (§16 은 `asset_id` 를 안 보므로 이 reason 이 없다) |
+| `unknown_part` | 10 (→13 전파) · **16(독립)** | `not_found` — §16 은 §10 을 경유하지 않고 `parts` 테이블을 직접 조회한다 |
+| `part_class_not_set` / `part_class_invalid` | 10 (→13 전파) | 등급 미등록 / 허용값 밖. §16 은 이 reason 대신 `part_class:null` + `expenditure_reason` 으로 "모른다"를 표현한다(값을 거부하지 않는다) |
+| **`model_code_pair`** / **`invalid_model`** | 코어 §7 · **16** | `(model, error_code)` 불일치 / `model` enum 밖. §16 은 §7 과 같은 어휘를 재사용한다(사본을 새로 만들지 않는다) |
 | `rule_catalog_not_loaded` | 8·14 (→15 전파) | 카탈로그 0행. `not_found` 로 주면 전 자산이 `CLEAR` (D50) |
 | `rule_integrity` | 8·14 (→15 전파) | 근거 없는 룰 (D61) |
-| `law_ref_missing` | 12 | 근거 조문 미등록 → 판정 자체를 하지 않음 |
-| `law_not_effective` | 12 | 시점 밖 조문. 최신본 대체 금지 |
+| `law_ref_missing` | 12 (→**16** 전파, `part_class` 확정 시) | 근거 조문 미등록 → 판정 자체를 하지 않음 |
+| `law_not_effective` | 12 (→**16** 전파) | 시점 밖 조문. 최신본 대체 금지 |
 | `law_text_unavailable` | 14 (→15 전파) | 조문 원문 미수집 → 번들 생성 거부 (MQ-701 수집 후 **실 DB 에서는 미발화**). **15 는 이때 draft 를 만들지 않는다** |
 | `asset_disappeared` | 14 (→15 전파) | 판정 직후 자산 행 소실 |
 | **`asset_modified`** | 14 (→15 전파) | **N2** — 판정 후 조립 사이에 자산 행이 바뀜. 한 시점의 사실을 증명하지 못하는 번들은 만들지 않는다 |
 | `engine_error` | 8·14 (→15 전파) | **엔진 계약 위반을 확인한 자리에만** — 계약 밖 verdict · 계약 키 누락 · 재평가 불일치. ⛔ 일반 예외 그물이 아니다 |
 | **`reason_required`** | **15** | `reason` 미기재. 코어 §7 `create_po_draft` 와 같은 어휘 |
-| **`integrity`** | **15** | FK·CHECK·TEMP TRIGGER(D10) 위반. 코어 §7 과 같은 어휘 |
-| `db_missing` | 9·14·15 | DB 파일 없음. ⚠ 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
-| `db_error` | 8·9·10·11·12·13·14·15 | DB 예외 |
-| `internal_error` | **8**·9·10·12·13·14·15 | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9). **MQ-712 에서 8 이 `engine_error` → `internal_error` 로 통일됐다** |
+| **`integrity`** | **15·16** | FK·CHECK·TEMP TRIGGER(D10) 위반. 코어 §7 과 같은 어휘. **16 은 이 reason 뒤에 사전 조회가 없다** — 매뉴얼에 없는 `error_code` 는 여기서 걸린다 |
+| `db_missing` | 9·14·15·**16** | DB 파일 없음. ⚠ 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
+| `db_error` | 8·9·10·11·12·13·14·15·**16** | DB 예외 |
+| `internal_error` | **8**·9·10·12·13·14·15·**16** | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9). **MQ-712 에서 8 이 `engine_error` → `internal_error` 로 통일됐다** |
 
 > **코어 7종의 reason** (참고): `invalid_model` · `code_required` · `catalog_not_loaded` · `malformed_row` ·
 > `query_required` · `index_not_built` · `search_failed` · `invalid_line_id` · `invalid_days` ·
@@ -932,6 +1010,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | 19 | ~~확장 도구도 쓰기가 하나도 없다~~ → **Sprint 7 에서 뒤집혔다.** `generate_disposal_document`(§15)가 `decisions` 에 **draft INSERT** 를 한다 | 유지된 것: **UPDATE/DELETE 권한은 여전히 없다**(TEMP TRIGGER 2개). 서명·상태 전이는 사람 전용 API 소관 그대로다 (D10·D81). 바뀐 것은 "쓰기가 없다"가 아니라 "쓰기가 draft 로 한정된다" — `create_po_draft` 가 4스프린트간 지켜 온 패턴을 복제했을 뿐이다 |
 | 20 | `generate_disposal_document` 스키마에 `override` 키를 두지 않는다 | 스키마에 키가 없으면 LLM 이 BLOCKING 을 뚫는 사유를 지어내 호출하는 경로가 **구조적으로** 막힌다 — D23(신원)·D31(단가)을 뺀 것과 같은 이유. 예외 적용은 서명 API 가 `X-User` 와 함께 받는다 (D81) |
 | 21 | 엔진 예외 어휘를 `internal_error` 로 통일 (MQ-712) | `except Exception` 그물은 엔진 예외만 잡지 않는다 — `engine_error` 라 부르면 원인을 단정한 거짓 라벨이 되고, 같은 실패가 §8·§14 에서 다른 이름을 가졌다. `engine_error` 는 **엔진 계약 위반을 실제로 확인한 자리**에만 남는다 |
+| 22 | 세 번째 쓰기 도구 `create_repair_record`(§16)는 `repair_records` **전용** `repair_writer()` 커넥션을 갖는다 (D98, MQ-906) | `draft_writer()`·`decision_writer()` 를 재사용하면 다른 테이블 전용 트리거가 걸린 커넥션으로 `repair_records` 를 만지는 셈이라 잠금이 없는 채로 쓰는 것이 된다. `part_class`·`expenditure_class` 도 파라미터가 아니다 — 회계 판정을 LLM 이 지어낼 경로를 막는다(D31·D81 과 같은 이유). API 계약(`kind:"repair"`)은 D85 가 이미 예약해 둔 값이라 바뀌는 게 없다 |
 
 ## 도구 ↔ 시나리오 매핑
 
@@ -945,6 +1024,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | **S9** 처분 차단 (확장) | **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
 | **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 |
+| **S19** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
 
 ## 다음 단계
 목업 DB 스키마 — 이 도구들이 읽을 테이블: `05_DB_SCHEMA.md` 참조

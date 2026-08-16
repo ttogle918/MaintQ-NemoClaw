@@ -155,6 +155,32 @@ def split_bullets(cell: str) -> list[str]:
     return parts
 
 
+def column_lines(page, bbox) -> list[tuple[float, str]]:
+    """컬럼 bbox를 단어로 읽어 **줄 단위로만** 재구성 → [(줄 top, 텍스트)]. (MQ-907)
+
+    `grid_text()` 의 개별 셀 crop 은 pdfplumber 가 잡은 셀 bbox 가 실제 줄 경계와
+    어긋나면(병합 셀 내부에서 줄이 갈릴 때) `extract_text()` 가 글자를 뒤섞는다 —
+    실측: S100 p.421 "FAN Trip /" 다음 줄이 `extract_text()` 로는
+    "FAFNA NW Tarrinpi n/ g" 로 깨지지만 `extract_words()` 는 "FAN"·"Warning" 을
+    정상 좌표로 반환한다. `column_sentences()` 와 달리 마침표 기준으로 문장을
+    합치지 않는다 — 항목 레이블은 문장이 아니라 줄 단위로 봐야 한다.
+    """
+    try:
+        words = page.crop(bbox).extract_words()
+    except ValueError:  # 크롭 영역이 페이지 밖
+        return []
+    lines: dict[int, list] = {}
+    for w in words:
+        lines.setdefault(round(w["top"]), []).append(w)
+    out: list[tuple[float, str]] = []
+    for top in sorted(lines):
+        row = sorted(lines[top], key=lambda w: w["x0"])
+        text = clean(" ".join(w["text"] for w in row))
+        if text:
+            out.append((float(top), text))
+    return out
+
+
 # ──────────────────────────────────────────────── S100
 def grid_text(page, table) -> list[list[str | None]]:
     """find_tables() 셀 bbox를 crop해 병합 셀 원문 복원.
@@ -847,6 +873,36 @@ def join_actions(
     return filled, pending
 
 
+def _page_haystack(page) -> str:
+    """대조용 원문 텍스트 — 표가 있으면 `extract_text()`(기본 읽기 순서)에 **열 단위로
+    다시 읽은 표 텍스트**를 덧붙인 합집합을 반환한다 (MQ-907).
+
+    옆으로 나란히 놓인 다열 표(예: S100 '항목|진단|조치사항')에서 `extract_text()` 의
+    줄 클러스터링은 서로 다른 열의 텍스트를 한 줄로 잘못 묶어 문장을 흩뜨린다(실측:
+    S100 p.421 — "공기 흡입구와 배출구에 이물질이"(조치 열) 사이에 "FAN Trip /"(항목 열)
+    이 끼어든다). 표를 열 단위(위→아래)로 다시 크롭해 이어붙이면 이런 표에서도 문장이
+    끊기지 않는다. **합집합**이라 실제로 존재하지 않는 문장을 통과시키지 않는다 — 두 읽기
+    순서 중 어느 쪽이든 원문에 실재해야만 조회에 걸린다(대조는 여전히 정확한 부분 문자열).
+    """
+    parts = [page.extract_text() or ""]
+    for table in page.find_tables():
+        head = table.rows[0].cells if table.rows else []
+        for ci in range(len(head)):
+            col_bboxes = [
+                row.cells[ci] for row in table.rows if len(row.cells) > ci and row.cells[ci]
+            ]
+            if not col_bboxes:
+                continue
+            x0 = min(b[0] for b in col_bboxes)
+            x1 = max(b[2] for b in col_bboxes)
+            try:
+                col_text = page.crop((x0, table.bbox[1], x1, table.bbox[3])).extract_text() or ""
+            except ValueError:
+                col_text = ""
+            parts.append(col_text)
+    return "\n".join(parts)
+
+
 def verify_verbatim(cand: list[dict], pdf_path: Path) -> tuple[list[str], int]:
     """★ 각 조치문이 해당 물리 페이지 텍스트에 **실재**하는지 대조한다.
 
@@ -863,7 +919,7 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> tuple[list[str], int]:
                 continue
             if page not in page_cache:
                 if 1 <= page <= len(pdf.pages):
-                    page_cache[page] = re.sub(r"\s+", "", pdf.pages[page - 1].extract_text() or "")
+                    page_cache[page] = re.sub(r"\s+", "", _page_haystack(pdf.pages[page - 1]))
                 else:
                     page_cache[page] = ""
             haystack = page_cache[page]
@@ -877,18 +933,125 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> tuple[list[str], int]:
     return violations, n_checked
 
 
+# ──────────────────────────────────────────────── S100 조치문 후보 회수 (MQ-907, D99·D100)
+S100_MANUAL_ID = "s100-manual"
+
+
+def s100_slash_pairs(pdf_path: Path) -> list[tuple[str, str, int]]:
+    """`S100_REMEDY_PAGES`(9.2 항목|진단|조치사항 표)의 항목 열에서 "A / B" 로
+    **명시적으로 병기된** 두 항목명을 찾는다 → [(앞 항목명, 뒤 항목명, 물리 페이지), ...].
+
+    pdfplumber 의 표 셀 인식이 병합 셀 내부 줄바꿈에서 어긋나면(`grid_text()` 의 좁은
+    bbox crop 이 두 번째 줄 글자를 뒤섞는다 — 실측: p.421 "FAN Trip /" 다음 줄이
+    "FAFNA NW Tarrinpi n/ g" 로 깨진다) 항목 열 전체를 `column_lines()` 로 줄 단위
+    재구성해 피한다. "/" 로 명시적으로 병기된 경우만 채택한다(추측 금지, `span_key()`
+    와 같은 태도) — 이웃 항목으로 흘려보내지 않는다.
+    """
+    out: list[tuple[str, str, int]] = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for pno in S100_REMEDY_PAGES:
+            page = pdf.pages[pno - 1]
+            for table in page.find_tables():
+                grid = grid_text(page, table)
+                if not grid:
+                    continue
+                header = clean(" ".join(c or "" for c in grid[0]))
+                if "항목" not in header or "진단" not in header:
+                    continue
+                head_cells = table.rows[0].cells if table.rows else []
+                if not head_cells or head_cells[0] is None:
+                    continue
+                item_bbox = (
+                    head_cells[0][0],
+                    head_cells[0][3],
+                    head_cells[0][2],
+                    table.bbox[3],
+                )
+                lines = column_lines(page, item_bbox)
+                for i in range(len(lines) - 1):
+                    _, text_i = lines[i]
+                    if not text_i.rstrip().endswith("/"):
+                        continue
+                    _, text_next = lines[i + 1]
+                    parts = [p.strip() for p in f"{text_i} {text_next}".split("/") if p.strip()]
+                    if len(parts) == 2:
+                        out.append((parts[0], parts[1], pno))
+    return out
+
+
+def s100_join_actions(pdf_path: Path, canon_entries: list[dict]) -> tuple[list[dict], list[str]]:
+    """S100 결측 `actions` 회수 — 같은 매뉴얼(`s100-manual`) 안에서 "/" 로 명시 병기된
+    항목만 채택한다(MQ-907, D99). `parse_s100()` 은 건드리지 않는다 — 정본 경로(`main()`)가
+    이 회수분을 그대로 흡수해 버리면 D99 의 "정본 미수정" 이 깨진다. 이미 채워진
+    앵커 항목의 `actions`·`causes` 는 **읽기만** 하고 절대 덮어쓰지 않는다(diff 0 안전망).
+    `causes` 는 이 태스크의 범위 밖이라 손대지 않는다 — 결측 코드의 `causes` 는 정본이
+    이미 채워 둔 '내용'(desc) 폴백을 그대로 둔다.
+    """
+    slash_pairs = s100_slash_pairs(pdf_path)
+    by_name = {rk(e["error_name"]): e for e in canon_entries}
+    missing = {e["code"] for e in canon_entries if not e.get("actions")}
+
+    filled: list[dict] = []
+    pending: list[str] = []
+    recovered: set[str] = set()
+
+    for anchor_name, extra_name, pno in slash_pairs:
+        anchor = by_name.get(rk(anchor_name))
+        extra = by_name.get(rk(extra_name))
+        if anchor is None or extra is None:
+            continue  # 항목명이 트립/경보 표의 LCD명과 매칭되지 않음 — 못 고르면 버린다
+        if not anchor.get("actions"):
+            continue  # 앵커 자체가 결측이면 나눠줄 것이 없다
+        if extra["code"] not in missing or extra["code"] in recovered:
+            continue
+        actions = list(anchor["actions"])
+        filled.append(
+            {
+                "model": "S100",
+                "code": extra["code"],
+                "actions": actions,
+                "actions_manual_id": S100_MANUAL_ID,
+                "actions_page": pno,
+                "join_key": f"{anchor_name} / {extra_name}",
+                "confidence": "high",
+                "evidence_excerpt": actions[0][:120] if actions else "",
+            }
+        )
+        recovered.add(extra["code"])
+        pending.append(
+            f"S100 {extra['code']}: 병합 셀 '{anchor_name} / {extra_name}'(p.{pno})에서 "
+            f"'{anchor['code']}' 의 조치문을 공유 회수 — 원문이 두 항목을 명시 병기함 "
+            "(causes 는 범위 밖이라 손대지 않음, MQ-907)"
+        )
+
+    for e in canon_entries:
+        if e["code"] in missing and e["code"] not in recovered:
+            pending.append(
+                f"S100 {e['code']}: 9.2 항목|진단|조치사항 표(p.420~421)에 해당 항목이 없음 — "
+                "9.1 트립/경보 표(p.416~419)의 '내용' 설명만 매뉴얼에 있고 별도 조치문이 없다. "
+                "지어내지 않는다 (OCR 미호출, 비용 견적 필요 시 유료 경로 검토)"
+            )
+
+    return filled, pending
+
+
 def extract_candidates() -> None:
     """후보 추출 모드 — 정본(`error_codes.json`)을 **쓰지 않는다** (D99).
 
-    조인 대상(현재 결측인 iG5A 코드 목록)을 얻으려면 정본을 **읽어야** 한다 —
+    조인 대상(현재 결측인 iG5A·S100 코드 목록)을 얻으려면 정본을 **읽어야** 한다 —
     이 모드가 금지하는 것은 쓰기이지 읽기가 아니다(§6 델타 ⑤).
     """
     manifest = check_manifest()  # D19 — data/raw/ 는 읽기 전용, 해시만 대조
     trouble_entry = next((m for m in manifest["manuals"] if m["id"] == IG5A_TROUBLE_ID), None)
     if trouble_entry is None:
         sys.exit(f"[중단] manifest 에 {IG5A_TROUBLE_ID} 항목이 없다")
-    pdf_path = RAW / trouble_entry["file"]
+    ig5a_pdf_path = RAW / trouble_entry["file"]
     offset = manual_offset(manifest, IG5A_TROUBLE_ID)
+
+    s100_manual_entry = next((m for m in manifest["manuals"] if m["id"] == S100_MANUAL_ID), None)
+    if s100_manual_entry is None:
+        sys.exit(f"[중단] manifest 에 {S100_MANUAL_ID} 항목이 없다")
+    s100_pdf_path = RAW / s100_manual_entry["file"]
 
     if not OUTPUT.exists():
         print(f"[후보 모드] {OUTPUT} 가 없다 — 먼저 정본을 생성해야 조인할 대상이 있다")
@@ -897,30 +1060,45 @@ def extract_candidates() -> None:
     ig5a_missing = [
         e for e in canon.get("entries", []) if e.get("model") == "iG5A" and not e.get("actions")
     ]
-    print(f"[후보 모드] 정본 읽기 전용 — iG5A 결측 {len(ig5a_missing)}건 대상")
+    s100_entries = [e for e in canon.get("entries", []) if e.get("model") == "S100"]
+    s100_missing = [e for e in s100_entries if not e.get("actions")]
+    print(
+        f"[후보 모드] 정본 읽기 전용 — iG5A 결측 {len(ig5a_missing)}건 · "
+        f"S100 결측 {len(s100_missing)}건 대상"
+    )
 
-    summary = parse_ig5a_summary(pdf_path, offset)
-    blocks = parse_ig5a_trouble_blocks(pdf_path)
-    filled, pending = join_actions(ig5a_missing, summary, blocks)
+    summary = parse_ig5a_summary(ig5a_pdf_path, offset)
+    blocks = parse_ig5a_trouble_blocks(ig5a_pdf_path)
+    ig5a_filled, ig5a_pending = join_actions(ig5a_missing, summary, blocks)
+    s100_filled, s100_pending = s100_join_actions(s100_pdf_path, s100_entries)
 
-    if not filled:
+    if not ig5a_filled and not s100_filled:
         sys.exit(
-            "[중단] SCANNER_BLIND — iG5A 조인 성공 0건. "
+            "[중단] SCANNER_BLIND — 조인 성공 0건(iG5A·S100 모두). "
             "'대응 항목이 실제로 없다'와 '파서가 눈이 멀었다'를 구분할 수 없어 파일을 쓰지 않았다."
         )
 
-    violations, n_checked = verify_verbatim(filled, pdf_path)
-    print(f"[verify_verbatim] 대조한 문장 {n_checked}건 · 위반 {len(violations)}건")
+    ig5a_violations, ig5a_checked = verify_verbatim(ig5a_filled, ig5a_pdf_path)
+    s100_violations, s100_checked = verify_verbatim(s100_filled, s100_pdf_path)
+    n_checked = ig5a_checked + s100_checked
+    violations = ig5a_violations + s100_violations
+    print(
+        f"[verify_verbatim] 대조한 문장 {n_checked}건(iG5A {ig5a_checked}·S100 {s100_checked}) · "
+        f"위반 {len(violations)}건"
+    )
     if violations:
         for v in violations:
             print(f"  ⚠ {v}")
         sys.exit("[중단] verify_verbatim 위반 — 후보 파일을 쓰지 않았다(safety-guardrail)")
 
+    filled = ig5a_filled + s100_filled
+    pending = ig5a_pending + s100_pending
+
     candidate_doc = {
         "_status": "초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에 적재되지 않는다",
         "_source_of_truth": "data/extracted/error_codes.json (이 파일은 병합 후보다)",
         "generated_at": str(date.today()),
-        "counts": {"iG5A": len(filled), "S100": 0},
+        "counts": {"iG5A": len(ig5a_filled), "S100": len(s100_filled)},
         "entries": filled,
         "_pending_review": pending,
     }
@@ -928,7 +1106,10 @@ def extract_candidates() -> None:
     CANDIDATE.write_text(
         json.dumps(candidate_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(f"[기록] {CANDIDATE} — iG5A {len(filled)}건 · pending_review {len(pending)}건")
+    print(
+        f"[기록] {CANDIDATE} — iG5A {len(ig5a_filled)}건 · S100 {len(s100_filled)}건 · "
+        f"pending_review {len(pending)}건"
+    )
 
     action_map_doc = {
         "_설명": "iG5A 트러블슈팅본 조인 대장 — 무엇이 무엇에 붙었는지가 검수 대상이다 (D19·D100, MQ-905).",
@@ -944,9 +1125,9 @@ def extract_candidates() -> None:
                 "confidence": f["confidence"],
                 "actions": f["actions"],
             }
-            for f in filled
+            for f in ig5a_filled
         ],
-        "pending_review": pending,
+        "pending_review": ig5a_pending,
     }
     IG5A_ACTION_MAP.write_text(
         json.dumps(action_map_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

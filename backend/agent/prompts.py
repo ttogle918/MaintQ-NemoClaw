@@ -322,6 +322,7 @@ _EXT_TOOL_LINES: dict[str, str] = {
     "assess_repair_value": "- `assess_repair_value` — 수리/교체/매각 3지 판단. 금액은 전부 추정치다",
     "build_evidence_bundle": "- `build_evidence_bundle` — 처분 판정의 근거를 묶어 해시로 고정 (저장·판정은 하지 않는다)",
     "generate_disposal_document": "- `generate_disposal_document` — 처분 승인서·진술보장서 **초안**만 생성. 확정은 승인 큐의 서명뿐이다",
+    "create_repair_record": "- `create_repair_record` — 수리 증빙 **초안**만 생성. `expenditure_class` 는 시스템이 산출하며 서명 전엔 보전지표에 반영되지 않는다",
 }
 
 CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)

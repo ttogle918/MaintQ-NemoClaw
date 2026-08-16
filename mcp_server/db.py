@@ -92,6 +92,16 @@ BEFORE DELETE ON decisions
 BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 삭제할 수 없습니다 (D10)'); END;
 """
 
+_REPAIR_GUARDS = """
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_repair_update
+BEFORE UPDATE ON repair_records
+BEGIN SELECT raise(ABORT, 'MCP 도구는 repair_records 를 수정할 수 없습니다 (D10·D98)'); END;
+
+CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_repair_delete
+BEFORE DELETE ON repair_records
+BEGIN SELECT raise(ABORT, 'MCP 도구는 repair_records 를 삭제할 수 없습니다 (D10·D98)'); END;
+"""
+
 
 @contextmanager
 def _guarded_writer(guards: str) -> Iterator[sqlite3.Connection]:
@@ -132,6 +142,20 @@ def decision_writer() -> Iterator[sqlite3.Connection]:
     `decisions` 를 UPDATE·DELETE 하면 SQLite 가 ABORT 한다.
     """
     with _guarded_writer(_DECISION_GUARDS) as con:
+        yield con
+
+
+@contextmanager
+def repair_writer() -> Iterator[sqlite3.Connection]:
+    """`repair_records` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`create_repair_record` 전용, D98).
+
+    `draft_writer`·`decision_writer` 와 **같은 구조·다른 트리거**다. 기존 두 커넥션에
+    `repair_records` 트리거를 얹지 않는다 — 얹으면 "po_drafts(또는 decisions) 전용 트리거만
+    걸린 커넥션으로 다른 테이블을 만지는" 상태가 되어 잠겼다고 믿는 지점이 실제로는 안 잠긴다
+    (위 `_PO_GUARDS`·`_DECISION_GUARDS` 주석과 같은 이유). 서명(state 전이)은
+    `backend/routers` 의 사람 전용 API 만 한다 (D10·D98).
+    """
+    with _guarded_writer(_REPAIR_GUARDS) as con:
         yield con
 
 

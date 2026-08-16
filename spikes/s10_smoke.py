@@ -69,8 +69,8 @@ PROBE_DATE = "2026-09-01"
 CLEAR_ASSET, CLEAR_MODE = "AST-L3-LIFT", "SCRAP"      # → CLEAR
 BLOCKED_ASSET, BLOCKED_MODE = "AST-L3-CONV", "SALE"   # → BLOCKED (담보권 미해소)
 
-# 도구 총수 = 코어 7 + 확장 8 (D69). `full` 이 안 켜지면 7 이 나온다.
-EXPECTED_TOOLS_FULL = 15
+# 도구 총수 = 코어 7 + 확장 9 (D69·D98). `full` 이 안 켜지면 7 이 나온다.
+EXPECTED_TOOLS_FULL = 16
 OVERRIDE_REASON = "법무 검토 완료 — 담보권자 동의 별건 확보 (스모크 기록)"
 
 MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
@@ -134,7 +134,7 @@ async def run_all(db: Path) -> None:
         )
         # ② `full` 프로파일 — 안 켜졌으면 **FAIL**. 스킵하지 않는다 (D69)
         check(
-            "서버 MCP 가 full 프로파일로 떴다 — 확장 8종 포함 15종 (D69)",
+            "서버 MCP 가 full 프로파일로 떴다 — 확장 9종 포함 16종 (D69·D98)",
             health.get("tools") == EXPECTED_TOOLS_FULL and health.get("tools_profile") == "full",
             f"tools={health.get('tools')} (기대 {EXPECTED_TOOLS_FULL}) · "
             f"tools_profile={health.get('tools_profile')!r}",

@@ -108,8 +108,8 @@ SOURCE_DB = ROOT / "data" / "maintq.db"
 #: `taskkill` 직후 같은 포트를 다시 bind 하는 창에서 실패하거나 **직전 회차의 소켓에 붙는다**
 #: (`_shutdown_server` docstring 이 기록한 그 자리다). 회차마다 `_free_port()` 로 잡는다.
 
-#: core 프로파일의 도구 수 (04_MCP_TOOLS §1~§7). 확장 8종(§8~§15)은 `MAINTQ_TOOLS_PROFILE=full`
-#: 에서만 등록된다 (D69) — 그래서 실측 개수가 7을 넘으면 core 가 아니다.
+#: core 프로파일의 도구 수 (04_MCP_TOOLS §1~§7). 확장 9종(§8~§16)은 `MAINTQ_TOOLS_PROFILE=full`
+#: 에서만 등록된다 (D69·D98) — 그래서 실측 개수가 7을 넘으면 core 가 아니다.
 CORE_TOOL_COUNT = 7
 
 #: docs/09_RUNTIME.md §2 의 루프 상한 — 여기서는 비용 추정 문구용 참조값일 뿐,
@@ -366,7 +366,7 @@ def profile_violations(health: dict) -> list[str]:
 
     - `tools_profile` — `backend/main.py:111` 이 backend 프로세스의 env 를 **에코**한 값이고,
       같은 파일 105행이 스스로 "참고값"이라고 규정한다. MCP 자식(D15, 별도 프로세스)이 다른
-      env 로 떴다면 이 값이 `core` 여도 실제로는 확장 8종이 등록돼 있을 수 있다.
+      env 로 떴다면 이 값이 `core` 여도 실제로는 확장 9종이 등록돼 있을 수 있다.
     - `tools` — `list_tools()` **실측** 개수(D69 가 정본으로 규정). 다만 MCP 미기동이면
       `None` 이라 이것만으로도 판정을 세울 수 없다.
 
@@ -406,7 +406,7 @@ def enforce_profile_guard(health: dict, *, allow_full_profile: bool) -> None:
     for r in reasons:
         print(f"  - 위반: {r}")
     print(
-        "  왜 막는가: 확장 8종(04 §8~§15)이 등록된 상태의 점수는 core 기준 지표와 분모가 달라"
+        "  왜 막는가: 확장 9종(04 §8~§16)이 등록된 상태의 점수는 core 기준 지표와 분모가 달라"
         " 이전 회차와 비교할 수 없습니다. 사후에는 어느 프로파일로 돌았는지 복원할 수 없어"
         " 결과 전체가 무효가 됩니다."
     )

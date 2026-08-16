@@ -13,7 +13,7 @@
 
 ## 무엇을 보는가
 
-  ① `full` 기동 → 도구 **15종**(코어 7 + 확장 8). 부분집합이 아니라 **집합 동일**
+  ① `full` 기동 → 도구 **16종**(코어 7 + 확장 9). 부분집합이 아니라 **집합 동일**
   ② D80 — `classify_expenditure`·`assess_repair_value`·`generate_disposal_document` 의
      `inputSchema.required` 집합. 기본값을 두는 순간 optional 로 노출되어 LLM 이 인자 없이
      호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다.
@@ -71,6 +71,7 @@ EXT_TOOLS = {
     "assess_repair_value",
     "build_evidence_bundle",
     "generate_disposal_document",
+    "create_repair_record",
 }
 
 # D80 — 필수 파라미터에 기본값을 두지 않는다. 이 집합이 **정확히** 일치해야 한다:
@@ -82,6 +83,8 @@ EXPECTED_REQUIRED = {
     # `asset_id`·`equipment_id` 는 either-or 라 스키마상 optional 이다 (D80 의 공백).
     # 따라서 required 는 `reason` **하나뿐**이어야 한다.
     "generate_disposal_document": {"reason"},
+    # D98 — downtime_hours·model·error_code·note 만 optional. 나머지 5개가 required.
+    "create_repair_record": {"equipment_id", "work_type", "repair_scope", "cost", "parts"},
 }
 
 # D81 — 이 키들이 **어느 도구 스키마에도 없어야** 한다. LLM 이 BLOCKING 우회를 요청하거나
@@ -95,6 +98,10 @@ EXPECTED_UNION = {
     ("classify_expenditure", "amount"): {"integer", "string"},
     ("assess_repair_value", "repair_cost"): {"integer", "string"},
     ("get_maintenance_metrics", "window_months"): {"integer", "string"},
+    ("create_repair_record", "cost"): {"integer", "string"},
+    # `downtime_hours` 는 optional(default None) 이라 anyOf 에 "null" 브랜치가 함께 실린다 —
+    # `cost` 는 필수라 이 브랜치가 없다. 둘의 차이 자체가 D80 의 증거다.
+    ("create_repair_record", "downtime_hours"): {"integer", "number", "string", "null"},
 }
 
 results: list[tuple[str, bool, str]] = []
@@ -143,7 +150,7 @@ async def run(db: Path) -> None:
     # ─ ① 집합 동일 — 부분집합이 아니다 (이 스위트의 존재 이유)
     names = set(full)
     check(
-        "full 프로파일 → 도구 15종 (코어 7 + 확장 8, 집합 동일)",
+        "full 프로파일 → 도구 16종 (코어 7 + 확장 9, 집합 동일)",
         names == CORE_TOOLS | EXT_TOOLS,
         f"{len(names)}종 · 누락={sorted((CORE_TOOLS | EXT_TOOLS) - names) or '없음'} "
         f"· 초과={sorted(names - (CORE_TOOLS | EXT_TOOLS)) or '없음'}",
@@ -184,10 +191,10 @@ async def run(db: Path) -> None:
     check(
         "D9 — 숫자 파라미터가 int|str 유니온으로 남아 있다 (좁히면 status 를 못 돌려준다)",
         not narrowed,
-        "; ".join(narrowed) or "amount·repair_cost·window_months 전부 유니온",
+        "; ".join(narrowed) or "amount·repair_cost·window_months·cost·downtime_hours 전부 유니온",
     )
 
-    # ─ 확장 8종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
+    # ─ 확장 9종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
     empty_desc = sorted(t for t in EXT_TOOLS if not full.get(t, ({}, ""))[1].strip())
     # 처분 판정은 `disposal_date` 없이 부르면 늘 INSUFFICIENT_FACTS 로 수렴하므로(D62),
     # 도구 DESCRIPTION 이 말하지 않는 몫을 **파라미터 스키마 설명**이 유도해야 한다.
@@ -200,7 +207,7 @@ async def run(db: Path) -> None:
         for t in ("check_disposal_blockers", "build_evidence_bundle", "generate_disposal_document")
     }
     check(
-        "확장 8종 description 존재 · disposal_date 파라미터에 유도 문구 (S9·S10 데모 방어)",
+        "확장 9종 description 존재 · disposal_date 파라미터에 유도 문구 (S9·S10 데모 방어)",
         not empty_desc and all(hinted.values()),
         f"빈 description={empty_desc or '없음'} · disposal_date 설명={hinted}",
     )
