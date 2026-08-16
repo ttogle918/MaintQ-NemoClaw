@@ -1806,3 +1806,40 @@ seed **29건** · pytest **46건** · spikes **28스위트**(Stage 3 기준선�
 - `docs/06_REPO_API.md` 에 이번에 신설된 REST 5경로가 **아직 등재돼 있지 않다**(grep 0건) — **MQ-918 전파 목록에 추가할 것**.
 - `backend/routers/maint_value.py` 의 `HASH_SPEC`/disclaimer 복제본에 **자동 드리프트 감시가 없다**(현재는 수동 대조로만 일치 확인) — `data/ownership.py` 상수 재사용 + 드리프트 assert 선례와 다른 패턴이다. **MQ-913(Stage 5)의 REST 계약 스파이크에 문자열 동일성 체크 추가를 권고**.
 - MQ-913 착수 시 §12-5(Stage 3 이월)와 합쳐서 확인할 목록: ① `create_repair_record` D9 재발 방지 검사 ② `verify_verbatim` 음성 테스트(조작 문장 검출) ③ `lookup_contract` 신규 검사 +2(actions_source 키 존재·null 사유) ④ **이번에 추가된 REST 5경로의 문자열 드리프트 체크**.
+
+---
+
+## 14. 🔴 스테이지 순서 오류 — "Stage 5" 로 잘못 실행된 것을 정정 (2026-08-16)
+
+### 14-1. 무슨 일이 있었나
+
+`§9-2 확정 스테이지` 표는 **Stage 5 = MQ-909(수리 증빙 제출·서명·반려 API) 단독**, **Stage 6 = MQ-912·913 병렬**로 명시돼 있었다. 코디네이터(에이전트)가 Stage 4 완료 직후 이 표를 다시 읽지 않고 "다음은 프론트 배관 + 회귀 스파이크"라고 **기억으로 판단**해 MQ-912·913 을 "Stage 5" 로 잘못 실행했다. 그 과정에서 코디네이터는 두 tool-builder 프롬프트에 *"`GET/POST /api/repairs/*` 는 아직 없다 — MQ-909 가 이번 스프린트에서 컷돼 §9-5 에 따라 다음 스프린트로 이월됐다"* 는 **근거 없는 전제**를 직접 써넣었다. 실제로는:
+
+- `§9-5`(이월 목록)에 MQ-909 는 없다 — 있는 것은 MQ-915·MQ-916·`traces.request_chain_id` 3건뿐.
+- `§7`(압축 순서)은 오히려 MQ-909(서명 API)를 **"덜어내면 안 되는 것" 7건 중 하나로 명시 보호**한다.
+- `§9-1`은 MQ-915·916 컷의 근거로 *"축 A(수리 증빙)는 **API 까지 완결된다**"*를 들었는데, 이건 MQ-909 가 실제로 있어야만 참인 문장이다.
+
+두 구현 에이전트(MQ-912·913)는 이 거짓 전제를 그대로 믿고 `/api/repairs/*` REST 왕복을 **스킵**했고, 그 사실을 `frontend/lib/api.ts`·`frontend/lib/types.ts`·`spikes/repair_flow_contract.py`·`spikes/approvals_contract.py` **4개 파일**에 "MQ-909 이월, §9-5 참조"로 반복 기재했다. reviewer 1차 패스가 이걸 **블로커**로 잡아냈다(문서 대조로 §9-5 에 MQ-909 가 없음을 직접 확인).
+
+### 14-2. 정정 경위
+
+1. 커밋 전이었으므로 **되돌릴 것 없이** 진짜 Stage 5(MQ-909)를 그 자리에서 실행 → 커밋 `8b0f809`.
+2. MQ-909 가 실재하게 된 뒤, 코디네이터가 직접 4개 파일의 허위 문구를 실제 REST 경로로 교체:
+   - `spikes/repair_flow_contract.py` — 스킵했던 REST 왕복(submit 403 양방향·self_sign 409·sign+해시대조·재서명 409·reject 422/200·`n_repairs_signed` +1)을 `run_repair_flow_rest_axis()`로 실제 구현. 10건 → **19건**.
+   - `spikes/approvals_contract.py ③` — "0건"(REST 미노출) 우회 대신 **REST 응답 건수 == `repair_records` 실측 건수** 직접 대조로 교체.
+   - `frontend/lib/api.ts` — `/api/repairs/*` 관련 docstring·주석에서 "아직 없다" 삭제, `ApiRepair` 필드를 실제 백엔드 출력(`performed_by_name`·`verified_by_name`·`hash_verified`)에 맞춰 정정, `signRepair`의 불필요한 body 파라미터 제거(백엔드 `sign` 라우트는 body 없음).
+3. reviewer 재검토(Stage 5+6 통합) — **1차 FAIL**: 같은 허위 전제가 `frontend/lib/types.ts:36`(`RepairState` 타입 주석)에 **한 곳 더** 남아 있었다(지시받은 3파일 검색으로는 안 걸리는 사각지대). `ApprovalKind`(`:45`)의 "Sprint 7 에서 항상 0건"도 낡아 있었다. 코디네이터가 두 곳 정정 → **2차 PASS**.
+4. reviewer 가 발견했으나 이번 판정 범위 밖으로 남긴 것: `docs/06_REPO_API.md:376~385`(§2.3 통합 승인 큐)가 여전히 "repair 는 항상 0건 · POST 없음"으로 낡아 있다 — **MQ-918 전파 목록에 추가**(아래 §14-4).
+
+### 14-3. 커밋 분리
+
+두 스테이지 작업물은 실제 소유 태스크 기준으로 분리 커밋했다(§9-2 표의 스테이지 경계 그대로):
+- `8b0f809` — Stage 5(MQ-909): `backend/routers|services/repairs.py`(신규) · `backend/services/approvals.py` · `backend/main.py`.
+- `f294a61` — Stage 6(MQ-912·913, 정정 반영): `frontend/lib/*` · `spikes/{write_tool_contract,repair_flow_contract,approvals_contract,lookup_contract}.py`.
+
+### 14-4. 재발 방지 + 다음 스테이지 참고
+
+- **재발 방지**: 이후 스테이지 착수 전 반드시 `§9-2 확정 스테이지` 표를 다시 읽고 스테이지 번호·소속 태스크를 확인한다 — 기억으로 다음 스테이지를 판단하지 않는다.
+- `docs/06_REPO_API.md §2.3`(repair 는 항상 0건·POST 없음 서술)이 낡았다 — **MQ-918 전파 목록에 추가할 것**.
+- 회귀 실측: seed **29건** · pytest **46건** · spikes **29스위트 / 668건**(Stage 4 기준선 640 + lookup +2 + write_tool +7 + repair_flow 신규 19) · `ruff` 통과 · frontend `tsc --noEmit`·`npm run build`(라우트 10개 유지) 통과. 감소 0·재시도 0.
+- **Stage 7(MQ-914) 착수 전 §9-2 표를 다시 확인할 것** — 이번 사고의 재발 방지 규칙을 스스로 지키는 첫 적용이다.
