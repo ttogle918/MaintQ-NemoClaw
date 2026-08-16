@@ -24,9 +24,10 @@
   `verdict`·`requires_override` — 발주에는 판정이 없다 → **`null`**. `false` 는 "차단 아님"
                                   이라는 **주장**이 되므로 쓰지 않는다 (D62 태도).
 
-★ `repair` 는 Sprint 7 미구현이라 **항상 0건**이다.
-  enum 에 미리 넣는 이유는 Sprint 8(S19 `create_repair_record`)이 **계약 변경 없이** 추가되게
-  하기 위함이다. "3종으로 설계하고 2종을 구현한다" — 그 사실을 이 주석과 `06 §2.6` 에 남긴다.
+★ `repair` 는 Sprint 9(MQ-909)부터 실제로 채워진다.
+  enum 에 미리 넣어 둔 덕분에 Sprint 9 가 **계약 변경 없이** `repair_records` 를 연결한다.
+  시드 12건(11 signed + 1 draft) 이 전부 필터 없는 조회에 그대로 나온다 — "0건이 정상"이던
+  옛 서술은 사실이 아니게 됐다.
 """
 
 from __future__ import annotations
@@ -35,8 +36,9 @@ from pathlib import Path
 
 from backend.services import decisions as dec_svc
 from backend.services import po as po_svc
+from backend.services import repairs as repair_svc
 
-# 판별자. `repair` 는 등록돼 있으나 **현재 항상 0건**이다 (위 주석 참조).
+# 판별자. 셋 다 실제로 채워진다 (Sprint 9 부터 `repair` 도 포함).
 KINDS: tuple[str, ...] = ("po", "disposal", "repair")
 
 
@@ -84,6 +86,23 @@ def _decision_item(d: dict) -> dict:
     }
 
 
+def _repair_item(r: dict) -> dict:
+    label = repair_svc.WORK_TYPE_LABELS.get(r.get("work_type"), r.get("work_type"))
+    return {
+        "kind": "repair",
+        "id": r["repair_id"],
+        "title": f"{r['equipment_id']} 수리 · {label}",
+        "state": r["state"],  # 원 어휘 그대로 (draft|pending|signed|rejected)
+        "urgency": None,  # 수리 증빙에는 긴급도가 없다 — 지어내지 않는다
+        "requested_by": r.get("requested_by"),
+        "requested_by_name": r.get("requested_by_name") or "",
+        "created_at": r.get("created_at"),
+        "detail_path": f"/api/repairs/{r['repair_id']}",
+        "verdict": None,  # 수리 증빙에는 처분 판정이 없다 — false 가 아니라 null 이다
+        "requires_override": None,
+    }
+
+
 def list_approvals(
     state: str | None = None,
     kind: str | None = None,
@@ -102,7 +121,8 @@ def list_approvals(
         items += [_po_item(p) for p in po_svc.list_pos(state, db_path)]
     if kind in (None, "disposal"):
         items += [_decision_item(d) for d in dec_svc.list_decisions(state, db_path)]
-    # kind == "repair" — Sprint 8. 조회하지 않는 게 아니라 **원천이 아직 없다**(0건).
+    if kind in (None, "repair"):
+        items += [_repair_item(r) for r in repair_svc.list_repairs(state, db_path)]
 
     items.sort(key=lambda i: (i.get("created_at") or "", i["id"]), reverse=True)
     return items
