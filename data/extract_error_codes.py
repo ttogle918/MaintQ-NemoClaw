@@ -18,7 +18,8 @@
          - 내용 상이                     → **쓰지 않고** diff 요약 + exit 1 (사람이 판단)
          - `_status` 승인 → 초안 되돌림  → **쓰지 않고** 즉시 중단 + exit 2 (65→0행 사고 차단)
          - 정본 없음(최초 추출)          → 그대로 기록 (가드는 회귀 방지지 최초 생성 금지가 아니다)
-       후보 추출은 `--candidates-only` 로 돌린다 — 이 모드는 정본을 열지도 쓰지도 않는다.
+       후보 추출은 `--candidates-only` 로 돌린다 — 이 모드는 정본을 **쓰지 않는다**
+       (조인 대상으로 **읽기는** 한다, MQ-905 — §6 델타 ⑤).
 """
 
 from __future__ import annotations
@@ -594,15 +595,363 @@ def write_canonical(out: dict) -> None:
     raise SystemExit(1)
 
 
-def extract_candidates() -> None:
-    """후보 추출 모드 — 정본(`error_codes.json`)을 **열지도 쓰지도 않는다** (D99).
+# ──────────────────────────────────────────────── iG5A 트러블슈팅 조인 (MQ-905, D99·D100)
+IG5A_TROUBLE_ID = "ig5a-troubleshooting"
+IG5A_SUMMARY_PAGES = (20, 21)  # 고장/경보 일람표 (분류·고장표시·설명·Page) — 조인 보조 소스
+IG5A_TROUBLE_PAGES = range(22, 30)  # PDF 물리 p.22~29 — '원인|조치사항' 표 (manifest offset=1, MQ-920)
+IG5A_ACTION_MAP = EXTRACTED / "ig5a_action_map.json"
+CANDIDATE = EXTRACTED / "error_codes_actions.candidate.json"
+STATE_MARKERS = ("Latch", "Fatal", "Level")
+_JOSA = ("으로", "이나", "은", "는", "이", "가", "을", "를", "의", "와", "과")
+_SUMMARY_PAGE_RE = re.compile(r"^(.+?)\s+P\.\s*(\d+)$")
+_SUMMARY_NOPAGE_RE = re.compile(r"^(.+?)\s+-$")
 
-    ⚠ 후보 추출 로직 자체는 아직 없다. MQ-905·907 이 트러블슈팅 조인 결과를
-    후보 파일에 쓰는 코드를 이 함수 안에 채운다. 지금 이 모드의 계약은 하나다 —
-    **정본 미접촉으로 정상 종료**.
+
+def norm_name(s: str) -> str:
+    """조인 키 정규화 — 공백 제거 · 괄호 내용 분리(제거) · '인버터' 접두어 제거 · 조사 제거.
+
+    P29 가 경고한 표기 흔들림('인버터 냉각 핀 과열' vs '냉각핀 과열')을 흡수한다.
     """
-    print("[후보 모드] 후보 추출 로직 미구현 (MQ-905·907 이 채운다)")
-    print(f"  정본 미접촉: {OUTPUT} 를 열지도 쓰지도 않았다 (D99)")
+    s = re.sub(r"[\(（][^)）]*[\)）]", "", s or "")  # 괄호 내용 분리(제거)
+    s = re.sub(r"\s+", "", s)  # 공백 제거
+    if s.startswith("인버터"):
+        s = s[len("인버터") :]
+    for j in _JOSA:
+        if s.endswith(j) and len(s) > len(j) + 1:
+            s = s[: -len(j)]
+            break
+    return s
+
+
+def manual_offset(manifest: dict, manual_id: str) -> int:
+    """`manifest.json` 의 `print_page_offset` 조회 — 단일 출처(D19, MQ-920 이 0→1 로 정정).
+
+    ⛔ 오프셋을 이 파일 안에 다시 하드코딩하지 않는다 — manifest 가 갱신되면 조회 결과가 따라간다.
+    """
+    for m in manifest["manuals"]:
+        if m["id"] == manual_id:
+            return int(m.get("print_page_offset") or 0)
+    return 0
+
+
+def _fuzzy_contains(a: str, b: str) -> bool:
+    """둘 중 짧은 쪽이 긴 쪽의 **부분수열(subsequence)** 이면 True.
+
+    일람표(p.20~21)의 명칭과 상세 표(p.22~29)의 항목명 사이에 낱말 삽입형 흔들림이 있다
+    (예: 일람표 '리모트 통신 에러' vs 상세 표 '리모트 로더 통신 에러' — '로더'가 끼어든다).
+    부분문자열 매칭은 이런 삽입을 못 잡아 조인이 통째로 실패한다. 이미 물리 페이지로
+    좁혀진 후보 안에서만 쓴다 — 전역 매칭에는 쓰지 않는다(오탐 방지).
+    """
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    if not short:
+        return False
+    it = iter(long_)
+    return all(ch in it for ch in short)
+
+
+def _variant_pair(names: list[str]) -> bool:
+    """'A 접점 고장 신호'/'B 접점 고장 신호'처럼 **선행 한 글자만 다른 변형 쌍**인지 판정한다.
+
+    참이면 원문 자체가 두 항목을 한 문장에서 같이 지목한다
+    ("...18번(A접점)이나 19번(B접점)...") — 추측이 아니라 원문의 명시적 병기라
+    같은 조치문을 둘 다에 적용해도 안전하다.
+    """
+    if len(names) != 2:
+        return False
+    stripped = []
+    for n in names:
+        nk = norm_name(n)
+        m = re.match(r"^([A-Za-z])(.+)$", nk)
+        stripped.append(m.group(2) if m else nk)
+    return bool(stripped[0]) and stripped[0] == stripped[1]
+
+
+def parse_ig5a_summary(pdf_path: Path, offset: int) -> list[tuple[str, int | None]]:
+    """물리 p.20~21 고장/경보 일람표 → [(norm(고장표시), 물리 페이지 or None), ...].
+
+    표의 Page 열은 **인쇄 페이지**이므로 `offset`(manifest 조회값, MQ-920 정정으로 1)을 더해
+    물리 페이지로 되돌린다(§6 델타 ③). 대응 페이지가 없는 항목('-')은 None —
+    명칭은 실재해도 실제 조치 내용은 이 문서 어디에도 없다는 뜻이다(추측 금지).
+    """
+    rows: list[tuple[str, int | None]] = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for pno in IG5A_SUMMARY_PAGES:
+            text = pdf.pages[pno - 1].extract_text() or ""
+            for raw_line in text.splitlines():
+                line = raw_line.strip()
+                m = _SUMMARY_PAGE_RE.match(line)
+                if m:
+                    rows.append((norm_name(m.group(1)), int(m.group(2)) + offset))
+                    continue
+                m2 = _SUMMARY_NOPAGE_RE.match(line)
+                if m2:
+                    rows.append((norm_name(m2.group(1)), None))
+    return rows
+
+
+def summary_lookup(rows: list[tuple[str, int | None]], key: str) -> tuple[bool, int | None]:
+    """`key`(정규화된 이름)를 포함하는 일람표 행을 찾는다 → (found, 물리 페이지 or None).
+
+    포함(containment) 매칭인 이유: 그룹 첫 행은 분류 라벨('심각한 고장 래치(Latch)')이
+    명칭과 한 줄에 섞여 나온다(예: 입력결상) — 등호 매칭은 이 경우를 놓친다.
+    """
+    if not key:
+        return False, None
+    for line_key, page in rows:
+        if key in line_key:
+            return True, page
+    return False, None
+
+
+def parse_ig5a_trouble_blocks(pdf_path: Path) -> dict[int, list[dict]]:
+    """물리 p.22~29 '키패드 표시│고장 상태│내용' + '원인│조치사항' 표 →
+    {물리 페이지: [{'items': [항목명,...], 'actions': [조치문,...]}, ...]}.
+
+    한 표 안에 항목명이 여러 개 연속으로 나오고 그 뒤에 '원인/조치사항' 행이 **하나만**
+    붙는 경우가 있다(예: p.28 파라미터저장이상·하드웨어이상·로더통신에러·로더이상·NTC이상
+    5항목이 조치문 1행을 공유). 이 함수는 항목 수만 센다 — 어느 항목의 것인지는
+    `join_actions()` 가 `_variant_pair()` 로만 명시적 병기를 가르고 나머지는 ambiguous 로
+    넘긴다("가장 가까운 항목으로 흘려보내지 않는다", `span_key()` 와 같은 태도).
+    """
+    blocks: dict[int, list[dict]] = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for pno in IG5A_TROUBLE_PAGES:
+            page = pdf.pages[pno - 1]
+            page_blocks: list[dict] = []
+            for table in page.extract_tables():
+                if not table or len(table) < 2:
+                    continue
+                header = clean(" ".join(c or "" for c in table[0]))
+                if "키패드" not in header or "고장" not in header:
+                    continue  # 2.2절 '기타 문제' 표(코드 무관) 등은 건너뜀
+                items: list[str] = []
+                actions: list[str] = []
+                mode = "items"
+                cur_parts: list[str] = []
+                for row in table[1:]:
+                    cells = [(c or "").strip() for c in row]
+                    c0 = cells[0] if len(cells) > 0 else ""
+                    c1 = cells[1] if len(cells) > 1 else ""
+                    c2 = cells[2] if len(cells) > 2 else ""
+                    if mode == "items":
+                        if c0 == "원인" and c2 == "조치사항":
+                            if cur_parts:
+                                items.append(clean(" ".join(cur_parts).replace("\n", " ")))
+                                cur_parts = []
+                            mode = "remedy"
+                            continue
+                        if c1 and c2 in STATE_MARKERS:
+                            if cur_parts:
+                                items.append(clean(" ".join(cur_parts).replace("\n", " ")))
+                            cur_parts = [c1]
+                        elif c1:
+                            cur_parts.append(c1)
+                    else:
+                        if c2:
+                            act = clean(c2.replace("\n", " "))
+                            if act not in actions:
+                                actions.append(act)
+                if items and actions:
+                    page_blocks.append({"items": items, "actions": actions})
+            if page_blocks:
+                blocks[pno] = page_blocks
+    return blocks
+
+
+def _duration_flag(actions: list[str]) -> str | None:
+    """조치문에 '10분'이 아닌 분 단위 값이 있으면 안전 문구 플래그를 반환한다.
+
+    추출은 그대로 하되(원문 왜곡 금지) 자동 승인하지 않는다 — MQ-911 이 별도 절로 올린다
+    (절대규칙 3: 안전 문구는 매뉴얼 근거 없이 생성 금지·여기서는 근거는 있으나 값 재확인 필요).
+    """
+    for a in actions:
+        for m in re.finditer(r"(\d+)\s*분", a):
+            if m.group(1) != "10":
+                return f"'{m.group(0)}' — 10분 기준과 다름, 안전 문구 재확인 필요(MQ-911)"
+    return None
+
+
+def join_actions(
+    entries: list[dict], summary: list[tuple[str, int | None]], blocks: dict[int, list[dict]]
+) -> tuple[list[dict], list[str]]:
+    """iG5A 결측 코드를 트러블슈팅본과 조인한다 → (채워진 후보, pending_review).
+
+    조인 실패는 **버린다** — 가장 가까운 항목으로 흘려보내지 않는다. 엉뚱한 코드에 붙은
+    조치는 누락보다 나쁘다(`span_key()` 규약과 동일 태도, D99).
+    """
+    filled: list[dict] = []
+    pending: list[str] = []
+
+    for e in entries:
+        code, name = e["code"], e["error_name"]
+        key = norm_name(name)
+        found, page = summary_lookup(summary, key)
+
+        if not found:
+            pending.append(
+                f"iG5A {code}: 트러블슈팅 일람표(p.20~21)에서 명칭을 찾지 못함 — 수기 매핑 필요"
+            )
+            continue
+        if page is None:
+            pending.append(
+                f"iG5A {code}: 일람표에 명칭은 있으나 대응 페이지가 없음(Page='-') — "
+                "트러블슈팅본에 실제 조치 내용이 없다. 지어내지 않는다"
+            )
+            continue
+
+        page_blocks = blocks.get(page, [])
+        candidates = [
+            b
+            for b in page_blocks
+            if any(_fuzzy_contains(key, norm_name(it)) for it in b["items"])
+        ]
+        if not candidates and len(page_blocks) == 1:
+            candidates = page_blocks  # 그 페이지에 표가 하나뿐이면 그것으로 확정
+        if not candidates:
+            pending.append(
+                f"iG5A {code}: 일람표는 물리 p.{page} 를 가리키나 해당 페이지에서 "
+                "일치하는 원인|조치사항 표를 찾지 못함 — 수기 확인 필요"
+            )
+            continue
+
+        block = candidates[0]
+        items = block["items"]
+        if len(items) == 1:
+            confidence = "high"
+        elif _variant_pair(items):
+            confidence = "high"
+        else:
+            pending.append(
+                f"iG5A {code}: 물리 p.{page} 의 조치문이 항목 {items} 와 공유돼 "
+                "자동 매칭 보류(ambiguous) — 자동 선택하지 않는다"
+            )
+            continue
+
+        actions = block["actions"]
+        filled.append(
+            {
+                "model": "iG5A",
+                "code": code,
+                "actions": actions,
+                "actions_manual_id": IG5A_TROUBLE_ID,
+                "actions_page": page,
+                "join_key": key,
+                "confidence": confidence,
+                "evidence_excerpt": actions[0][:120] if actions else "",
+            }
+        )
+        flag = _duration_flag(actions)
+        if flag:
+            pending.append(f"iG5A {code}: 안전 문구 플래그 — {flag}")
+
+    return filled, pending
+
+
+def verify_verbatim(cand: list[dict], pdf_path: Path) -> tuple[list[str], int]:
+    """★ 각 조치문이 해당 물리 페이지 텍스트에 **실재**하는지 대조한다.
+
+    반환 = (위반 목록(비어야 정상), 대조한 문장 수 — 양성 축). 정규화(공백·개행 제거) 후
+    부분 문자열 검사만 한다 — 생성이 아니라 추출임을 코드가 강제하는 지점(safety-guardrail).
+    """
+    violations: list[str] = []
+    n_checked = 0
+    page_cache: dict[int, str] = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for e in cand:
+            page = e.get("actions_page")
+            if page is None:
+                continue
+            if page not in page_cache:
+                if 1 <= page <= len(pdf.pages):
+                    page_cache[page] = re.sub(r"\s+", "", pdf.pages[page - 1].extract_text() or "")
+                else:
+                    page_cache[page] = ""
+            haystack = page_cache[page]
+            for act in e.get("actions") or []:
+                n_checked += 1
+                needle = re.sub(r"\s+", "", act)
+                if not needle or needle not in haystack:
+                    violations.append(
+                        f"{e['model']} {e['code']} p.{page}: 조치문이 원문에 없음 — {act[:60]!r}"
+                    )
+    return violations, n_checked
+
+
+def extract_candidates() -> None:
+    """후보 추출 모드 — 정본(`error_codes.json`)을 **쓰지 않는다** (D99).
+
+    조인 대상(현재 결측인 iG5A 코드 목록)을 얻으려면 정본을 **읽어야** 한다 —
+    이 모드가 금지하는 것은 쓰기이지 읽기가 아니다(§6 델타 ⑤).
+    """
+    manifest = check_manifest()  # D19 — data/raw/ 는 읽기 전용, 해시만 대조
+    trouble_entry = next((m for m in manifest["manuals"] if m["id"] == IG5A_TROUBLE_ID), None)
+    if trouble_entry is None:
+        sys.exit(f"[중단] manifest 에 {IG5A_TROUBLE_ID} 항목이 없다")
+    pdf_path = RAW / trouble_entry["file"]
+    offset = manual_offset(manifest, IG5A_TROUBLE_ID)
+
+    if not OUTPUT.exists():
+        print(f"[후보 모드] {OUTPUT} 가 없다 — 먼저 정본을 생성해야 조인할 대상이 있다")
+        return
+    canon = json.loads(OUTPUT.read_text(encoding="utf-8"))  # 읽기 전용 (D99)
+    ig5a_missing = [
+        e for e in canon.get("entries", []) if e.get("model") == "iG5A" and not e.get("actions")
+    ]
+    print(f"[후보 모드] 정본 읽기 전용 — iG5A 결측 {len(ig5a_missing)}건 대상")
+
+    summary = parse_ig5a_summary(pdf_path, offset)
+    blocks = parse_ig5a_trouble_blocks(pdf_path)
+    filled, pending = join_actions(ig5a_missing, summary, blocks)
+
+    if not filled:
+        sys.exit(
+            "[중단] SCANNER_BLIND — iG5A 조인 성공 0건. "
+            "'대응 항목이 실제로 없다'와 '파서가 눈이 멀었다'를 구분할 수 없어 파일을 쓰지 않았다."
+        )
+
+    violations, n_checked = verify_verbatim(filled, pdf_path)
+    print(f"[verify_verbatim] 대조한 문장 {n_checked}건 · 위반 {len(violations)}건")
+    if violations:
+        for v in violations:
+            print(f"  ⚠ {v}")
+        sys.exit("[중단] verify_verbatim 위반 — 후보 파일을 쓰지 않았다(safety-guardrail)")
+
+    candidate_doc = {
+        "_status": "초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에 적재되지 않는다",
+        "_source_of_truth": "data/extracted/error_codes.json (이 파일은 병합 후보다)",
+        "generated_at": str(date.today()),
+        "counts": {"iG5A": len(filled), "S100": 0},
+        "entries": filled,
+        "_pending_review": pending,
+    }
+    EXTRACTED.mkdir(exist_ok=True)
+    CANDIDATE.write_text(
+        json.dumps(candidate_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"[기록] {CANDIDATE} — iG5A {len(filled)}건 · pending_review {len(pending)}건")
+
+    action_map_doc = {
+        "_설명": "iG5A 트러블슈팅본 조인 대장 — 무엇이 무엇에 붙었는지가 검수 대상이다 (D19·D100, MQ-905).",
+        "_status": "초안 — 사람 검수 대기",
+        "generated_at": str(date.today()),
+        "manual_id": IG5A_TROUBLE_ID,
+        "print_page_offset_used": offset,
+        "mappings": [
+            {
+                "code": f["code"],
+                "join_key": f["join_key"],
+                "actions_page": f["actions_page"],
+                "confidence": f["confidence"],
+                "actions": f["actions"],
+            }
+            for f in filled
+        ],
+        "pending_review": pending,
+    }
+    IG5A_ACTION_MAP.write_text(
+        json.dumps(action_map_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"[기록] {IG5A_ACTION_MAP}")
 
 
 # ──────────────────────────────────────────────── main
@@ -614,7 +963,7 @@ def main() -> None:
     ap.add_argument(
         "--candidates-only",
         action="store_true",
-        help="후보 파일만 생성한다. 정본(data/extracted/error_codes.json)을 열지도 쓰지도 않는다",
+        help="후보 파일만 생성한다. 정본(data/extracted/error_codes.json)을 쓰지 않는다(조인 대상으로 읽기는 한다)",
     )
     args = ap.parse_args()
 

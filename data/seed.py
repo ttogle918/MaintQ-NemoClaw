@@ -4,6 +4,7 @@
 출력 : data/maintq.db (기존 파일은 .bak 으로 백업 후 재생성)
 검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪) + Sprint 6~7 확장(⑫~㉑)
        + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕) + parts.mfr_part_no(㉖)
+       + Sprint 9 repair_records 상태 불변식·error_codes 출처 컬럼·해시 재대조(㉗~㉙)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -56,12 +57,18 @@ CREATE TABLE error_codes (
   actions      TEXT NOT NULL,
   related_parts TEXT,
   manual_page  INTEGER NOT NULL,
+  -- ★ Sprint 9 신설 (D100) — 조치문 출처. 'ig5a-troubleshooting' 등 manifest 의 id.
+  --   NULL = 출처 미기록(현재 전건 NULL — 병합은 MQ-919). actions_page 는 PDF 물리 페이지(D26)
+  --   이고 actions_manual_id 와 짝이어야 한다.
+  actions_manual_id TEXT,
+  actions_page      INTEGER,
   PRIMARY KEY (model, code),
   CHECK (severity IN ('warning','fault','critical')),
   -- code 형식 (D33): 대문자·숫자·언더스코어 2~4자
   CHECK (length(code) BETWEEN 2 AND 4
          AND code = upper(code)
-         AND code NOT GLOB '*[^A-Z0-9_]*')
+         AND code NOT GLOB '*[^A-Z0-9_]*'),
+  CHECK ((actions_manual_id IS NULL) = (actions_page IS NULL))
 );
 
 -- 사용자 (D41·D52) — X-User 헤더 값의 원천이자 표시명 매핑 소스.
@@ -343,11 +350,24 @@ CREATE TABLE repair_records (
   performed_by TEXT REFERENCES users, verified_by TEXT REFERENCES users,
   signed_at DATETIME, record_hash TEXT,
   state TEXT NOT NULL DEFAULT 'draft',
+  -- ★ Sprint 9 신설 (D98) — 도구는 이 셋을 채우지 않는다. 백엔드가 X-User·세션에서 stamp 한다
+  --   (D23·D37). `data/repair_hash.py` 가 `record_hash` 규약의 단일 출처다.
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  requested_by TEXT REFERENCES users,
+  session_id TEXT,
+  note TEXT,                             -- 반려 사유·서명 메모 (D38 — 반려는 이유가 필수)
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),  -- D13·D33
   CHECK (work_type IN ('PLANNED','UNPLANNED')),
   CHECK ((model IS NULL) = (error_code IS NULL)),
   CHECK (parts IS NULL OR json_valid(parts)),
-  CHECK (expenditure_class IS NULL OR expenditure_class IN ('CAPITAL','REVENUE','HOLD'))
+  CHECK (expenditure_class IS NULL OR expenditure_class IN ('CAPITAL','REVENUE','HOLD')),
+  -- ★ 신설 ① 상태 어휘 4종 (D98)
+  CHECK (state IN ('draft','pending','signed','rejected')),
+  -- ★ 신설 ② "서명 없는 확정 0건" 을 스키마로 잠근다 (decisions 의 DDL CHECK 2종과 같은 태도)
+  CHECK (state <> 'signed' OR (signed_at IS NOT NULL AND record_hash IS NOT NULL
+                               AND verified_by IS NOT NULL)),
+  -- ★ 신설 ③ 미서명은 지표에 들어갈 수 없다 (12 §11) — signed_at 은 서명의 결과지 원인이 아니다
+  CHECK (signed_at IS NULL OR state = 'signed')
 );
 
 -- §17 residual_curve — 잔가율 (D65·D74). 정본은 data/extracted/residual_curve.json
@@ -1315,16 +1335,26 @@ def seed_partner_links(con: sqlite3.Connection, now_utc: datetime) -> int:
 
 
 def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) -> None:
-    """수리 증빙 12건. 쓰기 경로는 Sprint 7 이고 여기서는 시드만 넣는다.
+    """수리 증빙 12건. 쓰기 경로는 Sprint 9 (MQ-909) 이고 여기서는 시드만 넣는다.
 
     `--with-error-codes` 없이 실행하면 `error_codes` 가 0행이라 `(model, error_code)`
     복합 FK 를 만족시킬 수 없다 → 둘 다 NULL (`seed_po_drafts` 선례 그대로).
     DDL 의 `CHECK ((model IS NULL) = (error_code IS NULL))` 이 짝을 강제한다.
 
-    `record_hash` 는 전 행 NULL 이다 — 서명 해시 규약(정렬·구분자 고정)은 Sprint 7 의
-    서명 API 와 `build_evidence_bundle` 이 함께 정한다. 지금 임의 규약을 심으면
-    나중에 검증이 조용히 어긋난다.
+    `record_hash` 는 **`state='signed'` 11행만** 채운다 — 새 DDL CHECK ②가
+    `state='signed'` 에 `signed_at`·`record_hash`·`verified_by` 전부 non-null 을 강제하므로,
+    채우지 않으면 시드가 즉시 죽는다(그게 정상 동작이다). 해시는 `data/repair_hash.py`
+    (단일 출처, D73) 로 계산 — `backend/services/repairs.py`(MQ-909)의 서명 API 가
+    같은 모듈을 읽으므로 규약이 갈릴 수 없다.
+
+    `created_at`·`requested_by`·`session_id`·`note` (D98 신설 4컬럼): 도구/시드가 아니라
+    백엔드가 X-User·세션에서 stamp 하는 게 원칙(D23·D37)이지만, 시드는 사람 대신 데이터를
+    박아 넣는 예외적 자리라 `requested_by='tech-01'` 을 직접 채운다. `session_id`·`note` 는
+    시드 시점엔 의미 있는 값이 없어 `NULL` (D62 — 모름이 아니라 "해당 없음"에 더 가깝다).
     """
+    sys.path.insert(0, str(ROOT.parent))
+    from data.repair_hash import compute_record_hash  # noqa: PLC0415
+
     rows = []
     for i, rec in enumerate(REPAIR_RECORDS):
         (
@@ -1342,11 +1372,39 @@ def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) 
             signed,
         ) = rec
         model, error_code = code_key if (with_codes and code_key) else (None, None)
+        parts_json = json.dumps(parts, ensure_ascii=False)
         # 서명 시각은 실행일 기준 상대값 (UTC, D39)
         signed_at = (
             datetime.combine(today - timedelta(days=20 + i * 17), datetime.min.time())
             .replace(tzinfo=timezone.utc)
             .strftime("%Y-%m-%d %H:%M:%S")
+            if signed
+            else None
+        )
+        # 요청 시각은 서명보다 앞서야 하므로 서명 오프셋보다 더 과거 (실행일 기준 상대값)
+        created_at = (
+            datetime.combine(today - timedelta(days=27 + i * 17), datetime.min.time())
+            .replace(tzinfo=timezone.utc)
+            .strftime("%Y-%m-%d %H:%M:%S")
+        )
+        record_hash = (
+            compute_record_hash(
+                {
+                    "repair_id": repair_id,
+                    "equipment_id": equipment_id,
+                    "model": model,
+                    "error_code": error_code,
+                    "part_class": part_class,
+                    "work_type": work_type,
+                    "expenditure_class": expenditure_class,
+                    "cost": cost,
+                    "downtime_hours": downtime,
+                    "parts": parts_json,
+                    "performed_by": performed_by,
+                    "verified_by": verified_by,
+                    "signed_at": signed_at,
+                }
+            )
             if signed
             else None
         )
@@ -1361,18 +1419,23 @@ def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) 
                 expenditure_class,
                 cost,
                 downtime,
-                json.dumps(parts, ensure_ascii=False),
+                parts_json,
                 performed_by,
                 verified_by,
                 signed_at,
-                None,
+                record_hash,
                 "signed" if signed else "draft",
+                created_at,
+                "tech-01",
+                None,
+                None,
             )
         )
     con.executemany(
         "INSERT INTO repair_records (repair_id, equipment_id, model, error_code, part_class,"
         " work_type, expenditure_class, cost, downtime_hours, parts, performed_by, verified_by,"
-        " signed_at, record_hash, state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " signed_at, record_hash, state, created_at, requested_by, session_id, note)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
 
@@ -1770,7 +1833,13 @@ def partner_links_caveat() -> str:
 
 
 def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
-    """추출 JSON → error_codes. related_parts 는 임시 매핑 파일로 덧씌운다 (검수 전)."""
+    """추출 JSON → error_codes. related_parts 는 임시 매핑 파일로 덧씌운다 (검수 전).
+
+    ⚠ **명시적 컬럼 목록으로 INSERT 한다** — 위치 인자 INSERT 는 컬럼이 늘어나는 순간
+      조용히 깨진다(어느 값이 어느 컬럼에 들어갔는지 SQLite 가 검증해 주지 않는다).
+      `actions_manual_id`·`actions_page` (D100) 는 JSON 에 키가 있으면 채우고 없으면
+      `None` — **현재는 추출 JSON 에 그 키가 없어 전건 `None` 이 정상**이다(병합은 MQ-919).
+    """
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
     overlay: dict[tuple[str, str], list[str]] = {}
     if RELATED_PARTS_JSON.exists():
@@ -1793,9 +1862,16 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
                 json.dumps(e["actions"], ensure_ascii=False),
                 json.dumps(parts, ensure_ascii=False) if parts else None,
                 e["manual_page"],
+                e.get("actions_manual_id"),
+                e.get("actions_page"),
             )
         )
-    con.executemany("INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    con.executemany(
+        "INSERT INTO error_codes (model, code, display_code, error_name, severity, causes,"
+        " actions, related_parts, manual_page, actions_manual_id, actions_page)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        rows,
+    )
     return len(rows), mapped
 
 
@@ -1853,7 +1929,8 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증.
 
     Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
-    parts.mfr_part_no 1건(㉖)이 뒤에 붙는다.
+    parts.mfr_part_no 1건(㉖) · Sprint 9 repair_records 상태 불변식(D98)·error_codes 출처
+    컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙)이 뒤에 붙는다.
     ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
       D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
@@ -2392,6 +2469,110 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f" · [음성] 금지값(주문번호·완제품형명) {len(bad)}건 {bad}"
         f" · NULL {total_parts - len(filled)}종은 **미조사가 아니라 미공개**"
         " (`data/analysis/part_number_sources.md`)",
+    )
+
+    # ㉗ repair_records 상태 불변식 (D98). "state='signed' ⇔ signed_at·record_hash·verified_by
+    # 전부 non-null" 을 **양방향**(iff)으로 걸고, 어휘 밖 상태 0건 + 미서명 1행 존재까지 본다.
+    # 미서명 1행이 사라지면 `get_maintenance_metrics.excluded[]` 검증이 공허해진다 (12 §11).
+    signed_cnt = q("SELECT count(*) FROM repair_records WHERE state='signed'")[0]
+    signed_complete = q(
+        "SELECT count(*) FROM repair_records WHERE state='signed' AND signed_at IS NOT NULL"
+        " AND record_hash IS NOT NULL AND verified_by IS NOT NULL"
+    )[0]
+    # 역방향 — 세 값이 다 차 있는데 state 가 signed 가 아닌 행(있으면 안 된다)
+    complete_not_signed = q(
+        "SELECT count(*) FROM repair_records WHERE state<>'signed' AND signed_at IS NOT NULL"
+        " AND record_hash IS NOT NULL AND verified_by IS NOT NULL"
+    )[0]
+    bad_vocab = q(
+        "SELECT count(*) FROM repair_records"
+        " WHERE state NOT IN ('draft','pending','signed','rejected')"
+    )[0]
+    unsigned_cnt = q("SELECT count(*) FROM repair_records WHERE state<>'signed'")[0]
+    check(
+        "㉗ repair_records 상태 불변식 — signed⇔셋다non-null · 어휘·미서명 (D98)",
+        signed_cnt == 11
+        and signed_complete == signed_cnt
+        and complete_not_signed == 0
+        and bad_vocab == 0
+        and unsigned_cnt == 1,
+        f"[양성] state=signed {signed_cnt}건 중 셋다non-null {signed_complete}건"
+        f" · [역방향] 셋다non-null인데 미서명={complete_not_signed}건"
+        f" · [음성] 어휘 밖 상태={bad_vocab}건 · 미서명(state<>signed)={unsigned_cnt}건"
+        " (기대 1건 = RPR-2403)",
+    )
+
+    # ㉘ error_codes 출처 컬럼 짝 불변식 (D100). DDL CHECK 가 이미 짝을 강제하므로 위반은
+    # 구조적으로 0건이어야 한다 — 여기서는 그 사실과 게이트 상태(적재 여부)를 함께 실측한다.
+    # `--with-error-codes` 없이 실행하면 0행이 정상이고 이때는 FAIL 이 아니라 통과시킨다.
+    ec_mismatch = q(
+        "SELECT count(*) FROM error_codes"
+        " WHERE (actions_manual_id IS NULL) <> (actions_page IS NULL)"
+    )[0]
+    ec_total = q("SELECT count(*) FROM error_codes")[0]
+    check(
+        "㉘ error_codes 출처 컬럼 짝 불변식 (D100)",
+        ec_mismatch == 0 and ((ec_total > 0) if with_codes else True),
+        f"[음성] 짝 불일치={ec_mismatch}건 · [양성] error_codes 총 {ec_total}행"
+        + (
+            " (게이트: --with-error-codes 적재, 기대 65)"
+            if with_codes
+            else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"
+        ),
+    )
+
+    # ㉙ repair_records.record_hash 재계산 대조 (D84 태도). 시드가 저장한 해시와
+    # `data/repair_hash.compute_record_hash()` 로 지금 다시 계산한 해시가 서명 11행 전건 일치해야 한다.
+    sys.path.insert(0, str(ROOT.parent))
+    from data.repair_hash import compute_record_hash  # noqa: PLC0415
+
+    signed_rows = con.execute(
+        "SELECT repair_id, equipment_id, model, error_code, part_class, work_type,"
+        " expenditure_class, cost, downtime_hours, parts, performed_by, verified_by,"
+        " signed_at, record_hash FROM repair_records WHERE state='signed' ORDER BY repair_id"
+    ).fetchall()
+    mismatches = []
+    for (
+        repair_id,
+        equipment_id,
+        model,
+        error_code,
+        part_class,
+        work_type,
+        expenditure_class,
+        cost,
+        downtime_hours,
+        parts,
+        performed_by,
+        verified_by,
+        signed_at,
+        stored_hash,
+    ) in signed_rows:
+        recomputed = compute_record_hash(
+            {
+                "repair_id": repair_id,
+                "equipment_id": equipment_id,
+                "model": model,
+                "error_code": error_code,
+                "part_class": part_class,
+                "work_type": work_type,
+                "expenditure_class": expenditure_class,
+                "cost": cost,
+                "downtime_hours": downtime_hours,
+                "parts": parts,
+                "performed_by": performed_by,
+                "verified_by": verified_by,
+                "signed_at": signed_at,
+            }
+        )
+        if recomputed != stored_hash:
+            mismatches.append(repair_id)
+    check(
+        "㉙ repair_records.record_hash 재계산 대조 (D84)",
+        len(signed_rows) == 11 and not mismatches,
+        f"[양성] 서명 {len(signed_rows)}행 재계산 대조 일치"
+        f" {len(signed_rows) - len(mismatches)}/{len(signed_rows)}건"
+        f" · [음성] 불일치={mismatches}",
     )
     return results
 
