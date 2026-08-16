@@ -1766,3 +1766,43 @@ Windows 소켓 고갈 징후 없음(1회차 완주 후 D9 수정 반영해 재�
 - MQ-913(Stage 5) 의 `repair_flow_contract` 신설 시 `write_tool_contract` 2→3종 확장에 **`create_repair_record` 의 D9 안전망 재발 방지 검사**(임의 예외를 흡수하는지)를 넣을 것 — 이번 스테이지는 사람이 리뷰로 잡았고 회귀가 아직 못 잡는다.
 - MQ-913 또는 별도 pytest 에 **`verify_verbatim` 음성 테스트**(조작된 문장이 위반으로 걸러지는지) 신설 권고가 이월됨(§12-2).
 - MQ-908(Stage 4) 착수 전 정할 것 — `decisions._metrics()` 방침(§9-4 델타 MQ-908 행, D101 이 인용한 "산식이 두 벌"을 해소할지 인용을 뺄지)은 **아직 미결**이다.
+
+---
+
+## 13. Stage 4 완료 (2026-08-16)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `1ec937e` — `[M2] Sprint 9 Stage 4 — 확장 도구 REST 노출 5종(D73) · decisions._metrics() 위임(D101) · lookup_error_code actions_source(D100) · 사람 검수 패키지(G1 입력)`
+
+### 13-1. 착수 전 결정 — `decisions._metrics()` 방침 확정 (사람, ⓐ 위임)
+
+§12-4 가 남긴 미결 사항. **ⓐ(`data.maint_value.maintenance_metrics()` 위임)로 확정** — `_metrics()` 출력이 들어가는 정비 이력 요약서 섹션이 `decisions.py:788` 부근에서 이미 `hash_fixed: False` 로 강제돼 있어(서명 해시가 고정하는 건 `evidence_bundle` 5키뿐) 위임해도 서명 해시가 깨질 위험이 없다는 것을 확인한 뒤 내렸다. 위임 후 4개 자산(`AST-L3-CONV`·`L4-WRAP`·`L2-SPDL`·`L3-LIFT`)에서 위임 전/후 출력 완전 동일 확인, `spikes/approvals_contract.py ⑳`(도구-백엔드 산식 대조 드리프트 감시) 무증감 통과, "산식이 두 벌 존재한다"는 옛 서술을 코드에서 제거 — **D101 이 인용한 근거가 이제 실제로 해소됐다.**
+
+### 13-2. 태스크별 결과
+
+| TASK | 산출 | 실측 |
+|---|---|---|
+| **MQ-908** | `backend/services\|routers/maint_value.py`(신규, REST 5경로) · `backend/services/decisions.py`(`_metrics()` 위임 전환) | `core` 프로파일에서 5경로 전부 200/정의된 4xx · `GET /health` `tools:7, tools_profile:"core"` · `api_contract` 28건·`approvals_contract` 26건 무증감 |
+| **MQ-910** | `mcp_server/tools/lookup_error_code.py`(`actions_source` 신설) | `actions_source: {manual_id,page}\|null` 키 항상 존재, `print_page` 0건(D32 재발 없음 확인) |
+| **MQ-911** | `data/analysis/actions_review.md`(신규) · `TODO_직접할일.md`(`## actions 검수` 절) | 표 1=3건(entries 수와 기계 대조 일치) · 표 3=35건(`_pending_review`와 일치) · 안전 키워드 스캔 대상 3건 중 **0건 적중**(양성 축과 함께 기록) · TODO 3항목 미체크, 승인 문구 없음 확인 |
+
+### 13-3. reviewer 게이트 — PASS(블로커 0건) + 코디네이터가 직접 고친 것 2건
+
+reviewer 판정은 1차부터 **PASS** — 이번 스테이지는 Stage 3 와 달리 재작업 없이 통과했다. 단 스테이지 진행 중 코디네이터가 직접 고친 것이 2건 있다(reviewer 검토 **전**에 이미 반영):
+
+| # | 무엇을 | 왜 |
+|---|---|---|
+| ① | `spikes/lookup_contract.py` 의 합성 DDL·`FIXTURE`·`CONTRACT_KEYS` 갱신 | MQ-910 이 SELECT 에 `actions_manual_id`·`actions_page` 를 추가하자, 이 스파이크가 쓰는 **합성 DB**(Stage 2 에서 실 스키마에 이미 추가된 두 컬럼을 반영 못 함)에서 체크 ④가 `KeyError` 로 죽는 회귀가 났다. MQ-910 은 태스크 범위(스파이크 미수정)를 지켜 그대로 뒀고, **코디네이터가 직접 고쳤다** — DDL 에 두 컬럼+짝 CHECK 추가, `FIXTURE` 3행에 `None,None` 추가, `CONTRACT_KEYS` 에 `"actions_source"` 추가. 신규 검사 추가가 아니라 **기존 12건 픽스처를 실 스키마와 동기화**한 것이라 MQ-913(Stage 5, 신규 검사 담당)의 몫을 침범하지 않는다 — reviewer 도 이 판단에 동의 |
+| ② | `backend/routers/decisions.py` 의 `get_decision`·`submit`·`sign`·`reject` 4곳에 `except RuntimeError` 추가 | reviewer 가 비블로커로 지목: `_metrics()` 위임 전환 후 실패 시 `RuntimeError` 를 던지는데(전에는 절대 실패하지 않던 함수), 라우터 어디도 이걸 안 잡아서 **서명이 실제로 성공했는데 응답 조립 단계에서 구조 없는 500** 이 날 수 있었다. 4곳에 `500 + {reason:"metrics_assembly_failed"}` 구조화 응답 추가. `api_contract`·`approvals_contract`·`disposal_api_contract`·`disposal_sign_contract` 재실행 무증감 통과 확인 후 반영 |
+
+reviewer 가 상세 확인한 것(문제 없음으로 결론): evidence-bundle 라우터 응답이 명세 스케치("(bundle, bundle_hash)")보다 넓지만 `docs/04_MCP_TOOLS.md §14` 정본과 필드 단위로 정확히 일치, 복제된 `HASH_SPEC`·disclaimer 문자열이 도구 원본과 바이트 단위로 동일, `actions_source` 방어 코드 생략이 실제 DDL CHECK(`data/seed.py`)로 뒷받침됨, MQ-911 표 1의 `error_name`/`join_key` 병기가 D99 를 흐리지 않음.
+
+### 13-4. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **28스위트**(Stage 3 기준선과 완전 동일 — `lookup_contract`·`api_contract`·`approvals_contract`·`disposal_api_contract`·`disposal_sign_contract` 는 코디네이터 수정 반영 후 **재확인 완료**) · `ruff check data backend mcp_server spikes` 통과.
+
+### 13-5. Stage 5 착수 전 참고 — reviewer 비블로커 권고 이월
+
+- `docs/06_REPO_API.md` 에 이번에 신설된 REST 5경로가 **아직 등재돼 있지 않다**(grep 0건) — **MQ-918 전파 목록에 추가할 것**.
+- `backend/routers/maint_value.py` 의 `HASH_SPEC`/disclaimer 복제본에 **자동 드리프트 감시가 없다**(현재는 수동 대조로만 일치 확인) — `data/ownership.py` 상수 재사용 + 드리프트 assert 선례와 다른 패턴이다. **MQ-913(Stage 5)의 REST 계약 스파이크에 문자열 동일성 체크 추가를 권고**.
+- MQ-913 착수 시 §12-5(Stage 3 이월)와 합쳐서 확인할 목록: ① `create_repair_record` D9 재발 방지 검사 ② `verify_verbatim` 음성 테스트(조작 문장 검출) ③ `lookup_contract` 신규 검사 +2(actions_source 키 존재·null 사유) ④ **이번에 추가된 REST 5경로의 문자열 드리프트 체크**.
