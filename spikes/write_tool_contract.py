@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
-"""쓰기 도구 **2종** 계약 검증 — `create_po_draft` · `generate_disposal_document`.
+"""쓰기 도구 **3종** 계약 검증 — `create_po_draft` · `generate_disposal_document` ·
+`create_repair_record`.
 
 검증 대상:
   create_po_draft (①~⑭)          D10(draft INSERT만) · D23·D37(신원은 스키마에 없음) ·
                                   D31(단가 스냅샷 / MOQ 거부) · D33(코드 FK) · D34(evidence)
-  generate_disposal_document (⑮~㉒, MQ-706)
+  generate_disposal_document (⑮~⑲, MQ-706)
                                   D10(`decisions` draft INSERT만 · TEMP TRIGGER 2개) ·
                                   D81(`override`·`override_reason`·`reviewed_by` 가 **스키마에
                                   없다**) · D63(BLOCKED 여도 draft 는 만들어진다) ·
                                   D84(저장된 `evidence_bundle` 로 `bundle_hash` 재대조) ·
                                   D80(`reason` 필수) · "근거 없으면 아무것도 쓰지 않는다"
+  create_repair_record (㉔~㉚, MQ-913·D98)
+                                  D98(`repair_records` 전용 `repair_writer()` · draft INSERT만) ·
+                                  ⓑ 서명·신원·`state` 가 스키마에 없다 · ⓒ 미존재 부품 →
+                                  `unknown_part`, 행 수 불변(아무것도 안 씀을 직접 센다) ·
+                                  ⓓ 응답의 `expenditure_class` 가 DB 저장값과 일치
 
-★ **"막았다"를 선언하지 않고 증명한다.** 트리거는 `decision_writer()` 커넥션으로 실제
-  UPDATE·DELETE SQL 을 날려 ABORT 를 확인하고(⑯⑰), `law_text_unavailable` 은 "실패했다"가
-  아니라 **`decisions` 행 수가 그대로다**(⑱)로 확인한다.
-  ⛔ 트리거 확인에 `draft_writer()` 를 쓰지 않는다 — `po_drafts` 전용 트리거만 걸린
-    커넥션으로 `decisions` 를 만지면 잠기지 않은 경로를 통과시키고도 통과가 된다.
+★ **"막았다"를 선언하지 않고 증명한다.** 트리거는 각 테이블 전용 writer 커넥션으로 실제
+  UPDATE·DELETE SQL 을 날려 ABORT 를 확인한다 — `decisions` 는 ⑯⑰(전용 커넥션), `repair_records`
+  는 ㉙㉚(전용 커넥션). `law_text_unavailable` 은 "실패했다"가 아니라 **`decisions` 행 수가
+  그대로다**(⑱)로 확인한다.
+  ⛔ 어느 트리거 확인에도 **다른 테이블 전용 writer** 를 쓰지 않는다 — 예를 들어 `po_drafts`
+    전용 트리거만 걸린 커넥션으로 `decisions` 를 만지거나, `decisions` 전용 커넥션으로
+    `repair_records` 를 만지면 잠기지 않은 경로를 통과시키고도 통과가 된다.
 
 실제 DB를 오염시키지 않도록 **임시 사본**을 만들고 MAINTQ_DB 로 주입한다.
 error_codes 는 사람 승인 전이라 비어 있으므로, D33 FK 검증만은 사본에
@@ -116,6 +124,14 @@ def decision_count(db: Path) -> int:
     con = sqlite3.connect(db)
     try:
         return int(con.execute("SELECT count(*) FROM decisions").fetchone()[0])
+    finally:
+        con.close()
+
+
+def repair_count(db: Path) -> int:
+    con = sqlite3.connect(db)
+    try:
+        return int(con.execute("SELECT count(*) FROM repair_records").fetchone()[0])
     finally:
         con.close()
 
@@ -407,7 +423,79 @@ async def run(db: Path) -> tuple[str, str, str]:
                 f"· decisions={before_missing}→{after_missing}",
             )
 
-            return po_id, cond_id, blocked_id
+            # ─────────────────────────────────────────────────────────────────
+            # create_repair_record (MQ-913, D98) — 세 번째 쓰기 도구
+            # ─────────────────────────────────────────────────────────────────
+            repair_tool = next(t for t in listed.tools if t.name == "create_repair_record")
+            repair_props = set((repair_tool.inputSchema or {}).get("properties", {}))
+
+            # ⓑ D98 — 서명·신원·state 필드가 스키마에 없다. 키가 없으므로 LLM 이 서명·확정을
+            #    지어내 호출하는 경로 자체가 구조적으로 불가능하다 (D81 태도의 복제).
+            repair_forbidden = {
+                "override",
+                "signed_at",
+                "record_hash",
+                "performed_by",
+                "verified_by",
+                "state",
+            }
+            check(
+                "㉔ D98 서명·신원·state 가 create_repair_record 스키마에 없음",
+                not (repair_props & repair_forbidden),
+                f"노출 파라미터: {sorted(repair_props)}",
+            )
+
+            # 정상 수리 증빙 초안
+            rep_ok = payload(
+                await session.call_tool(
+                    "create_repair_record",
+                    {
+                        "equipment_id": "INV-L3-01",
+                        "work_type": "UNPLANNED",
+                        "repair_scope": "RESTORE",
+                        "cost": 850000,
+                        "parts": [{"part_no": "FAN-IG5-01", "serial": "SN-WT-01", "qty": 1}],
+                        "downtime_hours": 6.5,
+                        "model": "iG5A",
+                        "error_code": "OHt",
+                        "note": "write_tool_contract 회귀",
+                    },
+                )
+            )
+            check(
+                "㉕ 정상 수리 증빙 → draft 생성",
+                rep_ok["status"] == "ok" and rep_ok["state"] == "draft",
+                f"repair_id={rep_ok.get('repair_id')}, state={rep_ok.get('state')}",
+            )
+            repair_id = rep_ok.get("repair_id")
+            repair_expenditure_class = rep_ok.get("expenditure_class")
+
+            # ⓒ 미존재 부품 → unknown_part. "실패했다"고 말하는 것이 아니라 행 수가
+            #    그대로임을 직접 세서 **아무것도 쓰지 않았음**을 증명한다.
+            before_missing_part = repair_count(db)
+            rep_missing = payload(
+                await session.call_tool(
+                    "create_repair_record",
+                    {
+                        "equipment_id": "INV-L3-01",
+                        "work_type": "UNPLANNED",
+                        "repair_scope": "RESTORE",
+                        "cost": 10000,
+                        "parts": [{"part_no": "NOT-A-REAL-PART"}],
+                    },
+                )
+            )
+            after_missing_part = repair_count(db)
+            check(
+                "㉖ ⓒ 미존재 부품 → not_found/unknown_part · repair_records 행 수 불변",
+                rep_missing["status"] == "not_found"
+                and rep_missing.get("reason") == "unknown_part"
+                and after_missing_part == before_missing_part,
+                f"status={rep_missing['status']} reason={rep_missing.get('reason')} "
+                f"· repair_records={before_missing_part}→{after_missing_part}",
+            )
+
+            return po_id, cond_id, blocked_id, repair_id, repair_expenditure_class
 
 
 def verify_row(db: Path, po_id: str) -> None:
@@ -540,21 +628,91 @@ def verify_decision_rows(db: Path, cond_id: str | None, blocked_id: str | None) 
         )
 
 
+def verify_repair_row(
+    db: Path, repair_id: str | None, tool_expenditure_class: str | None
+) -> None:
+    """`repair_records` 저장분 검증 (MQ-913, D98) — 세 번째 쓰기 도구의 draft INSERT 계약."""
+    if repair_id is None:
+        for mark in ("㉗", "㉘", "㉙", "㉚"):
+            check(f"{mark} repair_records 저장분 검증", False, "선행 draft 생성이 실패해 검증 불가")
+        return
+
+    import mcp_server.db as mcp_db  # noqa: PLC0415
+
+    con = sqlite3.connect(db)
+    con.row_factory = sqlite3.Row
+    r = con.execute("SELECT * FROM repair_records WHERE repair_id=?", (repair_id,)).fetchone()
+    con.close()
+
+    check(
+        "㉗ D10·D98 저장 계약 — state='draft' · 서명·신원 필드 전부 NULL",
+        r["state"] == "draft"
+        and r["performed_by"] is None
+        and r["verified_by"] is None
+        and r["signed_at"] is None
+        and r["record_hash"] is None
+        and r["requested_by"] is None
+        and r["session_id"] is None
+        and r["equipment_id"] == "INV-L3-01",
+        f"{repair_id}: state={r['state']} equipment_id={r['equipment_id']}",
+    )
+
+    # ⓓ — 도구 응답의 expenditure_class 가 DB 저장값과 일치 (회계 판정이 조회와 저장 사이에
+    #    갈리지 않는다는 증거. HOLD 도 정상 판정이므로 값 자체를 비교한다).
+    check(
+        "㉘ ⓓ expenditure_class — 도구 응답값이 repair_records 저장값과 일치",
+        r["expenditure_class"] == tool_expenditure_class,
+        f"응답={tool_expenditure_class} · DB={r['expenditure_class']}",
+    )
+
+    # ⓐ — D10 TEMP TRIGGER 가 **실제로** ABORT 하는지 SQL 을 직접 날려 본다.
+    #   ⛔ po_drafts·decisions 전용 커넥션(다른 두 writer)으로 확인하지 않는다 — 그건
+    #     repair_records 트리거가 걸려 있지 않은 커넥션이라, 잠기지 않은 경로를 통과시키고도
+    #     "막혔다"고 오판하게 된다. repair_records 전용 커넥션(세 번째 writer)만 쓴다.
+    mcp_db.DB_PATH = db
+    trigger_msg = "MCP 도구는 repair_records 를"
+    for mark, label, sql in (
+        ("㉙", "UPDATE", "UPDATE repair_records SET state='pending' WHERE repair_id=?"),
+        ("㉚", "DELETE", "DELETE FROM repair_records WHERE repair_id=?"),
+    ):
+        try:
+            with mcp_db.repair_writer() as w:
+                w.execute(sql, (repair_id,))
+            aborted, detail = False, "ABORT 되지 않았다 (잠금 없음)"
+        except sqlite3.IntegrityError as e:
+            aborted, detail = trigger_msg in str(e), str(e)
+        con = sqlite3.connect(db)
+        con.row_factory = sqlite3.Row
+        still = con.execute(
+            "SELECT state FROM repair_records WHERE repair_id=?", (repair_id,)
+        ).fetchone()
+        con.close()
+        check(
+            f"{mark} ⓐ D10 repair_records {label} 시도 → TEMP TRIGGER ABORT · 행 그대로",
+            aborted and still is not None and still["state"] == "draft",
+            f"{detail} · 행 상태={still['state'] if still else '삭제됨'}",
+        )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    print("쓰기 도구 2종 계약 검증 — create_po_draft · generate_disposal_document (임시 DB 사본)\n")
+    print(
+        "쓰기 도구 3종 계약 검증 — create_po_draft · generate_disposal_document · "
+        "create_repair_record (임시 DB 사본)\n"
+    )
     if not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
     with tempfile.TemporaryDirectory() as td:
         db = prepare_db(Path(td))
         print(f"[스키마] {DDL_NOTE}\n")
-        po_id, cond_id, blocked_id = asyncio.run(run(db))
+        po_id, cond_id, blocked_id, repair_id, repair_expenditure_class = asyncio.run(run(db))
         verify_row(db, po_id)
         verify_decision_rows(db, cond_id, blocked_id)
+        verify_repair_row(db, repair_id, repair_expenditure_class)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))
@@ -566,8 +724,8 @@ def main() -> None:
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
     print(
-        f"\n통과 ({len(results)}건) — 쓰기 도구 2종이 "
-        "D10·D23·D31·D33·D34·D37·D63·D80·D81·D84 경계를 지킨다"
+        f"\n통과 ({len(results)}건) — 쓰기 도구 3종이 "
+        "D10·D23·D31·D33·D34·D37·D63·D80·D81·D84·D98 경계를 지킨다"
     )
 
 

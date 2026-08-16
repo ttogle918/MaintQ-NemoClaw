@@ -28,12 +28,24 @@ export interface PoHold {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 수리 증빙 (S19, MQ-912) — 원 어휘 그대로(D85), 표시는 `mappers.repairStateView` */
+
+/**
+ * `repair_records.state`. `PoState` 와 어휘가 다르다(`signed` 는 처분과 같은 사건 —
+ * 서명은 책임 귀속이 붙는 별개 사건이라 발주의 `approved` 와 같은 칸이 아니다).
+ * 백엔드 `GET/POST /api/repairs/*`(`backend/routers/repairs.py`, MQ-909)는 이미 있다 —
+ * 단 이 타입은 현재 어디서도 소비되지 않는다(`ApiRepair.state`는 `string`으로 원 어휘를
+ * 그대로 받는다). 큐 상세 화면(`RepairDetail.tsx`, MQ-916, 다음 스프린트)이 붙을 때
+ * 정식으로 연결하거나, 그때도 안 쓰이면 제거할 것.
+ */
+export type RepairState = "draft" | "pending" | "signed" | "rejected";
+
+/* -------------------------------------------------------------------------- */
 /* 승인 큐 (화면 B) — 통합 큐 `GET /api/approvals` (D85)                        */
 
 /**
- * 승인 대상 종류. **`repair` 는 Sprint 7 에서 항상 0건**이다 — 백엔드가 계약 변경 없이
- * Sprint 8(S19)에 채우려고 enum 에 미리 넣어 뒀다(`backend/services/approvals.py`).
- * 0건이라고 프론트에서 지우면 그때 다시 프론트 계약을 흔들어야 한다.
+ * 승인 대상 종류. **`repair`는 Sprint 9(MQ-909)부터 실제로 채워진다**
+ * (`backend/services/approvals.py:_repair_item()`) — 이전엔 계약만 있고 항상 0건이었다.
  */
 export type ApprovalKind = "po" | "disposal" | "repair";
 

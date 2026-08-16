@@ -7,7 +7,13 @@
 **합성 픽스처 3행만 쓴다.** `data/extracted/error_codes.json` 을 읽어 넣지 않는다 —
 그건 사람 승인 게이트(TODO_직접할일.md)를 코드로 우회하는 것이고, 승인 전 매핑이
 회귀 테스트의 기준값이 되면 나중에 승인 결과와 어긋나도 아무도 모른다.
-실 DB(`data/maintq.db`)도 열지 않는다 — 임시 DB 3종만 만든다.
+실 DB(`data/maintq.db`)의 **내용**(causes·actions 등)은 읽지 않는다 — 임시 DB 3종만 만든다.
+
+⚠ **예외 1건(⑭, D100)** — `actions_source` 정본 병합(MQ-919)이 아직 안 됐다는 사실은
+  합성 픽스처로는 증명할 수 없다(픽스처는 우리가 만든 것이라 "아직 병합 안 됨"의 증거가
+  못 된다). 그래서 이 검사만 실 DB 를 **읽기 전용**으로 열되, `actions_manual_id` 의
+  NULL 여부와 행 수만 본다 — `causes`·`actions` 등 승인 게이트 대상 **내용**은 여전히
+  건드리지 않는다.
 
 실행:  uv run python spikes/lookup_contract.py
 """
@@ -234,21 +240,70 @@ def run(tmp: Path) -> None:
         "동일 dict",
     )
 
+    # ── ⑬ D100 — actions_source 키가 ok 응답 **전건**에 존재 (⑩은 단일 샘플만 봤다).
+    #    Stage 4 가 픽스처 3행 모두에 (actions_manual_id, actions_page)=(None, None) 을 넣었으므로
+    #    합성 픽스처에서는 전부 null 이어야 한다 — 값 자체보다 **키가 빠지지 않는지**가 핵심이다.
+    all_fixture = [
+        lookup_error_code(model=m, code=c)
+        for m, c in (("iG5A", "OHT"), ("iG5A", "OCT"), ("S100", "OHT"))
+    ]
+    check(
+        "⑬ D100 actions_source 키가 픽스처 전 3행 응답에 존재 · 값은 null (합성 DB)",
+        all("actions_source" in r for r in all_fixture)
+        and all(r["actions_source"] is None for r in all_fixture),
+        f"키 존재={['actions_source' in r for r in all_fixture]} · "
+        f"값={[r.get('actions_source') for r in all_fixture]}",
+    )
+
+
+def real_db_actions_source_check(real_db: Path) -> None:
+    """⑭ D100 — **실 DB** 병합 상태: `actions_source` 는 현재 전건 null 이다(MQ-919 병합 전).
+
+    ⛔ 승인 게이트 대상 **내용**(causes·actions 등)은 읽지 않는다 — `actions_manual_id` 의
+    NULL 여부와 행 수만 본다(구조 컬럼). "채워진 게 없다"만 보면 스캐너가 눈이 먼 것과
+    구분이 안 되므로 **양성 축**(rows>0, 실제로 스캔했다는 증거)을 반드시 같이 건다.
+    """
+    con = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
+    try:
+        total = con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        filled = con.execute(
+            "SELECT count(*) FROM error_codes WHERE actions_manual_id IS NOT NULL"
+        ).fetchone()[0]
+    finally:
+        con.close()
+    check(
+        "⑭ D100 실 DB — actions_source(actions_manual_id) 전건 null · 양성 축 rows>0 "
+        "(정본 병합 MQ-919 전)",
+        filled == 0 and total > 0,
+        f"filled={filled} · rows={total} (병합 완료 시 filled>0 로 갈릴 것 — 그때 이 검사를 갱신)",
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    print("lookup_error_code 계약 검증 — 임시 DB + 합성 픽스처 3행 (실 DB 미사용)\n")
+    print(
+        "lookup_error_code 계약 검증 — 임시 DB + 합성 픽스처 3행 "
+        "(실 DB 는 ⑭ 한 곳만 읽기 전용으로 구조만 본다)\n"
+    )
     real_db = ROOT / "data" / "maintq.db"
-    before = real_db.stat().st_mtime_ns if real_db.exists() else None
+    if not real_db.exists():
+        raise SystemExit(f"[중단] {real_db} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+    before = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
 
     with tempfile.TemporaryDirectory() as td:
         run(Path(td))
 
-    after = real_db.stat().st_mtime_ns if real_db.exists() else None
-    check("⑫ 실 DB 불변 (mtime)", before == after, "data/maintq.db 를 열지도 않았다")
+    real_db_actions_source_check(real_db)
+
+    after = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
+    check(
+        "⑫ 실 DB mtime·size 불변 (⑭ 는 mode=ro 로 열어 SELECT 만 — 쓰기 없음)",
+        before == after,
+        f"{'불변' if before == after else f'{before} → {after}'}",
+    )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))

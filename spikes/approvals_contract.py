@@ -174,14 +174,32 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
         f"po={len(only_po)}건 · disposal={len(only_dec)}건",
     )
 
-    # ③ repair 는 Sprint 8 — **에러가 아니라 0건**이다 (계약은 3종, 구현은 2종)
+    # ③ repair 는 MQ-909(Stage 5) 이후 REST 로 실제 노출된다 — 통합 큐 3종째.
+    #    **양성 축**: `repair_records` 실측 건수(사본 DB 직접 조회)와 REST 응답 건수가
+    #    **정확히 일치**해야 한다(0건이면 스캐너가 눈이 먼 것과 "정말 없다"를 구분 못 하므로
+    #    CLAUDE.md 부재검사 규칙에 따라 이 대조가 필요하다). **음성 축**: kind 밖 값은 422.
+    repair_total = query_one(db, "SELECT count(*) FROM repair_records")[0]
+    con = sqlite3.connect(db)
+    try:
+        repair_by_state = dict(
+            con.execute("SELECT state, count(*) FROM repair_records GROUP BY state").fetchall()
+        )
+    finally:
+        con.close()
     rr = client.get("/api/approvals", params={"kind": "repair"}, headers=MGR)
+    r_nope = client.get("/api/approvals", params={"kind": "nope"}, headers=MGR)
+    rr_items = rr.json().get("items", []) if rr.status_code == 200 else []
     check(
-        "kind=repair → 200 · 0건 (에러 아님, Sprint 8 예약)",
+        "kind=repair → 200·REST 건수 == repair_records 실측 건수 (양성 축) "
+        "· kind 밖 값 → 422 (음성 축)",
         rr.status_code == 200
-        and rr.json()["items"] == []
-        and rr.json()["kinds"] == ["po", "disposal", "repair"],
-        f"{rr.status_code} · {len(rr.json()['items'])}건 · kinds={rr.json()['kinds']}",
+        and repair_total > 0
+        and len(rr_items) == repair_total
+        and all(i["kind"] == "repair" for i in rr_items)
+        and rr.json()["kinds"] == ["po", "disposal", "repair"]
+        and r_nope.status_code == 422,
+        f"repair={repair_total}(분포={repair_by_state}) · REST={len(rr_items)}건 · "
+        f"kinds=3 · kind=nope→{r_nope.status_code}",
     )
 
     # ④ state 는 **각 종류의 원 어휘 그대로** — 공통 어휘로 정규화 금지

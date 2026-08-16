@@ -449,6 +449,278 @@ export const getOwnership = (role: Role, assetId: string) =>
   apiFetch<ApiOwnership>(`/api/assets/${encodeURIComponent(assetId)}/ownership`, role);
 
 /* -------------------------------------------------------------------------- */
+/* 보전지표 · 수리가치 판단 (S1+, MQ-908) — `backend/routers/maint_value.py` 5경로  */
+
+/**
+ * 이 5경로 전부 **역할 게이트가 없다**(읽기 판정이라 403 이 안 난다, `maint_value.py` 상단
+ * 주석). 값이 `null` 이거나 `mtbf_trend` 가 `"insufficient_data"` 여도 `status:"ok"` 로
+ * 200 이다 — "데이터 부족"은 도구 실패가 아니다(D62). 표시는 `lib/maintValue.ts` 를 거친다.
+ *
+ * ⛔ 아래 응답 인터페이스는 **좁히지 않는다**(`[k: string]: unknown` 유지) — `04 §11~§13`
+ *   본문이 `not_considered`·`estimates`·`assumptions` 처럼 계속 늘어나는 배열을 갖고, 여기서
+ *   모양을 박아 두면 백엔드가 필드 하나만 늘려도 이 파일이 깨진다. 화면(Stage 6)이 필요한
+ *   키만 좁혀 읽는다 (`toEvidenceEntries` 와 같은 태도).
+ */
+
+/** `GET /api/assets/{asset_id}/metrics` 응답 (`04 §11`). */
+export interface ApiMetrics {
+  status: string;
+  asset_id?: string;
+  window_months?: number;
+  mtbf_days?: number | null;
+  /** D70 — 가동시간이 아니라 달력 기준임을 계약 수준에서 고지 */
+  mtbf_basis?: string | null;
+  /** improving | stable | declining | insufficient_data */
+  mtbf_trend?: string | null;
+  mttr_hours?: number | null;
+  availability?: number | null;
+  planned_ratio?: number | null;
+  n_repairs_signed?: number;
+  n_repairs_unsigned?: number;
+  cumulative_repair_cost?: number;
+  acquisition_cost?: number | null;
+  cumulative_repair_ratio?: number | null;
+  repeat_failure?: boolean;
+  excluded?: string[];
+  not_considered?: string[];
+  disclaimer?: string;
+  /** status != "ok" 일 때만 */
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const getMetrics = (role: Role, assetId: string, windowMonths?: number) =>
+  apiFetch<ApiMetrics>(
+    `/api/assets/${encodeURIComponent(assetId)}/metrics${
+      windowMonths !== undefined ? `?window_months=${windowMonths}` : ""
+    }`,
+    role
+  );
+
+/** `POST /api/equipment/{equipment_id}/repair-value` 본문. `repair_scope` 생략 시 서버 기본값(RESTORE). */
+export interface RepairValueBody {
+  failed_part: string;
+  repair_cost: number;
+  repair_scope?: string;
+}
+
+/** `assess_repair_value` 상당 응답 (`04 §13`). 3지 판단 — `verdict` 는 `HOLD` 를 포함해 전부 정상 결과다. */
+export interface ApiRepairValue {
+  status: string;
+  asset_id?: string;
+  equipment_id?: string;
+  failed_part?: string;
+  part_class?: string | null;
+  repair_cost?: number;
+  repair_scope?: string;
+  evaluated_at?: string;
+  book_value?: number | null;
+  mtbf_trend?: string | null;
+  repeat_failure?: boolean;
+  cumulative_repair_ratio?: number | null;
+  parts_eol_flag?: boolean;
+  age_years?: number | null;
+  age_bucket?: string | null;
+  residual_ratio?: number | null;
+  market_value_before?: number | null;
+  market_value_after?: number | null;
+  value_recovery?: number | null;
+  recovery_ratio?: number | null;
+  /** REPAIR_RECOMMENDED | REPLACE_RECOMMENDED | SELL_AS_IS | ROOT_CAUSE_FIRST | HOLD */
+  verdict?: string;
+  reasoning?: string;
+  alternatives?: unknown[];
+  /** 값이 있는 추정 필드의 이름만(D65) — 문장이 아니라 필드로 고지 */
+  estimates?: string[];
+  assumptions?: string[];
+  not_considered?: string[];
+  disclaimer?: string;
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const postRepairValue = (role: Role, equipmentId: string, body: RepairValueBody) =>
+  apiFetch<ApiRepairValue>(`/api/equipment/${encodeURIComponent(equipmentId)}/repair-value`, role, {
+    method: "POST",
+    body: JSON.stringify({
+      failed_part: body.failed_part,
+      repair_cost: body.repair_cost,
+      repair_scope: body.repair_scope ?? null,
+    }),
+  });
+
+/** `classify_part_criticality` 상당 응답 (`04 §10`). `reviewed:false` — 사람 검수 전 초안이다. */
+export interface ApiCriticality {
+  status: string;
+  part_no?: string;
+  /** CONSUMABLE | CRITICAL */
+  part_class?: string;
+  basis?: string;
+  name?: string;
+  category?: string | null;
+  discontinued?: boolean;
+  reviewed?: boolean;
+  note?: string;
+  not_considered?: string[];
+  disclaimer?: string;
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const getCriticality = (role: Role, partNo: string) =>
+  apiFetch<ApiCriticality>(`/api/parts/${encodeURIComponent(partNo)}/criticality`, role);
+
+/**
+ * `POST /api/expenditure/classify` 본문. `part_no`·`part_class` 는 **either-or** —
+ * 둘 다 주면 백엔드가 422 다. `asset_id` 는 이 REST 경로에 없다(취득원가 대비 중요도
+ * 평가는 이 경로가 아니라 `assess_repair_value` 가 이미 해서 넘겨준다, `maint_value.py`).
+ */
+export interface ExpenditureBody {
+  part_no?: string | null;
+  part_class?: string | null;
+  repair_scope: string;
+  amount: number;
+}
+
+/** `classify_expenditure` 상당 응답 (`04 §12`). `verdict:"HOLD"` 는 실패가 아니라 판정이다. */
+export interface ApiExpenditure {
+  status: string;
+  /** CAPITAL | REVENUE | HOLD */
+  verdict?: string;
+  asset_id?: string | null;
+  part_class?: string;
+  repair_scope?: string;
+  amount?: number;
+  basis?: string;
+  law_refs?: string[];
+  citations?: string[];
+  reasoning?: string;
+  requires_expert_review?: boolean;
+  /** COMPLETE | LAW_TEXT_PENDING */
+  evidence_completeness?: string;
+  materiality?: Record<string, unknown>;
+  evaluated_at?: string;
+  not_considered?: string[];
+  disclaimer?: string;
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const postExpenditure = (role: Role, body: ExpenditureBody) =>
+  apiFetch<ApiExpenditure>("/api/expenditure/classify", role, {
+    method: "POST",
+    body: JSON.stringify({
+      part_no: body.part_no ?? null,
+      part_class: body.part_class ?? null,
+      repair_scope: body.repair_scope,
+      amount: body.amount,
+    }),
+  });
+
+/**
+ * `GET /api/assets/{asset_id}/evidence-bundle` 응답 — `build_evidence_bundle` 상당
+ * 확장 응답(`04 §14`, `services/decisions.rebuild_bundle`). 5키 번들은 `evidence_bundle`
+ * 안에 있다(D83) — 여기서 그 안쪽 모양을 좁히지 않는다(렌더 쪽이 필요한 키만 읽는다).
+ * 409(`law_text_unavailable`·`cited_rule_missing` 상당)는 `reason`·`detail`·
+ * `missing_law_refs`|`missing_rules` 로 온다 — `errorBody(e)` 로 읽는다.
+ */
+export interface ApiEvidenceBundle {
+  status: string;
+  asset_id?: string;
+  evidence_bundle?: Record<string, unknown>;
+  bundle_hash?: string;
+  hash_spec?: string;
+  verdict?: string;
+  not_considered?: string[];
+  built_at?: string;
+  disclaimer?: string;
+  reason?: string;
+  detail?: string;
+  missing_law_refs?: string[];
+  missing_rules?: string[];
+  [k: string]: unknown;
+}
+
+export const getEvidenceBundle = (role: Role, assetId: string, mode: string, date?: string) => {
+  const q = new URLSearchParams({ disposal_mode: mode });
+  if (date) q.set("disposal_date", date);
+  return apiFetch<ApiEvidenceBundle>(
+    `/api/assets/${encodeURIComponent(assetId)}/evidence-bundle?${q.toString()}`,
+    role
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* 수리 증빙 (S19, MQ-909) — backend/routers/repairs.py                        */
+
+/**
+ * `GET/POST /api/repairs/*` (`backend/routers/repairs.py`, MQ-909, Stage 5). `state` 는
+ * `decisions` 와 같은 원 어휘 그대로(D85, draft|pending|signed|rejected) — 표시는
+ * `mappers.repairStateView`. `sign`·`reject` 는 `verified_by`(팀장)를 채운다 — 반려자도
+ * 이 컬럼을 공유한다(별도 `reviewed_by` 컬럼 없음, `backend/services/repairs.py` 참고).
+ */
+export interface ApiRepair {
+  repair_id: string;
+  /** draft | pending | signed | rejected — 원 어휘 그대로(D85). 표시는 `mappers.repairStateView` */
+  state: string;
+  equipment_id: string;
+  work_type?: string;
+  repair_scope?: string;
+  part_class?: string | null;
+  expenditure_class?: string | null;
+  expenditure_reason?: string | null;
+  cost?: number;
+  downtime_hours?: number | null;
+  parts?: { part_no: string; serial?: string | null; qty: number }[];
+  model?: string | null;
+  error_code?: string | null;
+  note?: string | null;
+  /** 서명 전에는 null (D84) */
+  record_hash?: string | null;
+  /** 저장된 record_hash 를 재계산해 대조한 결과(D84). 미서명이면 항상 false */
+  hash_verified?: boolean;
+  performed_by?: string | null;
+  performed_by_name?: string;
+  requested_by?: string | null;
+  requested_by_name?: string;
+  verified_by?: string | null;
+  verified_by_name?: string;
+  created_at?: string | null;
+  signed_at?: string | null;
+  next_step?: string;
+  disclaimer?: string;
+  [k: string]: unknown;
+}
+
+export const getRepairs = (role: Role, state?: string) =>
+  apiFetch<{ items: ApiRepair[] }>(
+    `/api/repairs${state ? `?state=${encodeURIComponent(state)}` : ""}`,
+    role
+  ).then((r) => r.items);
+
+export const getRepair = (role: Role, repairId: string) =>
+  apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}`, role);
+
+/** draft → pending. **정비사만** — `submitPo`·`submitDecision` 과 같은 패턴. 본문 없음. */
+export const submitRepair = (repairId: string) =>
+  apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}/submit`, "technician", {
+    method: "POST",
+  });
+
+/** pending → signed. **팀장만.** 본문 없음 — `override` 개념 자체가 없다(수리 증빙엔 D81 급 차단 없음). */
+export const signRepair = (repairId: string) =>
+  apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}/sign`, "manager", {
+    method: "POST",
+  });
+
+/** pending → rejected. 사유 필수(D38) — 공백이면 백엔드가 422. */
+export const rejectRepair = (repairId: string, reason: string) =>
+  apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}/reject`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+/* -------------------------------------------------------------------------- */
 /* trace 조회 (D43)                                                            */
 
 /**
@@ -520,4 +792,16 @@ export const endpoints = {
   equipmentHistory: (id: string) => `/api/equipment/${id}/history`,
   /** 에러 발생 이력 기록 — 정비사의 명시적 액션만 (D29) */
   equipmentErrors: (id: string) => `/api/equipment/${id}/errors`,
+  /** 보전지표 · 수리가치 판단 (MQ-908) */
+  assetMetrics: (assetId: string) => `/api/assets/${assetId}/metrics`,
+  equipmentRepairValue: (equipmentId: string) => `/api/equipment/${equipmentId}/repair-value`,
+  partCriticality: (partNo: string) => `/api/parts/${partNo}/criticality`,
+  expenditureClassify: "/api/expenditure/classify",
+  assetEvidenceBundle: (assetId: string) => `/api/assets/${assetId}/evidence-bundle`,
+  /** 수리 증빙 (MQ-909) — `backend/routers/repairs.py` */
+  repairs: "/api/repairs",
+  repair: (repairId: string) => `/api/repairs/${repairId}`,
+  repairSubmit: (repairId: string) => `/api/repairs/${repairId}/submit`,
+  repairSign: (repairId: string) => `/api/repairs/${repairId}/sign`,
+  repairReject: (repairId: string) => `/api/repairs/${repairId}/reject`,
 } as const;
