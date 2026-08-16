@@ -78,7 +78,12 @@ def list_decisions(state: str | None = None, c: Caller = Depends(caller)) -> dic
 @router.get("/{decision_id}")
 def get_decision(decision_id: str, c: Caller = Depends(caller)) -> dict:
     """상세 + 렌더된 문서·증빙 패키지 (D86 — 저장하지 않고 조립 시점 계산)."""
-    d = svc.get_decision(decision_id)
+    try:
+        d = svc.get_decision(decision_id)
+    except RuntimeError as e:
+        # `svc._metrics()` 의 위임 호출 실패(불변식 위반) — 조용히 삼키지 않고 구조화된
+        # 500 으로 닫는다 (MQ-908 이후 새로 생긴 실패 경로, 종전엔 이 함수가 실패하지 않았다).
+        raise HTTPException(500, {"reason": "metrics_assembly_failed", "message": str(e)}) from e
     if d is None:
         raise _not_found(decision_id)
     return d
@@ -94,6 +99,8 @@ def submit(decision_id: str, c: Caller = Depends(caller)):
         raise _not_found(decision_id) from e
     except svc.DecisionTransitionError as e:
         return _conflict("invalid_transition", str(e), state=e.current)
+    except RuntimeError as e:
+        raise HTTPException(500, {"reason": "metrics_assembly_failed", "message": str(e)}) from e
 
 
 @router.post("/{decision_id}/sign")
@@ -151,6 +158,8 @@ def sign(decision_id: str, body: SignBody | None = None, c: Caller = Depends(cal
         # 재시도·관리자 문의가 맞는 행동이다 (precheck 과 동일, D71).
         # ⚠ *인용 룰 소실*은 여기 오지 않는다 — 위 `CitedRuleMissing` 이 409 로 먼저 잡는다.
         raise HTTPException(503, {"reason": e.reason, "message": e.message}) from e
+    except RuntimeError as e:
+        raise HTTPException(500, {"reason": "metrics_assembly_failed", "message": str(e)}) from e
 
 
 @router.post("/{decision_id}/reject")
@@ -163,3 +172,5 @@ def reject(decision_id: str, body: RejectBody, c: Caller = Depends(caller)):
         raise _not_found(decision_id) from e
     except svc.DecisionTransitionError as e:
         return _conflict("invalid_transition", str(e), state=e.current)
+    except RuntimeError as e:
+        raise HTTPException(500, {"reason": "metrics_assembly_failed", "message": str(e)}) from e

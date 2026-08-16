@@ -68,6 +68,7 @@ from backend.db import connect
 from backend.services.disposal import RuleCatalogError, _load_catalog, read_only
 from backend.services.po import iso_utc
 import data.doc_review as _doc_review  # D73 — 공유 데이터 계층 (mcp_server 와 같은 문구를 읽는다)
+from data import maint_value  # D73·D101 — 보전지표 산식의 단일 출처 (MQ-908 위임)
 from data.rules import engine  # D73 — 공유 데이터 계층
 
 # ── 판정 어휘 ────────────────────────────────────────────────────────────────
@@ -119,20 +120,11 @@ MISSING_SECTIONS = ["감가상각 명세 — 상각 스케줄 원천 없음"]
 
 DISPOSAL_MODE_LABELS = {"SALE": "매각", "SCRAP": "폐기", "TRANSFER": "양도"}
 
-# 보전지표 산식 상수 — `get_maintenance_metrics`(`04 §11`) 와 **같은 값**이어야 한다.
-# 두 벌이 존재하는 이유와 드리프트 방어는 `_metrics` docstring 참조.
-HOURS_PER_DAY = 24.0
-MTBF_BASIS = "calendar_days"
-METRICS_WINDOW_MONTHS = 24  # 도구의 DEFAULT_WINDOW_MONTHS 와 같아야 한다
-_DT_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d")
-
-# `get_maintenance_metrics._DISCLAIMER` 와 **한 글자도 다르면 안 된다** (⑳ 이 대조한다).
-# 증빙 패키지는 매수자에게 나가는 문서다 — 이 문장이 빠지면 `null` 이 '양호'로 읽힌다 (D65).
-METRICS_DISCLAIMER = (
-    "MTBF 는 가동시간이 아니라 달력 기준 평균 고장 간격이다(D70). "
-    "가동률이 다른 기간·설비 사이의 직접 비교에는 쓸 수 없다. "
-    "null 과 insufficient_data 는 '양호'가 아니라 '판단 근거 부족'이다."
-)
+# ⛔ 보전지표 산식 상수를 여기 두지 않는다 (MQ-908) — `_metrics()` 가
+# `data.maint_value.maintenance_metrics()` 로 위임하므로 산식·상수의 정본은 그 모듈
+# 한 곳뿐이다. 예전에는 이 파일이 `HOURS_PER_DAY`·`MTBF_BASIS`·`METRICS_WINDOW_MONTHS`·
+# `METRICS_DISCLAIMER` 사본을 갖고 회귀(⑳)로 드리프트를 잡았지만, 위임 후에는 사본이
+# 아예 없으므로 드리프트 자체가 구조적으로 불가능하다.
 
 
 # ── 예외 (라우터가 HTTP 로 매핑한다. D38 — 403/409/422 를 섞지 않는다) ───────────
@@ -489,160 +481,53 @@ def _rule_texts(bundle: dict, con: sqlite3.Connection) -> dict[tuple[str, int], 
     return out
 
 
-def _parse_dt(value: object) -> datetime | None:
-    if not isinstance(value, str):
-        return None
-    for fmt in _DT_FORMATS:
-        try:
-            return datetime.strptime(value.strip(), fmt)
-        except ValueError:
-            continue
-    return None
-
-
-def _months_ago(anchor: datetime, months: int) -> datetime:
-    """달력 기준 N개월 전 (도구 `get_maintenance_metrics._months_ago` 와 동일 규칙)."""
-    total = anchor.year * 12 + (anchor.month - 1) - months
-    year, month = divmod(total, 12)
-    month += 1
-    day = anchor.day
-    while day > 0:
-        try:
-            return anchor.replace(year=year, month=month, day=day)
-        except ValueError:
-            day -= 1
-    return anchor.replace(year=year, month=month, day=1)
+# `_metrics()` 가 위임 결과에서 뽑아 쓰는 필드 — **이 순서·이 집합이 옛 `_metrics()` 의
+# 반환 계약이다.** `data.maint_value.maintenance_metrics()` 는 이 밖에도 `status`·`asset_id`·
+# `mtbf_trend`·`repeat_failure`·`not_considered` 를 더 갖고 있지만(MCP 도구 §11 계약),
+# `evidence_package.metrics` 의 반환 형태를 한 글자도 바꾸지 않기 위해 여기서 부분집합만
+# 옮긴다(MQ-908). 늘리려면 `render_documents` 소비 측과 `spikes/approvals_contract.py` ⑳
+# 대조 목록을 같은 커밋에서 함께 봐야 한다.
+_METRICS_KEYS: tuple[str, ...] = (
+    "window_months",
+    "mtbf_days",
+    "mtbf_basis",
+    "mttr_hours",
+    "availability",
+    "planned_ratio",
+    "n_repairs_signed",
+    "n_repairs_unsigned",
+    "acquisition_cost",
+    "cumulative_repair_cost",
+    "cumulative_repair_ratio",
+    "excluded",
+    "disclaimer",
+)
 
 
 def _metrics(con: sqlite3.Connection, asset_id: str) -> dict:
-    """보전지표 — **`get_maintenance_metrics`(`04 §11`) 와 같은 산식**을 backend 에 둔다.
+    """보전지표 — **`data.maint_value.maintenance_metrics()` 로 전량 위임한다** (MQ-908).
 
-    ⚠ 도구는 `mcp_server` 소유라 import 할 수 없다(D15). 그래서 산식이 두 벌 존재한다.
-      복제를 허용하는 대신 **드리프트를 회귀로 잡는다** — `spikes/approvals_contract.py` ⑳
-      이 같은 자산에 대해 도구 출력과 이 함수의 값을 직접 대조한다.
+    이 함수는 예전에 `get_maintenance_metrics`(`04 §11`)와 같은 산식을 backend 에
+    **한 벌 더** 갖고 회귀(`spikes/approvals_contract.py` ⑳)로 드리프트를 잡았다. 이제는
+    도구(`mcp_server/tools/get_maintenance_metrics.py`)도 이 함수도 **같은 함수**
+    (`data.maint_value.maintenance_metrics`)를 호출한다 — 산식·상수의 정본은 그 모듈
+    한 곳뿐이고, 드리프트는 회귀가 아니라 구조로 불가능하다(⑳ 은 그 사실을 계속 확인한다).
 
-    ⚠ **대조 대상은 숫자만이 아니다.** `excluded[]`(무엇을 뺐는가)와 `disclaimer`(null 이
-      '양호'가 아니라는 고지)까지 도구와 같아야 한다 — 산식이 같아도 *고지가 갈리면*
-      증빙 패키지가 "확인 안 된 항목을 확인된 것처럼" 보이게 된다. 특히 `occurred_at` 파싱
-      실패는 **조용히 버리지 않고** 센 뒤 `excluded` 에 싣는다 (D65).
-      `excluded` 는 **순서까지** 도구와 같다(⑳ 이 리스트로 비교한다) — 문구를 추가할 일이
-      생기면 `get_maintenance_metrics` 의 append 순서를 먼저 보고 같은 자리에 넣을 것.
-
-    산식 근거 (`12 §2` · D70 · `12 §11`):
-      MTBF   = 인접 고장 간격(일)의 평균. **가동시간 기준이 아니다** — 저장소에 가동시간
-               원천이 없다. 이벤트 2건 미만이면 `null`(0 으로 메우지 않는다).
-      MTTR   = 서명된 `repair_records` 의 `downtime_hours` 평균. **서명분만** (`12 §11`).
-      가용도 = MTBF[일] / (MTBF[일] + MTTR[시간]/24). 단위를 맞추지 않으면 조용히 낮아진다.
-      예방보전 비율 = PLANNED / (PLANNED + UNPLANNED), 서명분만.
-      누적 수리비 비율 = cumulative_repair_cost / acquisition_cost (분모 없으면 `null`).
+    반환은 위임 결과의 **부분집합**이다(`_METRICS_KEYS`) — `evidence_package.metrics`
+    의 형태를 한 글자도 바꾸지 않기 위해서다. `status`·`asset_id`·`mtbf_trend`·
+    `repeat_failure`·`not_considered` 는 도구 계약(`04 §11`)에는 있지만 이 자리에는
+    싣지 않는다.
     """
-    equipment_ids = [
-        r["equipment_id"]
-        for r in con.execute(
-            "SELECT equipment_id FROM equipment WHERE asset_id = ? ORDER BY equipment_id",
-            (asset_id,),
-        ).fetchall()
-    ]
-    excluded: list[str] = []
-    moments: list[datetime] = []
-    unparsed_events = 0
-    repairs: list[sqlite3.Row] = []
-    # 기준 시각은 SQLite 의 `datetime('now')`(UTC) — 도구와 같은 기준이어야 창이 어긋나지 않는다
-    now = _parse_dt(con.execute("SELECT datetime('now')").fetchone()[0]) or datetime.now(
-        timezone.utc
-    ).replace(tzinfo=None)
-    window_start = _months_ago(now, METRICS_WINDOW_MONTHS)
-    if equipment_ids:
-        marks = ",".join("?" * len(equipment_ids))
-        for r in con.execute(
-            f"SELECT occurred_at FROM error_history WHERE equipment_id IN ({marks})"  # noqa: S608
-            " ORDER BY occurred_at ASC",
-            equipment_ids,
-        ).fetchall():
-            moment = _parse_dt(r["occurred_at"])
-            if moment is None:
-                # ⛔ 조용히 버리지 않는다 — 센 다음 `excluded` 에 고지한다 (도구와 같은 태도).
-                #    창(window) 밖 이벤트와 달리 이건 *해석 실패*라 창 조건보다 먼저 본다.
-                unparsed_events += 1
-                continue
-            if moment >= window_start:
-                moments.append(moment)
-        moments.sort()
-        repairs = con.execute(
-            f"SELECT work_type, downtime_hours, signed_at FROM repair_records"  # noqa: S608
-            f" WHERE equipment_id IN ({marks})",
-            equipment_ids,
-        ).fetchall()
-
-    gaps = [
-        (b - a).total_seconds() / 86400.0 for a, b in zip(moments, moments[1:], strict=False)
-    ]
-    mtbf_days = sum(gaps) / len(gaps) if gaps else None
-
-    signed = [r for r in repairs if r["signed_at"]]
-    unsigned_n = len(repairs) - len(signed)
-    downtimes = [float(r["downtime_hours"]) for r in signed if r["downtime_hours"] is not None]
-    mttr_hours = sum(downtimes) / len(downtimes) if downtimes else None
-
-    # ── 고지 문안: 순서·문구 모두 `get_maintenance_metrics` 와 같다 (⑳ 이 리스트로 대조) ──
-    if unsigned_n:
-        excluded.append(
-            f"서명되지 않은 수리 레코드 {unsigned_n}건은 지표에서 제외했다 "
-            "(MTTR·예방보전 비율 분모 모두 — 12 §11)"
+    result = maint_value.maintenance_metrics(con, asset_id=asset_id)
+    if result.get("status") != "ok":
+        # `get_decision()` 은 `assets` 와 INNER JOIN 된 결정 행에서 얻은 asset_id 만 넘긴다 —
+        # 자산이 존재하지 않는 경로가 없으므로 실패는 불변식 위반이다. 조용히 삼키면
+        # 증빙 패키지에 "판단 근거 부족"이 아니라 근거 자체가 빠진 채로 나간다.
+        raise RuntimeError(
+            f"보전지표 위임 호출이 실패했습니다({asset_id}): "
+            f"{result.get('reason')} — {result.get('message')}"
         )
-    if signed and not downtimes:
-        excluded.append(
-            "서명된 수리 레코드에 downtime_hours 가 하나도 없어 MTTR 을 산출하지 못했다"
-        )
-    if unparsed_events:
-        excluded.append(
-            f"occurred_at 을 해석하지 못한 에러 이력 {unparsed_events}건은 집계에서 제외했다"
-        )
-    excluded.append(
-        "repair_records 에 수리 시각 컬럼이 없어 window_months 로 자를 수 없다 — "
-        "MTTR·예방보전 비율·누적 수리비는 전 기간 집계다"
-    )
-
-    availability = (
-        None
-        if mtbf_days is None or mttr_hours is None
-        else mtbf_days / (mtbf_days + mttr_hours / HOURS_PER_DAY)
-    )
-
-    planned = sum(1 for r in signed if r["work_type"] == "PLANNED")
-    unplanned = sum(1 for r in signed if r["work_type"] == "UNPLANNED")
-    planned_ratio = planned / (planned + unplanned) if (planned + unplanned) else None
-    if planned_ratio is None:
-        excluded.append("서명된 수리 레코드가 없어 예방보전 비율을 산출하지 못했다")
-
-    asset = con.execute(
-        "SELECT acquisition_cost, cumulative_repair_cost FROM assets WHERE asset_id = ?",
-        (asset_id,),
-    ).fetchone()
-    acquisition_cost = asset["acquisition_cost"] if asset else None
-    cumulative = (asset["cumulative_repair_cost"] if asset else None) or 0
-    ratio = cumulative / acquisition_cost if acquisition_cost else None
-
-    if not equipment_ids:
-        excluded.append(
-            f"{asset_id} 에 연결된 설비(equipment)가 없어 이력 기반 지표를 산출하지 못했다"
-        )
-    return {
-        "window_months": METRICS_WINDOW_MONTHS,
-        "mtbf_days": None if mtbf_days is None else round(mtbf_days, 1),
-        "mtbf_basis": MTBF_BASIS,  # D70 — 가동시간 기준이 아님을 필드로 고지
-        "mttr_hours": None if mttr_hours is None else round(mttr_hours, 2),
-        "availability": None if availability is None else round(availability, 4),
-        "planned_ratio": None if planned_ratio is None else round(planned_ratio, 3),
-        "n_repairs_signed": len(signed),
-        "n_repairs_unsigned": unsigned_n,
-        "acquisition_cost": acquisition_cost,
-        "cumulative_repair_cost": cumulative,
-        "cumulative_repair_ratio": None if ratio is None else round(ratio, 3),
-        "excluded": excluded,
-        # D65 — 매수자에게 나가는 문서에서 이 고지가 빠지면 null 이 '양호'로 읽힌다
-        "disclaimer": METRICS_DISCLAIMER,
-    }
+    return {key: result[key] for key in _METRICS_KEYS}
 
 
 def _repair_history(con: sqlite3.Connection, asset_id: str) -> tuple[list[dict], list[dict]]:

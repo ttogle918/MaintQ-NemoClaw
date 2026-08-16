@@ -38,11 +38,14 @@ CREATE TABLE error_codes (
   actions      TEXT NOT NULL,
   related_parts TEXT,
   manual_page  INTEGER NOT NULL,
+  actions_manual_id TEXT,
+  actions_page      INTEGER,
   PRIMARY KEY (model, code),
   CHECK (severity IN ('warning','fault','critical')),
   CHECK (length(code) BETWEEN 2 AND 4
          AND code = upper(code)
-         AND code NOT GLOB '*[^A-Z0-9_]*')
+         AND code NOT GLOB '*[^A-Z0-9_]*'),
+  CHECK ((actions_manual_id IS NULL) = (actions_page IS NULL))
 );
 """
 
@@ -59,6 +62,8 @@ FIXTURE = [
         '["냉각팬 점검", "주위 온도 확인"]',
         '["FAN-IG5-01"]',
         202,
+        None,
+        None,
     ),
     (
         "iG5A",
@@ -70,6 +75,8 @@ FIXTURE = [
         '["출력 배선 점검"]',
         None,
         203,
+        None,
+        None,
     ),
     (
         "S100",
@@ -81,6 +88,8 @@ FIXTURE = [
         '["방열판 청소"]',
         "[]",
         30,
+        None,
+        None,
     ),
 ]
 
@@ -94,6 +103,7 @@ CONTRACT_KEYS = {
     "actions",
     "related_parts",
     "manual_page",
+    "actions_source",
 }
 
 results: list[tuple[str, bool, str]] = []
@@ -106,7 +116,7 @@ def check(name: str, ok: bool, detail: str) -> None:
 def make_db(path: Path, rows: list[tuple]) -> Path:
     con = sqlite3.connect(path)
     con.executescript(DDL)
-    con.executemany("INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    con.executemany("INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     con.commit()
     con.close()
     return path

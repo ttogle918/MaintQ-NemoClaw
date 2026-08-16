@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.agent.mcp_client import McpClient
-from backend.routers import approvals, chat, decisions, disposal, equipment, po
+from backend.routers import approvals, chat, decisions, disposal, equipment, maint_value, po
 
 # .env 로드는 앱 진입점인 **여기 한 곳**에서만 한다 (D56).
 # `override=False` 가 핵심 — **OS 환경변수가 우선**이고 .env 는 빈 곳만 채운다.
@@ -94,6 +94,7 @@ app.include_router(equipment.router)
 app.include_router(disposal.router)
 app.include_router(decisions.router)
 app.include_router(approvals.router)
+app.include_router(maint_value.router)
 
 
 @app.get("/health")
