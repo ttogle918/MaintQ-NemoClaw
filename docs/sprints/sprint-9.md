@@ -1682,3 +1682,47 @@ s100-manual p.416~419: missing 26 / tokens 5,6,1,3 → CELL_SPLIT (26/26 기대�
 
 - **`D69` 원문이 낡았다** — *"코어 7 + 확장 7"* 인데 실측은 확장 **8**
 - **`D74`·`D77` 행의 셀 안 `|` 미이스케이프** — 마크다운 열이 밀린다(셀 파싱 6개·5개)
+
+---
+
+## 11. Stage 2 완료 (2026-08-16)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `2f955fd` — `[M1] Sprint 9 Stage 2 — data/maint_value.py 위임(D101) · repair_records DDL 확장(D98) · iG5A actions 후보 추출(D99)`
+
+### 11-1. 태스크별 결과
+
+| TASK | 산출 | 실측 |
+|---|---|---|
+| **MQ-903** | `data/maint_value.py`(신규) · `mcp_server/tools/{get_maintenance_metrics,classify_part_criticality,classify_expenditure}.py`(위임) | `asset_tools_contract` **49건 무변경 통과(diff 0)** · `tools_profile_contract` 7건 · `sp2_mcp_roundtrip` 20건. `REPEAT_THRESHOLD`/`WINDOW`는 `data/ownership.py:70~71` 재사용 + 드리프트 assert |
+| **MQ-904** | `repair_records` DDL +4컬럼·CHECK 3종 · `error_codes` 출처 컬럼 2종 · `data/repair_hash.py`(신규) | seed 자가검증 **26 → 29**(㉗㉘㉙). `record_hash=NULL`+`state='signed'` INSERT **ABORT 확인**(음성). `INSERT INTO error_codes VALUES` 위치 인자 **0건**(명시 컬럼 전환) |
+| **MQ-905** | `data/extract_error_codes.py`(iG5A 조인 경로) · `error_codes_actions.candidate.json` · `ig5a_action_map.json`(신규) | 후보 **entries 2건**(`RERR`·`ETB`) · `_pending_review` **9건**(공유 조치행 애매성 — 지어내지 않음). `verify_verbatim()` 위반 **0건**. 정본 `error_codes.json` sha256 **불변**, `error_codes` count **65 불변** |
+
+### 11-2. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **28스위트**(Stage 1 기준선 **640건**과 완전 동일 — Stage 2 는 신규 스파이크 검사를 추가하지 않는다) · `ruff check data backend mcp_server spikes` 통과.
+Windows 소켓 고갈 징후 없음(스위트 1개씩 분리 호출).
+
+### 11-3. 계획 대비 편차 2건 — reviewer 가 판정, 블로커 아님으로 결론
+
+| # | 편차 | reviewer 판정 |
+|---|---|---|
+| ① | MQ-905 후보 반영이 §9-4 델타의 기대치(*"명칭 실재 10건"*)와 다르게 **entries 2건**만 채워짐 | **정확한 해석.** 트러블슈팅 PDF 의 한 조치 행이 고장명 5개를 공유하는 구조라, "조인 실패는 버린다"(가장 가까운 항목으로 흘리지 않는다) 원칙을 지켜 **공유 행을 전부 `ambiguous` 로 분류**한 것 — 과도한 폐기가 아니라 D99·안전규칙3·`span_key()` 선례에 부합. `_variant_pair()` 로 원문이 명시 병기한 경우(`RERR`·`ETB`)만 예외 회수 |
+| ② | MQ-905 DoD *"`extract_triage.py` 재실행 → 라벨 이동 건수"* 가 실측 불가 — `extract_triage.py` 가 후보 파일·supplement 매뉴얼을 읽는 경로 자체가 없음 | **코드 결함이 아니라 명세 공백.** `data/extract_triage.py` 는 공유 파일 단일 소유자 표(§4)에서 **MQ-902(Stage 1) 전용**이라 MQ-905 가 손댈 수 없다. **다음 스테이지(MQ-911/918)로 이관** — 아래 §11-5 |
+
+부수 확인: MQ-903 의 `read_only()` 예외 처리 순서 변화(DB 없음+잘못된 입력 **동시** 발생하는 병적 조합에서만 `reason` 이 바뀔 수 있음, 정상 경로 영향 0) · `get_maintenance_metrics` 의 try/except 보호 범위 확장(D9 방향 개선) — **둘 다 계약 위반 아님**.
+
+### 11-4. reviewer 게이트 — 커밋 가능 **Y** (블로커 0건)
+
+비블로커 권고 2건, 둘 다 다음 태스크로 이관:
+
+| 권고 | 이관처 |
+|---|---|
+| MQ-905 DoD 의 `extract_triage.py` 라벨 이동 조건이 현재 실측 불가함을 §9-4 델타 표에 명시 | MQ-911 또는 MQ-918 |
+| `_fuzzy_contains()`(부분수열 매칭, 명세 인터페이스 스케치 밖 추가 함수)를 문서 인터페이스 절에 소급 반영 | MQ-907 또는 MQ-911(같은 파일을 다루는 다음 태스크) |
+
+### 11-5. Stage 3 착수 전 참고
+
+- MQ-907(S100 26건 재추출)은 **`error_codes_actions.candidate.json` 에 append** 하는 태스크다 — MQ-905 가 남긴 iG5A entries 2건 + pending 9건이 **잔존하는지 확인**하는 것이 DoD 에 이미 포함돼 있다.
+- MQ-911(사람 검수 패키지)이 만들 대조표는 **entries 2건**(iG5A, S100 추가분은 MQ-907 이후 결정)을 기준으로 작성해야 한다 — §9-3 MQ-905 명세의 "10건" 기대치를 그대로 베끼지 않는다.
+- `decisions.py:602` 주석 갱신(MQ-904 가 남긴 메모 — `repair_records.created_at` 신설로 낡음)은 **MQ-918 전파 목록에 추가할 것**.
