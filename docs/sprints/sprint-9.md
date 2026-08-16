@@ -1726,3 +1726,43 @@ Windows 소켓 고갈 징후 없음(스위트 1개씩 분리 호출).
 - MQ-907(S100 26건 재추출)은 **`error_codes_actions.candidate.json` 에 append** 하는 태스크다 — MQ-905 가 남긴 iG5A entries 2건 + pending 9건이 **잔존하는지 확인**하는 것이 DoD 에 이미 포함돼 있다.
 - MQ-911(사람 검수 패키지)이 만들 대조표는 **entries 2건**(iG5A, S100 추가분은 MQ-907 이후 결정)을 기준으로 작성해야 한다 — §9-3 MQ-905 명세의 "10건" 기대치를 그대로 베끼지 않는다.
 - `decisions.py:602` 주석 갱신(MQ-904 가 남긴 메모 — `repair_records.created_at` 신설로 낡음)은 **MQ-918 전파 목록에 추가할 것**.
+
+---
+
+## 12. Stage 3 완료 (2026-08-16)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `b16d946` — `[M2] Sprint 9 Stage 3 — create_repair_record 신설(D98·16번째 도구) · assess_repair_value 위임 · S100 재추출`
+
+### 12-1. 태스크별 결과
+
+| TASK | 산출 | 실측 |
+|---|---|---|
+| **MQ-922** | `mcp_server/tools/assess_repair_value.py`(위임) · `data/maint_value.py`(`repair_value()` 추가) | `asset_tools_contract` **49건 무변경 통과** · `read_only()` 2→1회 · `server.py` **무접촉 확인** |
+| **MQ-906** | `mcp_server/tools/create_repair_record.py`(신규) · `mcp_server/db.py`(`repair_writer()`) · `mcp_server/server.py` · `docs/04_MCP_TOOLS.md §16`(신설) | `full` 프로파일 **15 → 16종**, `core` 7종 불변. 도구 1회 실호출 → `repair_records` 1행 추가, `n_repairs_signed` 불변 확인. 델타 소유 파일(`prompts.py`·`tools_profile_contract.py`·`s10_smoke.py`) 반영 + 연쇄로 `spikes/prompt_rules.py`(하드코딩 도구 개수 어서션 파손) 도 수정 |
+| **MQ-907** | `data/extract_error_codes.py`(S100 조인 함수 신규 추가, `parse_s100()` 본체 무수정) · `error_codes_actions.candidate.json`(append) | S100 결측 26건 중 **FANW 1건만 회수**(나머지 25건은 매뉴얼 원문에 조치 자체가 없음 — 지어내지 않고 `_pending_review`). 기존 보유 15건 diff **0**. `verify_verbatim()`에 표 열 재크롭 대조(합집합) 추가 |
+
+### 12-2. reviewer 게이트 — 1차 FAIL → 수정 → 2차 PASS
+
+| 회차 | 판정 | 사유 |
+|---|---|---|
+| 1차 | **FAIL**(블로커 1건) | `create_repair_record.py` 조회~산출 블록(구 206~274행)에 **D9 가 요구하는 범용 `except Exception` 안전망이 빠져 있었다.** 같은 등급의 형제 쓰기 도구 `generate_disposal_document.py` 는 조회~INSERT 를 단일 try 로 묶고 3단 캐치를 거는데, 이 도구는 두 블록으로 쪼개면서 앞쪽의 안전망을 빠뜨렸다 — 파일 자체 docstring(D9 명시)과 코드가 어긋난 상태였다 |
+| 수정 | — | 조회~산출 블록 끝에 `except Exception as e: return _fail("internal_error", ...)` 추가(`generate_disposal_document.py` 패턴 그대로) |
+| 2차 | **PASS**(블로커 0건) | 수정 후 ruff·`verify_verbatim` 재검증(대조 3건·위반 0건, iG5A 2건 재확인)·seed 29건·pytest 46건·spikes 28스위트 전건 재실행 통과 |
+
+비블로커 권고 4건, 전부 정보용으로 판정(재작업 요구 아님):
+- `part_class` 집계 우선순위(CRITICAL > NULL > CONSUMABLE)가 `docs/04_MCP_TOOLS.md:930` 에 문서화돼 코드-문서 일치 확인 — 사람 승인 체크리스트에 이 우선순위를 명시적으로 얹을 것을 권고
+- `expenditure()` 하위 실패 시 INSERT 생략 — `04 §13` "하위 실패를 삼키지 않는다" 원칙과 일치, 타당
+- `verify_verbatim`/`_page_haystack` 합집합 확장(안전 관련) — 이론상 검사를 더 관대하게 만들 수 있는 방향이나, 후보 파일이 DB 미적재·사람 검수(G1) 필수 경유라 즉각 위험은 낮음. **권고**: 조작된 문장(fabricated string)이 실제로 걸러지는 음성 테스트를 MQ-913(`repair_flow_contract`) 또는 별도 pytest 에 추가할 것
+- `docs/04_MCP_TOOLS.md` 프리앰블(공통 규약·설계원칙 6) 손질은 §16 신설과 직접 얽힌 자기모순 방지 목적으로 범위 침범 아님
+
+### 12-3. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **28스위트**(Stage 2 기준선 **640건**과 완전 동일 — 도구 개수·프로파일 상수만 바뀌었고 스파이크 **검사 건수**는 아직 안 늘었다. `write_tool_contract` 3종 확장은 MQ-913(Stage 5) 소관으로 이월) · `ruff check data backend mcp_server spikes` 통과.
+Windows 소켓 고갈 징후 없음(1회차 완주 후 D9 수정 반영해 재실행, 2회차도 완주).
+
+### 12-4. Stage 4 착수 전 참고
+
+- MQ-913(Stage 5) 의 `repair_flow_contract` 신설 시 `write_tool_contract` 2→3종 확장에 **`create_repair_record` 의 D9 안전망 재발 방지 검사**(임의 예외를 흡수하는지)를 넣을 것 — 이번 스테이지는 사람이 리뷰로 잡았고 회귀가 아직 못 잡는다.
+- MQ-913 또는 별도 pytest 에 **`verify_verbatim` 음성 테스트**(조작된 문장이 위반으로 걸러지는지) 신설 권고가 이월됨(§12-2).
+- MQ-908(Stage 4) 착수 전 정할 것 — `decisions._metrics()` 방침(§9-4 델타 MQ-908 행, D101 이 인용한 "산식이 두 벌"을 해소할지 인용을 뺄지)은 **아직 미결**이다.
