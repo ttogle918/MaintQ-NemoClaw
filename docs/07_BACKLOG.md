@@ -48,7 +48,9 @@ MVP에서 의도적으로 제외한 기능. 우선순위 순.
 | **P26** | ✅ **완료** (Sprint 6) | **수리/교체/매각 3지 판단 (S1+)** | 발주 전에 자산가치 관점을 넣는다 — 부품 등급·MTBF 추세·반복고장·누적수리비 비율. **`repeat_failure` 면 3지 판단보다 근본원인이 먼저**(S3 우선, D2) | `get_error_history` 의 `repeated` 판정을 그대로 감점 신호로 재사용(상수도 재사용 — D2·D29). `parts.discontinued`(D20)·`parts_eol_flag` 가 진부화 판단에 쓰인다. 잔가는 목업 정률 공식(D74) |
 | **P27** | ✅ **완료** (Sprint 6) | **중고 취득 권리관계 검증 (S18)** | `verify_ownership` — 9개 카테고리 체크리스트. 판정은 "확인 완료"가 아니라 **"확인 항목 + 미확인 잔여 리스크"**. 동산은 등기가 없어 확인이 구조적으로 불완전하다 | `PARTIAL` 은 `VERIFIED` 로 승격 불가 — 코드에 승격 경로 자체가 없다. S4 의 "모르는 건 모른다고 말한다" 원칙이 그대로 이어진다 |
 
-**순서:** F1(P22) → F2(P23) → F3(P24·P25) → F4(P26·P27). P22 가 가장 크고 나머지는 그 위에 얇게 얹힌다. 상세는 `11_ASSET_LIFECYCLE §8`.
+| **P36** | ❌ **미착수** | **기한·사고·위험 감시 계층 (F5·F6, S17 포함)** | `11_ASSET_LIFECYCLE.md §10-5` 가 정의해 둔 다음 단계인데 **여기 표에는 자기 줄이 없어서** 조용히 빠질 위험이 있었다. F5(`deadlines`·`incidents`+`track_deadlines`, `TAX-CREDIT-2Y` 기한 임박 선제 알림 — "가장 값이 크다"고 §10-3 이 이미 표시) · F6(`ownership_checks`·`risk_profile`+`assess_risk_grade`·`detect_law_revision`). **`detect_law_revision`(S17)은 Sprint 7 에서 이미 v2 제외가 확정됐다**(`02_SCENARIOS.md:83`) — 로직(`fetch_laws.check_revisions()`)은 코드에 살아 있고 D75 가 실제로 쓰지만 **MCP 도구로 노출만 안 한 상태**다. 노출하려면 `MAINTQ_TOOLS_PROFILE=full` 등록 + `04_MCP_TOOLS` 절 신설(계약 변경)이 필요 | F1~F4 선행 완료 확인: P22 🟡(잔여는 `KR-CITA-ENF-31` 사람 승인뿐) · P23·P26·P27 ✅ · P25(F3 나머지)는 진행 중인 Sprint 9 가 채운다. `fetch_laws.py` 에 해시 비교·`pending_revisions/`·2단계 기입(D75) 골격이 이미 있어 `detect_law_revision` 은 "새로 만들 로직이 거의 없다"(`11_ASSET_LIFECYCLE.md:566`) |
+
+**순서:** F1(P22) → F2(P23) → F3(P24·P25) → F4(P26·P27) → **F5·F6(P36)**. P22 가 가장 크고 나머지는 그 위에 얇게 얹힌다. 상세는 `11_ASSET_LIFECYCLE §8`·`§10`.
 
 > ⚠ **실행 순서는 계획과 달랐다.** Sprint 6 은 P22 의 **계층 1 원문 수집을 못 한 채**(당시 키 미발급)
 > P23·P26·P27 을 먼저 완주했다. 가능했던 이유: 판정은 **조문 번호·제목 인용**으로 성립하고
