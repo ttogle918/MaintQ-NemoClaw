@@ -67,6 +67,12 @@ export function stateView(kind: string, state: string): QueueLabel {
   return { ...known, known: true };
 }
 
+/** `po`/`disposal` 초안 여부 — "승인 요청" 버튼 노출 조건. 컴포넌트가 "draft" 리터럴을
+ *  직접 비교하지 않게 한다 (D87). */
+export function isDraftState(state: string): boolean {
+  return state === "draft";
+}
+
 /** `kind` → 배지. 모르는 종류도 숨기지 않는다 — 원문 + `warn` 으로 목록에 남는다. */
 export function kindView(kind: string): QueueLabel {
   const label = (KIND_LABEL as Record<string, string>)[kind];

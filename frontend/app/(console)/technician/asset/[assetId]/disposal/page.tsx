@@ -18,7 +18,7 @@ import {
   type ApiAsset,
   type ApiDecision,
 } from "@/lib/api";
-import { detailHref } from "@/lib/queueState";
+import { detailHref, isDraftState } from "@/lib/queueState";
 import { sx } from "@/lib/sx";
 
 /**
@@ -227,7 +227,7 @@ function DecisionRow({ d, onSubmit }: { d: ApiDecision; onSubmit: () => void }) 
 
       <div style={sx("flex:1")} />
 
-      {d.state === "draft" && (
+      {isDraftState(d.state) && (
         <Button size="sm" onClick={onSubmit}>
           팀장 승인 요청
         </Button>
