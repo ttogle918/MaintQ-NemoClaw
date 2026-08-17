@@ -115,7 +115,10 @@
 > 최종 리뷰 픽스로 `L2_GLOBS` 에 `app/(console)/**/*.tsx` 를 더해 라우트 페이지 12개가
 > 스캔에 편입된 것(12×6=72) — 코드 수정 없이 글롭이 잡는다. 이 확장으로 이전엔 스캔되지
 > 않던 기존 `disposal/page.tsx`·`ownership/page.tsx` 에서 사전에 있던 D87 위반 4건이
-> 새로 드러났다(이 브랜치가 만든 위반이 아님 — 별도 트리아지 필요, 이 커밋 시점 미해결).
+> 새로 드러났다(이 브랜치가 만든 위반이 아님). 같은 브랜치에서 트리아지 후 즉시 수정 —
+> `disposal/page.tsx` 는 `state === "draft"` 직접비교를 `lib/queueState.isDraftState()` 로,
+> `ownership/page.tsx` 는 로컬 `MOCK`·`TONE_BANNER` 상수를 `lib/ownership.ts` 로 이관해
+> 해소했다. 건수는 FAIL→PASS 전환이라 186건 그대로다 — 스위트는 **PASS 186/186**.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
