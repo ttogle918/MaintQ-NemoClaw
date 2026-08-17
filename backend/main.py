@@ -24,6 +24,7 @@ from backend.routers import (
     decisions,
     disposal,
     equipment,
+    inventory,
     maint_value,
     po,
     repairs,
@@ -105,6 +106,7 @@ app.include_router(decisions.router)
 app.include_router(approvals.router)
 app.include_router(maint_value.router)
 app.include_router(repairs.router)
+app.include_router(inventory.router)
 
 
 @app.get("/health")
