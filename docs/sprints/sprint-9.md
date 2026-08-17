@@ -1938,3 +1938,46 @@ seed **29건** · pytest **46건** · spikes **29스위트 / 702건**(무증감 
 - 다음은 **MQ-919(조건부)** — G1(사람 검수)·G2(재승인 범위 확정) **승인 후에만** 착수. `TODO_직접할일.md`의 `## actions 검수` 절(MQ-911 산출, 3항목 미체크) 승인이 선행 조건.
 - 승인 전까지는 **스프린트 사실상 종료 상태** — Stage 1~9(MQ-901~918, MQ-920·921 포함) 전부 완료, 이월 확정 2건(MQ-915·916, P37·P38로 백로그 등재) 남음.
 - `/done` 실행 시 D 범위 표기 정합성(이미 D1~D101로 최신) 재확인은 형식적으로만 필요 — 이번 스테이지에서 이미 검증됨.
+
+---
+
+## 18. G1·G2 사람 승인 (2026-08-17)
+
+사용자가 `TODO_직접할일.md`의 `## actions 검수` 절 3항목 전부를 채팅에서 직접 승인("응 승인할게") — 커밋 `a4261b3`. `data/extracted/error_codes_actions.candidate.json`의 `_status`를 "초안 — 사람 검수 대기"→"승인 완료 (2026-08-17)"로 갱신, TODO 3항목 체크. G1(검수)·G2(재승인 범위 확정)가 동시에 충족돼 MQ-919 착수 조건이 열렸다.
+
+## 19. Stage 10 완료 (2026-08-17) — 마지막 스테이지
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `d29143a` — `[M1] Sprint 9 Stage 10 — 승인된 actions 3건 정본 병합 (D99·G1·G2, MQ-919)`
+
+🔴 이 스테이지는 `CLAUDE.md`가 두 번의 DB 파괴 사고(MQ-708·MQ-713a)를 기록한 `data/extracted/error_codes.json`(정본)을 직접 수정하는 가장 위험한 작업이었다. 코디네이터가 착수 전 현재 상태를 직접 조회해 확보한 뒤(65 entries, 승인 대상 3건의 정확한 현재값), 매우 상세한 안전 지침과 함께 위임했다.
+
+### 19-1. 산출
+
+`data/merge_approved_actions.py`(신규, 멱등 병합 스크립트) · `data/extracted/error_codes.json`(정본, 3건만 변경) · `data/extracted/ig5a_action_map.json`(`_status` 동적 갱신) · `data/seed.py`(자가검증 29→30) · `spikes/lookup_contract.py`(⑭ 전건 null → 실측 대조).
+
+### 19-2. 핵심 설계 판단 — `write_canonical()`을 재사용하지 않았다
+
+Stage 1(MQ-921)이 만든 정본 쓰기 가드 `write_canonical()`은 자체 문서에 "내용이 달라지면 항상 거부한다 — 의도한 갱신이면 사람이 검토 후 **직접 반영**하라"고 명시돼 있어, 이번처럼 **의도적으로 승인된 변경**을 기록하는 것 자체를 거부하도록 설계돼 있다. 그래서 `merge_approved_actions.py`는 그 함수를 안 쓰고, 대신:
+- `APPROVED = [("iG5A","RERR"),("iG5A","ETB"),("S100","FANW")]` **하드코딩 3건만** 순회(후보 파일 전체 자동 병합 아님 — 다음 스프린트가 후보 파일에 이어 써도 이 스크립트가 안 건드린다)
+- 병합 전/후 65건을 `(model,code)` 키로 짝지어 `actions`·`actions_manual_id`·`actions_page` 3필드를 제외한 나머지 전부를 정준 직렬화·해시 대조 — **하나라도 불일치하면 파일을 쓰지 않고 중단**
+- `ig5a_action_map.json`의 `_status`는 `pending_review` 9건이 남아 있어 낙관적으로 "승인 완료"로 안 바꾸고 실측(mappings 2건·pending 9건)을 반영한 동적 문구로("부분 반영") 갱신(D19 원칙)
+
+### 19-3. reviewer 게이트 — 1차부터 PASS(블로커 0건)
+
+reviewer가 해시 대조 로직(`_entry_hash` 제외 필드 3종 정확성 · `(model,code)` 키별 개별 비교 · 쓰기 전 중단 순서)을 코드 레벨로 직접 추적해 확인, `git diff`로 65건 중 정확히 3건만·그 3건도 승인된 3필드만 변경됐음을 재확인. 코디네이터도 사전에 `git diff`를 직접 읽어 대조.
+
+### 19-4. 실측 검증 (전건 통과·감소 0)
+
+- 병합 스크립트 실행: "비-actions 필드 65건 중 65건 일치 · 불일치 0건" 실측 출력.
+- `error_codes.json` entries 수 **65 불변**.
+- `data/seed.py --with-error-codes` → **30/30 통과**, `error_codes` 65행.
+- `SELECT ... WHERE actions_manual_id IS NOT NULL` → **정확히 3행**, 값이 후보와 일치.
+- `spikes/lookup_contract.py` → **14/14 통과**.
+- **멱등성**: 스크립트 3회 재실행 후 `git hash-object`로 파일 해시 불변 확인.
+- 전체 회귀: seed 30건 · pytest 46건 · spikes 29스위트 전건 통과(`s4_smoke` 1회 Windows 소켓 고갈 재시도 후 통과, CLAUDE.md 기록된 정상 현상) · ruff 통과.
+- ⛔ `eval/run_eval.py` 미실행 — G3(평가 재측정 비용 승인) 대기 중, 이번 스테이지 범위 밖.
+
+### 19-5. Sprint 9 종료
+
+Stage 1~10(MQ-901~921, MQ-919 포함) **전부 완료**. 이월 확정 2건(MQ-915·916)은 백로그 P37·P38로 등재됨. 남은 사람 승인 대기: G3(평가 재측정 비용), `SAFETY_BASELINE`/`QUALIFIED_WORKER_NOTE` 문안 검수, `RESIDUAL_AT_LIFE_END`/`FLOOR` 가정 동의, `KR-CITA-ENF-31` 정정 확인, A2A 파트너 자격증명 실값 — 전부 기존 이월 항목이며 이번 스프린트 완료를 막지 않는다.
