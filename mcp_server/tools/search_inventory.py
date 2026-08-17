@@ -26,5 +26,5 @@ def search_inventory(
     try:
         with read_only() as con:
             return data_inventory.search(con, part_no=part_no, part_name=part_name, model=model)
-    except FileNotFoundError as e:
-        return {"status": "error", "reason": "db_missing", "message": str(e)}
+    except Exception as e:  # noqa: BLE001 — 예외를 status로 바꿔 반환 (D9)
+        return {"status": "error", "reason": "db_error", "message": str(e)}

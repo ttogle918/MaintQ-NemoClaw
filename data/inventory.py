@@ -48,7 +48,11 @@ def search(
         sql.append("AND p.part_no = ?")
         args.append(part_no)
     if part_name:
-        # 양쪽의 공백을 지우고 비교한다 — search_inventory.py 원본 주석 그대로 유지
+        # 양쪽의 공백을 지우고 비교한다 — LLM 은 부품명을 자연스럽게 띄어 쓰는데
+        # ("냉각 팬", "전원 모듈") 시드의 name 은 붙여쓰기라 LIKE 가 통째로 빗나갔다.
+        # 2026-08-05 평가에서 T04·T15 가 이 경로로 not_found 를 받았다. 에러코드 없이
+        # 부품명만 말하는 S2 진입은 이름 조회가 유일한 경로라 여기서 막히면 분기 자체가
+        # 성립하지 않는다. `prompts.needs_safety_block` 의 공백 정규화와 같은 이유다.
         sql.append("AND REPLACE(p.name, ' ', '') LIKE ?")
         args.append(f"%{part_name.replace(' ', '')}%")
 
