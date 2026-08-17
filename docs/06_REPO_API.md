@@ -354,6 +354,18 @@ GET  /api/assets/{asset_id}/evidence-bundle              → build_evidence_bund
   거치지 않고, 다섯 번째도 `data.rules.engine` 을 직접 쓰는 `rebuild_bundle` 을 거치므로 도구 등록
   여부와 무관하다.
 
+#### 재고 조회 — `GET /api/inventory` (Sprint 10, D73)
+
+```
+GET  /api/inventory?part_no=...                          → search_inventory 상당
+GET  /api/inventory?part_name=...&model=...               → search_inventory 상당
+```
+
+`backend/routers/inventory.py` 가 `data.inventory.search()`(Task 1 에서 도구 로직을 추출)를 그대로 부른다 —
+MCP 프로세스를 거치지 않는다. 위 다섯 경로와 같은 규약: 역할 게이트 없음(읽기 판정) · `core` 프로파일에서도
+동작(D73) · 오류 매핑은 도구 `status`/`reason` 을 재포장 없이 그대로 싣는다(`invalid_input`·`invalid_model` → 422,
+`not_found` → 404).
+
 ### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
 
 ```
