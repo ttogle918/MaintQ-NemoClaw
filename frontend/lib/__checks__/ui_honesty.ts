@@ -29,6 +29,7 @@ import {
   type Row,
   type Tone,
 } from "../ownership";
+import { estimateNotice, isHoldVerdict, showMetric, showTrend } from "../maintValue";
 import { stateView } from "../queueState";
 
 /* -------------------------------------------------------------------------- */
@@ -322,6 +323,62 @@ function nineRows(extra: Row[] = []): Row[] {
     "stateView — 맵 밖 (kind,state) 5종이 tone='ok' 로 떨어지지 않는다 (known=false + 원문)",
     bad.length === 0 && known.tone === "ok" && known.known,
     bad.length ? bad.join(" / ") : `검사 ${probes.length}종 전부 warn/known=false · 대조군 po/approved=${known.tone}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-10 — showMetric(null) 은 "0"·""·"양호" 어느 것도 아니다 (D62, MQ-917 / lib/maintValue.ts) */
+
+{
+  const noVal = showMetric(null, "일");
+  const bad = ["0", "", "양호"];
+  check(
+    "showMetric(null) — '0'·''·'양호' 어느 것도 반환하지 않는다 (D62)",
+    !bad.includes(noVal.text) && noVal.kind === "insufficient",
+    `text="${noVal.text}" kind=${noVal.kind}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-11 — showTrend("insufficient_data") 는 kind:'insufficient' (미산출과 구분)             */
+
+{
+  const t = showTrend("insufficient_data");
+  const notNull = showTrend(null);
+  check(
+    "showTrend('insufficient_data') — kind='insufficient' · null(미산출)과는 다른 kind",
+    t.kind === "insufficient" && t.text !== "" && t.text !== "안정" && notNull.kind !== t.kind,
+    `insufficient_data→text="${t.text}" kind=${t.kind} · null→kind=${notNull.kind}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-12 — isHoldVerdict('HOLD')===true 이고 에러/타 판정 문자열로 오분류되지 않는다          */
+
+{
+  const held = isHoldVerdict("HOLD");
+  const others = ["ERROR", "UNKNOWN", "", "REPAIR_RECOMMENDED", "ROOT_CAUSE_FIRST"];
+  const bad = others.filter((s) => isHoldVerdict(s) === true);
+  check(
+    "isHoldVerdict('HOLD')===true · 에러/타 판정 문자열은 HOLD 로 오분류되지 않는다",
+    held === true && bad.length === 0,
+    `HOLD=${held} · 오분류 ${bad.length}건${bad.length ? ` (${bad.join(",")})` : ""}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-13 — estimateNotice 는 목업 잔가 입력에 반드시 문자열을 반환한다(고지 누락 불가, D65·D74) */
+
+{
+  const withSource = estimateNotice({ source: "법정 기준내용연수 기반 목업 잔가곡선(D74)" });
+  const withoutSource = estimateNotice({});
+  check(
+    "estimateNotice — source 있으면 반드시 문자열(고지 누락 불가) · source 없으면 지어내지 않는다",
+    typeof withSource === "string" &&
+      withSource.length > 0 &&
+      withSource.includes("추정치") &&
+      withoutSource === null,
+    `source 있음="${withSource}" · source 없음=${withoutSource === null ? "null(정상)" : String(withoutSource)}`
   );
 }
 

@@ -7,13 +7,16 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
 프론트에 테스트 러너가 없다(실측: `tsc --noEmit`·`next build` 뿐). 러너를 새로 들이지 않고
 **이미 회귀에 있는 `tsc` + `node`** 만으로 2층 검사를 세운다 — 신규 의존성 0.
 
-  제약 게이트 2건  `lib/ownership.ts` 가 React 를 쓰지 않고 `@/` 별칭도 쓰지 않는다
-                    (이 두 가지가 성립해야 L1 이 단독 `tsc` 로 돌아간다 — 계약이자 전제다)
-  L1  순수 함수  9건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+  제약 게이트 4건  `lib/ownership.ts`·`lib/maintValue.ts` 가 React 를 쓰지 않고 `@/` 별칭도
+                    쓰지 않는다(이 두 가지가 성립해야 L1 이 단독 `tsc` 로 돌아간다 — 계약이자 전제다)
+  L1  순수 함수  13건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+                    (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다)
   L2  소스 정적      상태·판정 어휘를 다루는 **컴포넌트 전부**에 상태 문자열·색 토큰·
                     상태 비교가 0건 → **컴포넌트는 스스로 "확인/통과" 여부를 말할 수단이 없다**
+  D64 성능 점수화 금지  스캔 대상 전체에 `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축
+                    (스캔 파일수 > 0 · 다른 지표 문자열이 실제로 발견됨)
 
-  뮤턴트 4종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
+  뮤턴트 8종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
              원본 파일은 건드리지 않는다 — 임시 사본에 주입하고 사본만 컴파일한다.
 
 ★ Stage 6 W1 — L2 스캔 대상을 `VerificationMatrix.tsx` **한 파일**에서
@@ -23,6 +26,17 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   *"규약을 코드 리뷰로만 지키지 않는다"* 인데, 한 파일만 스캔하는 방어선은 그 이유를
   스스로 배신한다. 아울러 어휘 축 규칙 2종(어휘 직접 비교 · 어휘를 키로 쓰는 지역 맵)을
   추가했다 — 기존 4종만으로는 `verdict === "CLEAR"` 를 **잡지 못했다**(메타 검사로 고정).
+
+★ Stage 8 (MQ-917) — L1 에 `lib/maintValue.ts` 4함수(`showMetric`·`showTrend`·
+  `isHoldVerdict`·`estimateNotice`, D65·D74·D62)를 추가했다. L2 스캔 대상은
+  `components/asset/*.tsx` 글롭이 Stage 7 신규 4파일(`MetricsAside`·`CriticalityDrawer`·
+  `ExpenditureCard`·`RepairValuePanel`)을 이미 자동 포함해 12개로 늘었다 — 그래서 어휘 축에
+  수리가치 판정 4종(`REPAIR_RECOMMENDED`·`REPLACE_RECOMMENDED`·`SELL_AS_IS`·
+  `ROOT_CAUSE_FIRST`, `HOLD` 는 기존에 이미 있음)을 추가했다. D64(성능 점수화 금지) 축을
+  신설했다 — `OEE` 라는 낱말은 이미 `MetricsAside.tsx` **주석**에 "계산하지 않는다"고
+  적혀 있어 주석을 지우지 않고 스캔하면 위양성이 난다 — 그래서 이 축도 L2 와 같은
+  `strip_comments` 오라클을 쓴다. (MQ-916 이 컷되며 원 명세가 요구했던 큐 상세 화면
+  `L2_EXTRA` 추가는 하지 않는다 — `docs/sprints/sprint-9.md` §9-4 델타.)
 
 ⚠ **L3(실 데이터 렌더)은 이 스위트가 검증하지 않는다.** 서버 기동·자산 순회는 이 태스크의
   검증 단위를 넘는다 — 출력 말미에 그 사실을 다시 고지한다. 초록 표를 보고 "전부 확인됐다"고
@@ -44,18 +58,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
 OWNERSHIP_TS = FRONTEND / "lib" / "ownership.ts"
+MAINT_VALUE_TS = FRONTEND / "lib" / "maintValue.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
 FINDING_TSX = FRONTEND / "components" / "asset" / "FindingList.tsx"
+REPAIR_VALUE_TSX = FRONTEND / "components" / "asset" / "RepairValuePanel.tsx"
 MUTANT_DIR = FRONTEND / ".ui_honesty_mutant"
 
 # L2 스캔 대상. **글롭으로 찾는다** — 파일을 새로 만들면 자동으로 스캔에 들어온다.
 # 목록을 손으로 적으면 "새 컴포넌트가 조용히 빠지는" 경로가 생기고, 그게 W1 이 난 방식이다.
+# ⛔ 원 명세가 요구한 큐 repair 상세 화면 파일은 L2_EXTRA 에 추가하지 않는다 — MQ-916 이
+#   이번 스프린트에서 컷돼 그 파일 자체가 없다(`docs/sprints/sprint-9.md` §9-4 델타. 없는
+#   파일을 추가하면 스캔이 깨지거나 거짓 통과한다).
 L2_GLOBS = ("components/asset/*.tsx", "components/queue/Decision*.tsx")
 L2_EXTRA = ("components/queue/SignBar.tsx",)
 # 스캔 대상 하한. 줄면 파일이 빠진 것이다 (L1 건수 검사와 같은 취지)
-L2_FILES_FLOOR = 8
+# Stage 7 이 `components/asset/*.tsx` 에 4파일을 신설해 글롭이 9(자산)+2(Decision*)+1(SignBar)
+# = 12개를 실측한다(Stage 6 W1 시점 8개에서 증가) — 실측치로 하한을 올린다.
+L2_FILES_FLOOR = 12
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
@@ -164,6 +185,8 @@ def module_specifiers(src: str) -> list[str]:
 #   실사 3종  `04 §9` 소유권 실사 상태
 #   근거 2종  `check_disposal_blockers.evidence_completeness`
 #   큐 4종    `backend/services/decisions.ALLOWED_FROM`
+#   수리가치 판정 4종(HOLD 는 위에 이미 있음)  `assess_repair_value`(`04 §13`) —
+#     REPAIR_RECOMMENDED | REPLACE_RECOMMENDED | SELL_AS_IS | ROOT_CAUSE_FIRST (Stage 8/MQ-917)
 STATE_WORDS = (
     "CLEAR",
     "CONDITIONAL",
@@ -179,6 +202,10 @@ STATE_WORDS = (
     "pending",
     "signed",
     "rejected",
+    "REPAIR_RECOMMENDED",
+    "REPLACE_RECOMMENDED",
+    "SELL_AS_IS",
+    "ROOT_CAUSE_FIRST",
 )
 _WORDS = "|".join(STATE_WORDS)
 
@@ -319,12 +346,43 @@ def l2_targets() -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
+# D64 — 성능 점수화 금지(D64). "없다"만 주장하지 않는다 — 양성 축(스캔 파일수 · 다른
+# 지표 문자열이 실제로 발견됨)을 같은 판정에 묶는다(CLAUDE.md 부재검사 규칙). 주석은
+# 위양성을 만든다(`MetricsAside.tsx` 가 "OEE 는 계산하지 않는다"고 **주석으로** 적어
+# 두었다) — 그래서 L2 와 같은 `strip_comments` 오라클을 그대로 쓴다.
+
+DENY_TOKENS = ("OEE", "종합효율", "성능가동률")
+# 오라클은 검증 대상에서 독립이다 — `04 §11` 이 실제로 쓰는 지표 라벨을 손으로 옮겨 적었다
+ANCHOR_TOKENS = ("MTBF", "MTTR", "가용도", "예방보전", "누적 수리비")
+
+
+def d64_scan(targets: list[Path]) -> tuple[int, dict[str, int], int, list[str]]:
+    """→ (금지어 총 적발수, 파일별 적발수, 양성 앵커 총 적중수, 앵커가 있는 파일명)."""
+    deny_by_file: dict[str, int] = {}
+    deny_total = 0
+    anchor_total = 0
+    anchor_files: list[str] = []
+    for path in targets:
+        code = strip_comments(path.read_text(encoding="utf-8"))
+        n_deny = sum(code.count(tok) for tok in DENY_TOKENS)
+        if n_deny:
+            deny_by_file[path.name] = n_deny
+        deny_total += n_deny
+        n_anchor = sum(code.count(tok) for tok in ANCHOR_TOKENS)
+        if n_anchor:
+            anchor_files.append(path.name)
+            anchor_total += n_anchor
+    return deny_total, deny_by_file, anchor_total, anchor_files
+
+
+# ---------------------------------------------------------------------------
 # 뮤턴트 — 임시 사본에만 주입한다
 
 
-def mutate_l1(marker: str, old: str, new: str) -> tuple[bool, str]:
+def mutate_l1(marker: str, filename: str, old: str, new: str) -> tuple[bool, str]:
     """`lib` 사본에 뮤턴트를 주입해 L1 을 돌린다 → (기대대로 FAIL 했는가, 상세).
 
+    `filename` 은 `lib/` 바로 아래 대상 파일명(`ownership.ts`·`maintValue.ts`).
     사본을 **frontend 안에** 두는 이유: `lib/types.ts` 가 `react` 타입을 참조하므로
     모듈 해석이 `frontend/node_modules` 로 올라갈 수 있어야 한다. 실행 후 지운다.
     """
@@ -332,7 +390,7 @@ def mutate_l1(marker: str, old: str, new: str) -> tuple[bool, str]:
         shutil.rmtree(MUTANT_DIR, ignore_errors=True)
     try:
         shutil.copytree(FRONTEND / "lib", MUTANT_DIR / "lib")
-        target = MUTANT_DIR / "lib" / "ownership.ts"
+        target = MUTANT_DIR / "lib" / filename
         src = target.read_text(encoding="utf-8")
         if src.count(old) != 1:
             # ⛔ 여기서 조용히 넘어가면 "뮤턴트를 주입하지 못했는데 통과"가 된다 —
@@ -377,6 +435,27 @@ def run() -> None:
         f"(주석 언급은 세지 않는다)",
     )
 
+    mv_src = MAINT_VALUE_TS.read_text(encoding="utf-8")
+    mv_specs = module_specifiers(mv_src)
+    mv_react_specs = [
+        s for s in mv_specs if s == "react" or s.startswith("react/") or s == "react-dom"
+    ]
+    check(
+        "제약",
+        "C3 lib/maintValue.ts 가 React 를 들여오지 않는다 (MQ-917)",
+        not mv_react_specs,
+        f"import 대상 {len(mv_specs)}개 {mv_specs or '(없음)'} · react 계열 {mv_react_specs or '0건'}",
+    )
+    mv_alias_specs = [s for s in mv_specs if s.startswith("@/")]
+    mv_quoted_alias = re.findall(r"""['"]@/""", mv_src)
+    check(
+        "제약",
+        "C4 lib/maintValue.ts 가 `@/` 경로 별칭을 쓰지 않는다 (단독 tsc 컴파일 가능, MQ-917)",
+        not mv_alias_specs and not mv_quoted_alias,
+        f"별칭 import {mv_alias_specs or '0건'} · 따옴표 뒤 '@/' {len(mv_quoted_alias)}건 "
+        f"(주석 언급은 세지 않는다)",
+    )
+
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
     rows = parse_l1(stdout)
@@ -386,8 +465,8 @@ def run() -> None:
         check("L1", f"L1-{idx} {name}", ok, detail)
     check(
         "L1",
-        "L1 건수 9건 (줄었으면 단언이 사라진 것이다)",
-        len(rows) == 9 and (code == 0) == all(o for _, o, _, _ in rows),
+        "L1 건수 13건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했다)",
+        len(rows) == 13 and (code == 0) == all(o for _, o, _, _ in rows),
         f"{len(rows)}건 · node exit={code}",
     )
     # 위 '건수' 검사는 13건 밖의 메타 검사다 — 표에는 남기되 계약 13건에는 세지 않는다
@@ -410,6 +489,18 @@ def run() -> None:
                 hits == 0,
                 f"적발 {hits}건" + (f" · …{ctx}…" if ctx else "") + f" · {why}",
             )
+
+    # ── D64(성능 점수화 금지) ───────────────────────────────────────────────
+    deny_total, deny_by_file, anchor_total, anchor_files = d64_scan(targets)
+    check(
+        "D64",
+        "D64 — `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축(스캔 파일>0 · 다른 지표 문자열 실재)",
+        deny_total == 0 and len(targets) > 0 and anchor_total > 0,
+        f"금지어 적발 {deny_total}건{f' {deny_by_file}' if deny_by_file else ''} · "
+        f"스캔 파일 {len(targets)}개 · 지표 문자열 적중 {anchor_total}건 "
+        f"({len(anchor_files)}개 파일: {', '.join(sorted(anchor_files)[:4])}"
+        f"{'…' if len(anchor_files) > 4 else ''})",
+    )
 
     # ── 주석 제거기 자가 검증 ──────────────────────────────────────────────
     # 오라클은 손으로 적은 픽스처다 (검증 대상 소스에서 파생시키지 않는다).
@@ -446,6 +537,7 @@ def run() -> None:
     # ── 뮤턴트 ─────────────────────────────────────────────────────────────
     ok_a, det_a = mutate_l1(
         "ⓐ",
+        "ownership.ts",
         'UNVERIFIED: { badge: "미확인", tone: "warn" },',
         'UNVERIFIED: { badge: "미확인", tone: "ok" },',
     )
@@ -469,6 +561,7 @@ def run() -> None:
 
     ok_c, det_c = mutate_l1(
         "ⓒ",
+        "ownership.ts",
         "      rows.push(emptyRow(name));\n      continue;",
         "      continue;",
     )
@@ -519,6 +612,43 @@ def run() -> None:
         f"대상 {len(targets)}개 · 눈먼 파일 {blind or '0건'} (주석 제거가 코드까지 지웠다면 여기서 드러난다)",
     )
 
+    # ── ⓕⓖⓗ (Stage 8 / MQ-917) — maintValue.ts 4함수 · 수리가치 어휘 축 방어선 ───────────
+    ok_f, det_f = mutate_l1(
+        "ⓕ",
+        "maintValue.ts",
+        'if (v === null) return { text: "판단 근거 부족", kind: "insufficient" };',
+        'if (v === null) return { text: "0", kind: "value" };',
+    )
+    check("뮤턴트", "ⓕ showMetric(null) → '0' 으로 바꾸면 L1 이 FAIL 한다 (MQ-917)", ok_f, det_f)
+
+    repair_panel_src = REPAIR_VALUE_TSX.read_text(encoding="utf-8")
+    anchor_g = "  const view = repairValueVerdictView(result.verdict);"
+    mutant_g = repair_panel_src.replace(
+        anchor_g,
+        '  if (result.verdict === "REPAIR_RECOMMENDED") return null;\n' + anchor_g,
+        1,
+    )
+    caught_g = [n for n, h, _, _ in l2_scan(mutant_g) if h > 0]
+    check(
+        "뮤턴트",
+        'ⓖ RepairValuePanel(Stage 7 신규)에 `verdict === "REPAIR_RECOMMENDED"` 직접비교 주입 → L2 FAIL (MQ-917)',
+        mutant_g != repair_panel_src and len(caught_g) >= 1,
+        f"주입={'성공' if mutant_g != repair_panel_src else '실패'} · 적발 규칙 {len(caught_g)}건 {caught_g}",
+    )
+
+    ok_h, det_h = mutate_l1(
+        "ⓗ",
+        "maintValue.ts",
+        "  return `이 값은 ${source} 기반 추정치이며 실거래가·실측값이 아닙니다 (D65·D74).`;",
+        "  return null;",
+    )
+    check(
+        "뮤턴트",
+        "ⓗ estimateNotice 의 고지 문자열을 지우면(source 있어도 항상 null) L1 이 FAIL 한다 (MQ-917 · D65·D74)",
+        ok_h,
+        det_h,
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
@@ -527,7 +657,15 @@ def main() -> None:
 
     print("UI 정직성 회귀 (D87) — 미확인이 확인처럼 보이는 경로가 코드에 없는지\n")
 
-    for path in (OWNERSHIP_TS, CHECK_TS, MATRIX_TSX, DISPOSAL_TSX, FINDING_TSX):
+    for path in (
+        OWNERSHIP_TS,
+        MAINT_VALUE_TS,
+        CHECK_TS,
+        MATRIX_TSX,
+        DISPOSAL_TSX,
+        FINDING_TSX,
+        REPAIR_VALUE_TSX,
+    ):
         if not path.exists():
             check("치명", f"필수 파일 없음 — {path.relative_to(ROOT).as_posix()}", False, "")
 
@@ -546,17 +684,19 @@ def main() -> None:
         print(f"  {'PASS' if ok else 'FAIL':<4}  {name:<{width}}  {detail}")
     print("─" * (width + 40))
 
-    contract = [r for r in results if r[0] in ("L1", "L2")]
-    others = [r for r in results if r[0] not in ("L1", "L2")]
+    contract = [r for r in results if r[0] in ("L1", "L2", "D64")]
+    others = [r for r in results if r[0] not in ("L1", "L2", "D64")]
     print(
         f"\n신규 계약 검사 {len(contract)}건 (L1 {sum(1 for r in contract if r[0] == 'L1')} · "
-        f"L2 {sum(1 for r in contract if r[0] == 'L2')}) — "
+        f"L2 {sum(1 for r in contract if r[0] == 'L2')} · "
+        f"D64 {sum(1 for r in contract if r[0] == 'D64')}) — "
         f"PASS {sum(1 for r in contract if r[2])} / FAIL {sum(1 for r in contract if not r[2])}"
     )
+    constraints = sum(1 for r in results if r[0] == "제약")
     mut = sum(1 for r in results if r[0] == "뮤턴트")
     meta = sum(1 for r in results if r[0] == "메타")
     print(
-        f"제약 게이트 2건 · 뮤턴트 {mut}종 · 메타 {meta}건 — "
+        f"제약 게이트 {constraints}건 · 뮤턴트 {mut}종 · 메타 {meta}건 — "
         f"PASS {sum(1 for r in others if r[2])} / FAIL {sum(1 for r in others if not r[2])}"
     )
 
@@ -570,7 +710,7 @@ def main() -> None:
     failed = [n for _, n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
-    print(f"\n통과 — 계약 {len(contract)}건 + 제약 2 + 뮤턴트 {mut} + 메타 {meta}")
+    print(f"\n통과 — 계약 {len(contract)}건 + 제약 {constraints} + 뮤턴트 {mut} + 메타 {meta}")
 
 
 if __name__ == "__main__":
