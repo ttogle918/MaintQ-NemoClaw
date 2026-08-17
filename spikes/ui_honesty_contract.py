@@ -71,12 +71,21 @@ MUTANT_DIR = FRONTEND / ".ui_honesty_mutant"
 # ⛔ 원 명세가 요구한 큐 repair 상세 화면 파일은 L2_EXTRA 에 추가하지 않는다 — MQ-916 이
 #   이번 스프린트에서 컷돼 그 파일 자체가 없다(`docs/sprints/sprint-9.md` §9-4 델타. 없는
 #   파일을 추가하면 스캔이 깨지거나 거짓 통과한다).
-L2_GLOBS = ("components/asset/*.tsx", "components/queue/Decision*.tsx")
+# Sprint 10 이 `app/(console)/**/*.tsx`(라우트 페이지) 를 세 번째 글롭으로 더했다 — 이전에는
+# `components/asset/`·`components/queue/` 만 보고 `app/` 라우트 파일은 전혀 스캔하지 않았다
+# (예: 이번 브랜치의 `technician/equipment-status/[assetId]/page.tsx` 는 D87 감시 밖이었다).
+# ⚠ 알려진 사각지대 — 색 토큰 규칙(`--green|--ok`)은 `--error-tx`·`--blue-tx`·`--orange-tx`
+#   를 잡지 못한다. 이 토큰들은 판정색으로도 쓰이고 다른 곳에서 순수 UI 톤으로도 쓰여
+#   전면 금지가 아직 구현돼 있지 않다 — 이번 수정 범위 밖(후속 과제로 이월).
+L2_GLOBS = ("components/asset/*.tsx", "components/queue/Decision*.tsx", "app/(console)/**/*.tsx")
 L2_EXTRA = ("components/queue/SignBar.tsx",)
 # 스캔 대상 하한. 줄면 파일이 빠진 것이다 (L1 건수 검사와 같은 취지)
-# Stage 7 이 `components/asset/*.tsx` 에 4파일을 신설해 글롭이 9(자산)+2(Decision*)+1(SignBar)
-# = 12개를 실측한다(Stage 6 W1 시점 8개에서 증가) — 실측치로 하한을 올린다.
-L2_FILES_FLOOR = 12
+# Sprint 10 이 `components/asset/*.tsx` 에 2파일(`InventoryDrawer.tsx`·
+# `EquipmentHotspotDiagram.tsx`)을 신설해 Stage 8 시점 12개(9자산+2Decision*+1SignBar)에서
+# 14개로 늘었고, 같은 브랜치 사전 병합 검토에서 `app/(console)/**/*.tsx` 글롭을 더해
+# `app/` 라우트 12개가 합류 — 실측 26개(12 app + 11 자산 + 2 Decision* + 1 SignBar).
+# 실측치로 하한을 올린다.
+L2_FILES_FLOOR = 26
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
