@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CriticalityDrawer } from "@/components/asset/CriticalityDrawer";
 import { ExpenditureCard } from "@/components/asset/ExpenditureCard";
+import { InventoryDrawer } from "@/components/asset/InventoryDrawer";
 import { Button } from "@/components/ui/Button";
 import { Mono } from "@/components/ui/Mono";
 import {
@@ -46,6 +47,7 @@ export function RepairValuePanel({ asset }: { asset: ApiAsset }) {
   const [failure, setFailure] = useState<string | null>(null);
 
   const [drawerPartNo, setDrawerPartNo] = useState<string | null>(null);
+  const [inventoryPartNo, setInventoryPartNo] = useState<string | null>(null);
 
   const costNumber = Number(repairCost);
   const canRun =
@@ -132,6 +134,7 @@ export function RepairValuePanel({ asset }: { asset: ApiAsset }) {
         <ResultView
           result={result}
           onOpenPart={(p) => setDrawerPartNo(p)}
+          onOpenInventory={(p) => setInventoryPartNo(p)}
         />
       )}
 
@@ -139,6 +142,12 @@ export function RepairValuePanel({ asset }: { asset: ApiAsset }) {
         open={drawerPartNo !== null}
         partNo={drawerPartNo}
         onClose={() => setDrawerPartNo(null)}
+      />
+      <InventoryDrawer
+        open={inventoryPartNo !== null}
+        partNo={inventoryPartNo}
+        equipmentId={equipmentId}
+        onClose={() => setInventoryPartNo(null)}
       />
     </div>
   );
@@ -281,9 +290,11 @@ function InputForm({
 function ResultView({
   result,
   onOpenPart,
+  onOpenInventory,
 }: {
   result: ApiRepairValue;
   onOpenPart: (partNo: string) => void;
+  onOpenInventory: (partNo: string) => void;
 }) {
   const view = repairValueVerdictView(result.verdict);
   const estimates = Array.isArray(result.estimates) ? result.estimates : [];
@@ -359,6 +370,15 @@ function ResultView({
             )}
           >
             {result.failed_part} <span style={sx("opacity:.7")}>· 등급 보기 →</span>
+          </button>
+          <button
+            onClick={() => onOpenInventory(result.failed_part as string)}
+            style={sx(
+              "border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:14px;" +
+                "padding:4px 11px;cursor:pointer;font:12px 'JetBrains Mono',monospace;color:var(--blue-tx)"
+            )}
+          >
+            재고 보기 →
           </button>
         </div>
       )}
