@@ -12,12 +12,26 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
 
 from data import hotspot_status as data_hotspot
 
 from backend.manifest import to_print_page
 from backend.services.disposal import read_only
+
+
+def _open_error(exc: Exception) -> dict:
+    """`read_only()` 진입 자체에서 난 예외를 `data.hotspot_status` 와 같은 status 어휘로 닫는다."""
+    if isinstance(exc, FileNotFoundError):
+        return {"status": "error", "reason": "db_missing", "message": str(exc)}
+    if isinstance(exc, sqlite3.Error):
+        return {"status": "error", "reason": "db_error", "message": str(exc)}
+    return {
+        "status": "error",
+        "reason": "internal_error",
+        "message": f"{type(exc).__name__}: {exc}",
+    }
 
 
 def get(asset_id: str) -> dict:
@@ -28,8 +42,11 @@ def get(asset_id: str) -> dict:
     `backend/services/po.py` 의 `_attach_print_pages` 와 같은 태도.
     """
     today = datetime.now(timezone.utc).date()
-    with read_only() as con:
-        result = data_hotspot.hotspot_status(con, asset_id=asset_id, today=today)
+    try:
+        with read_only() as con:
+            result = data_hotspot.hotspot_status(con, asset_id=asset_id, today=today)
+    except Exception as e:  # noqa: BLE001 — 커넥션을 여는 시점의 예외까지 status 로 닫는다 (D9)
+        return _open_error(e)
     if result.get("status") == "ok":
         model = result["model"]
         for part in result["parts"]:
