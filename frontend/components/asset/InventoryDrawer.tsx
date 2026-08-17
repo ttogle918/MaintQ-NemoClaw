@@ -165,7 +165,7 @@ export function InventoryDrawer({
                 style={sx(
                   `${
                     item.qty > 0
-                      ? "border:1px solid var(--ok-bd);background:var(--ok-bg);color:var(--ok-tx)"
+                      ? "border:1px solid var(--cite-bd);background:var(--cite-bg);color:var(--blue-tx)"
                       : "border:1.5px dashed var(--error-tx);background:transparent;color:var(--error-tx)"
                   };` + "border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:5px"
                 )}
