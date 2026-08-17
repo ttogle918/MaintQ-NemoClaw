@@ -1843,3 +1843,35 @@ seed **29건** · pytest **46건** · spikes **28스위트**(Stage 3 기준선�
 - `docs/06_REPO_API.md §2.3`(repair 는 항상 0건·POST 없음 서술)이 낡았다 — **MQ-918 전파 목록에 추가할 것**.
 - 회귀 실측: seed **29건** · pytest **46건** · spikes **29스위트 / 668건**(Stage 4 기준선 640 + lookup +2 + write_tool +7 + repair_flow 신규 19) · `ruff` 통과 · frontend `tsc --noEmit`·`npm run build`(라우트 10개 유지) 통과. 감소 0·재시도 0.
 - **Stage 7(MQ-914) 착수 전 §9-2 표를 다시 확인할 것** — 이번 사고의 재발 방지 규칙을 스스로 지키는 첫 적용이다.
+
+---
+
+## 15. Stage 7 완료 (2026-08-17)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `bb2ae93` — `[M3] Sprint 9 Stage 7 — 수리 가치 판단 화면 (S1+, MQ-914)`
+
+착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 7 = **MQ-914 단독** 확인 후 실행. MQ-915·916 은 §9-5 에 실제로 이월 등재돼 있음을 재확인(Stage 5 사고와 달리 이번엔 사실).
+
+### 15-1. 산출
+
+`frontend/app/(console)/technician/asset/[assetId]/value/page.tsx`(신규 라우트) ·
+`RepairValuePanel`·`CriticalityDrawer`·`ExpenditureCard`·`MetricsAside`(신규 4종) ·
+`mappers.tsx`(판정 매퍼 4종 추가: `repairValueVerdictView`·`expenditureVerdictView`·`partClassView`·`expenditureEvidenceView`).
+
+### 15-2. reviewer 게이트 — 1차 PASS(블로커 0건)
+
+판단이 필요했던 지점 4건, 전부 정당함을 코드로 확인:
+- `RepairValuePanel`의 입력 폼 — 명세 배치도는 조회 전용으로 그렸지만 `assess_repair_value`가 `equipment_id`·`failed_part`·`repair_cost`를 필수 자유 입력으로 받는 도구 계약(D80)이라 폼이 불가피 — 다이어그램 쪽 누락이지 구현 결함 아님
+- `ExpenditureCard`가 `asset_id`를 안 보내 `materiality`가 항상 `NOT_EVALUATED` — Stage 6 의 `ExpenditureBody` 계약 자체에 그 필드가 없어서(백엔드 라우터 제약)이고, D65 가 요구하는 정직한 표시 — 실질 개선은 별도 D-결정 필요(비블로커 권고)
+- `CriticalityDrawer`의 fixed-position 오버레이 구현이 "라우트 이동 없음·닫아도 상위 판정 유지" 요구를 충족함을 코드로 확인
+- `MetricsAside`의 "6칸 전부 null" 데모가 실측 데이터로는 안 나온다는 보고(MTBF 는 서명 여부 무관 — 달력 기준 계산)는 은폐가 아니라 정직한 보고, null-safety 자체는 코드로 확인됨
+
+### 15-3. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contract` 만 L2 글롭이 신규 4파일을 자동 포함해 **계약 57→81건**으로 증가, 그 밖 28스위트는 Stage 6 기준선과 동일 — 감소 0) · `ruff` 통과 · frontend `tsc --noEmit` 통과 · `npm run build` **라우트 11개**(10 + 1).
+
+### 15-4. Stage 8 착수 전 참고
+
+- MQ-917(`ui_honesty_contract` 확장)이 다음 스테이지다 — L2 스캔 대상에 `RepairDetail.tsx`(MQ-916 이월로 아직 없음)를 추가하는 부분은 **건드리지 않는다**(파일이 없으므로).
+- `ExpenditureCard` 의 `asset_id` 미전달 문제는 실질 개선을 원하면 별도 D-결정 + 백엔드 라우터 변경이 필요하다는 게 reviewer 권고 — 이번 스프린트 범위에는 없음, 백로그 후보로만 기록.
