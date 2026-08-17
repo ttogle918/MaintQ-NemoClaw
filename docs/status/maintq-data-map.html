@@ -216,21 +216,21 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기능 13종(구현 완료 <b>12</b> · 남은 것 1)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>2026-08-12 DB 실측치</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
+      <p class="lede">기능 13종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>2026-08-18 DB 실측치</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-12</b></div>
+    <div class="asof">기준 시점<b>2026-08-18</b></div>
   </header>
 
   <div class="stats">
     <div class="stat g">
       <div class="n">13</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 16종(코어 7 + 확장 9) · 회귀 702건</div>
+      <div class="s">MCP 도구 16종(코어 7 + 확장 9) · 회귀 822건</div>
     </div>
     <div class="stat w">
       <div class="n">0</div>
       <div class="l">남은 기능</div>
-      <div class="s">S19 수리 증빙 서명 — Sprint 9 완료. 다음은 확장 범위(P36 등)</div>
+      <div class="s">Sprint 10 이 P37·P38(근거 번들·지출 분류 화면, 수리 증빙 큐 상세)까지 닫음. 다음은 확장 범위(P36·P39)</div>
     </div>
     <div class="stat a">
       <div class="n">8</div>
@@ -238,9 +238,9 @@
       <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 8조문 ★</b></div>
     </div>
     <div class="stat">
-      <div class="n">13</div>
+      <div class="n">14</div>
       <div class="l">생성한 데이터</div>
-      <div class="s">DB 19테이블 · 시드 29건 검증</div>
+      <div class="s">DB 20테이블 · 시드 31건 검증</div>
     </div>
   </div>
 
@@ -283,7 +283,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 702건 · 29스위트</span>
+      <span class="count">M1~M4 · 회귀 822건 · 29스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -398,6 +398,7 @@
     <p class="sec-note">
       계획했던 순서 제약(<b>① S1~S4 관통 → ② F1 근거 계층 → ③ 나머지</b>)이 그대로 지켜졌습니다. <b>F1(근거 3계층)이 먼저 서고 나머지가 그 위에 얹혔습니다.</b>
       ✅ <code>related_parts</code> 사람 승인이 2026-08-12 에 완료돼, 부품 특정 지표가 <b>"판정 불가" → "미달(40.0%)"</b>로 바뀌었습니다(D12 해제).
+      Sprint 9 가 세 번째 쓰기 도구(수리 증빙)를, Sprint 10 이 그 데이터를 보여주는 화면(근거 번들·지출 분류·수리 승인 큐 상세)을 마저 열었습니다.
     </p>
 
     <div class="grid cols-2">
@@ -601,7 +602,7 @@
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">13종 · DB 19테이블 실측 · 2026-08-13</span></div>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">14종 · DB 20테이블 실측 · 2026-08-18</span></div>
     <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> 규모는 2026-08-12 <code>data/maintq.db</code> 조회 결과입니다.</p>
     <div class="twrap">
       <table>
@@ -614,6 +615,7 @@
           <tr><td class="mono">error_history</td><td class="num">200건</td><td><code>seed.py</code><span class="sub">AI허브 고장 유형 분포 참고(D16)</span></td><td>실 고장 이력 없음. <b>단 분포는 실데이터를 참고</b></td><td>4, 10</td></tr>
           <tr><td class="mono"><b>repair_records ★신규</b></td><td class="num">12건<br>PLANNED 5 · UNPLANNED 7</td><td><code>seed.py</code><span class="sub"><code>work_type</code> 필수 · append-only</span></td><td>실 수리 이력 없음. <b><code>work_type</code>이 예방보전 비율의 뿌리</b>라 분포를 의도적으로 갈랐다</td><td>10, 13</td></tr>
           <tr><td class="mono"><b>residual_curve ★신규</b></td><td class="num">42행<br>7카테고리 × 6</td><td><code>seed.py</code><span class="sub">법정 내용연수 정률 공식</span></td><td>⚠ <b>실데이터로 감가를 식별할 수 없음이 실증됐다</b>(D74). 중진공 5,475건에서 연차-가격 상관이 사실상 0 — 목업이 정직한 선택</td><td>11</td></tr>
+          <tr><td class="mono"><b>part_lifecycle_mock ★신규</b></td><td class="num">27행<br>9자산 × 부품 3종</td><td><code>seed.py</code><span class="sub">상대 오프셋(<code>--today</code> 기준)</span></td><td>실 텔레메트리·정비 이력 없음 — <b>사용자가 명시적으로 선택한 목업</b>(D65 고지 필수). 설비 하이라이트 대시보드의 🟠(곧 점검) 판정 유일 출처</td><td>신규 UI(하이라이트)</td></tr>
           <tr><td class="mono">po_drafts · users</td><td class="num">5 · 3</td><td><code>seed.py</code></td><td>발주·계정은 데모용</td><td>3</td></tr>
           <tr><td class="mono"><b>related_parts.seed.json ★승인</b></td><td class="num">8건<span class="sub">위임 08-05 → <b>승인 08-12</b></span></td><td>위임 판정 → 사람 승인<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이고 매핑 판단은 위임 후 사람이 확인했습니다.</b> 부품 특정 정확률의 뿌리(D12) — <b>게이트 해제, 실적 인용 가능</b>. ⛔ 그래도 배지는 <b>생성 데이터</b>입니다 — 검수 통과와 외부 원천은 다른 축</td><td>2</td></tr>
           <tr><td class="mono">data/rules/rules/*.json → <code>rules</code></td><td class="num">5종<span class="sub">BLOCKING 2 · PRECONDITION 3</span></td><td>직접 작성<span class="sub">엔진 + pytest 46</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
@@ -787,9 +789,19 @@
         <p>4종 중 3종 · <b>291행</b>을 파일 스냅샷으로. 1종은 기관 측 빈 값으로 확정.</p>
       </div>
       <div class="step">
-        <div class="sn">지금</div>
-        <h4>지표 튜닝 판정 · Sprint 8(A2A 신원)</h4>
-        <p><code>--repeat 3</code> 5세트 완료. Sprint 8 은 <b>A2A 신원 계층</b>(<code>partner_links</code>·자격증명 env 층·<code>request_chain_id</code>)을 깔았고, <code>create_repair_record</code>(S19) · <code>flags</code> 는 <b>Sprint 9</b> 로 이월됐습니다.</p>
+        <div class="sn">완료</div>
+        <h4>A2A 신원 계층 · 수리 증빙 서명</h4>
+        <p><code>--repeat 3</code> 5세트 완료. Sprint 8 은 <b>A2A 신원 계층</b>(<code>partner_links</code>·자격증명 env 층·<code>request_chain_id</code>)을 깔았고, Sprint 9 는 세 번째 쓰기 도구 <code>create_repair_record</code>(S19·D98)를 완성했습니다. <code>flags</code>는 아직 0행 그대로입니다.</p>
+      </div>
+      <div class="step">
+        <div class="sn">완료</div>
+        <h4>근거 번들 · 지출 분류 화면 + 재고·설비 대시보드</h4>
+        <p>Sprint 10 이 근거 번들 화면·지출 분류 독립 페이지·수리 증빙 승인 큐 상세(P37·P38)를 닫았고, 같은 시기 브레인스토밍이 재고 드로어와 실 도면 기반 설비 하이라이트 대시보드(<code>part_lifecycle_mock</code>, §19)를 더했습니다.</p>
+      </div>
+      <div class="step">
+        <div class="sn">다음</div>
+        <h4>백로그 — F5·F6 감시 계층 · 화면 직접 초안 생성</h4>
+        <p>남은 것은 <code>flags</code> 발생·해소(P36) · 기한·사고 감시(F5·F6) · 화면에서 발주서·처분서·수리증빙을 직접 만들고 고치는 구조(P39) — 전부 새 D-결정이 필요한 설계 변경입니다.</p>
       </div>
     </div>
     <div class="note">
@@ -812,7 +824,7 @@
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-12 · DB 실측</span>
+    <span>기준 2026-08-18 · DB 실측</span>
     <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/raw/INDEX.md</code></span>
   </footer>
 

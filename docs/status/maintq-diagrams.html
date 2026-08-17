@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-12</b></div>
+    <div class="asof">기준 시점<b>2026-08-18</b></div>
   </header>
 
   <nav class="toc">
@@ -177,11 +177,14 @@
 
   <div class="note" style="margin:-24px 0 42px">
     <b>2026-08-12 갱신 — 그림 5개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
-    도구가 7 → <b>15종</b>, 테이블이 11 → <b>19개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
+    도구가 7 → 15종, 테이블이 11 → 19개, 쓰기 도구가 1 → 2종이 됐습니다.
     새 그림 넷(⑥~⑨)은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보이고,
     <b>⑩은 다른 종류입니다</b> — <b>지표가 좋아진 것과 운이 좋았던 것을 어떻게 구분하는가.</b>
-    <br>⚠ <b>이 문단은 2026-08-12 시점 기록이다 — 그 뒤 Sprint 9(D98)가 수리 증빙 쓰기 도구를 더해
-    도구 <b>16종</b>·쓰기 도구 <b>3종</b>이 됐다.</b> 아래 개별 그림·표는 최신값으로 갱신했다(§실측 절 참조).
+    <br>⚠ <b>2026-08-18 갱신 — 그 뒤 세 스프린트가 더 지났다.</b> Sprint 8이 A2A 신원 계층을,
+    <b>Sprint 9(D98)가 세 번째 쓰기 도구(<code>create_repair_record</code>)</b>를 더해 도구 <b>16종</b>·
+    쓰기 도구 <b>3종</b>·테이블 <b>20개</b>가 됐고, <b>Sprint 10</b>이 근거 번들·지출 분류 화면과
+    수리 증빙 승인 큐 상세를 열었다. 같은 시기 브레인스토밍이 재고 드로어·설비 하이라이트 대시보드
+    (<code>part_lifecycle_mock</code>, §19)를 더했다. 아래 개별 그림·표는 이 값으로 갱신했다.
   </div>
 
   <!-- ================= ① 유스케이스 ================= -->
@@ -217,9 +220,9 @@ flowchart LR
       x3["중고 취득 실사<br/>S18 · 9카테고리 PARTIAL"]
       x5["통합 승인 큐<br/>발주 + 처분"]
     end
-    subgraph S8["다음 · Sprint 9"]
+    subgraph S8["구현 완료 · Sprint 9"]
       direction TB
-      x4["수리 증빙 서명<br/>S19 · 큐 자리만 확보"]
+      x4["수리 증빙 서명<br/>S19 · 완료 · 3번째 쓰기 도구"]
     end
     subgraph LATER["후속 · F5~F6"]
       direction TB
@@ -268,14 +271,14 @@ flowchart LR
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 15 · 테이블 19</span></div>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 16 · 테이블 20</span></div>
     <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다.</p>
 
     <figure>
       <div class="plate">
 <pre class="mermaid">
 flowchart TB
-  subgraph FE["프론트엔드 · Next.js · 라우트 10"]
+  subgraph FE["프론트엔드 · Next.js · 라우트 16"]
     direction LR
     scrA["정비사 콘솔 · /technician<br/>+ 자산 · 사전판정 · 실사"]
     scrB["팀장 큐 · /manager<br/>발주 상세 · 처분서 서명"]
@@ -297,10 +300,11 @@ flowchart TB
     rd["읽기 도구 13종<br/>코어 6 + 확장 7<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …"]
     wr1["create_po_draft"]
     wr2["generate_disposal_document"]
+    wr3["create_repair_record"]
   end
 
   llm["Gemini API"]
-  db[("SQLite · 19 테이블 · WAL")]
+  db[("SQLite · 20 테이블 · WAL")]
   vec[("매뉴얼 인덱스<br/>1,035 청크")]
   laws[("법령 원문 8조문 · 8,197자<br/>text_hash · append-only")]
 
@@ -311,11 +315,13 @@ flowchart TB
   worker -->|"stdio · 세션 1개를 열고 닫음"| rd
   worker -->|"stdio"| wr1
   worker -->|"stdio"| wr2
+  worker -->|"stdio"| wr3
   rd --> db
   rd --> vec
   rd --> laws
   wr1 ==>|"draft INSERT 만<br/>db.draft_writer()"| db
   wr2 ==>|"draft INSERT 만<br/>db.decision_writer()"| db
+  wr3 ==>|"draft INSERT 만<br/>db.repair_writer()"| db
   scrB -->|"승인 · 반려"| poapi
   scrB -->|"서명 · 반려"| decapi
   poapi ==>|"상태 전이 UPDATE"| db
@@ -323,16 +329,17 @@ flowchart TB
   loop --> tw
   tw -->|"tool_call · tool_result · block<br/>발행과 동시 저장"| db
   chat -.->|"SSE 4종"| scrA
-  db -.->|"GET /api/approvals<br/>kind: po · decision"| appapi
+  db -.->|"GET /api/approvals<br/>kind: po · decision · repair"| appapi
   appapi -.-> scrB
 
-  linkStyle 10 stroke:#1D8A5C,stroke-width:3px;
   linkStyle 11 stroke:#1D8A5C,stroke-width:3px;
-  linkStyle 14 stroke:#BC3B31,stroke-width:3px;
-  linkStyle 15 stroke:#BC3B31,stroke-width:3px;
+  linkStyle 12 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 13 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 16 stroke:#BC3B31,stroke-width:3px;
+  linkStyle 17 stroke:#BC3B31,stroke-width:3px;
 </pre>
       </div>
-      <figcaption><b>굵은 화살표 넷이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 둘(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주나 처분을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81). <b>두 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
+      <figcaption><b>굵은 화살표 다섯이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 셋(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주·처분·수리 증빙을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81·D98). <b>세 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code> / <code>repair_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
       <div class="note" style="margin-top:14px">
         <b>확장 도구 9종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69).
         이유는 평가입니다 — 도구를 늘린 채 지표를 재면 <b>"수정의 효과"와 "도구가 늘어난 효과"를 분리할 수 없습니다.</b>
@@ -835,12 +842,12 @@ flowchart LR
       <table>
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
         <tbody>
-          <tr><td>REST 엔드포인트 <b>20종</b></td><td class="mono">backend/routers/ — chat · equipment · po · <b>disposal(/api/assets) · decisions · approvals</b></td></tr>
+          <tr><td>REST 엔드포인트 <b>32종</b></td><td class="mono">backend/routers/ — chat · equipment · po · disposal(/api/assets) · decisions · approvals · <b>inventory · hotspot_status</b>(Sprint 10, D73)</td></tr>
           <tr><td>MCP 도구 <b>16종</b> (코어 7 + 확장 9)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b></td></tr>
-          <tr><td>프론트 라우트 <b>10개</b></td><td class="mono">frontend/app/(console)/ — technician{,/asset/[id]/disposal,/ownership} · manager{,/po/[poId],/decision/[decisionId],/trace/[sid]}</td></tr>
+          <tr><td>프론트 라우트 <b>16개</b></td><td class="mono">frontend/app/(console)/ — technician{,/asset/[id]/{disposal,ownership,evidence},/equipment-status{,/[assetId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,/trace/[sid]}</td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
-          <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · <b>DecisionDetail · SignBar</b> · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
-          <tr><td>자산 화면 컴포넌트</td><td class="mono">components/asset/ — AssetHeader · DisposalPanel · FindingList · <b>VerificationMatrix · ResidualRiskCard</b></td></tr>
+          <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · DecisionDetail · SignBar · <b>RepairDetail</b>(Sprint 10, MQ-1002) · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
+          <tr><td>자산 화면 컴포넌트</td><td class="mono">components/asset/ — AssetHeader · DisposalPanel · FindingList · VerificationMatrix · ResidualRiskCard · <b>EvidenceBundlePanel · ExpenditureForm</b>(Sprint 10, MQ-1001) · <b>InventoryDrawer · EquipmentHotspotDiagram</b>(Sprint 10 브레인스토밍)</td></tr>
           <tr><td>trace 패널</td><td class="mono">components/trace/ — TracePanel · TraceStep</td></tr>
           <tr><td>루프 상한</td><td class="mono">backend/agent/loop.py — MAX_LLM_CALLS_PER_TURN 10 · PER_SESSION 50</td></tr>
           <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · <b>po.py · decisions.py 에서만</b> 호출 (precheck·ownership 에는 없음, D71)</td></tr>
@@ -853,7 +860,7 @@ flowchart LR
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>29스위트 / 702건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>29스위트 / 822건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).
@@ -863,7 +870,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-12</span>
+    <span>기준 2026-08-18</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 

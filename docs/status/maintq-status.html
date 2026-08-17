@@ -254,7 +254,7 @@
       <h1>설비 진단 → 부품 발주 AI 에이전트, 진행 현황</h1>
       <p>에러코드 진단 → 부품 발주에서 시작해, <b>설비를 팔 때와 살 때</b>(법정 조건 검사 · 근거 번들 · 사람 서명)까지 하나의 대화로 잇는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-12</b></div>
+    <div class="asof">기준 시점<b>2026-08-18</b></div>
   </header>
 
   <div class="milestones">
@@ -278,17 +278,22 @@
       <div class="ms-name">평가 · 마무리</div>
       <span class="ms-state">완료</span>
     </div>
-    <div class="ms active">
-      <div class="ms-id">Sprint 5~7</div>
-      <div class="ms-name">확장 · 자산 생애주기</div>
-      <span class="ms-state">S7 Stage 7 진행 중</span>
+    <div class="ms done">
+      <div class="ms-id">Sprint 5~10</div>
+      <div class="ms-name">확장 · 자산 생애주기 · A2A</div>
+      <span class="ms-state">완료</span>
     </div>
   </div>
 
   <div class="note-strip">
     <b>MVP(M1~M4)는 완주했습니다.</b> 이후 <code class="inline">D67</code>로 범위를 넓혀 <b>설비 처분·취득</b>을 본 범위에 넣었고,
-    Sprint 6이 F1·F2·F4(룰 엔진 · 처분 판정 · 실사)를, <b>Sprint 7이 F3(근거 계층 3 — 사람 서명)</b>을 닫았습니다.
-    지금 남은 것은 Sprint 7의 마지막 태스크인 <b>지표 튜닝 + 4차 평가</b> 하나입니다.
+    Sprint 6이 F1·F2·F4(룰 엔진 · 처분 판정 · 실사)를, Sprint 7이 F3(근거 계층 3 — 사람 서명)을,
+    Sprint 8이 A2A 신원 계층(<code class="inline">partner_links</code>)을, <b>Sprint 9가 세 번째 쓰기 도구
+    <code class="inline">create_repair_record</code>(S19 · D98)</b>를, <b>Sprint 10이 근거 번들·지출 분류 화면 +
+    수리 증빙 승인 큐 상세(P37·P38)</b>를 닫았습니다. 같은 시기 별도 브레인스토밍에서
+    <b>재고 드로어</b>(<code class="inline">GET /api/inventory</code>)와 <b>설비 하이라이트 대시보드</b>
+    (실제 LS 매뉴얼 도면 위 클릭 가능한 상태 핫스팟, <code class="inline">GET /api/assets/{id}/hotspot-status</code>)도
+    합류했습니다. 남은 것은 백로그 — P36(F5·F6 감시 계층) · P39(화면 직접 초안 생성)뿐입니다.
   </div>
 
   <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
@@ -302,8 +307,8 @@
 
   <!-- ============ 구현 완료 ============ -->
   <section>
-    <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 6종</span></div>
-    <p class="sec-note">회귀 <b>spikes 29스위트 / 702건</b> · seed 29 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 7종</span></div>
+    <p class="sec-note">회귀 <b>spikes 29스위트 / 822건</b> · seed 31 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -349,9 +354,9 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>UI — 라우트 11개</h3><span class="chip done">완료</span></div>
-        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · 팀장 통합 승인 큐 · <b>처분서 상세/서명</b> · trace. 실측 <code class="inline">npm run build</code> 기준 11 라우트.</p>
-        <div class="meta"><span class="tag">D18·D42·D45·D85·D87</span><span class="tag">ui_honesty_contract 102건</span></div>
+        <div class="card-head"><h3>UI — 라우트 16개</h3><span class="chip done">완료</span></div>
+        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · <b>설비 하이라이트 대시보드</b>(목록·상세, 실 도면 핫스팟) · <b>재고 드로어</b> · <b>근거 번들 화면</b> · <b>지출 분류 화면</b> · 팀장 통합 승인 큐(<b>처분서 · 수리 증빙</b> 상세) · trace. 실측 <code class="inline">npx next build</code> 기준 16 라우트.</p>
+        <div class="meta"><span class="tag">D18·D42·D45·D73·D85·D87</span><span class="tag">ui_honesty_contract 222건</span></div>
       </div>
 
       <div class="card">
@@ -400,13 +405,19 @@
         <p class="desc"><code class="inline">get_maintenance_metrics</code>(MTBF·예방보전 비율) · <code class="inline">assess_repair_value</code>(수리/교체/매각 3지) · <code class="inline">classify_expenditure</code> · <code class="inline">classify_part_criticality</code>. 잔가곡선은 <b>목업 정률 공식</b>입니다 — 실데이터로 감가를 식별할 수 없다는 한계를 실증해 보존했습니다(D74).</p>
         <div class="meta"><span class="tag">D64·D68·D74</span><span class="tag">repair_records 12 · residual_curve 42</span></div>
       </div>
+
+      <div class="card">
+        <div class="card-head"><h3>수리 증빙 서명 (S19) ★</h3><span class="chip done">완료 · Sprint 9</span></div>
+        <p class="desc"><code class="inline">create_repair_record</code>(D98) — 세 번째 쓰기 도구, <code class="inline">repair_writer()</code> 전용 커넥션 + <code class="inline">repair_records</code> 전용 TEMP TRIGGER. <code class="inline">POST /api/repairs/{id}/submit·sign·reject</code>까지 완성돼 통합 승인 큐의 <code class="inline">kind: "repair"</code> 자리가 <b>계약 변경 없이</b> 실제로 채워졌습니다. Sprint 7·8에서 두 번 이월된 뒤 착수됐습니다.</p>
+        <div class="meta"><span class="tag">D85·D98</span><span class="tag">repair_flow_contract 19건</span><span class="tag">시드 12건(서명 11+draft 1)</span></div>
+      </div>
     </div>
   </section>
 
   <!-- ============ 진행 중 / 막힘 ============ -->
   <section>
-    <div class="sec-head"><h2>진행 중 — Sprint 7 Stage 7 (MQ-713)</h2><span class="count">지표 튜닝 + 4차 평가</span></div>
-    <p class="sec-note">스프린트의 마지막 태스크 하나만 남았습니다. <b>측정 → 원인 분석 → 튜닝</b> 루프이며, 3차 측정과 원인 분석은 끝났고 지금은 튜닝의 효과를 4차로 검증하는 단계입니다.</p>
+    <div class="sec-head"><h2>완료된 지표 튜닝 — Sprint 7 Stage 7 (MQ-713)</h2><span class="count">지표 튜닝 + 4차 평가 · 완료</span></div>
+    <p class="sec-note">2026-08-12에 종료된 스프린트의 마지막 태스크 기록입니다. <b>측정 → 원인 분석 → 튜닝</b> 루프였습니다. 이후 새 평가 회차는 없습니다 — Sprint 8~10은 튜닝이 아니라 A2A 신원 계층 · 수리 증빙 · 근거 번들 화면 등 <b>새 기능</b>을 붙이는 스프린트였습니다. 이 절의 수치는 지금도 5지표의 최신 실측값입니다.</p>
     <div class="grid cols-3">
       <div class="card">
         <div class="card-head"><h3>3차 측정 · 원인 분석</h3><span class="chip done">완료</span></div>
@@ -508,7 +519,7 @@
 
   <!-- ============ 문제점 ============ -->
   <section>
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">7건 남음 — 사람 승인 3 · 외부 결함 1 · 환경 1 · UX 1 · 품질 한계 1</span></div>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">6건 남음 — 사람 승인 2 · 외부 결함 1 · 환경 1 · UX 1 · 품질 한계 1</span></div>
     <div class="issue">
       <span class="sev info">✅ 해결</span>
       <div>
@@ -518,11 +529,11 @@
       </div>
     </div>
     <div class="issue">
-      <span class="sev crit">사람 승인</span>
+      <span class="sev info">해소됨 (2026-08-13)</span>
       <div>
-        <h4>처분 승인서 · 진술보장서 문안 검수 대기</h4>
-        <p><b>법적 효력이 있는 문서</b>라 안전 문구(D2)와 같은 성격입니다. 승인 전까지 <code class="inline">generate_disposal_document</code> 출력에 <code class="inline">unreviewed_template_notice</code>가 붙습니다.</p>
-        <div class="fix"><b>런타임 영향 —</b> 초안 생성·서명 흐름은 동작하되 문서에 미검수 고지가 실립니다.</div>
+        <h4>✅ <s>처분 승인서 · 진술보장서 문안 검수 대기</s> — 2026-08-13 검수 완료(D90)</h4>
+        <p><b>법적 효력이 있는 문서</b>라 안전 문구(D2)와 같은 성격이었습니다. 19시나리오(판정 5종 전부)를 사람이 확인하고 지적 5개 지점(진술보장서 책임이전 구조 · <code class="inline">BLOCKED</code> 문서의 이중 문장 · <code class="inline">확인되지 않음</code> 잔존 · 해시 미고정 계약근거 · 호칭 혼용)을 <b>전부 현행대로 수용</b>했습니다 — 문안은 한 글자도 바뀌지 않았습니다.</p>
+        <div class="fix"><b>영향 —</b> 출력 키가 <code class="inline">unreviewed_template_notice</code> → <code class="inline">template_review_notice</code>로 개명되고 <code class="inline">template_reviewed: true</code>가 함께 실립니다. <b>F1~F3 잔여 사람 검수는 이제 없습니다.</b></div>
       </div>
     </div>
     <div class="issue">
@@ -582,11 +593,19 @@
         <div class="fix"><b>후보 —</b> 분류기 또는 LLM judge 도입은 4차 평가 결과와 함께 판단.</div>
       </div>
     </div>
+    <div class="issue">
+      <span class="sev warn">사람 승인</span>
+      <div>
+        <h4>시나리오 번호 <code class="inline">S19</code> 충돌 — 정정 방향 결정 대기 (백로그 P33)</h4>
+        <p>MaintQ가 로컬로 붙인 <code class="inline">S19</code>(수리 증빙 서명)가 Q 시리즈 전사 지도의 <code class="inline">S19</code>(FinAllQ 기업 고객 온보딩, 구현 완료)와 충돌합니다. 세 프로젝트가 같은 번호 체계를 공유해 MaintQ 혼자 정할 수 없습니다.</p>
+        <div class="fix"><b>영향 없음 —</b> 번호는 문서에만 있고 DB·도구 계약·enum에는 없어 결정 전에도 회귀는 깨지지 않습니다. 권장안은 <code class="inline">S29</code>로 이동.</div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ 데이터 현황 ============ -->
   <section>
-    <div class="sec-head"><h2>데이터 현황</h2><span class="count">2026-08-13 DB 실측 — 19테이블</span></div>
+    <div class="sec-head"><h2>데이터 현황</h2><span class="count">2026-08-18 DB 실측 — 20테이블</span></div>
     <p class="sec-note">아래 규모는 문서가 주장하는 값이 아니라 <code class="inline">data/maintq.db</code>를 직접 조회한 실측치입니다. <b>Sprint 6~7에서 실데이터가 하나 늘었습니다</b> — 법령 조문 원문(계층 1)이 "앞으로 만들 것"에서 "받은 것"으로 옮겨갔습니다.</p>
     <div class="datatable-wrap">
       <table>
@@ -649,6 +668,12 @@
             <td>⚠ <b>실데이터로는 감가를 식별할 수 없음이 실증됐습니다</b>(D74). 목업임을 출력에 고지</td>
           </tr>
           <tr>
+            <td><b><code class="inline">part_lifecycle_mock</code> — 부품 생애주기 경고 ★신규</b></td>
+            <td><span class="status-dot pending">목업 고지</span></td>
+            <td class="num">27건<br>9자산 × 부품 3종</td>
+            <td>설비 하이라이트 대시보드의 🟠(곧 점검) 판정 유일 출처(Sprint 10 브레인스토밍). 실 텔레메트리·정비 이력 유도 아님 — 화면에 mock 고지 필수(D65)</td>
+          </tr>
+          <tr>
             <td><code class="inline">related_parts</code> (에러코드→부품 매핑)</td>
             <td><span class="status-dot ok">★ 사람 최종 승인 완료</span></td>
             <td class="num">8건<br>승인 2026-08-12</td>
@@ -675,8 +700,8 @@
           <tr>
             <td>SQLite 목업 DB</td>
             <td><span class="status-dot ok">구축 완료</span></td>
-            <td class="num"><b>19테이블</b><br>seed 검증 29건</td>
-            <td>코어 11 + 확장 7 + A2A 1. <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>는 런타임 생성이라 시드 0행이 정상</td>
+            <td class="num"><b>20테이블</b><br>seed 검증 31건</td>
+            <td>코어 11 + Sprint 6 확장 7 + Sprint 8 A2A 1(<code class="inline">partner_links</code>) + Sprint 10 목업 1(<code class="inline">part_lifecycle_mock</code>). <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>는 런타임 생성이라 시드 0행이 정상</td>
           </tr>
           <tr>
             <td>데모 영상 / README 데모 GIF</td>
@@ -692,7 +717,7 @@
   <!-- ============ 앞으로 구현할 것 ============ -->
   <section>
     <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P36</span></div>
-    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b><code class="inline">create_repair_record</code>(P25·S19)는 Sprint 9 가 완성했습니다</b> — 쓰기 도구 + <code class="inline">/api/repairs/*</code> 전이까지, 통합 승인 큐의 <code class="inline">kind: "repair"</code> 자리도 이제 실제로 채워집니다(계약 변경 없이). 남은 가장 가까운 항목은 <code class="inline">flags</code> 발생·해소입니다.</p>
+    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b><code class="inline">create_repair_record</code>(P25·S19)는 Sprint 9 가</b>, <b>근거 번들·지출 분류 화면과 수리 증빙 승인 큐 상세(P37·P38)는 Sprint 10 이</b> 완성했습니다. 남은 가장 가까운 항목은 <code class="inline">flags</code> 발생·해소(F5·F6, 백로그 P36)와 화면 직접 초안 생성(P39)입니다.</p>
 
     <details class="backlog-group" open>
       <summary>진단 입력 확장<span class="n">4</span></summary>
@@ -757,12 +782,12 @@
   </section>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>Sprint 9 진행 중 — 수리 증빙 축(P25·S19) 완성, 문서·개수 전파(MQ-918) 진행 중</strong><br>
-      <span style="font-size:12.5px">🔴 사람: 안전 문구 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · <code class="inline">actions</code> 결측 회수분 병합 승인(MQ-919)<br>
-      ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b></span></div>
+    <div>다음 우선순위: <strong>Sprint 5~10 전부 완료 — 남은 것은 백로그(P36 F5·F6 감시 계층 · P39 화면 직접 초안 생성)와 사람 승인 대기 항목뿐</strong><br>
+      <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · 시나리오 번호 <code class="inline">S19</code> 충돌 정정 방향(P33)<br>
+      ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b></span></div>
     <div class="figs">
-      <div><b>702</b>회귀 단언 (29스위트) + seed 29 + pytest 46</div>
-      <div><b>19</b>DB 테이블 (코어 11 + 확장 7 + A2A 1)</div>
+      <div><b>822</b>회귀 단언 (29스위트) + seed 31 + pytest 46</div>
+      <div><b>20</b>DB 테이블 (코어 11 + 확장 7 + A2A 1 + 목업 1)</div>
       <div><b>101</b>설계 결정 D1~D101</div>
       <div><b>16</b>MCP 도구 (코어 7 + 확장 9)</div>
     </div>
