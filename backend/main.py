@@ -24,6 +24,7 @@ from backend.routers import (
     decisions,
     disposal,
     equipment,
+    hotspot_status,
     inventory,
     maint_value,
     po,
@@ -107,6 +108,7 @@ app.include_router(approvals.router)
 app.include_router(maint_value.router)
 app.include_router(repairs.router)
 app.include_router(inventory.router)
+app.include_router(hotspot_status.router)
 
 
 @app.get("/health")
