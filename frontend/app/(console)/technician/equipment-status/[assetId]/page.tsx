@@ -27,7 +27,18 @@ export default function EquipmentStatusDetailPage({
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getAsset("technician", assetId), getHotspotStatus("technician", assetId)])
+    Promise.all([
+      getAsset("technician", assetId),
+      // hotspot-status 의 404(no_equipment_for_asset)는 "등록 안 된 자산"이 아니라
+      // "연결된 인버터가 없는, 정상 등록된 자산"이다 — getAsset 의 404 와 원인이 다르므로
+      // 여기서 개별로 흡수해 하단 status.status==="not_found" 분기로 보낸다.
+      getHotspotStatus("technician", assetId).catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) {
+          return { status: "not_found" } as ApiHotspotStatus;
+        }
+        throw e;
+      }),
+    ])
       .then(([a, s]) => {
         if (!alive) return;
         setAsset(a);
