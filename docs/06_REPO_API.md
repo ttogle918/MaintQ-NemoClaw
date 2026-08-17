@@ -366,6 +366,15 @@ MCP 프로세스를 거치지 않는다. 위 다섯 경로와 같은 규약: 역
 동작(D73) · 오류 매핑은 도구 `status`/`reason` 을 재포장 없이 그대로 싣는다(`invalid_input`·`invalid_model` → 422,
 `not_found` → 404).
 
+#### 설비 하이라이트 상태 — `GET /api/assets/{asset_id}/hotspot-status` (Sprint 10, D73)
+
+```
+GET  /api/assets/{asset_id}/hotspot-status                → 부품별 하이라이트 색(red/blue/orange/null) + 근거
+```
+
+`backend/routers/hotspot_status.py` 가 `data.hotspot_status.hotspot_status()`(§4-5·§4-6)를 그대로 부른다 —
+역할 게이트 없음(읽기 판정) · `core` 프로파일에서도 동작(D73) · 연결된 인버터가 없는 자산은 404.
+
 ### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
 
 ```

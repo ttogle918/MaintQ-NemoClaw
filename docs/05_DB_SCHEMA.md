@@ -6,18 +6,22 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 → **Sprint 6 (F1·F2·F4)에서 7개 추가** — `assets`·`law_refs`·`rules`·`decisions`·`flags`·
 `repair_records`·`residual_curve` (§11~§17).
 → **Sprint 8 (A2A 신원 식별)에서 1개 추가** — `partner_links` (§18).
+→ **Sprint 10 (설비 하이라이트 대시보드)에서 1개 추가** — `part_lifecycle_mock` (§19).
 
-> **세는 단위 주의 — "18"이 두 뜻으로 등장한다.** 아래 두 숫자는 서로 다른 것을 센다.
+> **세는 단위 주의 — "19"가 두 뜻으로 등장한다.** 아래 두 숫자는 서로 다른 것을 센다.
 > 문장을 읽을 때 *"절"* 을 세는지 *"`CREATE TABLE`"* 을 세는지 반드시 구분할 것.
 >
-> - **`CREATE TABLE` 은 19개다** (`data/seed.py` 의 `SCHEMA` 기준) —
->   코어 **11개** + Sprint 6 **7개** + Sprint 8 **1개**(`partner_links`).
-> - **절(§)은 18절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**.
+> - **`CREATE TABLE` 은 20개다** (`data/seed.py` 의 `SCHEMA` 기준) —
+>   코어 **11개** + Sprint 6 **7개** + Sprint 8 **1개**(`partner_links`) + Sprint 10 **1개**
+>   (`part_lifecycle_mock`).
+> - **절(§)은 19절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**,
+>   `§19` **1절**.
 > - 절보다 `CREATE TABLE` 이 1개 많은 이유는 **`§7`이 `suppliers`와 `supplier_parts`
 >   두 테이블을 함께 다루기 때문**이다.
 > - **`§10`은 존재하지 않는다** (`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
 >   `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
->   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 끝에 `§18`을 잇기만 한다.
+>   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 `§18`을, Sprint 10 은
+>   `§19`를 끝에 잇기만 한다.
 
 ---
 
@@ -43,6 +47,8 @@ parts ──< inventory
        traces                        ← 세션별 실행 로그 (D21)
 
 partner_links   ← 외부 파트너 subject 대장. FK 없음(building_id 가 FK 없는 것과 같은 이유) · 인증 정보 아님
+
+equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 🟠(곧 점검) 판정 출처. mock(D65 고지 필수)
 ```
 
 ---
@@ -698,7 +704,8 @@ CREATE TABLE residual_curve (
 # Sprint 8 확장 — A2A 신원 식별 기반층
 
 > `docs/A2A_IDENTITY.md`·`docs/A2A_CONTRACTS.md` 가 참조하는 **기반층 1종**.
-> 이 절이 더해져 `CREATE TABLE` 은 **19개**, 절은 **18절**이 된다(서두 "세는 단위 주의" 참조).
+> 이 절이 더해져(Sprint 8 시점) `CREATE TABLE` 은 **19개**, 절은 **18절**이 됐다 — Sprint 10 이
+> `part_lifecycle_mock`(§19)을 더해 지금은 **20개 / 19절**이다(서두 "세는 단위 주의" 참조).
 > ⚠ **A2A 호출부는 미착수다** — 이 스프린트가 만드는 것은 **대장(테이블)과 계측 자리**뿐이다.
 
 ## 18. partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D95·D96)
@@ -858,6 +865,45 @@ D78 이 `AST-L3-LIFT` 한 건만 `insured=0` 으로 남겨 `CLEAR` 경로를 확
 FAIL** 한다. ⛔ `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보다 미래"* 가 되어 같은 검사가
 위양성 FAIL 한다 — 감사 시점은 재현 대상이 아니다.
 
+## 19. part_lifecycle_mock — 부품 생애주기 경고 목업 (Sprint 10 브레인스토밍 D)
+
+> 설비 하이라이트 대시보드(`GET /api/assets/{asset_id}/hotspot-status`, `docs/06_REPO_API.md`)가
+> 🟠(곧 점검) 판정에 쓰는 **유일한 출처**. `equipment` × 하이라이트 대상 부품 3종(냉각팬·키패드·
+> 제어보드 — `frontend/lib/hotspots.ts`·`data/hotspot_status.py`의 `MODEL_HOTSPOT_PARTS`와 `part_no`가
+> 짝이어야 한다) 조합마다 "다음 점검 예정일" 1행을 둔다.
+
+```sql
+-- §19 part_lifecycle_mock — 생애주기 경고(D) 목업 (Sprint 10 브레인스토밍).
+-- ⛔ 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
+--    부품별 다음 점검일 직접 부여"를 선택했다. 화면에 mock 고지 필수(D65).
+CREATE TABLE part_lifecycle_mock (
+  equipment_id TEXT NOT NULL REFERENCES equipment,
+  part_no      TEXT NOT NULL REFERENCES parts,
+  next_maintenance_due DATE NOT NULL,
+  PRIMARY KEY (equipment_id, part_no)
+);
+```
+
+### 설계 포인트
+
+**실 텔레메트리가 아니라 명시적 목업이다** — 이 프로젝트에 정비 이력 기반 예지보전 로직이 없고
+(spec §4-5), 사용자가 "새 가짜 필드로 부품별 다음 점검일을 직접 부여" 방식을 선택했다. 그래서
+화면(`EquipmentHotspotDiagram.tsx` 확대 패널)은 이 값을 보여줄 때 **"생애주기 mock 데이터입니다 —
+실제 정비 이력에서 유도한 값이 아닙니다"** 고지를 함께 렌더해야 한다(D65) — 수동 확인(Task 10)에서
+🟠 항목마다 이 문구가 뜨는 것을 확인했다.
+
+`equipment`·`parts` 에 FK 를 걸되 **`next_maintenance_due` 자체에는 CHECK 를 두지 않는다** — 이미
+지난 날짜(overdue)도 유효한 상태이고(임박도를 판정하는 것은 `data/hotspot_status.py`의
+`M_UPCOMING_DAYS` 창이지 DDL 이 아니다), 날짜 하한을 스키마에 박으면 "지금 막 지난 점검일"을
+표현할 자리가 없어진다. 색 우선순위는 🔴(이상탐지) > 🔵(최근 수리) > 🟠(곧 점검) 이므로 같은
+부품에 진단 이력이나 최근 서명 수리가 있으면 이 테이블 값은 조회는 되어도 최종 색에는 반영되지
+않는다 — `hotspot_status()` 가 순서대로 판정하고 하나만 고른다.
+
+시드는 9개 자산(`equipment`) × 부품 3종 = **27행** 고정이며, `next_maintenance_due` 는
+`--today` 기준 상대 오프셋(`PART_LIFECYCLE_MOCK` 의 `offset_days`)으로 계산한다 — 이미 지난 것
+(음수)·임박·여유 있는 것을 섞어 데모 다양성을 확보한다. 시드 검사 ㉛ 이 행수 27과 모델-부품 정합
+(`model` 이 `iG5A` 면 `part_no` 에 `IG5`, `S100` 이면 `S100` 포함)을 확인한다.
+
 ---
 
 ## 시드 데이터 전략 — "일부러 꼬아놓은" 케이스 맵
@@ -939,6 +985,8 @@ FAIL** 한다. ⛔ `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보
 | ㉗ | `repair_records` **상태 불변식**(D98) — `state='signed' ⇔ signed_at·record_hash·verified_by 전부 non-null` 을 **양방향**(iff)으로 검사, 어휘 밖 상태 0건 + 미서명 정확히 1건(`RPR-2403`) | D98 |
 | ㉘ | `error_codes` **출처 컬럼 짝 불변식**(D100) — `actions_manual_id`·`actions_page` 짝 불일치 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D100 |
 | ㉙ | `repair_records.record_hash` **재계산 대조**(D84 태도) — `data/repair_hash.compute_record_hash()` 로 서명 11행을 다시 계산해 저장 해시와 전건 일치하는지 확인 | D84·D98 |
+| ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL 62건은 기대치 | MQ-919 |
+| ㉛ | `part_lifecycle_mock` **27행**(9자산 × 부품 3종) · **모델-부품 정합**(`equipment.model` 이 `iG5A` 면 `part_no` 에 `IG5`, `S100` 이면 `S100` 포함, 불일치 0건) | Sprint 10 브레인스토밍 D |
 
-> **실측 (2026-08-17)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (29건)**.
+> **실측 (2026-08-17)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (31건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.
