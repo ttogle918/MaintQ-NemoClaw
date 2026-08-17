@@ -375,6 +375,27 @@ export const getAssets = (role: Role, params?: { lineId?: number; status?: strin
 export const getAsset = (role: Role, assetId: string) =>
   apiFetch<ApiAsset>(`/api/assets/${encodeURIComponent(assetId)}`, role);
 
+export interface ApiHotspotPart {
+  part_no: string;
+  color: "red" | "blue" | "orange" | null;
+  basis: Record<string, unknown>;
+}
+
+export interface ApiHotspotStatus {
+  status: string;
+  equipment_id?: string;
+  model?: string;
+  parts?: ApiHotspotPart[];
+  reason?: string;
+  [k: string]: unknown;
+}
+
+export const getHotspotStatus = (role: Role, assetId: string) =>
+  apiFetch<ApiHotspotStatus>(
+    `/api/assets/${encodeURIComponent(assetId)}/hotspot-status`,
+    role
+  );
+
 /**
  * 처분 사전판정 결과. **`CLEAR`·`CONDITIONAL` 만 200 이다** —
  * `BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS` 는 409 로 오고, 본문은 200 과 **같은 형태 + `detail`**
