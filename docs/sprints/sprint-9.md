@@ -1875,3 +1875,33 @@ seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contrac
 
 - MQ-917(`ui_honesty_contract` 확장)이 다음 스테이지다 — L2 스캔 대상에 `RepairDetail.tsx`(MQ-916 이월로 아직 없음)를 추가하는 부분은 **건드리지 않는다**(파일이 없으므로).
 - `ExpenditureCard` 의 `asset_id` 미전달 문제는 실질 개선을 원하면 별도 D-결정 + 백엔드 라우터 변경이 필요하다는 게 reviewer 권고 — 이번 스프린트 범위에는 없음, 백로그 후보로만 기록.
+
+---
+
+## 16. Stage 8 완료 (2026-08-17)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `9f2fd34` — `[M3] Sprint 9 Stage 8 — ui_honesty_contract 확장 (D65·D74·D87·D64 방어선, MQ-917)`
+
+착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 8 = **MQ-917 단독** 확인 후 실행.
+
+### 16-1. 산출
+
+`spikes/ui_honesty_contract.py` · `frontend/lib/__checks__/ui_honesty.ts` — L1(순수함수) 검사 13건 신설 · D64 축 신설(주석 필터링으로 위양성 방지, 양성 축 포함) · 뮤턴트 3종 추가(ⓕⓖⓗ, 전부 실제로 방어선을 깨뜨리는 것을 실증) · `L2_FILES_FLOOR` 8→12 실측 갱신 · `STATE_WORDS`에 `assess_repair_value` verdict enum 4종 추가(`04_MCP_TOOLS.md`와 대조 일치).
+
+### 16-2. 명세 델타 준수
+
+원 명세는 "`L2_EXTRA`에 `RepairDetail.tsx` 추가"를 요구했으나 §9-4 델타가 이를 삭제(MQ-916 컷으로 그 파일 자체가 없음) — 실제로 `RepairDetail` 문자열이 스위트에 0건임을 reviewer가 코드로 재확인.
+
+### 16-3. reviewer 게이트 — 1차 PASS(블로커 0건)
+
+뮤턴트 3종(ⓕⓖⓗ)이 실제로 방어선을 깨뜨리는지 코드 레벨로 대조 확인(공허 통과 방지 장치 — `mutate_l1`이 치환 실패 시 자체 FAIL). D64 축의 주석 필터링(`strip_comments`)이 검사를 무력화하는 구멍이 아니라 "실제 코드에 없다"를 증명하는 정당한 방식임을 자체 픽스처 검증·뮤턴트 ⓔ로 확인. `L2_FILES_FLOOR` 12가 실측(글롭 직접 카운트)과 정확히 일치.
+
+### 16-4. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contract` 기준선 92건 → **102건**, 그 밖 28스위트 무증감) · `ruff` 통과 · frontend `tsc --noEmit` 통과 · `npm run build` **라우트 11개 유지**(이번 태스크는 프론트 컴포넌트를 만들지 않음).
+
+### 16-5. Stage 9 착수 전 참고
+
+- 다음 스테이지는 MQ-918(문서·개수 전파) — §9-2 표 재확인 결과 **단독**.
+- 이번까지 누적된 전파 대상: `docs/06_REPO_API.md §2.3`(repair 낡은 서술, §14-4에서 발견) · `decisions.py:602` 주석(§11-5) · `L2_FILES_FLOOR`가 컴포넌트 증가마다 갱신 필요하다는 사실(§16-1) · D 범위 표기 `D1~D101` 등.
