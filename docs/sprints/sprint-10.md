@@ -70,9 +70,24 @@ DB는 검증 후 클린 재시드로 원복.
   재확인만)
 - 리뷰: PASS(경미한 DoD 문구 정정 권고 1건, 코드 위반 아님)
 
+## 브라우저 확인 (2026-08-18, Sprint 10 마무리)
+
+Claude-in-Chrome 으로 세 화면을 실제 렌더링·상호작용까지 확인:
+
+- **근거 번들** (`/technician/asset/{id}/evidence`): SALE 모드 선택 → 판정 배너(`INSUFFICIENT_FACTS`) ·
+  `hash_fixed` 고지 · laws(4)·rules(3)·evaluated(5, 무채색 `TRIGGERED`/`CLEAR`)·facts(13)·not_considered·
+  `bundle_hash`(전체 표시) 전부 정상 렌더 확인.
+- **지출 분류** (`/manager/expenditure`): "냉각팬" 검색 → 4건 후보 → `FAN-IG5-01` 선택 → 원상 복구/150,000원
+  입력 → 제출 → `ExpenditureResult`(카드 화면과 동일 컴포넌트) 로 `HOLD`+세무 전문가 검토 배너 정상 렌더 확인.
+- **승인 큐 repair 상세** (`/manager/repair/{id}`): 목록에서 이동 가능(리뷰 블로커 수정 확인) · signed 레코드의
+  "대조 일치" 색(파란 정보 톤, D87 수정 확인) · 서명/반려 컨트롤이 상태별로 정확히 노출/은폐되는 것 확인.
+
+**🐛 실사용 중 신규 발견 · 수정**: 서명/반려 직후 상세 패널이 새로고침 없이는 갱신되지 않는 버그 발견
+(`RepairDetail.tsx`의 로컬 `repair` state가 `onUpdated` 콜백에서 안 바뀜 — 부모 목록은 갱신되는데 열려 있는
+상세만 낡은 채로 남음). 커밋 `95e09a8`으로 수정, 서명·반려 둘 다 재검증(새로고침 없이 즉시 갱신 확인).
+
 ## 남은 작업 (사용자 지시)
-- 브라우저 에이전트를 이용한 시각/UX 확인 — Sprint 10 전체가 끝난 지금 일괄 진행 예정
-- `docs/status/*.html` 3종을 최신 상태로 갱신 — 브라우저 확인 이후 진행 예정
+- `docs/status/*.html` 3종을 최신 상태로 갱신 — 다음 단계
 
 ## 배경
 
