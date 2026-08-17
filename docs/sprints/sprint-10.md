@@ -1,7 +1,34 @@
 # Sprint 10 — 근거 번들/지출 분류 화면 + 수리 증빙 승인 큐 상세
 
-**상태**: 계획 확정 (`/sprint` Step 1~3 완료). tool-builder 현실성 평가에서 스펙 텍스트 3건 정정(코드/스테이지
-구조 변경 없음 — 아래 "현실성 평가" 절 참고). 실행 대기 — `/stage 1`.
+**상태**: Stage 1 완료(2026-08-18). 다음은 `/stage 2`(MQ-1003).
+
+## Stage 1 완료 (2026-08-18)
+
+**커밋**: `1a5fd89` — `[M3] 근거 번들/지출 분류 화면 + 수리 증빙 승인 큐 상세 (P37·P38)`
+
+#### MQ-1001 — 근거 번들 화면 + 지출 분류 독립 페이지
+- 구현 파일: `frontend/components/asset/EvidenceBundlePanel.tsx`·`ExpenditureForm.tsx`(신규),
+  `frontend/app/(console)/technician/asset/[assetId]/evidence/page.tsx`·
+  `frontend/app/(console)/manager/expenditure/page.tsx`(신규), `DisposalPanel.tsx`·`ExpenditureCard.tsx`·
+  `DecisionDetail.tsx`(export 추가만), `frontend/lib/decisionView.ts`(신규 함수), disposal page.tsx(링크 1개)
+- 회귀: tsc 클린 · build 통과
+
+#### MQ-1002 — 승인 큐 kind:"repair" 상세
+- 구현 파일: `frontend/lib/queueState.ts`(`STATE_LABEL.repair` 채움 + `isPendingState`),
+  `frontend/lib/mappers.tsx`(`repairStateView`를 `stateView` 위임으로 단순화, `REPAIR_STATE_LABEL` 삭제),
+  `frontend/components/queue/RepairDetail.tsx`(신규), `ApprovalQueueScreen.tsx`(repair 분기 추가)
+- 리뷰 1차 FAIL — 승인 큐 목록에서 repair 항목이 `detailHref` 없음으로 클릭 불가(전용 라우트 없음). 수정:
+  `frontend/app/(console)/manager/repair/[repairId]/page.tsx` 신설 + `detailHref()`에 한 줄 추가 → 재검토 PASS
+- 부수 수정: `frontend/lib/__checks__/ui_honesty.ts`의 L1-9 픽스처가 "repair/pending은 맵 밖"이라는 이제는
+  깨진 가정을 갖고 있어 `repair/archived`로 교체(Sprint 8이 비워 뒀던 `STATE_LABEL.repair`를 이번에 채운 결과,
+  옛 오라클이 낡은 것이지 새 코드의 결함이 아님)
+- 회귀: tsc 클린 · build 통과 · `ui_honesty_contract.py` 200계약+16게이트/뮤턴트/메타 전부 PASS
+
+**실측 라우트 수**: 16개(`npx next build` 출력 기준, `/`·`/_not-found` 포함) — 계획 문서의 "13개" 예상은
+계획 작성 시점 기준선 오차(11→12)로 어긋났었다. MQ-1004가 정확한 수치로 문서를 갱신할 것.
+
+**미해결(경미, 후속)**: `frontend/components/queue/QueueList.tsx:61-63`의 "repair는 착지점이 없다" 주석이
+이제 낡았다 — 다음에 이 파일을 만질 때 갱신 권장(리뷰어 지적, 커밋 차단 아님).
 
 ## 배경
 
