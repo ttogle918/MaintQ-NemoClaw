@@ -377,6 +377,43 @@ export const WORK_SCOPE_OPTIONS: WorkScopeOption[] = [
   { value: "REPLACE_UNIT", label: "설비 단위 교체" },
 ];
 
+/* -------------------------------------------------------------------------- */
+/* 설비 하이라이트 색 어휘 (Sprint 10 브레인스토밍 C, spec §4-5) —              */
+/* EquipmentHotspotDiagram 전용. ⛔ 이 절 밖(컴포넌트 파일)에 "red"|"blue"|      */
+/* "orange" 문자열 비교나 색 토큰이 있으면 안 된다 (D87, ui_honesty_contract L2). */
+
+export type HotspotColor = "red" | "blue" | "orange";
+
+const HOTSPOT_COLOR_LABEL: Record<HotspotColor, string> = {
+  red: "이상탐지",
+  blue: "최근 수리",
+  orange: "곧 점검",
+};
+
+const HOTSPOT_COLOR_DOT: Record<HotspotColor, string> = {
+  red: "var(--error-tx)",
+  blue: "var(--blue-tx)",
+  orange: "var(--orange-tx)",
+};
+
+export interface HotspotColorLabel {
+  text: string;
+  dotColor: string | null;
+  known: boolean;
+}
+
+/** `color` 가 `null`이면 "정상"(색 없음) — 모르는 값이 오면 원문 그대로 + 무색 처리. */
+export function hotspotColorView(color: string | null | undefined): HotspotColorLabel {
+  if (color === null || color === undefined) {
+    return { text: "정상", dotColor: null, known: true };
+  }
+  const label = HOTSPOT_COLOR_LABEL[color as HotspotColor];
+  if (!label) {
+    return { text: color, dotColor: null, known: false };
+  }
+  return { text: label, dotColor: HOTSPOT_COLOR_DOT[color as HotspotColor], known: true };
+}
+
 function relativeTime(iso: string): string {
   const then = new Date(iso.replace(" ", "T")).getTime();
   if (Number.isNaN(then)) return "";
