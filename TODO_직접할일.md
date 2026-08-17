@@ -201,17 +201,16 @@ Claude가 대신 못 하는 것들. 순서대로.
 ## actions 검수
 
 > Sprint 9 MQ-911 산출물. 검수 자료: `data/analysis/actions_review.md`(기계 생성, 표 3종 + 재승인 범위 절).
-> 후보 파일: `data/extracted/error_codes_actions.candidate.json`(`_status`: 초안 — 사람 검수 대기, D99).
-> ⛔ 이 절은 아직 검수되지 않았다 — 아래 3항목은 미체크 상태로 둔다. 정본 병합은 MQ-919 가 한다.
+> 후보 파일: `data/extracted/error_codes_actions.candidate.json`(`_status`: **승인 완료 (2026-08-17)**, D99).
+> ✅ **2026-08-17 사용자 최종 승인 완료** (G1·G2). 정본 병합은 이 절이 아니라 **MQ-919** 가 한다.
 
-- [ ] ① **조치문 코드별 확인(3건)** — `data/analysis/actions_review.md` 표 1의 iG5A `RERR`·`ETB`,
-  S100 `FANW` 조치문이 매뉴얼 원문과 일치하는지 확인
-- [ ] ② **안전 문구 확인** — 표 2 결과: 키워드(활선·방전·대기시간·감전·고전압) 스캔 대상 3건 중
-  **0건 적중**. 매뉴얼 '10분 이상' 방전 대기 문구와 비교할 대상 자체가 없으므로 이번 검수에서는
-  **안전 문구 확인이 필요 없다** — 표 2 의 스캔 규모(3건)만 사실로 확인할 것
-- [ ] ③ **승인 시 절차** — 승인하면 `data/extracted/error_codes_actions.candidate.json` 의
-  `_status` 필드를 `"초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에 적재되지 않는다"` 에서
-  `"승인 완료 (YYYY-MM-DD)"` 형식으로 사람이 직접 바꾼다. 정본(`data/extracted/error_codes.json`)
+- [x] ① **조치문 코드별 확인(3건)** — `data/analysis/actions_review.md` 표 1의 iG5A `RERR`·`ETB`,
+  S100 `FANW` 조치문 — **2026-08-17 사용자 승인**.
+- [x] ② **안전 문구 확인** — 표 2 결과: 키워드(활선·방전·대기시간·감전·고전압) 스캔 대상 3건 중
+  **0건 적중**. 매뉴얼 '10분 이상' 방전 대기 문구와 비교할 대상 자체가 없어 안전 문구 확인
+  대상 없음 — **2026-08-17 사용자 승인**.
+- [x] ③ **승인 시 절차** — `_status` 필드를 `"초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에
+  적재되지 않는다"` 에서 `"승인 완료 (2026-08-17)"` 로 변경 완료. 정본(`data/extracted/error_codes.json`)
   병합·`actions`/`actions_manual_id`/`actions_page` 3필드 반영은 이 절이 아니라 **MQ-919** 가 한다
   (이 파일은 병합 도구가 아니다 — D99)
 
