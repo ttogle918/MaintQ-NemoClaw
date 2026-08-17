@@ -94,11 +94,12 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-17)** — spikes **29스위트 / 786건** · seed **31건**(㉖ `mfr_part_no` D97 ·
+**실측 기준선 (2026-08-18)** — spikes **29스위트 / 822건** · seed **31건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock`) · pytest **46건** ·
-프론트 라우트 **13개**(`npm run build` — Sprint 10 `equipment-status`·`equipment-status/[assetId]`
-2개 증가). spikes 스위트별 건수:
+프론트 라우트 **16개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
+`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개
+증가). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `disposal_api_contract 26` ·
@@ -106,9 +107,9 @@
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 186` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 222` · `write_tool_contract 30`
 
-> `ui_honesty_contract` 는 두 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
+> `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
 > 12→14개가 되며 컴포넌트당 L2 검사 6건씩 자연 추가된 것(2×6=12) — 파일 1개가 아니라 두
 > 플랜(재고 서랍·핫스팟 대시보드) 각각의 신규 파일이 합쳐진 결과다. **114→186**: 병합 전
@@ -118,7 +119,16 @@
 > 새로 드러났다(이 브랜치가 만든 위반이 아님). 같은 브랜치에서 트리아지 후 즉시 수정 —
 > `disposal/page.tsx` 는 `state === "draft"` 직접비교를 `lib/queueState.isDraftState()` 로,
 > `ownership/page.tsx` 는 로컬 `MOCK`·`TONE_BANNER` 상수를 `lib/ownership.ts` 로 이관해
-> 해소했다. 건수는 FAIL→PASS 전환이라 186건 그대로다 — 스위트는 **PASS 186/186**.
+> 해소했다. 건수는 FAIL→PASS 전환이라 186건 그대로였다 — 스위트는 **PASS 186/186**.
+> **186→222**: Sprint 10 이 두 스테이지에 걸쳐 다시 늘렸다. Stage 1(MQ-1001·MQ-1002)이
+> 이미 걸려 있던 글롭에 새 파일 5개를 자연 편입시켰다 — `components/asset/*.tsx` 신규
+> `EvidenceBundlePanel.tsx`·`ExpenditureForm.tsx` 2파일(2×6=12) + `app/(console)/**/*.tsx` 신규
+> `evidence/page.tsx`·`manager/expenditure/page.tsx`·`manager/repair/[repairId]/page.tsx`
+> 3파일(3×6=18) = 30건. Stage 2(MQ-1003)가 `L2_EXTRA` 에 `components/queue/RepairDetail.tsx` 를
+> **명시 등재**했다 — `components/queue/*.tsx` 글롭이 `Decision*.tsx` 패턴만 잡아 자동 편입되지
+> 않으므로 별도 태스크로 추가(1×6=6). 30+6=36, 186+36=222 — 산술과 실측이 일치한다. 이 확장
+> 과정에서 `RepairDetail.tsx`의 실제 D87 위반 1건(`HashVerified`가 `--ok-tx` 색 토큰 직접 사용)이
+> 드러나 `--blue-tx` 로 교체해 같은 커밋(`213b62d`)에서 해소했다 — 스위트는 **PASS 222/222**.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
