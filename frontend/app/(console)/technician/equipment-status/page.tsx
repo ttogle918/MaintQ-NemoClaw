@@ -7,6 +7,7 @@ import { StatusBanner } from "@/components/layout/StatusBanner";
 import { Avatar, Divider, Logo } from "@/components/ui/Chip";
 import { Mono } from "@/components/ui/Mono";
 import { getAssets, getHotspotStatus, type ApiAsset, type ApiHotspotStatus } from "@/lib/api";
+import { hotspotColorView } from "@/lib/mappers";
 import { ROLE_USER_NAME } from "@/lib/role";
 import { sx } from "@/lib/sx";
 
@@ -120,9 +121,19 @@ function EquipmentRow({
         <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>상태 미상</span>
       ) : (
         <div style={sx("display:flex;gap:8px")}>
-          {counts.red > 0 && <Badge color="var(--error-tx)">🔴 {counts.red}</Badge>}
-          {counts.orange > 0 && <Badge color="var(--orange-tx)">🟠 {counts.orange}</Badge>}
-          {counts.blue > 0 && <Badge color="var(--blue-tx)">🔵 {counts.blue}</Badge>}
+          {counts.red > 0 && (
+            <Badge color={hotspotColorView("red").dotColor ?? "var(--ink)"}>🔴 {counts.red}</Badge>
+          )}
+          {counts.orange > 0 && (
+            <Badge color={hotspotColorView("orange").dotColor ?? "var(--ink)"}>
+              🟠 {counts.orange}
+            </Badge>
+          )}
+          {counts.blue > 0 && (
+            <Badge color={hotspotColorView("blue").dotColor ?? "var(--ink)"}>
+              🔵 {counts.blue}
+            </Badge>
+          )}
           {counts.red + counts.orange + counts.blue === 0 && (
             <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>정상</span>
           )}
