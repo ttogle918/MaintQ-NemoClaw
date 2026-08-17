@@ -5,6 +5,7 @@
 검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪) + Sprint 6~7 확장(⑫~㉑)
        + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕) + parts.mfr_part_no(㉖)
        + Sprint 9 repair_records 상태 불변식·error_codes 출처 컬럼·해시 재대조(㉗~㉙)
+       + actions 병합 검증(㉚, MQ-919)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -58,7 +59,8 @@ CREATE TABLE error_codes (
   related_parts TEXT,
   manual_page  INTEGER NOT NULL,
   -- ★ Sprint 9 신설 (D100) — 조치문 출처. 'ig5a-troubleshooting' 등 manifest 의 id.
-  --   NULL = 출처 미기록(현재 전건 NULL — 병합은 MQ-919). actions_page 는 PDF 물리 페이지(D26)
+  --   NULL = 출처 미기록. MQ-919 가 승인 3건(iG5A RERR·ETB, S100 FANW)만 채웠고
+  --   나머지 62건은 여전히 NULL 이 정상이다(검사 ㉚). actions_page 는 PDF 물리 페이지(D26)
   --   이고 actions_manual_id 와 짝이어야 한다.
   actions_manual_id TEXT,
   actions_page      INTEGER,
@@ -1838,7 +1840,8 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
     ⚠ **명시적 컬럼 목록으로 INSERT 한다** — 위치 인자 INSERT 는 컬럼이 늘어나는 순간
       조용히 깨진다(어느 값이 어느 컬럼에 들어갔는지 SQLite 가 검증해 주지 않는다).
       `actions_manual_id`·`actions_page` (D100) 는 JSON 에 키가 있으면 채우고 없으면
-      `None` — **현재는 추출 JSON 에 그 키가 없어 전건 `None` 이 정상**이다(병합은 MQ-919).
+      `None` — MQ-919 가 승인 3건(iG5A RERR·ETB, S100 FANW)만 정본에 채웠으므로 그 3건만
+      값이 있고 나머지 62건은 `None` 이 정상이다.
     """
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
     overlay: dict[tuple[str, str], list[str]] = {}
@@ -1930,7 +1933,8 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
 
     Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
     parts.mfr_part_no 1건(㉖) · Sprint 9 repair_records 상태 불변식(D98)·error_codes 출처
-    컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙)이 뒤에 붙는다.
+    컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙) · actions 병합 검증
+    (MQ-919) 1건(㉚)이 뒤에 붙는다.
     ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
       D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
@@ -2573,6 +2577,54 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"[양성] 서명 {len(signed_rows)}행 재계산 대조 일치"
         f" {len(signed_rows) - len(mismatches)}/{len(signed_rows)}건"
         f" · [음성] 불일치={mismatches}",
+    )
+
+    # ㉚ actions 병합 검증 (MQ-919, D99·D100). 승인 3건(iG5A RERR·ETB, S100 FANW)만
+    #    actions_manual_id 가 채워져 있어야 하고(양성 축), 그 외 62건은 여전히 NULL 이어야
+    #    한다(음성 축). 채워진 3건의 actions 내용도 후보 파일(병합 근거)과 대조한다.
+    #    `--with-error-codes` 없이 실행하면 0행이 정상 — 이때는 FAIL 이 아니라 통과시킨다
+    #    (㉘ 와 같은 태도).
+    expected_merged = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW")}
+    merged_rows = con.execute(
+        "SELECT model, code, actions, actions_manual_id, actions_page"
+        " FROM error_codes WHERE actions_manual_id IS NOT NULL"
+    ).fetchall()
+    merged_keys = {(m, c) for m, c, *_ in merged_rows}
+    null_count = q("SELECT count(*) FROM error_codes WHERE actions_manual_id IS NULL")[0]
+    content_ok, content_detail = True, "n/a (게이트 미적재)"
+    if with_codes:
+        cand_path = EXTRACTED / "error_codes_actions.candidate.json"
+        cand_by_key = {}
+        if cand_path.exists():
+            cand_doc = json.loads(cand_path.read_text(encoding="utf-8"))
+            cand_by_key = {(e["model"], e["code"]): e for e in cand_doc.get("entries") or []}
+        content_mismatches = []
+        for m, c, actions_json, manual_id, page in merged_rows:
+            cand = cand_by_key.get((m, c))
+            if cand is None:
+                content_mismatches.append((m, c, "후보 파일에 없음"))
+                continue
+            db_actions = json.loads(actions_json)
+            if (
+                db_actions != cand.get("actions")
+                or manual_id != cand.get("actions_manual_id")
+                or page != cand.get("actions_page")
+            ):
+                content_mismatches.append((m, c, "내용 불일치"))
+        content_ok = not content_mismatches
+        content_detail = (
+            f"불일치={content_mismatches}" if content_mismatches else "3건 전부 후보값과 일치"
+        )
+    check(
+        "㉚ error_codes.actions 병합 검증 (MQ-919)",
+        (
+            (merged_keys == expected_merged and null_count == 62 and content_ok)
+            if with_codes
+            else (len(merged_rows) == 0)
+        ),
+        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 62)"
+        f" · [내용대조] {content_detail}"
+        + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
     return results
 

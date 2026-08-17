@@ -9,11 +9,13 @@
 회귀 테스트의 기준값이 되면 나중에 승인 결과와 어긋나도 아무도 모른다.
 실 DB(`data/maintq.db`)의 **내용**(causes·actions 등)은 읽지 않는다 — 임시 DB 3종만 만든다.
 
-⚠ **예외 1건(⑭, D100)** — `actions_source` 정본 병합(MQ-919)이 아직 안 됐다는 사실은
-  합성 픽스처로는 증명할 수 없다(픽스처는 우리가 만든 것이라 "아직 병합 안 됨"의 증거가
-  못 된다). 그래서 이 검사만 실 DB 를 **읽기 전용**으로 열되, `actions_manual_id` 의
-  NULL 여부와 행 수만 본다 — `causes`·`actions` 등 승인 게이트 대상 **내용**은 여전히
-  건드리지 않는다.
+⚠ **예외 1건(⑭, D100)** — `actions_source` 의 실 DB 병합 상태는 합성 픽스처로는
+  증명할 수 없다(픽스처는 우리가 만든 것이라 "정확히 이 3건만 병합됐다"의 증거가
+  못 된다). 그래서 이 검사만 실 DB 를 **읽기 전용**으로 열되, `model`·`code`·
+  `actions_manual_id` 의 NULL 여부와 행 수만 본다 — `causes`·`actions` 등 승인 게이트
+  대상 **내용**(조치문 문장)은 여전히 건드리지 않는다. MQ-919(2026-08-17) 가 승인 3건
+  (iG5A `RERR`·`ETB`, S100 `FANW`)을 정본에 병합했으므로 이 검사는 "전건 null" 이 아니라
+  "그 3건만 채워지고 나머지 62건은 null" 을 확인한다.
 
 실행:  uv run python spikes/lookup_contract.py
 """
@@ -257,25 +259,35 @@ def run(tmp: Path) -> None:
 
 
 def real_db_actions_source_check(real_db: Path) -> None:
-    """⑭ D100 — **실 DB** 병합 상태: `actions_source` 는 현재 전건 null 이다(MQ-919 병합 전).
+    """⑭ D100 — **실 DB** 병합 상태 실측 대조 (MQ-919 병합 후).
 
-    ⛔ 승인 게이트 대상 **내용**(causes·actions 등)은 읽지 않는다 — `actions_manual_id` 의
-    NULL 여부와 행 수만 본다(구조 컬럼). "채워진 게 없다"만 보면 스캐너가 눈이 먼 것과
-    구분이 안 되므로 **양성 축**(rows>0, 실제로 스캔했다는 증거)을 반드시 같이 건다.
+    ⛔ 승인 게이트 대상 **내용**(causes·actions 텍스트 등)은 읽지 않는다 — `model`·`code`·
+    `actions_manual_id` 는 구조 컬럼(어느 코드가 병합됐는지)이지 조치문 **문장** 자체가
+    아니므로 이 파일의 격리 원칙(합성 픽스처만 실사용값의 기준으로 삼는다)을 어기지 않는다.
+
+    이전 버전은 "전건 null" 을 봤다(병합 전). 승인 3건(iG5A RERR·ETB, S100 FANW)이 정본에
+    병합된 지금 그 검사를 그대로 두면 **위양성 FAIL** 한다 — 그래서 **실측 대조**로 바꾼다:
+    채워진 행이 정확히 그 3건인지(양성 축) + 나머지는 여전히 null인지(음성 축)를 함께 본다.
     """
+    expected_filled = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW")}
     con = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
     try:
         total = con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
-        filled = con.execute(
-            "SELECT count(*) FROM error_codes WHERE actions_manual_id IS NOT NULL"
+        filled_rows = con.execute(
+            "SELECT model, code FROM error_codes WHERE actions_manual_id IS NOT NULL"
+        ).fetchall()
+        null_count = con.execute(
+            "SELECT count(*) FROM error_codes WHERE actions_manual_id IS NULL"
         ).fetchone()[0]
     finally:
         con.close()
+    filled_keys = {(m, c) for m, c in filled_rows}
     check(
-        "⑭ D100 실 DB — actions_source(actions_manual_id) 전건 null · 양성 축 rows>0 "
-        "(정본 병합 MQ-919 전)",
-        filled == 0 and total > 0,
-        f"filled={filled} · rows={total} (병합 완료 시 filled>0 로 갈릴 것 — 그때 이 검사를 갱신)",
+        "⑭ D100 실 DB — actions_source(actions_manual_id) 실측 대조 "
+        "(정본 병합 MQ-919 완료 — 승인 3건만 채워짐)",
+        filled_keys == expected_filled and null_count == 62 and total > 0,
+        f"[양성] 채워짐={sorted(filled_keys)}(기대 {sorted(expected_filled)}) · "
+        f"[음성] null={null_count}건(기대 62) · rows={total}(기대 65)",
     )
 
 
