@@ -131,7 +131,17 @@ export function RepairDetail({
         </div>
       )}
 
-      <RepairControls repair={repair} onUpdated={onUpdated} />
+      <RepairControls
+        repair={repair}
+        onUpdated={(updated) => {
+          // 서명/반려 직후 이 컴포넌트 자신의 repair 상태도 갱신한다 — repairId 는 바뀌지
+          // 않으므로(46행 useEffect는 repairId 로만 재조회한다) onUpdated 로 부모만 알리면
+          // 부모 목록은 새로고침되지만 이 상세 패널은 다시 마운트되기 전까지 낡은 상태(state·
+          // 서명 해시·컨트롤 노출 여부)로 남는다.
+          setRepair(updated);
+          onUpdated?.(updated);
+        }}
+      />
     </div>
   );
 }
