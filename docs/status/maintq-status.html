@@ -303,7 +303,7 @@
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 6종</span></div>
-    <p class="sec-note">회귀 <b>spikes 28스위트 / 640건</b> · seed 26 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 29스위트 / 702건</b> · seed 29 · pytest 46 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -344,14 +344,14 @@
 
       <div class="card">
         <div class="card-head"><h3>MCP 서버 · 백엔드 · Agent Loop</h3><span class="chip done">완료</span></div>
-        <p class="desc">도구 <b>15종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 8. 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
-        <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88</span><span class="tag">core 7 · full 15</span></div>
+        <p class="desc">도구 <b>16종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 9(읽기 7 + 쓰기 2). 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
+        <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88·D98</span><span class="tag">core 7 · full 16</span></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>UI — 라우트 10개</h3><span class="chip done">완료</span></div>
-        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · 팀장 통합 승인 큐 · <b>처분서 상세/서명</b> · trace. 실측 <code class="inline">npm run build</code> 기준 10 라우트.</p>
-        <div class="meta"><span class="tag">D18·D42·D45·D85·D87</span><span class="tag">ui_honesty_contract 68건</span></div>
+        <div class="card-head"><h3>UI — 라우트 11개</h3><span class="chip done">완료</span></div>
+        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · 팀장 통합 승인 큐 · <b>처분서 상세/서명</b> · trace. 실측 <code class="inline">npm run build</code> 기준 11 라우트.</p>
+        <div class="meta"><span class="tag">D18·D42·D45·D85·D87</span><span class="tag">ui_honesty_contract 102건</span></div>
       </div>
 
       <div class="card">
@@ -391,7 +391,7 @@
 
       <div class="card">
         <div class="card-head"><h3>통합 승인 큐 (발주 + 처분)</h3><span class="chip done">완료</span></div>
-        <p class="desc"><code class="inline">GET /api/approvals</code> — <code class="inline">kind</code>로 <code class="inline">po</code>·<code class="inline">decision</code>·<code class="inline">repair</code>를 한 큐에 싣습니다(읽기 전용, D85). <b><code class="inline">/api/po</code>는 형태 불변</b>이라 기존 발주 흐름이 무회귀입니다. <code class="inline">repair</code> 자리는 계약만 잡아 두고 현재 항상 0건.</p>
+        <p class="desc"><code class="inline">GET /api/approvals</code> — <code class="inline">kind</code>로 <code class="inline">po</code>·<code class="inline">decision</code>·<code class="inline">repair</code>를 한 큐에 싣습니다(읽기 전용, D85). <b><code class="inline">/api/po</code>는 형태 불변</b>이라 기존 발주 흐름이 무회귀입니다. <code class="inline">repair</code> 자리는 Sprint 9(D98)부터 실제로 채워집니다 — 시드 12건(서명 11 + draft 1).</p>
         <div class="meta"><span class="tag">D85</span><span class="tag">approvals_contract 26건</span></div>
       </div>
 
@@ -554,7 +554,7 @@
       <span class="sev info">환경</span>
       <div>
         <h4>회귀 러너 — Windows 소켓 고갈로 산발 실패</h4>
-        <p>28스위트를 <b>연속</b> 실행하면 매번 <b>다른</b> 스위트가 1건 실패하는 일이 있습니다(<code class="inline">WinError 10014</code>). 코드 결함이 아니며 단독 재실행하면 통과합니다.</p>
+        <p>29스위트를 <b>연속</b> 실행하면 매번 <b>다른</b> 스위트가 1건 실패하는 일이 있습니다(<code class="inline">WinError 10014</code>). 코드 결함이 아니며 단독 재실행하면 통과합니다.</p>
         <div class="fix"><b>규칙 —</b> 실패한 스위트는 <b>반드시 단독 재실행해 확인</b>하고 재시도 사실을 보고에 적습니다. 무시하는 습관이 들면 진짜 실패도 함께 넘깁니다.</div>
       </div>
     </div>
@@ -640,7 +640,7 @@
             <td><b><code class="inline">repair_records</code> — 수리 이력 ★신규</b></td>
             <td><span class="status-dot ok">시드 완료</span></td>
             <td class="num">12건<br>PLANNED 5 · UNPLANNED 7</td>
-            <td>보전지표(예방보전 비율)의 뿌리. 쓰기 도구는 Sprint 9(P25 — Sprint 8 은 A2A 신원에 범위를 썼다)</td>
+            <td>보전지표(예방보전 비율)의 뿌리. 쓰기 도구 <code class="inline">create_repair_record</code> + <code class="inline">/api/repairs/*</code> 전이까지 Sprint 9 가 완성(D98 — Sprint 7·8 에서 두 번 이월된 뒤 착수)</td>
           </tr>
           <tr>
             <td><b><code class="inline">residual_curve</code> — 잔가율 ★신규</b></td>
@@ -675,7 +675,7 @@
           <tr>
             <td>SQLite 목업 DB</td>
             <td><span class="status-dot ok">구축 완료</span></td>
-            <td class="num"><b>19테이블</b><br>seed 검증 25건</td>
+            <td class="num"><b>19테이블</b><br>seed 검증 29건</td>
             <td>코어 11 + 확장 7 + A2A 1. <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>는 런타임 생성이라 시드 0행이 정상</td>
           </tr>
           <tr>
@@ -691,8 +691,8 @@
 
   <!-- ============ 앞으로 구현할 것 ============ -->
   <section>
-    <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P32</span></div>
-    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b>가장 가까운 것은 Sprint 9</b>입니다 — <code class="inline">create_repair_record</code>(P25·S19)와 <code class="inline">flags</code> 발생·해소. (Sprint 8 은 A2A 신원 계층에 범위를 써서 이 둘을 다시 이월했습니다.) 통합 승인 큐가 이미 <code class="inline">kind: "repair"</code> 자리를 계약으로 잡아 두어 <b>계약 변경 없이 추가</b>됩니다.</p>
+    <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P36</span></div>
+    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b><code class="inline">create_repair_record</code>(P25·S19)는 Sprint 9 가 완성했습니다</b> — 쓰기 도구 + <code class="inline">/api/repairs/*</code> 전이까지, 통합 승인 큐의 <code class="inline">kind: "repair"</code> 자리도 이제 실제로 채워집니다(계약 변경 없이). 남은 가장 가까운 항목은 <code class="inline">flags</code> 발생·해소입니다.</p>
 
     <details class="backlog-group" open>
       <summary>진단 입력 확장<span class="n">4</span></summary>
@@ -746,9 +746,8 @@
     </details>
 
     <details class="backlog-group" open>
-      <summary>확장 범위 — Sprint 9 이후<span class="n">5</span></summary>
+      <summary>확장 범위 — Sprint 9 이후<span class="n">4</span></summary>
       <div class="backlog-body">
-        <div class="backlog-item"><span class="bid">P25</span><span class="bname">수리 증빙 서명 (S19)</span><p><b>Sprint 9 착수 예정</b>(Sprint 7·8 에서 연속 이월 — 취소가 아니라 범위 확정에서 밀린 것입니다). <code class="inline">create_repair_record</code> — <code class="inline">repair_records</code> 12건은 이미 시드돼 <code class="inline">get_maintenance_metrics</code>가 소비 중이고, 승인 큐도 <code class="inline">kind: "repair"</code> 자리를 잡아 뒀습니다(현재 항상 0건).</p></div>
         <div class="backlog-item"><span class="bid">—</span><span class="bname">flags 발생 · 해소</span><p>법정 조건의 생애주기(발생 → 이행 → 해소). 테이블은 있고 0행 — 지금은 판정 시점에 매번 재계산합니다.</p></div>
         <div class="backlog-item"><span class="bid">—</span><span class="bname">증빙 패키지 해시 고정</span><p>Sprint 7은 <b>"고정되지 않는다"를 명시하는 선까지만</b> 갔습니다(D86). 실제 고정은 다음 범위.</p></div>
         <div class="backlog-item"><span class="bid">—</span><span class="bname">S18 화면 L3 검증 (실 데이터 렌더)</span><p>지금은 순수 함수·소스 정적 검사 2층뿐입니다. 백엔드가 불변식을 깨는 응답을 내도 CI가 모릅니다.</p></div>
@@ -758,14 +757,14 @@
   </section>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>Sprint 9 진행 중 — Stage 1 완료(결정 D98~D101 · 추출 triage · 오프셋 정정 · 정본 쓰기 가드) → Stage 2</strong><br>
-      <span style="font-size:12.5px">🔴 사람: 안전 문구 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안)<br>
+    <div>다음 우선순위: <strong>Sprint 9 진행 중 — 수리 증빙 축(P25·S19) 완성, 문서·개수 전파(MQ-918) 진행 중</strong><br>
+      <span style="font-size:12.5px">🔴 사람: 안전 문구 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · <code class="inline">actions</code> 결측 회수분 병합 승인(MQ-919)<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b></span></div>
     <div class="figs">
-      <div><b>640</b>회귀 단언 (28스위트) + seed 26 + pytest 46</div>
+      <div><b>702</b>회귀 단언 (29스위트) + seed 29 + pytest 46</div>
       <div><b>19</b>DB 테이블 (코어 11 + 확장 7 + A2A 1)</div>
       <div><b>101</b>설계 결정 D1~D101</div>
-      <div><b>15</b>MCP 도구 (코어 7 + 확장 8)</div>
+      <div><b>16</b>MCP 도구 (코어 7 + 확장 9)</div>
     </div>
   </div>
 

@@ -62,12 +62,19 @@ CREATE TABLE error_codes (
   actions      TEXT NOT NULL,          -- JSON array
   related_parts TEXT,                  -- JSON array of part_no (부품 특정의 연결고리!)
   manual_page  INTEGER NOT NULL,       -- 근거 인용 필수 — PDF 물리 페이지 기준 (D26)
+  -- ★ Sprint 9 신설 (D100) — 조치문 출처. 'ig5a-troubleshooting' 등 manifest 의 id.
+  --   NULL = 출처 미기록(현재 전건 NULL — 정본 병합은 MQ-919, 아직 사람 승인 전이라 미적재).
+  --   actions_page 는 PDF 물리 페이지(D26)이고 actions_manual_id 와 짝이어야 한다.
+  actions_manual_id TEXT,
+  actions_page      INTEGER,
   PRIMARY KEY (model, code),           -- ★ 복합키 = "같은 코드, 다른 의미" 구현
   -- code 형식 제약 (D33): 대문자·숫자·언더스코어 2~4자.
   -- 실측 64건 전부 이 범위 (3자 51 / 4자 12 / 2자 1, 최장 'FLTL'·'RERR' 등 4자)
   CHECK (length(code) BETWEEN 2 AND 4
          AND code = upper(code)
-         AND code NOT GLOB '*[^A-Z0-9_]*')
+         AND code NOT GLOB '*[^A-Z0-9_]*'),
+  -- ★ Sprint 9 신설 (D100) — 둘 다 있거나 둘 다 없거나
+  CHECK ((actions_manual_id IS NULL) = (actions_page IS NULL))
 );
 ```
 
@@ -592,6 +599,10 @@ CREATE TABLE flags (
 
 ## 16. repair_records — 수리 증빙
 
+> **Sprint 9(MQ-904, D98) 개정 — 15컬럼 → 19컬럼 + CHECK 3종.** 쓰기 도구 `create_repair_record`
+> (`04 §16`)가 `state='draft'` INSERT 만 하고, 전이는 `POST /api/repairs/*`(`06 §2.8`)가 한다.
+> **DDL 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고 아래는 그 사본이다.
+
 ```sql
 CREATE TABLE repair_records (
   repair_id TEXT PRIMARY KEY,
@@ -606,16 +617,35 @@ CREATE TABLE repair_records (
   performed_by TEXT REFERENCES users, verified_by TEXT REFERENCES users,
   signed_at DATETIME, record_hash TEXT,
   state TEXT NOT NULL DEFAULT 'draft',
+  -- ★ Sprint 9 신설 (D98) — 도구는 이 넷을 채우지 않는다. 백엔드가 X-User·세션에서 stamp 한다
+  --   (D23·D37). `data/repair_hash.py` 가 `record_hash` 규약의 단일 출처다.
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  requested_by TEXT REFERENCES users,
+  session_id TEXT,
+  note TEXT,                             -- 반려 사유·서명 메모 (D38 — 반려는 이유가 필수)
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),  -- D13·D33
   CHECK (work_type IN ('PLANNED','UNPLANNED')),
   CHECK ((model IS NULL) = (error_code IS NULL)),
   CHECK (parts IS NULL OR json_valid(parts)),
-  CHECK (expenditure_class IS NULL OR expenditure_class IN ('CAPITAL','REVENUE','HOLD'))
+  CHECK (expenditure_class IS NULL OR expenditure_class IN ('CAPITAL','REVENUE','HOLD')),
+  -- ★ 신설 ① 상태 어휘 4종 (D98)
+  CHECK (state IN ('draft','pending','signed','rejected')),
+  -- ★ 신설 ② "서명 없는 확정 0건" 을 스키마로 잠근다 (decisions 의 DDL CHECK 2종과 같은 태도)
+  CHECK (state <> 'signed' OR (signed_at IS NOT NULL AND record_hash IS NOT NULL
+                               AND verified_by IS NOT NULL)),
+  -- ★ 신설 ③ 미서명은 지표에 들어갈 수 없다 (12 §11) — signed_at 은 서명의 결과지 원인이 아니다
+  CHECK (signed_at IS NULL OR state = 'signed')
 );
 ```
 
 **`downtime_hours` 는 `12 §9` 에 없는 컬럼이다.** `12 §2` 가 MTTR 을 요구하는데 저장소에
 수리 시간 원천이 전혀 없어 추가했다. (`12 §9` 본문 반영은 MQ-613.)
+
+**`created_at` 은 '요청(draft INSERT) 시각'이지 '수리 시각'이 아니다.** MTTR·예방보전 비율·
+누적 수리비를 `window_months` 로 자르는 원천으로는 여전히 쓸 수 없다 — 실제 수리가 일어난
+시점을 담는 컬럼은 이 테이블에 없고, 그 사실이 `get_maintenance_metrics.excluded[]` 에 실린다
+(`data/maint_value.py` 주석 참조). Sprint 9 이전에는 "수리 시각 컬럼이 없다"고 적혀 있었는데
+`created_at` 신설로 문장이 낡았다 — 컬럼은 생겼지만 **수리 시각의 원천은 여전히 없다**.
 
 **`signed_at IS NULL` 인 레코드는 지표에서 제외된다 (`12 §11`).** 시드 12건 중
 **`RPR-2403`(INV-L3-01) 1건이 미서명**이며, `get_maintenance_metrics` 의 `excluded[]` 문장과
@@ -626,9 +656,10 @@ CREATE TABLE repair_records (
 시드하면 `error_codes` 가 0행이라 복합 FK 를 만족시킬 수 없어 둘 다 NULL 로 넣는다
 (`po_drafts` 와 같은 처리). 계획 정비(`PLANNED`)는 애초에 에러코드가 없어 항상 NULL 이다.
 
-**`record_hash` 는 시드 전량 NULL 이다.** 서명 해시 규약(키 정렬·구분자 고정)은 Sprint 7의
-서명 API 와 `build_evidence_bundle` 의 `bundle_hash` 가 함께 정한다 — 지금 임의 규약을 심으면
-나중 검증이 조용히 어긋난다.
+**`record_hash` 는 서명 11건 전량 값이 있다 (Sprint 9 이전에는 전량 NULL 이었다).**
+서명 해시 규약(키 정렬·구분자 고정)은 `data/repair_hash.py`(`HASHED_KEYS`·`canonical_json`·
+`compute_record_hash`, MQ-904)가 단일 출처이고, 시드 검사 ㉙ 이 서명 11행 전건을 재계산해
+저장값과 대조한다(D84 태도). 미서명 1건(`RPR-2403`)만 `record_hash IS NULL` 이다.
 
 ## 17. residual_curve — 잔가율 격자 (D65·D74)
 
@@ -705,7 +736,7 @@ CREATE TABLE partner_links (
 되지 않는다.** **actor**(누가 호출했나)는 파트너 토큰이 담당하고(D93 — `.env` + 프로세스 메모리
 캐시, `backend/a2a/credentials.py` 한 곳), 이 대장은 **나가는 요청 payload 의 subject 값**만
 공급한다. 그래서 **자격증명을 이 테이블에 넣지 않는다** — 넣는 순간 D91 이 세운 actor/subject
-분리가 스키마에서 무너진다. MCP 도구는 이 테이블에 쓰지 않는다(절대 규칙 1 — 쓰기 도구는 2종뿐).
+분리가 스키마에서 무너진다. MCP 도구는 이 테이블에 쓰지 않는다(절대 규칙 1 — 쓰기 도구는 3종뿐).
 
 ### 왜 `assets` 확장이 아닌가 (결/grain, D91)
 
@@ -904,6 +935,10 @@ FAIL** 한다. ⛔ `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보
 | ㉓ | `partner_links` CHECK **음성 3 + 양성 2** (`NULL`+식별자 거부 ← `IS` 가 아니면 통과한다 / `NULL`+`NULL` 은 통과) | D91·D96·D62 |
 | ㉔ | **`partner_links` 가 증권 식별자를 복제하지 않는다 — 음성 검사** (insuq `external_ref` 전부 NULL · 값 복제 0건 · 정본 존재 확인). ⛔ `link_state` 와 `insured` 를 엮지 않는다 | D95·D78 |
 | ㉕ | `traces.request_chain_id` 컬럼 존재 · nullable — detail 에 **"쓰는 쪽 없음(A2A 호출부 미착수)"** 을 명시 | D94-ⓐ |
+| ㉖ | `parts.mfr_part_no` 컬럼 존재·nullable · **정본(`MFR_PART_NO`) 과 DB 완전 일치**(양성) · 판매점 주문번호·완제품 형명 등 금지값 **0건**(음성) — NULL 39종은 "미조사"가 아니라 "미공개" | D97 |
+| ㉗ | `repair_records` **상태 불변식**(D98) — `state='signed' ⇔ signed_at·record_hash·verified_by 전부 non-null` 을 **양방향**(iff)으로 검사, 어휘 밖 상태 0건 + 미서명 정확히 1건(`RPR-2403`) | D98 |
+| ㉘ | `error_codes` **출처 컬럼 짝 불변식**(D100) — `actions_manual_id`·`actions_page` 짝 불일치 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D100 |
+| ㉙ | `repair_records.record_hash` **재계산 대조**(D84 태도) — `data/repair_hash.compute_record_hash()` 로 서명 11행을 다시 계산해 저장 해시와 전건 일치하는지 확인 | D84·D98 |
 
-> **실측 (2026-08-13)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (25건)**.
+> **실측 (2026-08-17)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (29건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.

@@ -219,6 +219,11 @@ D72 가 정한 **격자 규격(연차 버킷 6종)·평활 금지·D65 고지 �
 
 나중에 팔 때 증명하려면 **그때 서류가 있어야 한다.** 이 시나리오가 없으면 S10의 증빙 패키지가 성립하지 않는다.
 
+> ✅ **구현 완료 (Sprint 9, D98).** `create_repair_record`(`04 §16`)가 draft INSERT, `POST /api/repairs/{id}/submit`·
+> `/sign`·`/reject`(`06 §2.8`)가 전이한다. 아래 JSON 은 개념 예시이며, 실제 도구 파라미터에는
+> `performed_by`·`verified_by`·`signed_at`·`record_hash`·`state`·`session_id` 가 없다 —
+> 신원·서명은 백엔드가 stamp 한다(D23·D37).
+
 ```json
 {
   "repair_id": "REP-2026-0311",
@@ -292,8 +297,9 @@ assets (신규 테이블) — ⚠ 당초 "equipment 확장"이라 썼으나 D68 
 ```
 
 **★ `downtime_hours` 는 MTTR 의 유일한 원천이다.** 이 컬럼이 없으면 `§2` 의 MTTR·가용도가
-산출 불가(`null`)로 남는다. `repair_records` 에는 **수리 시각 컬럼이 없다** — `signed_at` 은
-'서명 시각'이지 '수리 시각'이 아니라 기간 절단 근거로 쓸 수 없다. 그래서 MTTR·예방보전 비율·누적 수리비는
+산출 불가(`null`)로 남는다. `repair_records` 에는 **여전히 '수리 시각' 컬럼이 없다** — Sprint 9(D98)이
+`created_at`(요청·draft INSERT 시각)을 신설했지만 그건 '수리 시각'이 아니고, `signed_at` 도
+'서명 시각'이지 '수리 시각'이 아니라 둘 다 기간 절단 근거로 쓸 수 없다. 그래서 MTTR·예방보전 비율·누적 수리비는
 `window_months` 로 자르지 못하는 **전 기간 집계**이고, 그 사실이 `get_maintenance_metrics.excluded[]` 에 실린다.
 
 `repair_records`의 `(model, error_code)`는 `po_drafts`와 같은 복합키 FK 규칙을 따른다(D13·D33) — 지어낸 코드가 정비 이력에 남을 경로를 막는다.
@@ -310,17 +316,16 @@ assets (신규 테이블) — ⚠ 당초 "equipment 확장"이라 썼으나 D68 
 | `classify_expenditure` | 읽기 — 자본적/수익적 판정 + 근거 | `04 §12` | ✅ |
 | `build_evidence_bundle` | 읽기 — 근거 5키 묶고 해시 (D83) | `04 §14` | ✅ |
 | `generate_disposal_document` | **쓰기** — 처분서 draft (`decisions` INSERT, D81) | `04 §15` | ✅ (Sprint 7) |
-| `create_repair_record` | **쓰기** — 수리 증빙 draft | — | **미구현 — Sprint 9** (P25·S19) |
+| `create_repair_record` | **쓰기** — 수리 증빙 draft (`repair_records` INSERT, D98) | `04 §16` | ✅ (Sprint 9) |
 
 노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만 (D69). **입출력 계약의 정본은 `04_MCP_TOOLS`** 이며 여기서 복제하지 않는다.
 
-> **`create_repair_record` 는 Sprint 9 다** (실측 — `mcp_server/tools/` 에 파일이 없다).
-> Sprint 7 에서 한 번, **Sprint 8 에서 다시 이월됐다** — Sprint 7 은 처분 서명(F3)에,
+> **`create_repair_record` 는 Sprint 9 에 완성됐다** (실측 — `mcp_server/tools/create_repair_record.py`).
+> Sprint 7 에서 한 번, **Sprint 8 에서 다시 이월된 뒤** 착수됐다 — Sprint 7 은 처분 서명(F3)에,
 > Sprint 8 은 A2A 신원(`partner_links`·자격증명·`request_chain_id`)에 범위를 썼다.
-> 기능이 취소된 것이 아니라 범위 확정에서 두 번 밀린 것이다.
-> F3(서명)은 여전히 **처분 축만** 완료됐고 수리 증빙 축은 계약 자리만 비워 둔 상태다 —
-> `GET /api/approvals` 의 `kind` enum 에 `repair` 가 있고 **현재 항상 0건**이라(D85)
-> 착수하는 스프린트는 계약 변경 없이 채운다.
+> 기능이 취소된 것이 아니라 범위 확정에서 두 번 밀린 것이었다.
+> `GET /api/approvals` 의 `kind` enum 에 있던 `repair` 자리는 **이제 실제로 채워진다** —
+> 시드 12건(서명 11 + draft 1)이 필터 없는 조회에 전부 나온다(D85). 계약 변경 없이 채웠다.
 
 ---
 

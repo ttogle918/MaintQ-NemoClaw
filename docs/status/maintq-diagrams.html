@@ -180,6 +180,8 @@
     도구가 7 → <b>15종</b>, 테이블이 11 → <b>19개</b>, 쓰기 도구가 1 → <b>2종</b>이 됐습니다.
     새 그림 넷(⑥~⑨)은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보이고,
     <b>⑩은 다른 종류입니다</b> — <b>지표가 좋아진 것과 운이 좋았던 것을 어떻게 구분하는가.</b>
+    <br>⚠ <b>이 문단은 2026-08-12 시점 기록이다 — 그 뒤 Sprint 9(D98)가 수리 증빙 쓰기 도구를 더해
+    도구 <b>16종</b>·쓰기 도구 <b>3종</b>이 됐다.</b> 아래 개별 그림·표는 최신값으로 갱신했다(§실측 절 참조).
   </div>
 
   <!-- ================= ① 유스케이스 ================= -->
@@ -260,14 +262,14 @@ flowchart LR
   class u8,x2 blocked;
 </pre>
       </div>
-      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. 남은 건 S19(수리 증빙) 하나이고, 통합 큐가 <code>kind: "repair"</code> 자리를 계약으로 잡아 둬 <b>계약 변경 없이</b> 들어옵니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). F5~F6은 새 기능이라기보다 <b>기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다.</figcaption>
+      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. <b>S19(수리 증빙)도 Sprint 9에서 완료됐습니다</b> — 통합 큐가 미리 잡아 둔 <code>kind: "repair"</code> 자리에 <b>계약 변경 없이</b> 들어왔습니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). F5~F6은 새 기능이라기보다 <b>기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다.</figcaption>
     </figure>
   </section>
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
     <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 15 · 테이블 19</span></div>
-    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 둘뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해 강화됐습니다.</p>
+    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다.</p>
 
     <figure>
       <div class="plate">
@@ -332,7 +334,7 @@ flowchart TB
       </div>
       <figcaption><b>굵은 화살표 넷이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 둘(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주나 처분을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81). <b>두 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
       <div class="note" style="margin-top:14px">
-        <b>확장 도구 8종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69).
+        <b>확장 도구 9종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69).
         이유는 평가입니다 — 도구를 늘린 채 지표를 재면 <b>"수정의 효과"와 "도구가 늘어난 효과"를 분리할 수 없습니다.</b>
         <b>D88이 이 기준선을 코드로 잠갔습니다</b>: 평가 러너가 실행 전 <code>/health</code>를 읽어 <code>core</code>가 아니면 <code>exit 2</code>로 멈춥니다.
         env 에코 하나만 보면 MCP 자식이 다른 env로 떴을 때 통과하므로, <b><code>list_tools()</code> 실측 개수와 겹쳐서</b> 봅니다.
@@ -834,7 +836,7 @@ flowchart LR
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
         <tbody>
           <tr><td>REST 엔드포인트 <b>20종</b></td><td class="mono">backend/routers/ — chat · equipment · po · <b>disposal(/api/assets) · decisions · approvals</b></td></tr>
-          <tr><td>MCP 도구 <b>15종</b> (코어 7 + 확장 8)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b></td></tr>
+          <tr><td>MCP 도구 <b>16종</b> (코어 7 + 확장 9)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b></td></tr>
           <tr><td>프론트 라우트 <b>10개</b></td><td class="mono">frontend/app/(console)/ — technician{,/asset/[id]/disposal,/ownership} · manager{,/po/[poId],/decision/[decisionId],/trace/[sid]}</td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
           <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · <b>DecisionDetail · SignBar</b> · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
@@ -851,7 +853,7 @@ flowchart LR
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>28스위트 / 635건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>29스위트 / 702건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).

@@ -11,7 +11,7 @@
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
 - `docs/10_DECISIONS.md` — 설계 결정 **D1~D101**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 8종** §8~§15). 임의 변경 금지
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 9종** §8~§16). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **18절(실제 19개)** + 시드 케이스 맵
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**
    — **`§10` 은 존재하지 않는다**.
@@ -21,10 +21,12 @@
 
 ## 절대 규칙 (위반 금지)
 
-1. **MCP 도구는 `po_drafts`·`decisions` 에 draft INSERT만 가능.** UPDATE 코드를 도구에 추가하지 말 것.
-   상태 전이는 사람 전용 API만 — `backend/routers/po.py`(발주) · `backend/routers/decisions.py`(처분) (D10·D81)
-   - 쓰기 도구는 **2종**: `create_po_draft` · `generate_disposal_document`. 커넥션도 분리한다
-     (`db.draft_writer()` / `db.decision_writer()`) — 섞으면 TEMP TRIGGER 잠금이 사라진다
+1. **MCP 도구는 `po_drafts`·`decisions`·`repair_records` 에 draft INSERT만 가능.** UPDATE 코드를 도구에 추가하지 말 것.
+   상태 전이는 사람 전용 API만 — `backend/routers/po.py`(발주) · `backend/routers/decisions.py`(처분) ·
+   `backend/routers/repairs.py`(수리, D98) (D10·D81)
+   - 쓰기 도구는 **3종**: `create_po_draft` · `generate_disposal_document` · `create_repair_record`.
+     커넥션도 분리한다(`db.draft_writer()` / `db.decision_writer()` / `db.repair_writer()`) —
+     섞으면 TEMP TRIGGER 잠금이 사라진다
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
@@ -38,7 +40,7 @@
 - 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **8종**은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
+  - 확장 **9종**은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
 
@@ -67,16 +69,17 @@
 - `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
   ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **28종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **29종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
   llm_provider_contract · eval_replay_guard ·
   law_fetch_contract · rules_db_load · disposal_api_contract · asset_tools_contract ·
   tools_profile_contract ·
-  **bundle_integrity** · **approvals_contract** · **ownership_api_contract** ·
-  **disposal_sign_contract** · **s10_smoke** · **ui_honesty_contract** ·
-  **a2a_identity_contract**
+  bundle_integrity · approvals_contract · ownership_api_contract ·
+  disposal_sign_contract · s10_smoke · ui_honesty_contract ·
+  a2a_identity_contract ·
+  **repair_flow_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -91,18 +94,19 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-14)** — spikes **28스위트 / 635건** · seed **26건**(㉖ `mfr_part_no` D97 추가) · pytest **46건** ·
-프론트 라우트 **10개**(`npm run build`). spikes 스위트별 건수:
+**실측 기준선 (2026-08-17)** — spikes **29스위트 / 702건** · seed **29건**(㉖ `mfr_part_no` D97 · ㉗~㉙
+Sprint 9 `repair_records`/`error_codes` 신설) · pytest **46건** ·
+프론트 라우트 **11개**(`npm run build`). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25` · `citation_render 13` · `db_concurrency 13` · `disposal_api_contract 26` ·
+`bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `law_fetch_contract 28` ·
-`llm_provider_contract 14` · `lookup_contract 12` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
-`prompt_rules 23` · `rag_contract 12` · `rules_db_load 25` · `s10_smoke 17` · `s4_smoke 10` ·
-`sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` · `trace_persist 17` ·
-`ui_honesty_contract 68` · `write_tool_contract 23`
+`llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
+`prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
+`s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
+`trace_persist 17` · `ui_honesty_contract 102` · `write_tool_contract 30`
 
-> ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 28스위트를 연속 실행하면 **소켓 고갈**로
+> ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
 > **코드 결함이 아니며 해당 스위트를 단독 재실행하면 통과한다.**
 > 이 사실을 모르면 두 방향으로 잘못 보고하게 된다 — 실패를 보고 "회귀가 깨졌다"고 하거나,

@@ -24,6 +24,11 @@ Claude가 대신 못 하는 것들. 순서대로.
   `extract_error_codes.py` 재실행(`_status` 는 이제 맵 파일에서 자동 유도, 하드코딩 아님) →
   `seed.py --with-error-codes` 로 iG5A 24 + S100 41 = **65건 적재 완료**.
   검수표: `data/analysis/ig5a_code_mapping.md` (완료 기록 남김)
+  > ⚠ **위 절차 기록은 그대로 유효한 완료 기록(과거형)이다.** 다만 **정본 갱신 경로가 이후 바뀌었다** —
+  > Sprint 9(MQ-921, D99)부터는 재추출만으로 곧장 정본이 덮이지 않는다. `extract_error_codes.write_canonical()`
+  > 가 유일한 쓰기 경로이고, `_status` 되돌림(승인→초안) 등 회귀 조건을 감지하면 **쓰지 않고 중단**한다
+  > (exit 1/2). `--candidates-only` 는 후보 파일만 갱신하고 정본(`error_codes.json`)에는 손대지 않는다.
+  > actions 결측 회수(MQ-919, 아래 `## actions 검수` 참조)도 이 가드를 통과해야 정본에 반영된다.
 - [x] **`related_parts` 수작업 매핑 검수** — ✅ **2026-08-12 사용자 최종 승인 완료 (D12 게이트 해제)** — 파일: `data/related_parts.seed.json`.
   **2026-08-05 Claude 위임 판정 완료(8코드)** — 사용자가 이 건에 한해 위임. 매뉴얼 조치문
   (iG5A p.202~204 · S100 §9.2 p.420~421)을 직접 대조해 판정했고, 각 항목에

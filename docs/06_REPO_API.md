@@ -63,17 +63,20 @@ MaintQ/
 │   │   ├── search_inventory.py           │
 │   │   ├── find_alternative_parts.py     │
 │   │   ├── get_supplier_quotes.py        │
-│   │   ├── create_po_draft.py            ┘ ← 쓰기 도구 ①/2 — po_drafts draft INSERT (D10)
+│   │   ├── create_po_draft.py            ┘ ← 쓰기 도구 ①/3 — po_drafts draft INSERT (D10)
 │   │   ├── check_disposal_blockers.py    ┐
 │   │   ├── verify_ownership.py           │
-│   │   ├── classify_part_criticality.py  │ 확장 8종 (`full` 에서만 등록 — D69)
+│   │   ├── classify_part_criticality.py  │ 확장 9종 (`full` 에서만 등록 — D69)
 │   │   ├── get_maintenance_metrics.py    │ 대상은 asset_id (D68)
 │   │   ├── classify_expenditure.py       │
 │   │   ├── assess_repair_value.py        │
 │   │   ├── build_evidence_bundle.py      │ ← 읽기 전용. 저장하지 않는다
-│   │   ├── generate_disposal_document.py ┘ ← **두 번째 쓰기 도구** (decisions draft INSERT, D81)
+│   │   ├── generate_disposal_document.py │ ← 쓰기 도구 ②/3 (decisions draft INSERT, D81)
+│   │   ├── create_repair_record.py       ┘ ← 쓰기 도구 ③/3 (repair_records draft INSERT, D98.
+│   │   │                                     equipment_id 를 직접 받는 유일한 예외 — D68 ⓑ)
 │   │   └── _asset_ref.py                 # §8·§14·§15 공용 자산 참조·인자 검증 (도구 아님)
 │   └── db.py                  # read_only / draft_writer(po_drafts) / decision_writer(decisions)
+│                              #   / repair_writer(repair_records, D98)
 │                              #   — 쓰기 커넥션은 대상 테이블별로 분리한다. TEMP TRIGGER 가
 │                              #     UPDATE/DELETE 를 거부하므로 커넥션을 섞으면 잠금이 사라진다
 │
@@ -87,6 +90,8 @@ MaintQ/
 │   │   ├── disposal.py        # 자산 조회 + 처분 사전판정 (data.rules.engine 직접 사용 — D73)
 │   │   ├── ownership.py       # 소유권 실사 (REST==MCP 바이트 대조 대상)
 │   │   ├── decisions.py       # 처분 결정 전이 — submit·sign(번들 재산출·해시 대조 D84)·reject
+│   │   ├── repairs.py         # 수리 증빙 전이 — submit·sign(해시 재대조)·reject (D98, Sprint 9)
+│   │   ├── maint_value.py     # data.maint_value 위임 REST 5종 (D101, §2.5)
 │   │   └── approvals.py       # 통합 승인 큐 조립 (KINDS = po|disposal|repair — D85)
 │   ├── agent/
 │   │   ├── loop.py            # 에이전트 루프 (도구 호출 오케스트레이션)
@@ -98,6 +103,8 @@ MaintQ/
 │   │   ├── equipment.py       # 라인/장비 컨텍스트
 │   │   ├── disposal.py        # /api/assets — 목록·상세·소유권·처분 사전판정 (D71 HTTP 매핑)
 │   │   ├── decisions.py       # /api/decisions — 상세·제출·서명·반려 (§2.6)
+│   │   ├── repairs.py         # /api/repairs — 상세·제출·서명·반려 (§2.8, D98)
+│   │   ├── maint_value.py     # /api/assets/{id}/metrics 등 확장 REST 5종 (§2.5, D101)
 │   │   └── approvals.py       # /api/approvals — 통합 승인 큐, **읽기 전용** (§2.7)
 │   ├── rag/
 │   │   ├── ingest.py          # 매뉴얼 청킹·임베딩 (model 메타데이터 부착)
@@ -107,17 +114,18 @@ MaintQ/
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
-│   │                          # **28종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
+│   │                          # **29종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
-│   ├── write_tool_contract.py # 쓰기 도구 **2종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84)
+│   ├── write_tool_contract.py # 쓰기 도구 **3종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84·D98)
 │   ├── api_contract.py        # 권한 403 · 전이 409 · D29 이력 기록 — /api/po 형태 고정 (D85)
 │   ├── bundle_integrity.py    # 번들 5키 · rule_hash · N1·N2 · 두 도구 실패 어휘 대조
 │   ├── approvals_contract.py  # 통합 큐 (D85) · BLOCKING 우회 0건 · 서명 없는 확정 0건
 │   ├── disposal_sign_contract.py  # 27조합 전수 — 4층 방어선이 각각 독립으로 막는가
 │   ├── s10_smoke.py           # 실 서버·실 MCP 로 S9→S10 관통
 │   ├── ui_honesty_contract.py # D87 — 미확인 상태가 "확인됨"으로 렌더되지 않는가
-│   └── a2a_identity_contract.py # D91~D96 — partner_links CHECK · request_chain_id "쓰는 쪽 없음" · 자격증명 격리
+│   ├── a2a_identity_contract.py # D91~D96 — partner_links CHECK · request_chain_id "쓰는 쪽 없음" · 자격증명 격리
+│   └── repair_flow_contract.py  # D98 — create_repair_record draft INSERT · /api/repairs 403/409/422 경계
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기
@@ -320,6 +328,32 @@ resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로
 D15(백엔드 ↔ MCP 프로세스 분리) 위반이 아니다: 금지되는 것은 `backend` ↔ `mcp_server` **상호 import** 이며
 `data/` 는 두 프로세스가 공유해도 되는 데이터 계층이다.
 
+#### 확장 REST 5종 — 보전지표·수리가치·부품등급·지출판정·근거번들 (MQ-908, D73·D101)
+
+```
+GET  /api/assets/{asset_id}/metrics?window_months=12   → get_maintenance_metrics 상당
+POST /api/equipment/{equipment_id}/repair-value         → assess_repair_value 상당 (무저장)
+GET  /api/parts/{part_no}/criticality                   → classify_part_criticality 상당
+POST /api/expenditure/classify                          → classify_expenditure 상당 (무저장)
+GET  /api/assets/{asset_id}/evidence-bundle              → build_evidence_bundle 상당
+```
+
+`backend/routers/maint_value.py`. **앞의 넷은 `data.maint_value`(D101)를 거친다** — 도구 서버
+패키지를 import 하지 않는다(D15). **다섯 번째(근거 번들)는 `services/decisions.rebuild_bundle()`
+을 그대로 부른다** — `decisions.sign()` 이 서명 시점 재산출에 쓰는 것과 같은 조립이라 세 번째
+사본을 만들지 않는다.
+
+- **역할 게이트가 없다** — 전부 읽기 판정이라 이 다섯 경로에서 403 은 나오지 않는다
+  (`/disposal/precheck` 와 같은 이유, D38·D71). `POST` 둘은 입력이 본문이라 POST 일 뿐 **아무것도
+  저장하지 않는다.**
+- **오류 매핑**(도구 `status`/`reason` 을 재포장 없이 그대로 싣는다): `status:"ok"` → 200 ·
+  `status:"not_found"`(`unknown_asset`·`unknown_equipment`·`unknown_part`·`no_host_asset`) → 404 ·
+  `reason:"invalid_input"` → 422 · `reason:"rule_catalog_not_loaded"` → 503(재시도로 풀림) ·
+  `reason:"law_text_unavailable"` → 409(재시도해도 같은 답) · 그 밖 `status:"error"` → 500.
+- **`core` 프로파일(D69 기본값)에서도 5경로 전부 산다(D73)** — 앞의 넷은 애초에 MCP 프로세스를
+  거치지 않고, 다섯 번째도 `data.rules.engine` 을 직접 쓰는 `rebuild_bundle` 을 거치므로 도구 등록
+  여부와 무관하다.
+
 ### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
 
 ```
@@ -378,13 +412,45 @@ GET /api/approvals?state=pending&kind=disposal
 - **없는 값은 `null` 이지 `false` 가 아니다** — 발주에는 처분 판정이 없으므로 `verdict: null`,
   처분서에는 긴급도가 없으므로 `urgency: null`. 지어내지 않는다 (D62).
 - **`kind` enum 밖 값은 422** — 모르는 종류를 0건으로 돌려주면 오타가 "해당 없음"으로 읽힌다.
-- **`repair` 는 현재 항상 0건이다.** 조회하지 않는 게 아니라 **원천이 아직 없다**(Sprint 8).
-  enum 에 미리 넣은 이유는 Sprint 8 이 **계약 변경 없이** 추가되게 하기 위함이다.
-- **POST 가 없다.** 전이는 종류별 경로(`/api/po/*`·`/api/decisions/*`)가 각자의 역할 게이트와 함께
-  수행한다. 통합 경로에 전이를 두면 `kind` 마다 다른 역할 규칙을 한 함수가 분기하게 되고,
-  **그 분기가 곧 403 지표의 구멍**이 된다.
+- **`repair` 는 Sprint 9(MQ-909)부터 실제로 채워진다.** enum 에 미리 넣어 둔 덕분에
+  **계약 변경 없이** `repair_records` 를 연결했다 — 시드 12건(서명 11 + draft 1)이 전부
+  필터 없는 조회에 그대로 나온다. "0건이 정상"이던 서술은 더 이상 사실이 아니다.
+- **POST 가 없다.** 전이는 종류별 경로(`/api/po/*`·`/api/decisions/*`·`/api/repairs/*`)가 각자의
+  역할 게이트와 함께 수행한다. 통합 경로에 전이를 두면 `kind` 마다 다른 역할 규칙을 한 함수가
+  분기하게 되고, **그 분기가 곧 403 지표의 구멍**이 된다.
 - 정렬은 `created_at DESC`. `/api/po` 의 긴급 우선 정렬을 여기로 옮기지 않는다 — 통합 큐에 발주 전용
   정렬을 끌어오면 처분서가 항상 뒤로 밀린다. **두 목록은 정렬 기준이 다른 게 정상이다.**
+
+### 2.8 수리 증빙 — 제출·서명·반려 (S19 · D85·D98, Sprint 9 신설)
+
+```
+GET  /api/repairs?state=pending      # 목록. **역할 무관 조회** — 정비사도 자기 요청 상태를 봐야 한다
+GET  /api/repairs/{id}               # 상세. hash_verified 로 서명 해시 재계산 대조 결과를 싣는다(D84 태도)
+POST /api/repairs/{id}/submit        # draft → pending    (**technician만**)
+POST /api/repairs/{id}/sign          # pending → signed   (**manager만**)
+POST /api/repairs/{id}/reject        # pending → rejected (**manager만**, body: {reason} 필수 — D38)
+```
+
+**상태 전이 = 권한** (`routers/po.py`·`routers/decisions.py` 와 같은 태도). MCP 도구
+`create_repair_record`(`04 §16`)는 `state='draft'` INSERT 만 하고(D10·D98), 전이는 전부 여기를 통한다.
+
+**403 은 양방향이다** — 정비사가 `sign` 을 부르면 403, 팀장이 `submit` 을 부르면 403.
+한쪽만 막으면 "권한 위반 차단 100%" 지표가 반쪽이 된다.
+
+#### `sign` 의 409 `reason` 2종
+
+| reason | 뜻 | 사용자가 할 일 |
+|---|---|---|
+| `invalid_transition` | 현재 state 에서 불가한 전이 | 상태 확인 |
+| `self_sign` | `performed_by == verified_by` — 작업자가 스스로 서명(D4, 진단자/승인자 분리) | 다른 사람에게 서명을 요청 |
+
+- `submit`·`reject` 의 실패도 같은 `invalid_transition` 형태(`{reason, detail, state}`)를 쓴다
+  (`routers/decisions.py:_conflict` 와 같은 형태).
+- `reject` 의 사유 공백은 pydantic 이 **먼저** 422 로 막는다(D38). 값이 있으면 `note` 컬럼에 저장된다.
+- 서명 시 `verified_by`·`signed_at`(UTC, D39)·`record_hash`(`data/repair_hash.compute_record_hash()`,
+  D84 태도)를 **같은 UPDATE 에서** 함께 쓴다 — DDL CHECK(`05 §16` 신설 ②)가 하나라도 빠지면 거부한다.
+- `verified_by` 컬럼은 서명자뿐 아니라 **반려자도 함께 쓴다** — 별도 `reviewed_by` 컬럼이 없고,
+  반려도 "manager 가 그 증빙을 검토했다"는 같은 성격의 사건이다.
 
 ### 2.4 상태 전이 다이어그램
 

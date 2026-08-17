@@ -312,8 +312,11 @@ def maintenance_metrics(
         excluded.append(
             f"occurred_at 을 해석하지 못한 에러 이력 {unparsed_events}건은 집계에서 제외했다"
         )
-    # repair_records 에는 시각 컬럼이 없다(DDL 은 계약이므로 컬럼을 추가하지 않는다).
-    # signed_at 은 '서명 시각'이지 '수리 시각'이 아니라 기간 절단 근거로 쓸 수 없다.
+    # repair_records 에는 여전히 '수리 시각' 컬럼이 없다. Sprint 9(D98)가 created_at 을 신설했지만
+    # 그건 '요청(draft INSERT) 시각'이지 '수리 시각'이 아니고, signed_at 도 '서명 시각'이지
+    # '수리 시각'이 아니라 둘 다 기간 절단 근거로 쓸 수 없다(DDL 은 계약이므로 컬럼을 새로
+    # 추가하지 않는다 — 05_DB_SCHEMA §16). 옛 주석("시각 컬럼이 없다")은 created_at 신설로
+    # 낡았었다 — 컬럼은 생겼지만 '수리 시각'의 원천은 여전히 없다는 사실은 그대로다 (MQ-918).
     excluded.append(
         "repair_records 에 수리 시각 컬럼이 없어 window_months 로 자를 수 없다 — "
         "MTTR·예방보전 비율·누적 수리비는 전 기간 집계다"
