@@ -570,6 +570,35 @@ export interface ApiCriticality {
 export const getCriticality = (role: Role, partNo: string) =>
   apiFetch<ApiCriticality>(`/api/parts/${encodeURIComponent(partNo)}/criticality`, role);
 
+export interface ApiInventoryItem {
+  part_no: string;
+  name: string;
+  qty: number;
+  safety_stock: number;
+  location: string;
+  compatible_models: string[];
+  discontinued: boolean;
+}
+
+export interface ApiInventory {
+  status: string;
+  items?: ApiInventoryItem[];
+  reason?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export const getInventory = (
+  role: Role,
+  params: { part_no?: string; part_name?: string; model?: string }
+) => {
+  const q = new URLSearchParams();
+  if (params.part_no) q.set("part_no", params.part_no);
+  if (params.part_name) q.set("part_name", params.part_name);
+  if (params.model) q.set("model", params.model);
+  return apiFetch<ApiInventory>(`/api/inventory?${q.toString()}`, role);
+};
+
 /**
  * `POST /api/expenditure/classify` 본문. `part_no`·`part_class` 는 **either-or** —
  * 둘 다 주면 백엔드가 422 다. `asset_id` 는 이 REST 경로에 없다(취득원가 대비 중요도
