@@ -94,7 +94,7 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-17)** — spikes **29스위트 / 714건** · seed **31건**(㉖ `mfr_part_no` D97 ·
+**실측 기준선 (2026-08-17)** — spikes **29스위트 / 786건** · seed **31건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock`) · pytest **46건** ·
 프론트 라우트 **13개**(`npm run build` — Sprint 10 `equipment-status`·`equipment-status/[assetId]`
@@ -106,11 +106,16 @@
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 114` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 186` · `write_tool_contract 30`
 
-> `ui_honesty_contract` 가 102→114 로 는 것은 `EquipmentHotspotDiagram.tsx`(L2 스캔 대상
-> 13→14개, Task 7)가 편입되며 컴포넌트당 L2 검사 6건이 자연 추가된 것 — 코드 수정 없이 글롭이
-> 잡는다.
+> `ui_honesty_contract` 는 두 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
+> 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
+> 12→14개가 되며 컴포넌트당 L2 검사 6건씩 자연 추가된 것(2×6=12) — 파일 1개가 아니라 두
+> 플랜(재고 서랍·핫스팟 대시보드) 각각의 신규 파일이 합쳐진 결과다. **114→186**: 병합 전
+> 최종 리뷰 픽스로 `L2_GLOBS` 에 `app/(console)/**/*.tsx` 를 더해 라우트 페이지 12개가
+> 스캔에 편입된 것(12×6=72) — 코드 수정 없이 글롭이 잡는다. 이 확장으로 이전엔 스캔되지
+> 않던 기존 `disposal/page.tsx`·`ownership/page.tsx` 에서 사전에 있던 D87 위반 4건이
+> 새로 드러났다(이 브랜치가 만든 위반이 아님 — 별도 트리아지 필요, 이 커밋 시점 미해결).
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
