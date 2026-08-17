@@ -132,6 +132,17 @@ export const TONE_STYLE: Record<Tone, string> = {
   muted: "color:var(--dim);border-color:var(--line2);background:transparent",
 };
 
+/** 판정 배너 톤 → 색. 매트릭스와 달리 이 배너는 화면 셸의 일부라 여기서 색을 잡는다. */
+export const TONE_BANNER: Record<Tone, string> = {
+  ok: "border-color:var(--ok-bd);background:var(--ok-bg);color:var(--ok-tx)",
+  warn: "border-color:var(--saf-cite-bd);background:var(--saf-cite-bg);color:var(--orange-tx)",
+  danger: "border-color:var(--error-tx);background:transparent;color:var(--error-tx)",
+  muted: "border-color:var(--line2);background:transparent;color:var(--dim)",
+  // 모르는 어휘 전용 (D87) — `lib/ownership.TONE_STYLE.unknown` 과 같은 규약.
+  unknown:
+    "border-color:var(--error-tx);border-style:dashed;background:transparent;color:var(--error-tx)",
+};
+
 /* -------------------------------------------------------------------------- */
 /* API 응답 (느슨하게 받는다 — 좁히면 모르는 값이 타입상 사라진다)              */
 
@@ -160,6 +171,93 @@ export interface OwnershipApi {
   disclaimer?: unknown;
   reason?: string;
 }
+
+/**
+ * 백엔드 미기동 폴백 픽스처.
+ *
+ * ⛔ 데모용 "잘 나온 결과"가 아니다. 실제 응답과 같은 구조 + 같은 정직성 규칙을 지킨다 —
+ *   9카테고리 전부, `VERIFIED` 엔 근거, `UNVERIFIED` 엔 사유. 목업에서만 전부 초록이면
+ *   백엔드가 꺼진 데모에서 정확히 우리가 막으려는 오해가 생긴다.
+ */
+export const OWNERSHIP_MOCK: OwnershipApi = {
+  status: "ok",
+  asset_id: "(목업)",
+  verdict: "PARTIAL",
+  categories: [
+    {
+      category: "물리적 상태",
+      items: [
+        { item: "정밀도 검사", state: "UNVERIFIED", evidence: null, limit: "현장 실사 원천 없음" },
+        { item: "진동·소음 측정", state: "UNVERIFIED", evidence: null, limit: "현장 실사 원천 없음" },
+      ],
+    },
+    {
+      category: "가동 이력",
+      items: [
+        { item: "누적 가동시간", state: "UNVERIFIED", evidence: null, limit: "가동시간 원천 없음 (D70)" },
+      ],
+    },
+    {
+      category: "정비 이력",
+      items: [
+        {
+          item: "수리 이력 (사내 기록)",
+          state: "VERIFIED",
+          evidence: "repair_records 서명분 조회 결과 (목업)",
+          limit: null,
+        },
+      ],
+    },
+    {
+      category: "기술적 진부화",
+      items: [
+        { item: "부품 단종 여부", state: "VERIFIED", evidence: "parts.discontinued 조회 (목업)", limit: null },
+      ],
+    },
+    {
+      category: "권리관계",
+      items: [
+        { item: "담보 설정 (사내 기록)", state: "VERIFIED", evidence: "assets.has_lien=0 (목업)", limit: null },
+        {
+          item: "리스 여부",
+          state: "UNVERIFIED",
+          evidence: null,
+          limit: "원천 없음 — 외부 기관을 런타임에 조회하지 않는다",
+        },
+      ],
+    },
+    {
+      category: "법정 요건",
+      items: [
+        { item: "안전검사 이력", state: "UNVERIFIED", evidence: null, limit: "사전 수집 스냅샷 없음" },
+      ],
+    },
+    {
+      category: "재무·회계",
+      items: [
+        { item: "장부가", state: "VERIFIED", evidence: "assets.book_value 조회 (목업)", limit: null },
+      ],
+    },
+    {
+      category: "시장·가격",
+      items: [
+        { item: "실거래가", state: "UNVERIFIED", evidence: null, limit: "실거래 원천 없음 — 목업 잔가곡선은 추정치다 (D65)" },
+      ],
+    },
+    {
+      category: "이전 비용",
+      items: [
+        { item: "해체·운송 견적", state: "UNVERIFIED", evidence: null, limit: "이전 견적 원천 없음" },
+      ],
+    },
+  ],
+  unverified: ["정밀도 검사", "진동·소음 측정", "누적 가동시간", "리스 여부", "안전검사 이력", "실거래가", "해체·운송 견적"],
+  residual_risk: "(목업) 제3자 담보권 존재 가능성 배제 불가 · 그 밖 미확인 항목 잔존",
+  mitigation: "(목업) 매도인 진술보장 + 손해배상 특약으로 계약상 배분 권고",
+  not_considered: ["외부 기관 조회 결과", "현장 실사 결과"],
+  disclaimer:
+    "이 화면은 백엔드에 연결하지 못해 목업을 표시하고 있습니다. 실제 자산의 실사 결과가 아닙니다.",
+};
 
 /* -------------------------------------------------------------------------- */
 /* 행                                                                          */
