@@ -1,6 +1,6 @@
 # Sprint 10 — 근거 번들/지출 분류 화면 + 수리 증빙 승인 큐 상세
 
-**상태**: Stage 1 완료(2026-08-18). 다음은 `/stage 2`(MQ-1003).
+**상태**: Stage 2 완료(2026-08-18). 다음은 `/stage 3`(MQ-1004).
 
 ## Stage 1 완료 (2026-08-18)
 
@@ -29,6 +29,21 @@
 
 **미해결(경미, 후속)**: `frontend/components/queue/QueueList.tsx:61-63`의 "repair는 착지점이 없다" 주석이
 이제 낡았다 — 다음에 이 파일을 만질 때 갱신 권장(리뷰어 지적, 커밋 차단 아님).
+
+## Stage 2 완료 (2026-08-18)
+
+**커밋**: `213b62d` — `[M3] ui_honesty_contract.py L2 확장 — RepairDetail.tsx 편입 + D87 위반 해소 (MQ-1003)`
+
+#### MQ-1003 — L2 확장 (RepairDetail 편입 + 하한 실측 갱신)
+- 구현 파일: `spikes/ui_honesty_contract.py`(`L2_EXTRA`에 `RepairDetail.tsx` 등재, `L2_FILES_FLOOR` 26→32 실측
+  갱신, 낡은 주석 정정)
+- **Stage 1에서 미발견이던 실제 D87 위반 1건을 이 스테이지가 발견**: `RepairDetail.tsx`의 `HashVerified`가
+  `--ok-tx` 색 토큰을 직접 사용 — `RepairDetail.tsx`가 이번에 처음 L2 스캔에 편입되며 드러났다(예상된 결과 —
+  `InventoryDrawer.tsx`·`equipment-status` 목록 페이지에서 같은 세션에 두 번 반복된 패턴과 동일 유형). `--blue-tx`
+  (정보 톤)로 교체해 해소 — 코드 파일 1줄 변경(`frontend/components/queue/RepairDetail.tsx`)
+  이 태스크에 딸려 커밋됐다.
+- 뮤턴트 양성 검증(상태 어휘 직접비교 임시 주입 → FAIL 확인 → 원복) 완료
+- 회귀: `ui_honesty_contract.py` 206계약+16게이트/뮤턴트/메타 전부 PASS · tsc clean
 
 ## 배경
 
