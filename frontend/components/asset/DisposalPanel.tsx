@@ -51,7 +51,7 @@ import {
 /* -------------------------------------------------------------------------- */
 /* 입력 어휘 — 백엔드 `engine.DISPOSAL_MODES` 와 같은 3종                       */
 
-const MODES = [
+export const MODES = [
   { value: "SALE", label: "매각", hint: "SALE" },
   { value: "SCRAP", label: "폐기", hint: "SCRAP" },
   { value: "TRANSFER", label: "이전", hint: "TRANSFER" },

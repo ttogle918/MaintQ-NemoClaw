@@ -101,14 +101,24 @@ export default function AssetDisposalPage({ params }: { params: { assetId: strin
         <AssetHeader
           asset={asset}
           right={
-            <Link
-              href={`/technician/asset/${encodeURIComponent(asset.asset_id)}/ownership`}
-              style={sx(
-                "font:12px 'Pretendard';color:var(--blue-br);text-decoration:underline;white-space:nowrap"
-              )}
-            >
-              실사 체크리스트 →
-            </Link>
+            <div style={sx("display:flex;align-items:center;gap:12px")}>
+              <Link
+                href={`/technician/asset/${encodeURIComponent(asset.asset_id)}/evidence`}
+                style={sx(
+                  "font:12px 'Pretendard';color:var(--blue-tx);text-decoration:none;white-space:nowrap"
+                )}
+              >
+                근거 번들 보기 →
+              </Link>
+              <Link
+                href={`/technician/asset/${encodeURIComponent(asset.asset_id)}/ownership`}
+                style={sx(
+                  "font:12px 'Pretendard';color:var(--blue-br);text-decoration:underline;white-space:nowrap"
+                )}
+              >
+                실사 체크리스트 →
+              </Link>
+            </div>
           }
         />
         <DisposalPanel asset={asset} />

@@ -12,6 +12,7 @@ import { DecisionDetail } from "@/components/queue/DecisionDetail";
 import { EmptyQueue } from "@/components/queue/EmptyQueue";
 import { PoDetail } from "@/components/queue/PoDetail";
 import { QueueList } from "@/components/queue/QueueList";
+import { RepairDetail } from "@/components/queue/RepairDetail";
 import { StatusLegend } from "@/components/queue/StatusLegend";
 import { KindBadge, StateBadge } from "@/components/ui/Badge";
 import { Avatar, Divider, Logo } from "@/components/ui/Chip";
@@ -23,10 +24,12 @@ import {
   getApprovals,
   getDecision,
   getPo,
+  getRepair,
   rejectPo,
   type ApiApproval,
   type ApiDecision,
   type ApiPo,
+  type ApiRepair,
 } from "@/lib/api";
 import { toEvidenceEntries, toPoQueueEntry, toQueueEntry, toQuotes } from "@/lib/mappers";
 import { EVIDENCE_PO_0117, PENDING, QUOTES_PO_0117, RECENT } from "@/lib/mock/queue";
@@ -40,9 +43,9 @@ type Source = "loading" | "live" | "mock";
  * 화면 B — 통합 승인 큐 (팀장).
  * 승인은 채팅 밖 전용 화면에서 한다 — 채팅에선 결재가 흘러가버린다 (D18).
  *
- * 목록은 `GET /api/approvals` (D85) 로 **발주서·처분서를 한 큐**에 놓는다.
- * 상세는 `kind` 로 갈린다 — `po` → `PoDetail`(계약 무변경) · `disposal` → `DecisionDetail`.
- * 그 밖의 종류(`repair`, Sprint 8)는 **숨기지 않고** "상세가 없다"고 말한다.
+ * 목록은 `GET /api/approvals` (D85) 로 **발주서·처분서·수리 증빙을 한 큐**에 놓는다.
+ * 상세는 `kind` 로 갈린다 — `po` → `PoDetail`(계약 무변경) · `disposal` → `DecisionDetail` ·
+ * `repair` → `RepairDetail`(Sprint 10, MQ-1002).
  *
  * 백엔드가 꺼져 있으면 목업으로 떨어지되 **배너로 명시**한다.
  * 조용히 목업을 보여주면 데모에서 "동작한다"는 오해를 만든다.
@@ -57,6 +60,8 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
   const [detail, setDetail] = useState<ApiPo | null>(null);
   /** 처분 상세 — `kind === "disposal"` 일 때만 채워진다 (MQ-709b) */
   const [decision, setDecision] = useState<ApiDecision | null>(null);
+  /** 수리 증빙 상세 — `kind === "repair"` 일 때만 채워진다 (MQ-1002) */
+  const [repair, setRepair] = useState<ApiRepair | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [missing, setMissing] = useState<string | null>(null);
 
@@ -86,6 +91,20 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           setSelected(toPoQueueEntry(direct));
           setDetail(direct);
           setDecision(null);
+          setRepair(null);
+          setMissing(null);
+          setSource("live");
+          return;
+        } catch {
+          // 이 ID 의 발주가 없는 것이다 — 수리 증빙일 수 있으니 이어서 확인한다.
+          // `po` 뿐 아니라 `repair` 도 큐 4목록 밖 상태(`draft`)로 존재할 수 있어 같은 위험이 있다.
+        }
+        try {
+          const directRepair = await getRepair("manager", selectedId);
+          setSelected(toRepairQueueEntry(directRepair));
+          setDetail(null);
+          setDecision(null);
+          setRepair(directRepair);
           setMissing(null);
           setSource("live");
           return;
@@ -102,6 +121,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
       setDecision(
         target?.kind === "disposal" ? await getDecision("manager", target.id) : null
       );
+      setRepair(target?.kind === "repair" ? await getRepair("manager", target.id) : null);
       if (found || !selectedId) setMissing(null);
       setSource("live");
     } catch {
@@ -190,6 +210,15 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
                 }}
                 onReload={() => void load()}
               />
+            ) : chosen.kind === "repair" && live && repair ? (
+              <RepairDetail
+                repairId={repair.repair_id}
+                onUpdated={(updated) => {
+                  setRepair(updated);
+                  setNotice(`${updated.repair_id} — 상태 ${updated.state}`);
+                  void load();
+                }}
+              />
             ) : (
               <PendingImplementationDetail entry={chosen} />
             )}
@@ -207,10 +236,10 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
 /**
  * 상세를 그릴 수 없는 자리.
  *
- * 남는 경우는 둘이다 — ⓐ 상세 화면이 아직 없는 종류(`repair`, Sprint 8) ⓑ 처분서인데
- * 백엔드에 연결되지 않아 `GET /api/decisions/{id}` 를 못 읽은 경우.
- * **숨기지 않고 "없다"고 말한다.** 큐에서 항목을 지우면 승인 대기 건수가 거짓이 되고,
- * 빈 화면을 주면 사용자는 로딩 실패로 읽는다.
+ * MQ-1002 이후로는 상세 화면이 아예 없는 종류가 없다(`po`·`disposal`·`repair` 모두 상세를
+ * 갖는다) — 남는 경우는 백엔드에 연결되지 않아 `GET /api/decisions/{id}`·`GET /api/repairs/{id}`
+ * 를 못 읽었을 때뿐이다. **숨기지 않고 "없다"고 말한다.** 큐에서 항목을 지우면 승인 대기
+ * 건수가 거짓이 되고, 빈 화면을 주면 사용자는 로딩 실패로 읽는다.
  *
  * ⛔ 판정(`verdict`)을 여기서 해석하지 않는다 — 값이 있으면 원문 그대로 보여줄 뿐이다.
  *   "BLOCKED 는 이런 뜻입니다" 같은 요약은 `DecisionDetail` 의 해소 경로 목록이 할 일이다.
@@ -219,7 +248,9 @@ function PendingImplementationDetail({ entry }: { entry: QueueEntry }) {
   const when =
     entry.kind === "disposal"
       ? "처분 상세는 백엔드(GET /api/decisions/{id})에서 옵니다 — 지금은 그 응답을 읽지 못했습니다."
-      : "이 종류의 상세 화면은 다음 스프린트에서 붙습니다.";
+      : entry.kind === "repair"
+        ? "수리 증빙 상세는 백엔드(GET /api/repairs/{id})에서 옵니다 — 지금은 그 응답을 읽지 못했습니다."
+        : "이 종류의 상세 화면은 다음 스프린트에서 붙습니다.";
 
   return (
     <div style={sx("display:flex;flex-direction:column;padding:18px 20px;gap:12px")}>
@@ -261,4 +292,31 @@ function PendingImplementationDetail({ entry }: { entry: QueueEntry }) {
       </div>
     </div>
   );
+}
+
+/**
+ * `GET /api/repairs/{id}` 상세 → 큐 한 줄.
+ *
+ * `toPoQueueEntry` 와 같은 이유로 존재한다 — 큐 4목록(pending·approved/signed·rejected) 밖의
+ * 수리 증빙(예: 아직 `draft`)을 딥링크로 열었을 때 헤더 자리를 채우는 최소 표기다.
+ * `RepairDetail` 이 `repairId` 로 상세를 다시 조회하므로, 여기서는 `chosen.kind === "repair"`
+ * 판별과 배지 표시에 필요한 값만 채운다 — `urgency`·`verdict`·`requiresOverride` 는 수리
+ * 증빙에 없는 개념이라 `null` 그대로 둔다(D62 — 없는 사실을 채우지 않는다).
+ */
+function toRepairQueueEntry(r: ApiRepair): QueueEntry {
+  return {
+    kind: "repair",
+    id: r.repair_id,
+    title: `${r.equipment_id}${r.work_type ? ` · ${r.work_type}` : ""}`,
+    urgency: null,
+    state: r.state,
+    meta: r.requested_by_name || r.performed_by_name || "",
+    // 이 엔트리는 큐 4목록 밖(예: `draft`) 딥링크의 헤더 표기용일 뿐, `QueueList` 로 렌더되지
+    // 않는다 — 그래서 `detailHref` 를 채우지 않는다. 목록에 실제로 뜨는 pending/recent 엔트리의
+    // 링크는 `toQueueEntry`(mappers.ts)가 만들고, 전용 라우트 자체는 이제 존재한다
+    // (`/manager/repair/{id}`, Sprint 10 — `queueState.detailHref` 참고).
+    detailHref: null,
+    verdict: null,
+    requiresOverride: null,
+  };
 }

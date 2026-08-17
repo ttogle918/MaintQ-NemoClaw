@@ -597,7 +597,7 @@ function WarrantyPreview({
  * **D86 의 핵심 표기** — 해시로 고정되지 않은 근거임을 항목마다 밝힌다.
  * `true` 를 초록 체크로 그리지 않는 이유는 D87 이다. 값이 없으면 "미상"이지 "고정됨"이 아니다.
  */
-function HashFixedMark({ value, note }: { value: unknown; note?: string | null }) {
+export function HashFixedMark({ value, note }: { value: unknown; note?: string | null }) {
   if (value === false) {
     return (
       <span

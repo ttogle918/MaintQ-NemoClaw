@@ -307,7 +307,10 @@ function nineRows(extra: Row[] = []): Row[] {
   const probes: [string, string][] = [
     ["po", "archived"],
     ["disposal", "approved"],
-    ["repair", "pending"],
+    // Sprint 10(MQ-1002)이 STATE_LABEL.repair 를 채우기 전까지는 "repair/pending"이 맵 밖이었다.
+    // 이제 repair 도 draft·pending·signed·rejected 4종을 알므로, 그 4종 밖의 상태로 같은 축(known
+    // kind·unknown state)을 계속 검사한다 — po/archived 와 같은 형태.
+    ["repair", "archived"],
     ["unknown_kind", "signed"],
     ["po", ""],
   ];

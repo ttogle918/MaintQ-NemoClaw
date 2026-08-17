@@ -1,8 +1,8 @@
 import { Mono } from "@/components/ui/Mono";
 import type { ApiApproval, ApiPo } from "./api";
 import type { Citation } from "./citation";
-import { detailHref } from "./queueState";
-import type { QueueLabel, QueueTone } from "./queueState";
+import { detailHref, stateView } from "./queueState";
+import type { QueueLabel } from "./queueState";
 import type { ApprovalKind, QueueEntry, EvidenceEntry, SupplierQuote, Urgency } from "./types";
 
 /**
@@ -177,26 +177,13 @@ function firstCitation(po: ApiPo): Citation | undefined {
 /* 수리 증빙 어휘 (S19, MQ-912) — repair 전용 상태 표시                          */
 
 /**
- * `repair_records.state` → 배지 (D87). 통합 큐(`queueState.STATE_LABEL.repair`)는
- * 착지점(라우트)이 아직 없어 비워 뒀지만(`queueState.ts` 주석), **상태 문자열이 어떻게
- * 보여야 하는가**는 이 도구가 배관되는 지금 먼저 정한다 — 컴포넌트가 `draft`·`pending`
- * 같은 원 어휘를 직접 갖지 않고 이 매퍼를 거치게 하기 위해서다(D87, 큐 화면의
- * `stateView(kind, state)` 와 같은 태도를 repair 전용으로 반복한다).
- *
- * ⛔ 모르는 값을 성공색(`ok`)으로 칠하지 않는다 — 새 어휘가 오면 원문 + `warn` 이다.
+ * `repair_records.state` → 배지 (D87). Sprint 10(MQ-1002)이 `queueState.STATE_LABEL.repair`
+ * 를 채운 뒤로는 이 함수가 로컬 맵을 따로 두지 않고 그 total 맵에 위임한다 — 큐 목록
+ * 배지(`StateBadge` 경유 `stateView("repair", state)`)와 상세 화면(`RepairDetail`)이 같은
+ * 어휘의 서로 다른 두 맵을 참조하던 D87 위반을 여기서 해소했다.
  */
-export const REPAIR_STATE_LABEL: Record<string, { text: string; tone: QueueTone }> = {
-  draft: { text: "draft", tone: "neutral" },
-  pending: { text: "◔ pending", tone: "info" },
-  // 발주의 `approved` 와 같은 칸이 아니다 — 서명은 별개의 사건이다 (queueState.ts 와 같은 이유)
-  signed: { text: "✓ signed", tone: "ok" },
-  rejected: { text: "✕ rejected", tone: "danger" },
-};
-
 export function repairStateView(state: string): QueueLabel {
-  const known = REPAIR_STATE_LABEL[state];
-  if (!known) return { text: state, tone: "warn", known: false };
-  return { ...known, known: true };
+  return stateView("repair", state);
 }
 
 /* -------------------------------------------------------------------------- */

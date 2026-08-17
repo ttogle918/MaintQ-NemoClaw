@@ -102,7 +102,7 @@ export function ExpenditureCard({
   );
 }
 
-function ExpenditureResult({ data }: { data: ApiExpenditure }) {
+export function ExpenditureResult({ data }: { data: ApiExpenditure }) {
   const view = expenditureVerdictView(data.verdict);
   const evidence = expenditureEvidenceView(data.evidence_completeness);
   const lawRefs = Array.isArray(data.citations) ? data.citations : [];

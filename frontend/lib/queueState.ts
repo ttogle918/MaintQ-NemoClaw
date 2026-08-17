@@ -31,9 +31,9 @@ export const KIND_LABEL: Record<ApprovalKind, string> = {
 };
 
 /**
- * 종류별 상태 어휘. **`repair` 는 비어 있다** — Sprint 8 이 무슨 어휘를 쓸지 아직 정해지지
- * 않았고, 짐작해서 채우면 그게 곧 지어낸 사실이 된다. 그때까지 repair 의 모든 state 는
- * `warn` 으로 뜬다(그리고 그게 정확한 표현이다).
+ * 종류별 상태 어휘. `repair` 는 Sprint 10(MQ-1002)이 채웠다 — `disposal` 과 같은 4엔트리
+ * (draft|pending|signed|rejected, D85). `mappers.repairStateView`(상세 전용, Sprint 9 산출물)
+ * 가 같은 어휘의 두 번째 맵이 되어 있던 D87 위반은 이 맵으로 위임해 해소했다.
  */
 export const STATE_LABEL: Record<ApprovalKind, Record<string, { text: string; tone: QueueTone }>> =
   {
@@ -50,7 +50,12 @@ export const STATE_LABEL: Record<ApprovalKind, Record<string, { text: string; to
       signed: { text: "✓ signed", tone: "ok" },
       rejected: { text: "✕ rejected", tone: "danger" },
     },
-    repair: {},
+    repair: {
+      draft: { text: "draft", tone: "neutral" },
+      pending: { text: "◔ pending", tone: "info" },
+      signed: { text: "✓ signed", tone: "ok" },
+      rejected: { text: "✕ rejected", tone: "danger" },
+    },
   };
 
 /**
@@ -73,6 +78,12 @@ export function isDraftState(state: string): boolean {
   return state === "draft";
 }
 
+/** 서명/반려 대기 여부 — 컨트롤 노출 조건. 컴포넌트가 "pending" 리터럴을 직접 비교하지
+ *  않게 한다 (D87, `isDraftState` 선례와 같은 패턴). */
+export function isPendingState(state: string): boolean {
+  return state === "pending";
+}
+
 /** `kind` → 배지. 모르는 종류도 숨기지 않는다 — 원문 + `warn` 으로 목록에 남는다. */
 export function kindView(kind: string): QueueLabel {
   const label = (KIND_LABEL as Record<string, string>)[kind];
@@ -88,6 +99,7 @@ export function detailHref(kind: string, id: string): string | null {
   if (kind === "po") return `/manager/po/${enc}`;
   // Stage 6(MQ-709b)이 만드는 라우트. 계약(경로)은 지금 확정하고 화면만 뒤에 붙는다.
   if (kind === "disposal") return `/manager/decision/${enc}`;
-  // repair — Sprint 8. 라우트가 존재하지 않는다.
+  // repair — Sprint 10(MQ-1002 후속)이 만든 라우트.
+  if (kind === "repair") return `/manager/repair/${enc}`;
   return null;
 }

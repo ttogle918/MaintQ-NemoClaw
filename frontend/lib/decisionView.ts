@@ -395,3 +395,36 @@ export function signErrorView(reason: string | null | undefined): SignErrorLabel
   if (!known) return { title: reason, recovery: "reload", known: false };
   return { ...known, known: true };
 }
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 근거 번들 조회 실패 어휘 (`04 §14`·`06 §2.5` 오류 매핑, MQ-1001).
+ *
+ * ⛔ `SIGN_ERROR` 에 끼워 넣지 않는다 — reason 집합이 다르다(`evidence_changed`·
+ *   `override_required`·`cited_rule_missing` 이 이 경로에는 없다). 존재하지 않는 reason
+ *   코드에 대한 죽은 분기를 만들지 않기 위해 별도 맵을 둔다.
+ */
+export interface EvidenceBundleErrorLabel {
+  title: string;
+  recovery: "retry" | "none";
+  known: boolean;
+}
+
+const EVIDENCE_BUNDLE_ERROR: Record<string, Omit<EvidenceBundleErrorLabel, "known">> = {
+  law_text_unavailable: {
+    title: "인용 조문 원문이 아직 수집되지 않아 근거 번들을 만들 수 없습니다 — 재시도로 풀리지 않습니다.",
+    recovery: "none",
+  },
+  rule_catalog_not_loaded: {
+    title: "룰 카탈로그가 적재되지 않았습니다 — 서버 준비 후 다시 시도하십시오.",
+    recovery: "retry",
+  },
+};
+
+export function evidenceBundleErrorView(reason: string | null | undefined): EvidenceBundleErrorLabel {
+  if (!reason) return { title: "", recovery: "retry", known: false };
+  const known = EVIDENCE_BUNDLE_ERROR[reason];
+  if (!known) return { title: reason, recovery: "none", known: false };
+  return { ...known, known: true };
+}
