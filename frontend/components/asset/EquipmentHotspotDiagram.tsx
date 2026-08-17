@@ -74,7 +74,7 @@ export function EquipmentHotspotDiagram({
                   `position:absolute;left:${h.x}%;top:${h.y}%;transform:translate(-50%,-50%);` +
                     "width:28px;height:28px;border-radius:50%;cursor:pointer;" +
                     (view.dotColor
-                      ? `border:2px solid ${view.dotColor};background:${view.dotColor}33`
+                      ? `border:2px solid ${view.dotColor};background:color-mix(in srgb, ${view.dotColor} 20%, transparent)`
                       : "border:1.5px dashed var(--line2);background:transparent")
                 )}
               />
