@@ -217,9 +217,11 @@ function repairSummary(repair: ApiRepair): EvidenceEntry[] {
  * `undefined` → "대조 결과 없음"(미서명 레코드). `false` 를 "결과 없음"과 뭉개지 않는다.
  */
 function HashVerified({ value }: { value: boolean | undefined }) {
+  // --ok-* 계열은 쓰지 않는다 — ui_honesty_contract.py L2 가 컴포넌트의 --green|--ok 색 토큰을
+  // 전부 금지한다(D87, InventoryDrawer.tsx 선례). 정보 톤(--blue-tx)으로 "일치"를 표시한다.
   if (value === true) {
     return (
-      <span style={sx("font:12px 'Pretendard';color:var(--ok-tx)")}>대조 일치</span>
+      <span style={sx("font:12px 'Pretendard';color:var(--blue-tx)")}>대조 일치</span>
     );
   }
   if (value === false) {

@@ -38,6 +38,10 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   `strip_comments` 오라클을 쓴다. (MQ-916 이 컷되며 원 명세가 요구했던 큐 상세 화면
   `L2_EXTRA` 추가는 하지 않는다 — `docs/sprints/sprint-9.md` §9-4 델타.)
 
+★ MQ-1003 (Sprint 10) — MQ-1002 가 신설한 `components/queue/RepairDetail.tsx` 를 `L2_EXTRA`
+  에 등재했다(`Decision*.tsx` 글롭이 접두어 불일치로 놓치는 파일). `L2_FILES_FLOOR` 를 실측
+  32(하한, 이전 26)로 갱신했다. 이 스위트는 실측대로만 옮긴다 — 예상치를 미리 적지 않는다.
+
 ⚠ **L3(실 데이터 렌더)은 이 스위트가 검증하지 않는다.** 서버 기동·자산 순회는 이 태스크의
   검증 단위를 넘는다 — 출력 말미에 그 사실을 다시 고지한다. 초록 표를 보고 "전부 확인됐다"고
   읽는 것이야말로 이 스위트가 막으려는 그 오류다.
@@ -68,9 +72,10 @@ MUTANT_DIR = FRONTEND / ".ui_honesty_mutant"
 
 # L2 스캔 대상. **글롭으로 찾는다** — 파일을 새로 만들면 자동으로 스캔에 들어온다.
 # 목록을 손으로 적으면 "새 컴포넌트가 조용히 빠지는" 경로가 생기고, 그게 W1 이 난 방식이다.
-# ⛔ 원 명세가 요구한 큐 repair 상세 화면 파일은 L2_EXTRA 에 추가하지 않는다 — MQ-916 이
-#   이번 스프린트에서 컷돼 그 파일 자체가 없다(`docs/sprints/sprint-9.md` §9-4 델타. 없는
-#   파일을 추가하면 스캔이 깨지거나 거짓 통과한다).
+# MQ-1003(Sprint 10) — 원 명세가 요구한 큐 repair 상세 화면(`RepairDetail.tsx`)은 이제 실제로
+#   존재한다. MQ-1002(Sprint 10)가 이 파일을 만들었으므로 `L2_EXTRA` 에 등재한다(`Decision*.tsx`
+#   글롭은 접두어가 "Decision" 이 아니라서 잡지 못한다). 예전 주석("MQ-916 이 컷돼 파일 자체가
+#   없다")은 Sprint 9 시점 기준이라 지금은 낡았다 — 지웠다.
 # Sprint 10 이 `app/(console)/**/*.tsx`(라우트 페이지) 를 세 번째 글롭으로 더했다 — 이전에는
 # `components/asset/`·`components/queue/` 만 보고 `app/` 라우트 파일은 전혀 스캔하지 않았다
 # (예: 이번 브랜치의 `technician/equipment-status/[assetId]/page.tsx` 는 D87 감시 밖이었다).
@@ -78,14 +83,13 @@ MUTANT_DIR = FRONTEND / ".ui_honesty_mutant"
 #   를 잡지 못한다. 이 토큰들은 판정색으로도 쓰이고 다른 곳에서 순수 UI 톤으로도 쓰여
 #   전면 금지가 아직 구현돼 있지 않다 — 이번 수정 범위 밖(후속 과제로 이월).
 L2_GLOBS = ("components/asset/*.tsx", "components/queue/Decision*.tsx", "app/(console)/**/*.tsx")
-L2_EXTRA = ("components/queue/SignBar.tsx",)
+L2_EXTRA = ("components/queue/SignBar.tsx", "components/queue/RepairDetail.tsx")
 # 스캔 대상 하한. 줄면 파일이 빠진 것이다 (L1 건수 검사와 같은 취지)
-# Sprint 10 이 `components/asset/*.tsx` 에 2파일(`InventoryDrawer.tsx`·
-# `EquipmentHotspotDiagram.tsx`)을 신설해 Stage 8 시점 12개(9자산+2Decision*+1SignBar)에서
-# 14개로 늘었고, 같은 브랜치 사전 병합 검토에서 `app/(console)/**/*.tsx` 글롭을 더해
-# `app/` 라우트 12개가 합류 — 실측 26개(12 app + 11 자산 + 2 Decision* + 1 SignBar).
-# 실측치로 하한을 올린다.
-L2_FILES_FLOOR = 26
+# MQ-1003(Sprint 10) — `RepairDetail.tsx` 를 L2_EXTRA 에 추가하고, MQ-1001(같은 스프린트)이 만든
+# `EvidenceBundlePanel.tsx`·`ExpenditureForm.tsx`(asset) + `evidence`·`expenditure` 라우트
+# 페이지(app)가 기존 글롭에 이미 자동 포함돼 있어 실측치가 26 → 32 로 늘었다. 이 값은 실제 실행
+# 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다 — 암산 아님.
+L2_FILES_FLOOR = 32
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
