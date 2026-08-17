@@ -5,7 +5,7 @@
 검증 : 실행 끝에 케이스 맵 7종(①~⑧) + D41 스키마 보강(⑨~⑪) + Sprint 6~7 확장(⑫~㉑)
        + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕) + parts.mfr_part_no(㉖)
        + Sprint 9 repair_records 상태 불변식·error_codes 출처 컬럼·해시 재대조(㉗~㉙)
-       + actions 병합 검증(㉚, MQ-919)
+       + actions 병합 검증(㉚, MQ-919) + part_lifecycle_mock(㉛)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -410,6 +410,16 @@ CREATE TABLE partner_links (
   -- ★ null-safe `IS` (D96). `=` 로 쓰면 (link_state NULL, external_ref 있음) 이 조용히 통과한다
   CHECK (external_ref IS NULL OR link_state IS 'LINKED')
 );
+
+-- §19 part_lifecycle_mock — 생애주기 경고(D) 목업 (Sprint 10 브레인스토밍).
+-- ⛔ 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
+--    부품별 다음 점검일 직접 부여"를 선택했다. 화면에 mock 고지 필수(D65).
+CREATE TABLE part_lifecycle_mock (
+  equipment_id TEXT NOT NULL REFERENCES equipment,
+  part_no      TEXT NOT NULL REFERENCES parts,
+  next_maintenance_due DATE NOT NULL,
+  PRIMARY KEY (equipment_id, part_no)
+);
 """
 
 # ────────────────────────────────────────────────────────────── 마스터 데이터
@@ -593,6 +603,54 @@ PART_CLASS: dict[str, str] = {
 #                 추측 9종과 `FAN-IG5-01 = CRITICAL`(S1 주인공, 3지 판단 데모 성립 조건)에
 #                 모두 동의. 이로써 `assess_repair_value` 3지 판단을 실적으로 인용할 수 있다.
 PART_CLASS_REVIEWED = True
+
+# ── part_lifecycle_mock — 생애주기 경고(D) 목업 데이터 ───────────────────────
+# 하이라이트 대상 부품(냉각팬·키패드·제어보드, frontend/lib/hotspots.ts 와 part_no 짝) ×
+# asset_id 가 있는 9개 설비 = 27행. offset_days 는 오늘(시드 실행일) 기준
+# next_maintenance_due 오프셋 — 이미 지난 것(음수)·임박·여유 있는 것을 섞어 데모 다양성을 준다.
+PART_LIFECYCLE_MOCK: list[tuple[str, str, int]] = [
+    ("INV-L1-02", "FAN-IG5-01", -12),
+    ("INV-L1-02", "KPD-IG5-01", 45),
+    ("INV-L1-02", "PCB-IG5-CTRL", 210),
+    ("INV-L3-01", "FAN-IG5-01", 18),
+    ("INV-L3-01", "KPD-IG5-01", 95),
+    ("INV-L3-01", "PCB-IG5-CTRL", -5),
+    ("INV-L3-02", "FAN-IG5-01", 300),
+    ("INV-L3-02", "KPD-IG5-01", -30),
+    ("INV-L3-02", "PCB-IG5-CTRL", 60),
+    ("INV-L4-03", "FAN-IG5-01", 8),
+    ("INV-L4-03", "KPD-IG5-01", 150),
+    ("INV-L4-03", "PCB-IG5-CTRL", 40),
+    ("INV-L2-01", "FAN-S100-01", 55),
+    ("INV-L2-01", "KPD-S100-01", -18),
+    ("INV-L2-01", "PCB-S100-CTRL", 120),
+    ("INV-L2-02", "FAN-S100-01", 25),
+    ("INV-L2-02", "KPD-S100-01", 400),
+    ("INV-L2-02", "PCB-S100-CTRL", -2),
+    ("INV-L3-03", "FAN-S100-01", 175),
+    ("INV-L3-03", "KPD-S100-01", 33),
+    ("INV-L3-03", "PCB-S100-CTRL", 9),
+    ("INV-L4-01", "FAN-S100-01", -22),
+    ("INV-L4-01", "KPD-S100-01", 80),
+    ("INV-L4-01", "PCB-S100-CTRL", 250),
+    ("INV-L4-02", "FAN-S100-01", 47),
+    ("INV-L4-02", "KPD-S100-01", 15),
+    ("INV-L4-02", "PCB-S100-CTRL", -40),
+]
+
+
+def seed_part_lifecycle_mock(con: sqlite3.Connection, today: date) -> int:
+    """§19 part_lifecycle_mock 적재. `today`(--today 인자)기준 상대 오프셋 — 데모 날짜가
+
+    밀려도 임박/여유 분포가 유지된다.
+    """
+    rows = [
+        (equipment_id, part_no, (today + timedelta(days=offset)).isoformat())
+        for equipment_id, part_no, offset in PART_LIFECYCLE_MOCK
+    ]
+    con.executemany("INSERT INTO part_lifecycle_mock VALUES (?,?,?)", rows)
+    return len(rows)
+
 
 # ── parts.mfr_part_no — 제조사 실품번 (D97) ────────────────────────────────
 #
@@ -1934,7 +1992,7 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
     parts.mfr_part_no 1건(㉖) · Sprint 9 repair_records 상태 불변식(D98)·error_codes 출처
     컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙) · actions 병합 검증
-    (MQ-919) 1건(㉚)이 뒤에 붙는다.
+    (MQ-919) 1건(㉚) · part_lifecycle_mock 1건(㉛, Sprint 10 브레인스토밍 D)이 뒤에 붙는다.
     ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
       D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
@@ -2626,6 +2684,22 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f" · [내용대조] {content_detail}"
         + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
+
+    # ㉛ part_lifecycle_mock — 27행 · FK 정합(각 equipment 의 model 과 part_no 모델이 일치) (Sprint 10)
+    rows_pl = con.execute(
+        "SELECT p.equipment_id, e.model, p.part_no FROM part_lifecycle_mock p"
+        " JOIN equipment e ON e.equipment_id = p.equipment_id"
+    ).fetchall()
+    mismatched = [
+        (equipment_id, model, part_no)
+        for equipment_id, model, part_no in rows_pl
+        if (model == "iG5A" and "IG5" not in part_no) or (model == "S100" and "S100" not in part_no)
+    ]
+    check(
+        "㉛ part_lifecycle_mock 27행 · 모델-부품 정합 (Sprint 10 브레인스토밍 D)",
+        len(rows_pl) == 27 and not mismatched,
+        f"행수={len(rows_pl)} (기대 27) · 모델 불일치 {len(mismatched)}건 {mismatched[:3]}",
+    )
     return results
 
 
@@ -2676,6 +2750,7 @@ def main() -> None:
         #   기준 시각은 `--today` 가 아니라 **실제 UTC 현재 시각** — seed_partner_links 독스트링 참조
         n_links = seed_partner_links(con, datetime.now(timezone.utc))
         seed_masters(con)
+        n_lifecycle = seed_part_lifecycle_mock(con, args.today)
         seed_inventory(con, rng)
         seed_supplier_parts(con, rng)
         seed_error_history(con, rng, args.today)
@@ -2695,6 +2770,8 @@ def main() -> None:
             print(f"[잔가곡선] residual_curve {n_curve}행 — {curve_note}")
         else:
             print(f"[잔가곡선] 적재 0행 ⚠ {curve_note}")
+
+        print(f"[생애주기 목업] part_lifecycle_mock {n_lifecycle}행 (D — mock, 실 텔레메트리 아님)")
 
         if with_codes:
             total, mapped = load_error_codes(con)
