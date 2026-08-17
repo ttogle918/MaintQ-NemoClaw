@@ -1905,3 +1905,36 @@ seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contrac
 
 - 다음 스테이지는 MQ-918(문서·개수 전파) — §9-2 표 재확인 결과 **단독**.
 - 이번까지 누적된 전파 대상: `docs/06_REPO_API.md §2.3`(repair 낡은 서술, §14-4에서 발견) · `decisions.py:602` 주석(§11-5) · `L2_FILES_FLOOR`가 컴포넌트 증가마다 갱신 필요하다는 사실(§16-1) · D 범위 표기 `D1~D101` 등.
+
+---
+
+## 17. Stage 9 완료 (2026-08-17)
+
+**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**커밋**: `ae96912` — `[M3] Sprint 9 Stage 9 — 문서·개수 전파 (MQ-918)`
+
+착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 9 = **MQ-918 단독** 확인. 코디네이터가 착수 전 spikes 29스위트를 직접 실행해 정확한 스위트별 건수(총 702건)를 실측한 뒤 실행에 착수(기억으로 적지 않는다는 CLAUDE.md 규칙 준수).
+
+### 17-1. 산출
+
+`CLAUDE.md`·`README.md`·`docs/README.md`·`docs/00_MVP_SCOPE.md`·`docs/02_SCENARIOS.md`·`docs/05_DB_SCHEMA.md`(§1·§16 DDL 전면 교체, 자가검증 26→29)·`docs/06_REPO_API.md`(§2.8 신설, §2.5·§2.7 정정)·`docs/07_BACKLOG.md`(P25 ✅ 완료, P31 🟡 유지)·`docs/10_DECISIONS.md`(D69·D74·D77 사실관계·렌더링 결함만 정정)·`docs/12_MAINT_VALUE.md`·`docs/status/*.html`(3개)·`TODO_직접할일.md`·`data/maint_value.py`(주석만).
+
+### 17-2. reviewer 게이트 — 1차 FAIL(블로커 2건) → 수정 → 2차 PASS
+
+| 회차 | 판정 | 사유 |
+|---|---|---|
+| 1차 | **FAIL** | ⓐ `docs/07_BACKLOG.md`에 MQ-915·916(§9-5 이월 확정)이 등재돼 있지 않아 **정본 백로그에서 조용히 사라진 상태** — §9-4 델타 ⓒ가 명시적으로 막으려던 바로 그 상황이 재현됨. ⓑ `CLAUDE.md:24-25`(절대 규칙 1) 본체가 여전히 `po_drafts`·`decisions`/`po.py`·`decisions.py`만 언급하고 `repair_records`·`backend/routers/repairs.py`(D98)가 빠짐 — 하위 불릿(쓰기 도구 3종)은 정정됐는데 정작 규칙 제목이 낡은 채 남음 |
+| 수정 | — | `docs/07_BACKLOG.md`에 **P37**(MQ-915)·**P38**(MQ-916)을 "🟡 Sprint 10 이월"로 신규 등재(API는 이미 완결·화면만 남았다는 근거 포함) · `CLAUDE.md` 규칙 1 본체에 `repair_records`·`backend/routers/repairs.py` 추가 |
+| 2차 | **PASS** | reviewer가 P37·P38 내용을 실제 라우터 코드(`backend/routers/maint_value.py`·`repairs.py`)와 대조해 근거 검증, `CLAUDE.md` 정정 확인, P36 서술 훼손 없음·P 번호 중복 없음 확인 |
+
+reviewer가 "마커만" 제약(§4, `docs/10_DECISIONS.md`) 위반 여부도 별도 확인: D69·D74·D77 수정은 §9-4 델타 ⓔⓕ가 지시한 **사실관계 오탈자(도구 개수)·마크다운 렌더링 결함(`|` 미이스케이프)** 정정뿐이고 결정의 판단·이유·채택근거는 한 글자도 안 바뀌었음을 diff 대조로 확인 — 제약 위반 아님, 새 D 등재 대상도 아님.
+
+### 17-3. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
+
+seed **29건** · pytest **46건** · spikes **29스위트 / 702건**(무증감 — 이번 스테이지는 코드 로직을 건드리지 않음, `data/maint_value.py`도 주석만) · `ruff` 통과.
+
+### 17-4. Stage 10 착수 전 참고
+
+- 다음은 **MQ-919(조건부)** — G1(사람 검수)·G2(재승인 범위 확정) **승인 후에만** 착수. `TODO_직접할일.md`의 `## actions 검수` 절(MQ-911 산출, 3항목 미체크) 승인이 선행 조건.
+- 승인 전까지는 **스프린트 사실상 종료 상태** — Stage 1~9(MQ-901~918, MQ-920·921 포함) 전부 완료, 이월 확정 2건(MQ-915·916, P37·P38로 백로그 등재) 남음.
+- `/done` 실행 시 D 범위 표기 정합성(이미 D1~D101로 최신) 재확인은 형식적으로만 필요 — 이번 스테이지에서 이미 검증됨.
