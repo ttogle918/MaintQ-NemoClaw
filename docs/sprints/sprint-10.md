@@ -1,6 +1,7 @@
 # Sprint 10 — 근거 번들/지출 분류 화면 + 수리 증빙 승인 큐 상세
 
-**상태**: Stage 2 완료(2026-08-18). 다음은 `/stage 3`(MQ-1004).
+**상태**: **Sprint 10 완료(2026-08-18)** — Stage 1~3 전부 완료. 남은 것: 브라우저 확인(스프린트 종료 시점에
+일괄 진행) + `/done`.
 
 ## Stage 1 완료 (2026-08-18)
 
@@ -44,6 +45,34 @@
   이 태스크에 딸려 커밋됐다.
 - 뮤턴트 양성 검증(상태 어휘 직접비교 임시 주입 → FAIL 확인 → 원복) 완료
 - 회귀: `ui_honesty_contract.py` 206계약+16게이트/뮤턴트/메타 전부 PASS · tsc clean
+
+## Stage 1+2 스크립트 검증 (브라우저 없이, 사용자 요청)
+
+`/stage` 의 수동 체크리스트 중 브라우저 없이 API/curl 레벨로 검증 가능한 항목을 eval-runner 로 확인(스크립트는
+1회성, 영구 회귀 스위트에 편입하지 않음):
+- 근거 번들 5키(`laws·rules·evaluated·contracts·facts`, `verdict` 별도 필드) — SALE/SCRAP 둘 다 실측 확인
+- 지출 분류 `part_no` 전달 경로 — 정상 판정 확인. `part_class_not_set`→500 은 시드에 해당 부품이 없어 **미실측**
+  (코드 리뷰로만 재확인, `data/maint_value.py:459-463`·`backend/routers/maint_value.py:60-64`)
+- 수리 증빙 submit→self_sign 409 차단→정상 서명(`hash_verified=true`) 전 구간 실측 확인
+- 신규 라우트 3개(`/technician/asset/{id}/evidence`·`/manager/expenditure`·`/manager/repair/{id}`) 200 확인
+  (서버 크래시 없음 — 시각적 렌더링 확인은 아님, 브라우저 검증에서 마저 할 것)
+
+DB는 검증 후 클린 재시드로 원복.
+
+## Stage 3 완료 (2026-08-18)
+
+**커밋**: `e9a928a` — `[M1] docs: Sprint 10 문서·개수 전파 — P37·P38 완료 표기 + 실측 기준선 갱신 (MQ-1004)`
+
+#### MQ-1004 — 문서·개수 전파
+- 구현 파일: `docs/07_BACKLOG.md`(P37·P38 완료 표기) · `CLAUDE.md`(실측 기준선 갱신)
+- 최종 확정 숫자(전부 실행 결과): 프론트 라우트 16개 · `ui_honesty_contract` 222건(계약 206+게이트/뮤턴트/메타
+  16) · spikes 29종 합계 822건(구 786 + `ui_honesty_contract` 델타 +36) · seed 31건·pytest 46건(변경 없음,
+  재확인만)
+- 리뷰: PASS(경미한 DoD 문구 정정 권고 1건, 코드 위반 아님)
+
+## 남은 작업 (사용자 지시)
+- 브라우저 에이전트를 이용한 시각/UX 확인 — Sprint 10 전체가 끝난 지금 일괄 진행 예정
+- `docs/status/*.html` 3종을 최신 상태로 갱신 — 브라우저 확인 이후 진행 예정
 
 ## 배경
 
