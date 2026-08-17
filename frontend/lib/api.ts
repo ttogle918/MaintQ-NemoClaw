@@ -596,7 +596,8 @@ export const getInventory = (
   if (params.part_no) q.set("part_no", params.part_no);
   if (params.part_name) q.set("part_name", params.part_name);
   if (params.model) q.set("model", params.model);
-  return apiFetch<ApiInventory>(`/api/inventory?${q.toString()}`, role);
+  const qs = q.toString();
+  return apiFetch<ApiInventory>(`/api/inventory${qs ? `?${qs}` : ""}`, role);
 };
 
 /**
