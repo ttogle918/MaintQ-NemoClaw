@@ -199,6 +199,184 @@ export function repairStateView(state: string): QueueLabel {
   return { ...known, known: true };
 }
 
+/* -------------------------------------------------------------------------- */
+/* 수리 가치 판단 어휘 (S1+, MQ-914) — RepairValuePanel · ExpenditureCard ·      */
+/* CriticalityDrawer · MetricsAside 가 공유한다 (D87 — 전역 total 맵 1곳).       */
+/*                                                                            */
+/* ⛔ 이 절 밖(네 컴포넌트 파일)에는 `verdict`·`part_class` 문자열 리터럴이나 색   */
+/*   토큰이 있으면 안 된다 — `spikes/ui_honesty_contract.py` L2 가 `components/  */
+/*   asset/*.tsx` 를 자동 스캔한다(README §설계 계약). 맵 밖 값은 전부           */
+/*   `known:false` + `unknown` 톤으로 떨어진다 — 성공(`positive`)으로 새지 않는다.*/
+
+export type MaintTone = "positive" | "info" | "neutral" | "caution" | "unknown";
+
+const MAINT_SKIN: Record<MaintTone, string> = {
+  positive: "border:1px solid var(--ok-bd);background:var(--ok-bg);color:var(--ok-tx)",
+  info: "border:1px solid var(--cite-bd);background:var(--cite-bg);color:var(--blue-tx)",
+  neutral: "border:1px solid var(--line2);background:var(--raise);color:var(--ink2)",
+  // 경고색이되 에러는 아니다 — 실선(확정 차단)과 구분되는 점선 (DisposalPanel 의 hold 와 같은 규약)
+  caution: "border:1.5px dashed var(--error-tx);background:transparent;color:var(--error-tx)",
+  unknown: "border:1.5px dashed var(--dim2);background:transparent;color:var(--ink2)",
+};
+
+export interface MaintVerdictLabel {
+  text: string;
+  note: string;
+  tone: MaintTone;
+  skin: string;
+  known: boolean;
+}
+
+/** `assess_repair_value` 의 5종 판정 (`04 §13`). */
+const REPAIR_VALUE_VERDICT: Record<string, Omit<MaintVerdictLabel, "known" | "skin">> = {
+  REPAIR_RECOMMENDED: {
+    text: "수리 권장",
+    note: "수리 후 회복분이 수리비 이상으로 산출되었습니다 — 시장가는 추정치입니다 (D65·D74).",
+    tone: "positive",
+  },
+  REPLACE_RECOMMENDED: {
+    text: "교체 권장",
+    note: "부품 단종이거나 누적 수리비 비율이 높습니다.",
+    tone: "info",
+  },
+  SELL_AS_IS: {
+    text: "현상 매각 권장",
+    note: "지표가 악화 추세이며 수리비가 매각 후 시장가를 넘습니다.",
+    tone: "info",
+  },
+  ROOT_CAUSE_FIRST: {
+    text: "근본원인 점검 우선",
+    note: "직전 30일 안에 같은 설비에서 반복 고장이 확인됐습니다 — 3지 선택지 자체를 내지 않습니다.",
+    tone: "caution",
+  },
+  HOLD: {
+    text: "판단 유보",
+    note: "시장가를 산출할 원천이 없어 유보했습니다 — '문제 없음'이 아닙니다. 금액을 추정해 메우지 마십시오.",
+    tone: "caution",
+  },
+};
+
+export function repairValueVerdictView(verdict: string | null | undefined): MaintVerdictLabel {
+  if (!verdict) {
+    return {
+      text: "판정 없음",
+      note: "응답에 판정 값이 없습니다 — 계약 위반 신호일 수 있습니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  const known = REPAIR_VALUE_VERDICT[verdict];
+  if (!known) {
+    return {
+      text: verdict,
+      note: "이 화면이 모르는 판정 값입니다 — 원문 그대로 표시합니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  return { ...known, skin: MAINT_SKIN[known.tone], known: true };
+}
+
+/** `classify_expenditure` 의 3종 판정 (`04 §12`). */
+const EXPENDITURE_VERDICT: Record<string, Omit<MaintVerdictLabel, "known" | "skin">> = {
+  CAPITAL: { text: "자본적 지출", note: "취득원가에 반영되는 지출로 분류됩니다.", tone: "neutral" },
+  REVENUE: { text: "수익적 지출", note: "당기 비용으로 처리되는 지출로 분류됩니다.", tone: "neutral" },
+  HOLD: {
+    text: "판단 유보",
+    note: "경계 사안이라 단정하지 않았습니다 — 세무 전문가 확인이 필요합니다. 실패가 아닙니다.",
+    tone: "caution",
+  },
+};
+
+export function expenditureVerdictView(verdict: string | null | undefined): MaintVerdictLabel {
+  if (!verdict) {
+    return {
+      text: "판정 없음",
+      note: "응답에 판정 값이 없습니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  const known = EXPENDITURE_VERDICT[verdict];
+  if (!known) {
+    return {
+      text: verdict,
+      note: "이 화면이 모르는 판정 값입니다 — 원문 그대로 표시합니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  return { ...known, skin: MAINT_SKIN[known.tone], known: true };
+}
+
+/** `classify_part_criticality` 의 등급 2종 (`04 §10`). `reviewed:false` — 사람 검수 전 초안. */
+const PART_CLASS_LABEL: Record<string, Omit<MaintVerdictLabel, "known" | "skin">> = {
+  CONSUMABLE: { text: "소모품", note: "정기 교체 대상 부품입니다.", tone: "neutral" },
+  CRITICAL: { text: "핵심 부품", note: "설비 가동에 직결되는 핵심 부품입니다.", tone: "info" },
+};
+
+export function partClassView(partClass: string | null | undefined): MaintVerdictLabel {
+  if (!partClass) {
+    return {
+      text: "미상",
+      note: "등급이 조회되지 않았습니다 — 등급을 추측하지 않습니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  const known = PART_CLASS_LABEL[partClass];
+  if (!known) {
+    return {
+      text: partClass,
+      note: "이 화면이 모르는 등급 값입니다 — 원문 그대로 표시합니다.",
+      tone: "unknown",
+      skin: MAINT_SKIN.unknown,
+      known: false,
+    };
+  }
+  return { ...known, skin: MAINT_SKIN[known.tone], known: true };
+}
+
+/**
+ * 근거(조문 원문) 수집 상태 → 표시 문구.
+ *
+ * `lib/decisionView.evidenceCompletenessView` 와 같은 어휘(`COMPLETE`|`LAW_TEXT_PENDING`)를
+ * 쓰지만 문안은 처분 서명 맥락("서명용 증빙 불가")과 달라야 하므로 새로 둔다 — 지출 분류
+ * 화면에는 서명이라는 사건 자체가 없다.
+ */
+const EXPENDITURE_EVIDENCE_LABEL: Record<string, string> = {
+  COMPLETE: "조문 원문 수집 완료",
+  LAW_TEXT_PENDING: "조문 원문 수집 대기",
+};
+
+export function expenditureEvidenceView(value: unknown): { text: string; known: boolean } {
+  if (typeof value !== "string") return { text: "근거 수집 상태 미제공", known: false };
+  const known = EXPENDITURE_EVIDENCE_LABEL[value];
+  return known ? { text: known, known: true } : { text: `⚠ ${value}`, known: false };
+}
+
+/**
+ * `assess_repair_value` 입력의 `repair_scope` 4종. **입력 옵션 목록도 여기 한 곳에 둔다** —
+ * 값 중 하나(`REPLACE_UNIT` 등)가 컴포넌트 파일에 리터럴로 남으면 D87 이 막으려는
+ * "컴포넌트가 어휘를 직접 든다"가 입력 쪽에서 재현된다.
+ */
+export interface WorkScopeOption {
+  value: string;
+  label: string;
+}
+
+export const WORK_SCOPE_OPTIONS: WorkScopeOption[] = [
+  { value: "RESTORE", label: "원상 복구 (기본값)" },
+  { value: "UPGRADE", label: "성능 개선" },
+  { value: "OVERHAUL", label: "오버홀" },
+  { value: "REPLACE_UNIT", label: "설비 단위 교체" },
+];
+
 function relativeTime(iso: string): string {
   const then = new Date(iso.replace(" ", "T")).getTime();
   if (Number.isNaN(then)) return "";
