@@ -66,7 +66,7 @@ MaintQ/
 │   │   ├── create_po_draft.py            ┘ ← 쓰기 도구 ①/3 — po_drafts draft INSERT (D10)
 │   │   ├── check_disposal_blockers.py    ┐
 │   │   ├── verify_ownership.py           │
-│   │   ├── classify_part_criticality.py  │ 확장 9종 (`full` 에서만 등록 — D69)
+│   │   ├── classify_part_criticality.py  │ 확장 11종 (`full` 에서만 등록 — D69)
 │   │   ├── get_maintenance_metrics.py    │ 대상은 asset_id (D68)
 │   │   ├── classify_expenditure.py       │
 │   │   ├── assess_repair_value.py        │

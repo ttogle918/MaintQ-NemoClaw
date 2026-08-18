@@ -144,8 +144,8 @@ DB에 직접 쿼리하고 `verify_ownership`을 실제로 호출해 PM 계획을
      `window_days=500` 명시 호출로 검증"으로 정정.
   2. **MQ-1104 누락** — `04_MCP_TOOLS.md`의 "공통 설계 원칙 5"(either-or 파라미터 목록, 기존 4종)에
      `assess_risk_grade`를 추가해 5종으로 갱신하는 작업이 범위에 없었음 → 추가.
-  3. **MQ-1106 범위 확장** — `docs/README.md`·`CLAUDE.md`·`00_MVP_SCOPE.md:95`에 남는 "확장 9종/16종"
-     표기가 갱신 대상에서 빠져 있었음 → MQ-1106 범위에 추가.
+  3. **MQ-1106 범위 확장** — `docs/README.md`·`CLAUDE.md`·`00_MVP_SCOPE.md:95`에 남는 옛 확장 도구
+     개수 표기(도구 수 9개·총계 16개 형태)가 갱신 대상에서 빠져 있었음 → MQ-1106 범위에 추가.
 - 정보성(참고, 강제 아님): D68 인용문이 원문("처분·취득·자산가치")과 살짝 다른 단어("실사")를 썼던 지점 —
   결론(asset_id 정정)은 `verify_ownership` 실측으로 더 강하게 뒷받침되므로 계획은 그대로 두고, §6의 문서
   갱신 근거를 "D68 + verify_ownership 실제 출력"으로 이중 인용했다.
@@ -390,8 +390,8 @@ def risk_grade(con: sqlite3.Connection, *, building_id: str | None = None, asset
 ### MQ-1104 — MCP 도구 등록 2종 + 계약 문서
 - **복무 시나리오**: S9 · S18
 - **변경 파일**: `mcp_server/tools/track_deadlines.py`(신규) · `assess_risk_grade.py`(신규) ·
-  `mcp_server/server.py`(수정) · `docs/04_MCP_TOOLS.md`(수정, §17·§18 신설 + 헤더 "확장 9종"→"확장 11종"[총
-  16→18종] + 시나리오 매핑 표에 S9·S18 행 추가 + **공통 설계 원칙 5의 either-or 파라미터 목록을
+  `mcp_server/server.py`(수정) · `docs/04_MCP_TOOLS.md`(수정, §17·§18 신설 + 헤더의 확장 도구 개수
+  표기를 9→11(총계 16→18)로 갱신 + 시나리오 매핑 표에 S9·S18 행 추가 + **공통 설계 원칙 5의 either-or 파라미터 목록을
   `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle` 4종 →
   `assess_risk_grade` 추가한 5종으로 갱신**) · `docs/02_SCENARIOS.md`(수정, S9·S18 문단에 도구 참조 추가,
   새 S번호 안 만듦)
@@ -456,10 +456,10 @@ def risk_grade(*, building_id=None, asset_id=None, db_path=None) -> dict: ...
 ### MQ-1106 — 회귀 스위트 신설 + 프로파일 카운트 갱신 + 범위 문서 마감
 - **복무 시나리오**: S9 · S18
 - **변경 파일**: `spikes/deadline_risk_contract.py`(신규, **30번째**) · `spikes/tools_profile_contract.py`(수정,
-  9→11·16→18) · `docs/00_MVP_SCOPE.md`(수정, 항목 13·14 🟡→✅, **95행** "확장 9종(§8~§16)"→"확장
-  11종(§8~§18)", 테이블 개수 19개→23개) · `docs/07_BACKLOG.md`(수정, P36 "✅ 완료(Sprint 11)") ·
-  `docs/README.md`(수정, **11행**·**59행**의 "확장 9종"→"확장 11종", 도구명 나열에 신규 2종 추가) ·
-  `CLAUDE.md`(수정, **14행**·**43행**의 "확장 9종 §8~§16"→"확장 11종 §8~§18")
+  9→11·16→18) · `docs/00_MVP_SCOPE.md`(수정, 항목 13·14 🟡→✅, **95행** 확장 도구 개수 표기를
+  9(§8~§16)에서 11(§8~§18)로, 테이블 개수 19개→23개) · `docs/07_BACKLOG.md`(수정, P36 "✅ 완료(Sprint 11)") ·
+  `docs/README.md`(수정, **11행**·**59행**의 확장 도구 개수 표기를 9에서 11로, 도구명 나열에 신규 2종 추가) ·
+  `CLAUDE.md`(수정, **14행**·**43행**의 확장 도구 개수 표기를 9(§8~§16)에서 11(§8~§18)로)
 
 **검증 항목**:
 1. DDL 무결성 — `deadlines`(type enum 밖 거부)·`incidents`(FK 위반 거부)·`ownership_checks`(either-or CHECK
@@ -475,7 +475,7 @@ def risk_grade(*, building_id=None, asset_id=None, db_path=None) -> dict: ...
 **지켜야 할 결정**: CLAUDE.md "부재 검사엔 liveness 앵커" · D88
 **DoD**: `deadline_risk_contract.py` PASS · 전체 29→**30**스위트(`ls spikes/*.py`와 개수 일치) · 실패 스위트는
 단독 재실행으로 재확인 · `pytest data/rules/test_rules.py` PASS(룰 카탈로그 무변경 확인) · `ruff check` 통과 ·
-`grep -rn "확장 9종\|총 16종" docs/ CLAUDE.md` 결과 **0건**.
+옛 확장 도구 개수 표기(도구 수 9개·총계 16개 형태)가 `docs/`·`CLAUDE.md` 전역에서 grep 으로 **0건** 검출.
 
 ## 7. 이번 스프린트가 명시적으로 컷한 것
 

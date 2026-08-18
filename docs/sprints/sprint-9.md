@@ -781,7 +781,8 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> list[str]:
   - `MAINTQ_TOOLS_PROFILE=full` 로 서버 기동 시 도구 **16종**, 기본(`core`)에서 **7종**.
   - `rg -n "override|signed_at|record_hash|performed_by|verified_by|session_id|requested_by" \
     mcp_server/tools/create_repair_record.py` → **파라미터 시그니처에 0건**.
-  - `docs/04_MCP_TOOLS.md` 에 **§16** 이 있고 머리말이 *"확장 9종(읽기 7 + 쓰기 2)= 총 16종"* 으로 갱신됐다.
+  - `docs/04_MCP_TOOLS.md` 에 **§16** 이 있고 머리말의 확장 도구 개수가 *9개(읽기 7 + 쓰기 2) · 합계 16개*
+    로 갱신됐다(Sprint 9 시점 — Sprint 11 이 이후 다시 11개·18개로 갱신했다).
   - `uv run python data/seed.py --with-error-codes` 후 도구 1회 호출 → `repair_records` 1행 추가,
     `state='draft'`, `signed_at IS NULL`, **`get_maintenance_metrics` 의 `n_repairs_signed` 불변**
     (미서명은 지표에 안 든다 — 이게 D98 CHECK ③의 목적이다).

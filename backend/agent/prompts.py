@@ -8,7 +8,8 @@
 
 담당 범위 (`docs/sprints/sprint-3.md` §4 MQ-303):
 - `SYSTEM_PROMPT` — 규칙 11개. 각 규칙은 결정 번호와 1:1 대응하며 **하나도 뺄 수 없다**
-- `EXT_RULES` — 확장 도구가 실제로 등록됐을 때만 붙는 규칙 12·13·14·15 (Sprint 6~7, D69)
+- `EXT_RULES` — 확장 도구가 실제로 등록됐을 때만 붙는 규칙 12·13·14·15 (Sprint 6~7, D69) +
+  16·17 (Sprint 11, `track_deadlines`·`assess_risk_grade`, D102)
 - `SAFETY_BASELINE` — 안전 블록의 확정 문구·근거 페이지. LLM 이 생성하지 않는다
 - `build_system_prompt(model, ..., tool_names=…)` — 장비 컨텍스트 주입 (09_RUNTIME §2)
 
@@ -251,16 +252,20 @@ RULES: tuple[str, ...] = (
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 규칙 4개 — 규칙 12·13·14 (Sprint 6) + 15 (Sprint 7). **번호는 위치로 고정**한다.
-# 확장 도구가 등록되지 않은 실행에서는 붙지 않으며, 그때도 남은 규칙의 번호는 안 밀린다
-# (규칙 13만 붙어도 "규칙 13"이다) — 회고·리뷰에서 규칙 번호로 대화하기 때문이다.
+# 확장 규칙 6개 — 규칙 12·13·14 (Sprint 6) + 15 (Sprint 7) + 16·17 (Sprint 11, D102).
+# **번호는 위치로 고정**한다. 확장 도구가 등록되지 않은 실행에서는 붙지 않으며, 그때도
+# 남은 규칙의 번호는 안 밀린다 (규칙 13만 붙어도 "규칙 13"이다) — 회고·리뷰에서 규칙
+# 번호로 대화하기 때문이다.
 #
 # ★ 규칙 15 를 `RULES`(코어 11개)에 넣지 않은 이유: `generate_disposal_document` 는
 #   `full` 프로파일에서만 등록되는 확장 도구다. 코어 프로파일 프롬프트에 그 사용법이
 #   실리면 **없는 도구의 호출 규칙을 지시**하게 되고, 그게 D69·MQ-612 가 도구별 게이트를
-#   만든 이유다(⑱ 이 "코어에서 확장 도구명 0글자"를 단언한다).
+#   만든 이유다(⑱ 이 "코어에서 확장 도구명 0글자"를 단언한다). 규칙 16·17(`track_deadlines`·
+#   `assess_risk_grade`, Sprint 11)도 같은 이유로 `EXT_RULES` 에 둔다.
 #   → sprint-7 MQ-706 DoD 의 `len(RULES)==12` 는 이 구조와 양립할 수 없어 `len(EXT_RULES)==4`
 #     로 구현했다. 규칙 총량은 같고(11+4=15), 게이트 요구("core 에서 0건 누출")를 지킨다.
+#     Sprint 11 이 16·17 을 더해 `len(EXT_RULES)==6`, 총량은 11+6=17 이 됐다 —
+#     같은 게이트가 그대로 적용된다.
 # ─────────────────────────────────────────────────────────────────────────────
 EXT_RULES: tuple[str, ...] = (
     # 12 — 처분 판정 경계
@@ -290,6 +295,19 @@ EXT_RULES: tuple[str, ...] = (
     " 기록된 채 결재에 올라간다. 예외를 적용할지와 그 사유는 승인자가 정한다. 사유를"
     " 대신 지어내지 마라. `law_text_unavailable` 로 거부되면 근거 조문 원문이 아직"
     " 수집되지 않았다는 뜻이며, 초안은 **만들어지지 않았다** — 만들어진 것처럼 말하지 마라.",
+    # 16 — 처분 전 법정 기한 사전 확인 (S9·D101·D102)
+    "**처분·매각을 검토하기 전에 법정 기한부터 본다 (S9·D101·D102).** 자산 처분·매각 이야기가"
+    " 나오면 `check_disposal_blockers` 를 부르기 전에 먼저 `track_deadlines` 로 세액공제"
+    " 사후관리·안전검사 기한을 확인한다. `OVERDUE`·`UPCOMING` 항목이 있으면 그대로 전하고"
+    " 해소 경로(`resolve_options`)를 안내한다. 기본 호출(`window_days=180`)에서 0건이 나와도"
+    " 실패가 아니다 — 그 기간 안에 임박한 기한이 없다는 뜻이며 추측으로 채우지 마라(D62)."
+    " 처분 차단 여부 자체는 이 도구가 아니라 `check_disposal_blockers` 로 판단한다.",
+    # 17 — 중고 취득 실사에 건물 위험등급 더하기 (S18·D101·D102)
+    "**중고 취득 실사에는 건물 위험등급을 더한다 (S18·D101·D102).** `verify_ownership` 실사와"
+    " 함께 `assess_risk_grade` 로 건물 단위 위험등급을 확인한다. `current_grade` 가 `null` 이면"
+    " 화기 취급·위험물 보관량·수전용량 중 미확인 항목이 있다는 뜻이니 등급을 추측해 채우지"
+    " 마라(D62). `changed:true` 는 저장된 등급과 달라졌다는 알림일 뿐 이 도구가 `risk_profile`"
+    " 을 갱신하지는 않는다 — 갱신은 이 도구의 몫이 아니며 사람이 판단한다.",
 )
 
 # 각 확장 규칙이 **전제하는 도구**. 그 도구가 등록되지 않은 실행에서는 규칙도 붙지 않는다 —
@@ -299,6 +317,8 @@ _EXT_RULE_TOOLS: tuple[tuple[str, ...], ...] = (
     ("assess_repair_value",),
     ("assess_repair_value",),
     ("generate_disposal_document",),
+    ("track_deadlines",),
+    ("assess_risk_grade",),
 )
 assert len(EXT_RULES) == len(_EXT_RULE_TOOLS)
 
@@ -323,6 +343,8 @@ _EXT_TOOL_LINES: dict[str, str] = {
     "build_evidence_bundle": "- `build_evidence_bundle` — 처분 판정의 근거를 묶어 해시로 고정 (저장·판정은 하지 않는다)",
     "generate_disposal_document": "- `generate_disposal_document` — 처분 승인서·진술보장서 **초안**만 생성. 확정은 승인 큐의 서명뿐이다",
     "create_repair_record": "- `create_repair_record` — 수리 증빙 **초안**만 생성. `expenditure_class` 는 시스템이 산출하며 서명 전엔 보전지표에 반영되지 않는다",
+    "track_deadlines": "- `track_deadlines`    — 법정 기한(세액공제 사후관리·안전검사) 사전 경보. 처분 검토 전에 먼저 호출한다",
+    "assess_risk_grade": "- `assess_risk_grade`  — 건물 단위 위험등급 산출 (`current_grade`·`changed` 조회, `risk_profile` 은 갱신하지 않는다)",
 }
 
 CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)

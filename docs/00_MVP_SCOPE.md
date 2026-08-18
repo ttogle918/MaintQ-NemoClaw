@@ -92,10 +92,13 @@
 ## 인프라 · 구조 (필수)
 
 - **MCP 서버 ↔ 백엔드 프로세스 분리** — 목업 DB를 실제 ERP로 교체 시 MCP 서버만 교체 (**D15**). `data/`(매뉴얼·시드·룰 카탈로그)는 두 프로세스가 공유해도 되는 **데이터 계층**이다 (**D73**)
-- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 9종**(읽기 7 + **쓰기 2**, `§8~§16`, 프로파일 게이트 **D69**)
+- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 11종**(읽기 9 + **쓰기 2**, `§8~§18`, 프로파일 게이트 **D69**)
   - ⚠ **쓰기 도구는 3종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
     `create_repair_record`(§16, Sprint 9 신설, D98). 셋 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81·D98)
-- **SQLite 목업 DB** (**18절·실제 테이블 19개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8). 실측: `data/seed.py` 의 `CREATE TABLE` **19개**) + 벡터스토어(매뉴얼) + `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`)
+- **SQLite 목업 DB** (**23절·실제 테이블 24개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
+  UI목업 1(`part_lifecycle_mock`, Sprint 10) + F5·F6 4(`deadlines`·`incidents`·`ownership_checks`·
+  `risk_profile`, Sprint 11, D102). 실측: `data/seed.py` 의 `CREATE TABLE` **24개**) + 벡터스토어(매뉴얼) +
+  `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`)
 - **UI 2종**: 정비사 진단 콘솔(화면 A) / 팀장 승인 큐(화면 B) (`03_WIREFRAME`)
 - **환경**: uv + venv, Docker는 MVP 제외 (**D27**)
 
@@ -164,8 +167,8 @@
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
 | 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집 **8건 전부 `FETCHED`** (2026-08-13 — `KR-CITA-ENF-31` 등록 제목 `즉시상각의제` → `즉시상각의 의제` 사람 승인 후 수집 완료). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ✅ 문안 **2026-08-13 사람 검수 완료**(`template_review_notice` · D90) — **F1~F3 잔여 사람 검수 없음** |
 | 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` · `06 §2.5` | ✅ **Sprint 6·7** — `verify_ownership` + REST `GET /api/assets/{id}/ownership` + 실사 화면. 9카테고리, `PARTIAL` 승격 경로 없음(코드에 분기 자체가 없다). UI 도 `PARTIAL` 을 성공색으로 그리지 않는다 (**D87**) |
-| 13 | **기한 추적** — `TAX-CREDIT-2Y` 등 기한 임박 항목 선제 알림 | `11 §10` · 백로그 P36(F5) | 🟡 **Sprint 11 착수 예정 (D102)** — `deadlines`·`incidents` 신설 + `track_deadlines`. D102 가 백로그 v2 제외(Sprint 7)를 supersede |
-| 14 | **실사 보존 · 위험 프로파일** — 확인 항목 영속화 + 건물 위험 등급 | `11 §10` · 백로그 P36(F6) | 🟡 **Sprint 11 착수 예정 (D102)** — `ownership_checks`·`risk_profile` 신설 + `assess_risk_grade`. `detect_law_revision`(S17)은 **제외 유지** — D102 가 다시 열지 않는다 |
+| 13 | **기한 추적** — `TAX-CREDIT-2Y` 등 기한 임박 항목 선제 알림 | `11 §10` · 백로그 P36(F5) | ✅ **Sprint 11 완료 (D102)** — `deadlines`·`incidents` 신설 + `track_deadlines`(§17). D102 가 백로그 v2 제외(Sprint 7)를 supersede |
+| 14 | **실사 보존 · 위험 프로파일** — 확인 항목 영속화 + 건물 위험 등급 | `11 §10` · 백로그 P36(F6) | ✅ **Sprint 11 완료 (D102)** — `ownership_checks`·`risk_profile` 신설 + `assess_risk_grade`(§18). `detect_law_revision`(S17)은 **제외 유지** — D102 가 다시 열지 않는다 |
 
 > **노출은 기본 꺼져 있다 (D69).** 확장 **8종**은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.
 > 기본값 `core` 로는 코어 7종만 보인다 — 도구를 늘린 뒤 평가를 돌리면

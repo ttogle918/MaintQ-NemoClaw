@@ -5,12 +5,19 @@
 **"규칙과 기준값이 프롬프트에 실제로 들어 있는가"** 다. 문구가 조용히 사라지거나
 방전 대기 기준값이 축소되면(safety-guardrail 규칙 3) 여기서 먼저 깨진다.
 
-MQ-612 가 더한 것 (⑰~㉑, D69) · MQ-706 이 더한 것 (㉒㉓):
-  - 확장 규칙 4개(12·13·14·15)는 **전제 도구가 실제로 등록됐을 때만** 붙는다
+MQ-612 가 더한 것 (⑰~㉑, D69) · MQ-706 이 더한 것 (㉒㉓) · Sprint 11 마무리(MQ-1106 후속)가
+더한 것 (㉔):
+  - 확장 규칙 6개(12~17, Sprint 11 이 16·17 을 더함, D102)는 **전제 도구가 실제로
+    등록됐을 때만** 붙는다
   - `prompts.py` 는 `MAINTQ_TOOLS_PROFILE` 을 **읽지 않는다** — env 를 바꿔도 출력이
     바뀌지 않음을 실제로 확인한다. 등록(자식 프로세스)과 지시(백엔드)가 같은 env 를
     각자 해석하면 어긋나기 때문이다
   - 규칙 번호는 **위치로 고정** — 확장 도구가 일부만 등록돼도 번호가 밀리지 않는다
+  - ㉔ — Sprint 11 이 `track_deadlines`·`assess_risk_grade` 를 `mcp_server/server.py` 에는
+    등록하고 `prompts.py` 의 `EXT_TOOLS` 에는 올리지 않은 채 끝난 일이 실제로 있었다.
+    이 스위트는 그동안 `prompts.py` 만 자기참조해서 그 결함을 잡지 못했다(위장 통과) —
+    ㉔ 은 `server.py` 소스에서 `full` 블록에 실제 등록된 도구명을 뽑아 `EXT_TOOLS` 와
+    직접 대조한다(서버 기동·LLM 호출 없이 정적으로).
 
 실행:  uv run python spikes/prompt_rules.py
 """
@@ -19,6 +26,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -230,12 +238,12 @@ def run() -> None:
         else f"env {_ENV_AT_IMPORT!r} 를 스파이크 진입 시 제거함(검사 대상 아님)"
     )
     check(
-        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 4개 고정 (D69)",
+        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 6개 고정 (D69·D102)",
         len(RULES) == 11
-        and len(EXT_RULES) == 4
+        and len(EXT_RULES) == 6
         and os.environ.get("MAINTQ_TOOLS_PROFILE") is None
         and len(CORE_TOOLS) == 7
-        and len(EXT_TOOLS) == 9,
+        and len(EXT_TOOLS) == 11,
         f"RULES={len(RULES)} EXT_RULES={len(EXT_RULES)} "
         f"CORE={len(CORE_TOOLS)} EXT={len(EXT_TOOLS)} · {env_note}",
     )
@@ -250,20 +258,20 @@ def run() -> None:
         f"규칙 누출={ext_rule_leak or '없음'} · 도구명 누출={ext_tool_leak or '없음'}",
     )
 
-    # ── ⑲ 확장 16종 등록 → EXT 규칙 4개 + 각 근거 D 태그
+    # ── ⑲ 확장 18종 등록 → EXT 규칙 6개 + 각 근거 D 태그
     all_tools = [*CORE_TOOLS, *EXT_TOOLS]
     full_prompt = build_system_prompt("iG5A", tool_names=all_tools)
     ext_missing = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] not in full_prompt]
-    # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3 / 15=D81·D63·D10
-    ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3", "D81", "D63")
+    # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3 / 15=D81·D63·D10 / 16=D101·D102 / 17=D101·D102
+    ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3", "D81", "D63", "D101", "D102")
     tag_missing = [t for t in ext_tags if t not in full_prompt]
-    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15))
+    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15, 16, 17))
     check(
-        "⑲ tool_names=전체15 → EXT 규칙 4개 + D 태그 전건 · 규칙 번호 12·13·14·15",
+        "⑲ tool_names=전체18 → EXT 규칙 6개 + D 태그 전건 · 규칙 번호 12~17",
         not ext_missing
         and not tag_missing
         and numbered
-        and "사용 가능한 도구 (16종)" in full_prompt
+        and "사용 가능한 도구 (18종)" in full_prompt
         and all(t in full_prompt for t in EXT_TOOLS),
         f"규칙 누락={ext_missing or '없음'} · 태그 누락={tag_missing or '없음'} · 번호={numbered}",
     )
@@ -293,12 +301,14 @@ def run() -> None:
 
     # ── ㉑ 부분 등록 — 번호는 위치로 고정된다(규칙 14 만 붙어도 "14.")
     partial = build_system_prompt("iG5A", tool_names=[*CORE_TOOLS, "assess_repair_value"])
-    present = {n: f"\n{n}. " in partial for n in (12, 13, 14, 15)}
+    present = {n: f"\n{n}. " in partial for n in (12, 13, 14, 15, 16, 17)}
     check(
         "㉑ 확장 도구 일부만 등록 → 해당 규칙만 · 번호 밀림 없음",
-        present == {12: False, 13: True, 14: True, 15: False}
+        present == {12: False, 13: True, 14: True, 15: False, 16: False, 17: False}
         and "check_disposal_blockers" not in partial
         and "generate_disposal_document" not in partial
+        and "track_deadlines" not in partial
+        and "assess_risk_grade" not in partial
         and "규칙 (13개" in partial,
         f"규칙 존재={present} · 헤더 13개={'규칙 (13개' in partial}",
     )
@@ -333,6 +343,34 @@ def run() -> None:
         and "generate_disposal_document" in full_prompt
         and rule15[:24] in full_prompt,
         f"규칙 15 누락 문구={missing15 or '없음'}",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Sprint 11 마무리 (MQ-1106 후속) — 자기참조 위장통과 방지
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── ㉔ EXT_TOOLS(prompts.py) 가 실제로 server.py 의 `full` 블록에 등록된 도구명과
+    #    **정확히 일치**하는가. 위 검사들은 전부 `prompts.py` 안에서만 도는데, 그건
+    #    "prompts.py 가 스스로 일관적인가"만 보장할 뿐 "MCP 가 실제로 등록한 도구를
+    #    prompts.py 가 빠짐없이 알고 있는가"는 보장하지 못한다 — Sprint 11 이 정확히
+    #    이 틈으로 `track_deadlines`·`assess_risk_grade` 를 놓쳤다(서버는 등록, 프롬프트는
+    #    누락). `tools_profile_contract.py` 는 서버를 실제로 기동해 이 대조를 하지만,
+    #    여기서는 LLM·서브프로세스 없이 `server.py` 소스를 정적으로 읽어 같은 대조를 건다.
+    server_src = (ROOT / "mcp_server" / "server.py").read_text(encoding="utf-8")
+    _FULL_MARK, _MAIN_MARK = 'if TOOLS_PROFILE == "full":', 'if __name__ == "__main__":'
+    full_block = (
+        server_src[server_src.index(_FULL_MARK) : server_src.index(_MAIN_MARK)]
+        if _FULL_MARK in server_src and _MAIN_MARK in server_src
+        else ""
+    )
+    registered = set(re.findall(r"@mcp\.tool\([^\n]*\)\s*\n\s*def (\w+)\(", full_block))
+    prompts_ext = set(EXT_TOOLS)
+    check(
+        "㉔ prompts.EXT_TOOLS == server.py full 블록 실등록 도구명 (자기참조 위장통과 방지)",
+        bool(registered) and prompts_ext == registered,
+        f"prompts.EXT_TOOLS={len(prompts_ext)} · server 실등록={len(registered)} · "
+        f"prompts 누락(서버엔 있는데 프롬프트에 없음)={sorted(registered - prompts_ext) or '없음'} · "
+        f"server 누락(프롬프트엔 있는데 서버에 없음)={sorted(prompts_ext - registered) or '없음'}",
     )
 
 

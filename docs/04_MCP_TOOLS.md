@@ -2,7 +2,7 @@
 설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 11종(읽기 9 + 쓰기 2) = 총 18종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
-- 확장 9종은 자산 생애주기(처분·취득·자산가치·수리 증빙) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다
+- 확장 11종은 자산 생애주기(처분·취득·자산가치·수리 증빙·기한/위험 감시) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다
   (**D68**) — 단 `create_repair_record`(§16)는 예외로 `equipment_id`(인버터) 를 직접 받는다 (D68 ⓑ, 수리는
   인버터 단위).
 - ⚠ **쓰기 도구는 이제 3종이다** — `create_po_draft`(§7) · **`generate_disposal_document`(§15, Sprint 7 신설)** ·
@@ -37,7 +37,7 @@
 ## 공통 설계 원칙
 
 1. **description이 오케스트레이션의 절반이다.** 각 도구 설명에 "언제 사용 / 언제 사용 금지"를 명시한다. LLM의 도구 선택 품질은 스키마 설명 품질에 비례한다.
-   → 확장 9종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
+   → 확장 11종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
 2. **실패도 구조화된 결과로 반환한다.** 예외를 던지지 않고 `status` 필드로 반환해 에이전트가 분기(S2, S4)할 수 있게 한다. `status: "ok" | "not_found" | "empty" | "error"`
 3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 **3종**(`create_po_draft` §7 · `generate_disposal_document` §15 · `create_repair_record` §16)이며 **셋 다 draft INSERT 만** 한다. 확정은 승인 큐(사람)에서만.
    - `build_evidence_bundle`(§14)은 **여전히 아무것도 쓰지 않는다** — 읽기 전용 커넥션만 갖는다(`build_evidence_bundle.py:320` `with read_only()`). 그러나 §15·§16 은 각각 `decisions`·`repair_records` 에 `state='draft'` 한 행을 INSERT 한다 (D81·D98).
@@ -45,7 +45,7 @@
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
    ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(5종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`·`assess_risk_grade`(§18, `building_id`/`asset_id` 짝, Sprint 11)).
-6. **확장 9종은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다).
+6. **확장 11종은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다).
 
 ---
 
@@ -230,7 +230,7 @@
 
 ---
 
-# 확장 9종 (프로파일 `full` 에서만 등록 — D69)
+# 확장 11종 (프로파일 `full` 에서만 등록 — D69)
 
 > **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§14 는 인버터가 구동하는
 > **호스트 설비(`asset_id`)** 를 본다 (**D68**). `equipment_id` 로 불러도 되지만 그건
@@ -1075,7 +1075,7 @@ D69·D88(프로파일)
 
 ---
 
-## 확장 9종 reason 색인 (한눈에)
+## 확장 11종 reason 색인 (한눈에)
 
 | reason | 나오는 도구 | 성격 |
 |---|---|---|

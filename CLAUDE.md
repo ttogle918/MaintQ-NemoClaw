@@ -11,9 +11,10 @@
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
 - `docs/10_DECISIONS.md` — 설계 결정 **D1~D101**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 9종** §8~§16). 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 **18절(실제 19개)** + 시드 케이스 맵
-  (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
+- `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
+  (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
+   **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블) 을 더한다**
    — **`§10` 은 존재하지 않는다**.
    `§7` 이 `suppliers`·`supplier_parts` 두 테이블을 함께 다뤄 절 수보다 테이블이 1개 많다)
 - `docs/06_REPO_API.md` — 폴더 구조·API·SSE 이벤트 규격
@@ -40,7 +41,7 @@
 - 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **9종**은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
+  - 확장 **11종**은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
 
@@ -69,7 +70,7 @@
 - `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
   ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **29종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **30종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
@@ -79,7 +80,8 @@
   bundle_integrity · approvals_contract · ownership_api_contract ·
   disposal_sign_contract · s10_smoke · ui_honesty_contract ·
   a2a_identity_contract ·
-  **repair_flow_contract**
+  repair_flow_contract ·
+  **deadline_risk_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -94,15 +96,17 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-18)** — spikes **29스위트 / 822건** · seed **31건**(㉖ `mfr_part_no` D97 ·
+**실측 기준선 (2026-08-18)** — spikes **30스위트 / 840건** · seed **35건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
-㉛ Sprint 10 `part_lifecycle_mock`) · pytest **46건** ·
+㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
+`ownership_checks`/`risk_profile`) · pytest **46건** ·
 프론트 라우트 **16개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
 `/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개
 증가). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `disposal_api_contract 26` ·
+`bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
+`disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
