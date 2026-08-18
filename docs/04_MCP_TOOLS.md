@@ -1,5 +1,5 @@
 # MCP 도구 스키마 v0.3
-설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 9종(읽기 7 + 쓰기 2) = 총 16종**
+설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 11종(읽기 9 + 쓰기 2) = 총 18종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
 - 확장 9종은 자산 생애주기(처분·취득·자산가치·수리 증빙) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다
@@ -9,6 +9,8 @@
   **`create_repair_record`(§16, Sprint 9 신설, D98)**. 셋 다 draft INSERT 만 하며 UPDATE 권한이 없다
   (D10·D81·D98). 확장 도구에 쓰기가 하나도 없다는 이 문서의 옛 서술은 **거짓이 됐고 아래에서 정정했다**
   (실측: `mcp_server/server.py`).
+- **`track_deadlines`(§17)·`assess_risk_grade`(§18)는 Sprint 11 신설 읽기 전용 도구다**(D102) — 기한·사고·
+  위험 감시 계층의 사전 경보/실사 보존 확장이며, 어느 것도 쓰지 않는다.
 
 ### 프로파일 게이트 (D69)
 
@@ -17,13 +19,13 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 9 = 16종 (§1~§16) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 11 = 18종 (§1~§18) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
 
 > **실측** — `mcp_server/server.py` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
-> **9개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
+> **11개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
 > `get_maintenance_metrics`·`classify_expenditure`·`assess_repair_value`·`build_evidence_bundle`·
-> `generate_disposal_document`·**`create_repair_record`**(Sprint 9, D98). `spikes/tools_profile_contract.py`
-> 가 양방향으로 잠근다.
+> `generate_disposal_document`·**`create_repair_record`**(Sprint 9, D98)·**`track_deadlines`**·
+> **`assess_risk_grade`**(Sprint 11, D102). `spikes/tools_profile_contract.py` 가 양방향으로 잠근다.
 
 - **기본이 `core` 인 이유**: `eval/run_eval.py` 가 부모 env 를 상속해 MCP 서버를 띄우므로(D56), 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — "수정 효과 vs 도구 증가 효과"가 영원히 분리되지 않는다.
 - **enum 밖 값은 폴백하지 않고 죽는다.** 조용히 `core` 로 떨어지면 "어느 프로파일로 돌았는지 모르는 실행 결과"가 남는다.
@@ -42,7 +44,7 @@
    - 권한은 규율이 아니라 **커넥션이 잠근다**: `db.decision_writer()`·`db.repair_writer()` 의 TEMP TRIGGER 2개가 각각 `decisions`·`repair_records` UPDATE/DELETE 를 거부한다. §15·§16 은 `po_drafts` 전용인 `draft_writer()` 를 재사용하지 않는다(`generate_disposal_document.py:10-13`·`create_repair_record.py`).
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
-   ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(4종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`).
+   ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(5종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`·`assess_risk_grade`(§18, `building_id`/`asset_id` 짝, Sprint 11)).
 6. **확장 9종은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다).
 
 ---
@@ -953,6 +955,126 @@ D23·D37(신원 서버 stamp — 이 도구는 아무것도 stamp하지 않고 N
 
 ---
 
+## 17. track_deadlines — 법정 기한(세액공제 사후관리·안전검사) 사전 경보 (S9, Sprint 11, D102)
+
+**description (코드 정본 = `track_deadlines.py:DESCRIPTION`):**
+> "자산의 법정 기한(투자세액공제 사후관리 24개월·안전검사 유효기한)이 임박했거나 이미 지났는지 조회한다. 처분·매각을 검토하기 전에 먼저 호출할 것 — 세액공제 사후관리 기간 안에 처분하면 추징 리스크가 있고, 안전검사가 만료된 자산은 가동 자체가 제한될 수 있다. window_days 안에 들어오는 항목만 UPCOMING 으로 표시하며, 안전검사는 만료 후에도 OVERDUE 로 항상 포함한다. 기본 호출(window_days=180)에서 0건이 나올 수 있다 — 이는 실패가 아니라 그 기간 안에 임박한 기한이 없다는 뜻이다(추측으로 채우지 말 것, D62). 처분 차단 여부 자체는 이 도구가 아니라 check_disposal_blockers 를 쓸 것."
+
+읽기 전용이다 — 아무것도 쓰지 않는다. 대상은 §8~§14 와 같은 호스트 자산(`asset_id`)이다(D68).
+로직 정본은 `data/deadlines.py`(D101) — 이 도구는 커넥션(`read_only()`)만 갖는 얇은 래퍼다.
+
+```json
+// input — 둘 다 optional
+{ "asset_id": "AST-L2-SPDL", "window_days": 500 }   // 기본 180
+// output
+{
+  "status": "ok",
+  "evaluated_at": "2026-08-18",
+  "window_days": 500,
+  "items": [
+    {
+      "asset_id": "AST-L2-SPDL",
+      "type": "SAFETY-INSPECTION",           // TAX-CREDIT-2Y | SAFETY-INSPECTION
+      "law_refs": ["KR-OSHA-93", "KR-OSHA-ENR-126"],
+      "due_date": "2027-11-18",
+      "days_remaining": 457,                 // OVERDUE 는 음수
+      "state": "UPCOMING",                   // UPCOMING | IN_REVIEW_BAND | OVERDUE
+      "message": "…",                        // 룰 카탈로그 message (하드코딩 없음, D101)
+      "resolve_options": ["직전 검사증 사본 첨부", "매수측 재검사 계획 확인"]
+    }
+  ],
+  "not_considered": [],                      // NULL 컬럼으로 판정 제외된 자산 사유 (D62)
+  "disclaimer": "TAX-CREDIT-2Y 는 취득일 기준 통상 24개월 사후관리 기간의 해석이며 …"
+}
+```
+
+### 핵심 로직
+
+1. **두 갈래 스캔** — TAX-CREDIT-2Y(`assets.tax_credit_applied=1`, 취득 후 24개월)·
+   SAFETY-INSPECTION(`assets.safety_inspection_target=1 AND inspection_valid_until IS NOT NULL`).
+   경계 구간(`review_band`)은 하드코딩하지 않고 `data.rules.engine.load_rules()` 로 로드한다(D101).
+2. TAX-CREDIT-2Y 는 `months_since_acquisition >= review_band[1]` 이면 정직하게 제외(D62), 경계 구간 안이면
+   `IN_REVIEW_BAND`, 그 아래이면서 잔여일 `<= window_days` 면 `UPCOMING`.
+3. SAFETY-INSPECTION 은 `due_date < today` 면 **window 무관하게 항상** `OVERDUE`(만료 후가 더 위험하다),
+   그 외 잔여일 `<= window_days` 면 `UPCOMING`.
+4. `days_remaining` 오름차순 정렬(음수인 `OVERDUE` 가 최상단). `asset_id` 필터 시 두 경로 모두 그 자산만.
+5. **기본 호출(`window_days=180`)이 0건인 것 자체는 실패가 아니다** — 9자산 전부가 취득 후 24개월을 넘겼고
+   `AST-L2-SPDL` 의 잔여 457일은 기본 window 밖이라, 정직한 0건이 정상 결과다(D62).
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `invalid_input` | `asset_id` 가 빈 문자열 / `window_days` 가 0 이상 정수로 해석 안 됨 |
+| `not_found` | `unknown_asset` | 등록되지 않은 자산 |
+| `error` | `rule_catalog_not_loaded` | 룰 카탈로그 미적재 또는 `TAX-CREDIT-2Y`/`SAFETY-INSPECTION` 룰 자체가 없음(D50 어휘 재사용) — "기한 없음"과 "판정 근거 자체가 없음"을 구분한다 |
+| `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(D9) |
+
+**지켜야 할 결정**: D101(룰 카탈로그가 정본, 임계값 하드코딩 금지) · D73(데이터 계층 import 허용, D15 위반 아님) ·
+D62(모름과 없음의 구분, 0건은 정직한 결과) · D9(status 반환) · D50(미적재 어휘 재사용) · D80(파라미터 규약) ·
+D69·D88(프로파일)
+
+---
+
+## 18. assess_risk_grade — 건물 단위 위험 프로파일 등급 산출 (S18, Sprint 11, D102)
+
+**description (코드 정본 = `assess_risk_grade.py:DESCRIPTION`):**
+> "건물(building_id) 단위의 위험 프로파일(화기 취급·위험물 보관량·수전용량)로 위험등급을 산출하고, 마지막으로 저장된 등급과 달라졌는지(changed) 알려준다. 중고 취득 실사·처분 리스크 판단 시 building_id 또는 asset_id 중 하나로 호출할 것(asset_id 는 자산의 building_id 로 자동 해석된다). 3속성 중 하나라도 미확인이면 current_grade 는 null 이다 — 이때 등급을 추측해 채우지 말 것(D62). changed:true 는 재산정이 필요하다는 신호일 뿐 이 도구가 risk_profile 을 갱신하지는 않는다. 산출 등급은 통상 기준 목업 산식이며 실제 화재·환경 규제상 위험평가를 대체하지 않는다(disclaimer 참조)."
+
+읽기 전용이다 — **아무것도 쓰지 않는다**. `risk_profile.risk_grade` 를 갱신하는 경로는 이 도구를
+포함한 어떤 MCP 도구에도 없다(절대 규칙 1). `changed:true` 는 알림 정보일 뿐 자동 반영이 아니다.
+로직 정본은 `data/risk_grade.py`(D101) — 이 도구는 커넥션(`read_only()`)만 갖는 얇은 래퍼다.
+
+```json
+// input — building_id · asset_id 중 하나만 (원칙 5 either-or)
+{ "building_id": "BLD-C", "asset_id": null }
+// output
+{
+  "status": "ok",
+  "building_id": "BLD-C",
+  "facts": {
+    "fire_handling": "HIGH", "hazmat_volume": "MEDIUM", "power_capacity": "MEDIUM",
+    "product_type": "도장·코팅 공정품 (인화성 도료 취급)"   // 점수화 안 함, 정보성
+  },
+  "current_grade": "HIGH",                 // null 이면 3속성 중 미확인 있음 (D62)
+  "stored_grade": "LOW",
+  "stored_grade_updated_at": "2025-06-18",
+  "changed": true,                         // current != stored. 저장은 하지 않는다
+  "grade_scale": ["LOW", "MEDIUM", "HIGH"],
+  "rationale": "화기 취급 HIGH·위험물 보관량 MEDIUM·수전용량 MEDIUM → 점수 7 → HIGH",
+  "not_considered": [],
+  "disclaimer": "이 등급은 통상 기준 목업 산식이다. 실제 화재·환경 규제상 위험평가를 대체하지 않는다."
+}
+```
+
+### 핵심 로직
+
+1. `building_id`·`asset_id` **either-or**(D80 예외 패턴, 원칙 5). `asset_id` 를 주면
+   `assets.building_id` 로 해석한다.
+2. `risk_profile` 을 조회한다 — 없으면 `not_found`/`unknown_building`.
+3. 3속성(`fire_handling`·`hazmat_volume`·`power_capacity`) 중 하나라도 NULL 이면 `current_grade:null` +
+   `not_considered` 에 사유(추측 금지, D62). `product_type` 은 점수화하지 않는 정보성 필드다.
+4. 셋 다 있으면 `GRADE_ORDER`(LOW=1/MEDIUM=2/HIGH=3) 합산 →
+   `<=4 LOW / 5~6 MEDIUM / >=7 HIGH`(이 값의 정본은 `data/risk_grade.py`, 사본을 두지 않는다).
+5. `changed = current_grade is not None and current_grade != stored_grade`. `stored_grade` 가 NULL 이면
+   "최초 산출"이라 `changed:false`.
+6. **아무것도 쓰지 않는다** — `risk_profile.risk_grade` UPDATE 경로 자체가 도구에 없다(절대 규칙 1).
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `invalid_input` | `building_id`·`asset_id` 둘 다 없거나 둘 다 있음 / 문자열이 아님 |
+| `not_found` | `unknown_asset` | `asset_id` 로 조회했는데 등록되지 않은 자산 |
+| `not_found` | `no_building` | 자산은 있으나 `building_id` 가 비어 있음 |
+| `not_found` | `unknown_building` | 위험 프로파일이 등록되지 않은 건물 |
+| `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(D9) |
+
+**지켜야 할 결정**: D101(임계값·GRADE_ORDER 정본은 이 모듈, 사본 금지) · D65(고지) · D62(모름과 없음의 구분,
+추측 금지) · D10(아무것도 쓰지 않는다) · D9(status 반환) · D80(either-or 예외 패턴) · D69·D88(프로파일)
+
+---
+
 ## 확장 9종 reason 색인 (한눈에)
 
 | reason | 나오는 도구 | 성격 |
@@ -1021,9 +1143,9 @@ D23·D37(신원 서버 stamp — 이 도구는 아무것도 stamp하지 않고 N
 | S3 반복 고장 | lookup → **get_error_history(repeated)** → rag_search(근본원인) → 발주 보류 |
 | S4 미지 코드 | lookup(**not_found**) → 추측 금지 → A/S 안내 |
 | **S1+** 수리 판단 (확장) | classify_part_criticality → get_maintenance_metrics → **assess_repair_value** → (필요 시) classify_expenditure |
-| **S9** 처분 차단 (확장) | **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
+| **S9** 처분 차단 (확장) | (사전 경보) **track_deadlines**(§17, 법정 기한 임박 확인, Sprint 11) → **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
 | **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
-| **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 |
+| **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(§18, 건물 위험등급, Sprint 11) |
 | **S19** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
 
 ## 다음 단계

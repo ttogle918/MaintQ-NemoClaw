@@ -12,11 +12,12 @@
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
 
-확장 9종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
+확장 11종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
   - check_disposal_blockers · verify_ownership · classify_part_criticality ·
     get_maintenance_metrics · classify_expenditure · assess_repair_value ·
     build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**) ·
-    create_repair_record (**세 번째 쓰기 도구**, D98)
+    create_repair_record (**세 번째 쓰기 도구**, D98) ·
+    track_deadlines · assess_risk_grade (Sprint 11, D102)
 
 **기본이 `core` 인 이유(D69)**: `eval/run_eval.py` 가 부모 env 를 상속해 이 서버를 띄우므로
 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — 그러면 "수정 효과 vs
@@ -152,7 +153,7 @@ def create_po_draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 9종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98)
+# 확장 11종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98·D102)
 #
 # ★ 파라미터 타입을 좁히지 않는다. `get_error_history.line_id` 주석과 같은 이유다 —
 #   타입을 좁히면 LLM 이 문자열로 넘긴 순간 pydantic 이 본체 진입 전에 예외를 던져
@@ -219,6 +220,15 @@ if TOOLS_PROFILE == "full":
     from mcp_server.tools.verify_ownership import (  # noqa: E402
         DESCRIPTION as OWNERSHIP_DESC,
         verify_ownership as _verify_ownership,
+    )
+    from mcp_server.tools.track_deadlines import (  # noqa: E402
+        DEFAULT_WINDOW_DAYS,
+        DESCRIPTION as DEADLINES_DESC,
+        track_deadlines as _track_deadlines,
+    )
+    from mcp_server.tools.assess_risk_grade import (  # noqa: E402
+        DESCRIPTION as RISK_GRADE_DESC,
+        assess_risk_grade as _assess_risk_grade,
     )
 
     @mcp.tool(description=DISPOSAL_DESC)
@@ -413,6 +423,24 @@ if TOOLS_PROFILE == "full":
             error_code=error_code,
             note=note,
         )
+
+    @mcp.tool(description=DEADLINES_DESC)
+    def track_deadlines(
+        asset_id: str | None = None,
+        # 좁히면 LLM 이 문자열로 넘겼을 때 스키마가 예외를 던진다 (D9, get_error_history.days 와 같은 이유).
+        window_days: int | str = DEFAULT_WINDOW_DAYS,
+    ) -> dict:
+        """읽기 전용 — 아무것도 쓰지 않는다. 기본 호출이 0건이어도 실패가 아니다 (D62)."""
+        return _track_deadlines(asset_id=asset_id, window_days=window_days)
+
+    @mcp.tool(description=RISK_GRADE_DESC)
+    def assess_risk_grade(
+        building_id: str | None = None,
+        asset_id: str | None = None,
+    ) -> dict:
+        """`building_id`·`asset_id` 는 **둘 중 하나 필수**라 스키마상 둘 다 optional 이다
+        (D80 의 either-or 공백). 둘 다 비거나 둘 다 있으면 도구가 `invalid_input` 으로 되돌린다."""
+        return _assess_risk_grade(building_id=building_id, asset_id=asset_id)
 
 
 if __name__ == "__main__":
