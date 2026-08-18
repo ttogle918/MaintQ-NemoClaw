@@ -9,7 +9,7 @@
 | [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 + **확장 시퀀스(S1+·S9·S10·S18·S19, S17 은 v2 제외)** | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
 | [03_WIREFRAME](03_WIREFRAME.html) | 화면 A(진단 콘솔)·A-2(S3 변형)·B(승인 큐) + 주석 10개. **구조 참조 — 실제 화면은 frontend/ 구현이 기준** | UI 작업 전, 디자인 검수 |
 | [04_MCP_TOOLS](04_MCP_TOOLS.md) | **코어 7종(읽기 6+쓰기 1) + 확장 9종(§8~§16, 읽기 7+쓰기 2)** 입출력 계약, 프로파일 게이트(D69), 설계 원칙 6개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
-| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 **18절(CREATE TABLE 19개)** + 시드 케이스 맵 7종 | DB·시드 작업 시 |
+| [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 **19절(CREATE TABLE 20개)** + 시드 케이스 맵 7종 | DB·시드 작업 시 |
 | [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), **`/api/assets` 4종 + D71 HTTP 매핑**, **`/api/decisions`(§2.6)·`/api/approvals`(§2.7)**, 상태 전이, testset 스키마 | 폴더·엔드포인트 만들 때, M1 첫날 |
 | [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + **확장 범위 P22~P27(진행 표시 — P24·P25 Sprint 7·9 완료)** + **P28~P36 인프라·데이터 품질** + 아이디어 주차장 + 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
 | [08_DESIGN_BRIEF](08_DESIGN_BRIEF.md) | Claude Design 투입 프롬프트 + 검수 체크리스트 | 하이파이 디자인 뽑을 때 |
@@ -24,10 +24,14 @@
 
 ---
 
-## 진행 상태 (2026-08-14 · 부품 품번 조사 종료 시점)
+## 진행 상태 (2026-08-18 · Sprint 10 완료 시점)
 
 **M1~M4 는 완주했고, Sprint 6 에서 확장 범위(F1·F2·F4)를 열었으며 Sprint 7 이 F3(계층 3 서명)을 닫았다.
-Sprint 8 은 A2A 신원 계층을 깔았다 — 스키마·시드·자격증명 env 층까지이고 호출부는 없다.**
+Sprint 8 은 A2A 신원 계층을 깔았다 — 스키마·시드·자격증명 env 층까지이고 호출부는 없다.
+Sprint 9 가 P25(수리 증빙, `create_repair_record`, D98~D101)를 닫았고, 같은 브랜치
+(`sprint-9-repair-record`)에서 재고 드로어·설비 하이라이트 대시보드(브레인스토밍 산출물)와
+Sprint 10(P37·P38 — 근거 번들·지출 분류 화면, 수리 증빙 승인 큐 상세)까지 이어서 완료했다.
+⛔ master 미병합 — 머지는 사람이 요청할 때만.**
 
 **2026-08-14 (스프린트 아님 · 데이터 조사)** — `data/part-catalog` 브랜치에서 **P32(부품 품번) 종결**.
 4축 전수 조사 결과 **`parts` 40종 중 공개된 실품번은 1종**(`PCB-IG5-CTRL` → `SV-iG5A I/OPCBASSY`)이고,
@@ -54,11 +58,11 @@ Sprint 8 은 A2A 신원 계층을 깔았다 — 스키마·시드·자격증명 
 | 코어 도구 7종 · 백엔드 · 에이전트 루프 · trace · UI · 평가 하네스 | ✅ 동작 |
 | **확장 도구 9종** (`check_disposal_blockers` · `verify_ownership` · `classify_part_criticality` · `get_maintenance_metrics` · `classify_expenditure` · `assess_repair_value` · `build_evidence_bundle` · `generate_disposal_document` · **`create_repair_record`**) | ✅ 구현 — 계약은 `04 §8~§16`. **노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만**(기본 `core`, D69·D88) |
 | **쓰기 도구** | **3종** — `create_po_draft`(`po_drafts`) · `generate_disposal_document`(`decisions`) · `create_repair_record`(`repair_records`). 셋 다 **draft INSERT 만**, UPDATE 권한 없음 (D10·D81·D98) |
-| DB | 코어 11 + 확장 7 + A2A 1 = **테이블 19개**(실측 `data/seed.py`). `decisions` 에 컬럼 5개 + **CHECK 2종** 추가(MQ-707) · **`partner_links` 신설**(Sprint 8, D91·D96) · `traces.request_chain_id` 컬럼 신설(D94-ⓐ, **전 행 NULL 이 정상**) |
+| DB | 코어 11 + 확장 7 + A2A 1 + UI 목업 1 = **테이블 20개**(실측 `data/seed.py`). `decisions` 에 컬럼 5개 + **CHECK 2종** 추가(MQ-707) · **`partner_links` 신설**(Sprint 8, D91·D96) · `traces.request_chain_id` 컬럼 신설(D94-ⓐ, **전 행 NULL 이 정상**) · **`part_lifecycle_mock` 신설**(Sprint 10, §19 — 설비 하이라이트 대시보드용 부품 생애주기 경고 목업) |
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |
 | REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/repairs`(제출·서명·반려, D98)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. ⚠ `/api/po` 는 **형태 불변** |
-| 프론트 | 라우트 **11개** (실측 `npm run build`) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace |
-| 회귀 (실측 2026-08-17) | spikes **29스위트 / 702건** · seed **29건** · pytest **46건**. ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절) |
+| 프론트 | 라우트 **16개** (실측 `npx next build`) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace · 설비 하이라이트 대시보드 · 근거 번들/지출 분류 · 수리 증빙 상세 |
+| 회귀 (실측 2026-08-18) | spikes **29스위트 / 822건** · seed **31건**(`error_codes`=65) · pytest **46건** · ruff/tsc clean · `next build` 16 라우트 · `ui_honesty_contract` **222/222**(전 계약 PASS). ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절) |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
 | 계층 1 (법령 원문) | ✅ **8/8 `FETCHED` 완성 (2026-08-13)** — 총 **8,197자** · 해시 전건 무결. 마지막 `PENDING` 이던 `KR-CITA-ENF-31` 은 등록 제목(`즉시상각의제` → `즉시상각의 의제`) 사람 승인 후 수집됐다. 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
 
@@ -73,41 +77,37 @@ Sprint 8 은 A2A 신원 계층을 깔았다 — 스키마·시드·자격증명 
 > **이 미수집 경로가 다시 발화하는 때**: 새 조문을 등록했는데 아직 안 받았을 때 ·
 > 개정으로 `pending_revisions` 가 열렸을 때 · `KR-CITA-ENF-31` 처럼 정체성 대조에 실패했을 때.
 
-**다음 액션 (Sprint 9 진행 중 — Stage 1 완료 2026-08-14)**
+**다음 액션 (Sprint 10 완료 — 다음 스프린트 착수 전, 2026-08-18)**
 
-> 📍 **지금**: 브랜치 `sprint-9-repair-record` · **Stage 1 완료**(MQ-901 결정 D98~D101 · MQ-902 추출 triage ·
-> MQ-920 오프셋 정정 · MQ-921 정본 쓰기 가드). 다음은 **`/stage 2`**(MQ-903·904·905).
-> 계획은 `docs/sprints/sprint-9.md` **§9**(§4·§7 을 대체) · Stage 1 결과는 **§10**.
+> 📍 **지금**: 브랜치 `sprint-9-repair-record`. Sprint 9(P25 수리 증빙) → 브랜치 내 후속 작업
+> (재고 드로어·설비 하이라이트 대시보드) → Sprint 10(P37·P38 근거 번들·지출 분류 화면, 수리 증빙
+> 승인 큐 상세)까지 전부 완료. 계획은 `docs/sprints/sprint-9.md`·`sprint-10.md`, 세션 기록은
+> `docs/sessions/2026-08-18.md`.
 > ⛔ master 미머지 — 머지는 사람이 요청할 때만.
 >
-> 🔴 **Stage 2 전에 정해 두면 좋은 것 2건**
-> 1. **MQ-908 의 `decisions._metrics()` 방침** — D101 이 *"산식이 두 벌"*(`decisions.py:520`)을 근거로
->    인용했는데 그 두 벌을 없애는 태스크가 없다. **위임 전환**하거나 **D101 에서 인용을 빼야** 하며,
->    안 정하면 스프린트 끝에 **D101 이 거짓이 된다**(sprint-9 §9-4 MQ-908 행).
-> 2. **시나리오 번호 `S19` 충돌** — 전사 지도가 S19 를 FinAllQ 것으로 잡는다 → 백로그 **P33** · `TODO_직접할일.md`.
-
-
+> 🟢 **다음 스프린트 후보**: **P36**(F5·F6 기한·사고·위험 감시 계층, `07_BACKLOG.md`) — 스코프가
+> 이미 명확해 바로 `/sprint` 착수 가능. P39(화면 직접 초안 생성 + 수정 가능한 초안)는 새 D-결정이
+> 필요한 설계 변경이라 스코프아웃 상태 유지(브레인스토밍부터 다시 거쳐야 함).
 
 1. ✅ ~~**사람** — `related_parts` 최종 승인~~ — **2026-08-12 완료.** 부품 특정 정확률이 "판정 불가" → **"미달 40.0%"**(목표 ≥90%) 로 바뀌었다 (D12 해제)
 2. ✅ ~~**사람** — 처분 승인서·진술보장서 **문안 검수**~~ — **2026-08-13 완료.** 19시나리오(판정 5종 전부) 렌더링본을 확인하고 **수정 없이 승인**. 출력 키가 `unreviewed_template_notice` → **`template_review_notice`** 로 바뀌었다 (**D90**) — 값이 "검수 완료"가 되는데 키에 `unreviewed` 가 남으면 자기모순이다
-3. 🟡 **사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인(`즉시상각의제` → API 값 `즉시상각의 의제`). 계층 1 의 마지막 `PENDING` 이며 `classify_expenditure` 전용이라 **S10 에는 영향이 없다**
+3. ✅ ~~**사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인~~ — **2026-08-13 완료.** 등록 `즉시상각의제` → API 값 `즉시상각의 의제`. **계층 1 이 8/8 `FETCHED` 로 완성됐다**
 4. ✅ ~~**사람** — `parts.part_class` 40종 감수~~ — **2026-08-13 완료.** 40종 전량 확인 후 **초안 그대로 승인**(변경 0건). `assess_repair_value` 3지 판단을 실적으로 인용할 수 있다 (`seed.py` 의 `PART_CLASS_REVIEWED = True`)
 5. ✅ ~~**사람** — 기준내용연수 `N` 법령 원문 대조~~ — **2026-08-13 완료.** 별표서식 API 로 **별표6** 실수집 대조 → 업종을 KSIC **`29`** 로 고정하고 **`N = 8 → 10`**(별표6 제5호) 정정 (**D89**). 3지 판정은 27조합 중 1건만 이동. ⚠ `RESIDUAL_AT_LIFE_END=0.50`·`FLOOR=0.10` 은 여전히 **가정**이다
 6. ~~**MQ-713/714** — 지표 튜닝~~ — **종료.** 코드 축(A·C) 채택 · 프롬프트 축(A′·B)과 루프 축(MQ-714) **전부 기각·원복**. 판정 규칙은 `--repeat 3` 의 `안정실패 → 안정통과` 승격 칸 수. ⛔ `MAINTQ_TOOLS_PROFILE=full` 로 평가하지 않는다 (D88 이 코드로 막는다)
-7. ✅ **Sprint 9** — `create_repair_record`(P25·S19) **완료.** Sprint 7 → 8 에서 두 번 이월된 뒤 착수됐다 —
-   쓰기 도구(D98)·`/api/repairs` 제출·서명·반려(D85)까지 붙었고, `GET /api/approvals` 의
-   `kind: "repair"` 는 이제 실제로 채워진다(시드 12건: 서명 11 + draft 1). 정본 병합(MQ-919,
-   `actions` 결측 회수)은 **사람 승인 대기** — 이 항목만 남았다
-8. **A2A 호출부는 QMesh 착수 후** — 나가는 요청·원문 보관(`tool_payload`)·토큰 캐시는 상대 서버가 서야 의미가 생긴다. 지금 만들면 검증할 상대가 없고, `request_chain_id` 를 쓰는 순간 스파이크 `⑪-b` 를 **뒤집어야 한다**(그게 정상 신호다)
-9. **사람** — A2A 연결 승인·파트너 자격증명 **실값**은 미착수다. 시드는 목업 전제(`PARTNER_LINKS_MOCK=True`)이고 `.env` 4키는 비어 있다 → [../TODO_직접할일.md](../TODO_직접할일.md) `## Sprint 8 — A2A`
+7. ✅ ~~**Sprint 9** — `create_repair_record`(P25·S19)~~ — **완료.** 쓰기 도구(D98)·`/api/repairs` 제출·서명·반려(D85)까지 붙었고, `GET /api/approvals` 의 `kind: "repair"` 가 채워진다. 정본 병합(**MQ-919**, `actions` 결측 회수)도 **2026-08-17 사용자 최종 승인 완료** — 남은 항목 없음
+8. ✅ ~~**브랜치 후속** — 재고 드로어 + 설비 하이라이트 대시보드~~ — **완료.** 16태스크(subagent-driven-development). 최종 브랜치 리뷰에서 드러난 사전 존재 D87 위반 2건도 함께 해소
+9. ✅ ~~**Sprint 10** — 근거 번들·지출 분류 화면(P37) + 수리 증빙 승인 큐 상세(P38)~~ — **완료.** `/sprint 10` → `/stage 1~3` 전 스테이지 자동 파이프라인 통과. 브라우저 실사용 검증(Claude-in-Chrome) 중 발견한 실버그 1건(`RepairDetail` 상태 미갱신)도 같은 세션에서 수정
+10. **A2A 호출부는 QMesh 착수 후** — 나가는 요청·원문 보관(`tool_payload`)·토큰 캐시는 상대 서버가 서야 의미가 생긴다. 지금 만들면 검증할 상대가 없고, `request_chain_id` 를 쓰는 순간 스파이크 `⑪-b` 를 **뒤집어야 한다**(그게 정상 신호다)
+11. 🟡 **사람** — A2A 연결 승인·파트너 자격증명 **실값**은 미착수다. 시드는 목업 전제(`PARTNER_LINKS_MOCK=True`)이고 `.env` 4키는 비어 있다 → [../TODO_직접할일.md](../TODO_직접할일.md) `## Sprint 8 — A2A`
+12. 🟡 **사람** — 시스템 프롬프트 안전 문구 최종 검수(`SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE`) — 여전히 대기. 검수 전에도 런타임은 막지 않는다(게이트하면 안전 블록이 아예 안 나가 더 위험) → `TODO_직접할일.md` `## M2~M4 중`
+13. 🔴 **사람 협의 필요** — 시나리오 번호 `S19` 충돌(백로그 **P33**) — Q 시리즈 전사 지도(FinAllQ)와 MaintQ 로컬 번호가 충돌하는데, 번호 체계를 세 프로젝트가 공유해 **MaintQ 혼자 정할 수 없다**. 결정 전까지 새 문서에 `S19` 를 더 늘리지 않는 편이 좋다 → `TODO_직접할일.md` `## Q 시리즈 전사 정합`
 
-> **사람 검수 3건이 풀렸다** — `related_parts`(08-12) · `parts.part_class`(08-13) ·
-> **기준내용연수 `N`**(08-13, D89). 남은 것은 **문안 검수**(2번)와 `KR-CITA-ENF-31`
-> **제목 정정**(3번)이다.
+> **사람 승인 대기 3건**만 남았다 — **안전 문구 검수**(12번) · **`S19` 충돌 정정 방향**(13번) ·
+> **A2A 파트너 자격증명 실값**(11번, QMesh 착수 전까지는 급하지 않음). 나머지는 전부 완료됐다.
 >
 > ⚠ **`N` 이 확정됐다고 잔가곡선이 실측이 된 것은 아니다** — `RESIDUAL_AT_LIFE_END=0.50`·
 > `FLOOR=0.10` 은 근거 미확보 **가정**으로 남아 있고 D74·D65 의 추정치 고지는 유지된다.
-> 문안 검수 자료는 `data/analysis/disposal_docs_review.md` 에 19시나리오(판정 5종 전부) 뽑아 뒀다.
 
 사람이 해야 할 일 전체는 [../TODO_직접할일.md](../TODO_직접할일.md).
 

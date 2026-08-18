@@ -566,15 +566,17 @@ risk_profile       건물 단위 속성
 | `detect_law_revision` | 읽기 | 해시 비교 + 영향 룰 역추적. **`fetch_laws.py` 의 `check_revisions()` 가 이미 하는 일**을 도구로 노출하는 것이라 새로 만들 로직이 거의 없다 |
 | `assess_risk_grade` | 읽기 | 위험 프로파일 → 등급 + 변동 판정 |
 
-> **⚠ 셋 다 v2 다 — Sprint 7 에서 제외를 확정했다** (`07_BACKLOG`).
-> 특히 **`detect_law_revision` 과 그 시나리오 S17 은 v2 로 제외됐다.**
+> ⚠ **셋 다 v2 였다 — Sprint 7 에서 제외를 확정했었다** (`07_BACKLOG`), 하지만 **D102(2026-08-18)가
+> `track_deadlines`·`assess_risk_grade` 2종을 본 범위로 편입했다.** `detect_law_revision` 과 그
+> 시나리오 S17 만 **v2 제외가 그대로 유지**된다 — 이건 별개 결정(`02_SCENARIOS.md:83`)이라 D102 가
+> 다시 열지 않는다.
 > 그런데 **`fetch_laws.check_revisions()` 는 코드에 살아 있다** — `apply_fetch` 가
 > "이미 FETCHED 인데 해시가 다르면 덮어쓰지 않고 `pending_revisions/` 로" 를 수행하는 데
 > 이 함수가 쓰이기 때문이다(D75).
 > **즉 개정 감지 로직은 존재하지만 MCP 도구로 노출하지 않는다.**
 > 이 구분을 흐리면 *"도구가 있는데 왜 안 보이나"* 와 *"코드가 없는데 왜 문서에 있나"* 가
 > 양쪽으로 생긴다. 노출하려면 `MAINTQ_TOOLS_PROFILE=full` 등록 + `04_MCP_TOOLS` 절 신설이
-> 필요하며, 그건 계약 변경이다.
+> 필요하며, 그건 계약 변경이다 — **D102 이후로도 미착수 상태다.**
 
 `verify_ownership`(§5)은 그대로 재사용한다 — `ownership_checks` 가 생겨도 **판정 스키마
 (`PARTIAL` / `VERIFIED` 구분)는 바꾸지 않는다.**
@@ -593,11 +595,12 @@ risk_profile       건물 단위 속성
 ### 10-5. 순서
 
 `§8` 의 F1~F4 **뒤**에 온다. 넷 다 F1(근거 계층)이 없으면 근거를 붙일 수 없다.
+**D102(2026-08-18)로 F5·F6 가 본 범위에 편입됐다** — 계획은 `docs/sprints/sprint-11.md`.
 
 | 단계 | 내용 |
 |---|---|
 | **F5** 기한·사고 | `deadlines` · `incidents` + `track_deadlines`. **F1~F4 중 가장 값이 큰 후속** — 기존 룰이 이미 요구하는 것을 채운다 |
-| **F6** 실사 보존·위험 | `ownership_checks` · `risk_profile` + `assess_risk_grade` · `detect_law_revision` |
+| **F6** 실사 보존·위험 | `ownership_checks` · `risk_profile` + `assess_risk_grade`. `detect_law_revision` 은 **제외 유지**(S17, v2) |
 
 ---
 

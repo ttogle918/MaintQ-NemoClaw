@@ -164,6 +164,8 @@
 | 10 | **처분 법정 조건 검사** — BLOCKING/PRECONDITION, 409 | `11 §3·§6 S9` · `04 §8` · `06 §2.5` | ✅ **Sprint 6** — 도구 + REST(`/api/assets/{id}/disposal/precheck`). verdict **5종**(D79), HTTP 매핑 D71 |
 | 11 | **근거 3계층 + 서명** — 사실/해석/확정 분리, override 기록 | `11 §2` · `04 §14·§15` · `05 §14` · `06 §2.6` | ✅ **Sprint 7 — 계층 3 완료.** 계층 1·2(룰 엔진·`law_refs`·`rules`)와 번들(**5키**, D83) 완료. 계층 1 조문 원문 실수집 **8건 전부 `FETCHED`** (2026-08-13 — `KR-CITA-ENF-31` 등록 제목 `즉시상각의제` → `즉시상각의 의제` 사람 승인 후 수집 완료). 계층 3: `generate_disposal_document` draft INSERT(D81) → `POST /api/decisions/{id}/submit`·`/sign`(번들 재산출·해시 대조 D84) → `decisions` **DDL CHECK 2종**이 *서명 없는 확정 0건 · BLOCKING 우회 0건* 을 스키마로 잠근다. ✅ 문안 **2026-08-13 사람 검수 완료**(`template_review_notice` · D90) — **F1~F3 잔여 사람 검수 없음** |
 | 12 | **중고 취득 검증** — 확인 항목 + 미확인 잔여 리스크 | `11 §6 S18` · `04 §9` · `06 §2.5` | ✅ **Sprint 6·7** — `verify_ownership` + REST `GET /api/assets/{id}/ownership` + 실사 화면. 9카테고리, `PARTIAL` 승격 경로 없음(코드에 분기 자체가 없다). UI 도 `PARTIAL` 을 성공색으로 그리지 않는다 (**D87**) |
+| 13 | **기한 추적** — `TAX-CREDIT-2Y` 등 기한 임박 항목 선제 알림 | `11 §10` · 백로그 P36(F5) | 🟡 **Sprint 11 착수 예정 (D102)** — `deadlines`·`incidents` 신설 + `track_deadlines`. D102 가 백로그 v2 제외(Sprint 7)를 supersede |
+| 14 | **실사 보존 · 위험 프로파일** — 확인 항목 영속화 + 건물 위험 등급 | `11 §10` · 백로그 P36(F6) | 🟡 **Sprint 11 착수 예정 (D102)** — `ownership_checks`·`risk_profile` 신설 + `assess_risk_grade`. `detect_law_revision`(S17)은 **제외 유지** — D102 가 다시 열지 않는다 |
 
 > **노출은 기본 꺼져 있다 (D69).** 확장 **8종**은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 MCP 에 등록된다.
 > 기본값 `core` 로는 코어 7종만 보인다 — 도구를 늘린 뒤 평가를 돌리면
