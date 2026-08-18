@@ -93,7 +93,8 @@ D102로 백로그 P36(F5·F6)을 의도적으로 본 범위 편입해 착수한 
 (MQ-1101~1106) 전부 완료 — `deadlines`·`incidents`·`ownership_checks`·`risk_profile` 4테이블,
 `track_deadlines`·`assess_risk_grade` 2도구(읽기 전용), REST 노출(D73, core 프로파일에서도 동작),
 에이전트 시스템 프롬프트 배선까지 전 계층 완결. `detect_law_revision`(S17)은 계획대로 제외 유지.
-UI 노출은 명시적으로 컷(§7) — 다음 스프린트 후보.
+UI 노출은 명시적으로 컷(§7) — 다음 스프린트 후보. → **Sprint 12(MQ-1203·1204)가 노출했다** —
+`/manager/deadlines`·`/manager/risk-grade`.
 
 reviewer 게이트가 스테이지마다 최소 1건씩 실제 결함을 잡아냈다(Stage 3: db_missing 문서-코드
 불일치, Stage 4: 없음, Stage 5: 도구 카운트 하드코딩 + 프롬프트 배선 누락). 특히 Stage 5의
@@ -515,6 +516,7 @@ def risk_grade(*, building_id=None, asset_id=None, db_path=None) -> dict: ...
 
 - **UI 노출 없음** — `track_deadlines`/`assess_risk_grade`를 보여주는 화면(기한 임박 배지, 건물별 위험등급
   대시보드 등)은 D102·MVP_SCOPE 항목 13·14 어디에도 커밋돼 있지 않다. Sprint 12+ 백로그 후보로 남긴다.
+  → **Sprint 12(MQ-1203·1204)가 노출했다** — `/manager/deadlines`·`/manager/risk-grade`.
 - **`incidents`의 `assess_repair_value` 연동 없음** — `§10-4`의 "감점 신호를 완성한다" 서술은 저장 자리
   확보까지만 이번 범위다. 잔가·수리가치 판정 로직 변경은 별도 결정 없이는 손대지 않는다.
 - **`deadlines`의 실 쓰기 경로 없음** — 절대 규칙 1이 원천 차단(§1 참고).

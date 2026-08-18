@@ -403,8 +403,9 @@ read_only` 를 재사용한다.
   거치지 않으므로 도구 등록 여부와 무관하다. `GET /api/deadlines`(기본 파라미터)는 시드
   특성상 `items: []` 가 정상이다(D62 — 실패 아님); `window_days=500` 이면 `AST-L2-SPDL` 이
   잡힌다.
-- **UI 노출 없음**(§7 참고, `docs/sprints/sprint-11.md`) — 이 세 경로를 보여주는 화면은
-  이번 스프린트 범위 밖이다.
+- **UI**: `/manager/deadlines`·`/manager/risk-grade` (Sprint 12). Sprint 11 시점엔 이 세 경로를
+  보여주는 화면이 범위 밖이었다(§7 참고, `docs/sprints/sprint-11.md`) — Sprint 12(MQ-1203·1204)가
+  노출했다.
 
 ### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
 

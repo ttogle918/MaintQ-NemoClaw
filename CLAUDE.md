@@ -96,22 +96,22 @@
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
 > (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
 
-**실측 기준선 (2026-08-18)** — spikes **30스위트 / 840건** · seed **35건**(㉖ `mfr_part_no` D97 ·
+**실측 기준선 (2026-08-18, Sprint 12 완료 후)** — spikes **30스위트 / 871건** · seed **35건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
 `ownership_checks`/`risk_profile`) · pytest **46건** ·
-프론트 라우트 **16개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
-`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개
-증가). spikes 스위트별 건수:
+프론트 라우트 **18개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
+`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개,
+Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 16→17→18). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
-`prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
+`prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 222` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 252` · `write_tool_contract 30`
 
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
@@ -133,6 +133,20 @@
 > 않으므로 별도 태스크로 추가(1×6=6). 30+6=36, 186+36=222 — 산술과 실측이 일치한다. 이 확장
 > 과정에서 `RepairDetail.tsx`의 실제 D87 위반 1건(`HashVerified`가 `--ok-tx` 색 토큰 직접 사용)이
 > 드러나 `--blue-tx` 로 교체해 같은 커밋(`213b62d`)에서 해소했다 — 스위트는 **PASS 222/222**.
+> **222→252**: Sprint 12 가 세 갈래로 늘렸다. MQ-1202(Stage 1)가 `lib/deadlines.ts`(2함수)·
+> `lib/riskGrade.ts`(1함수)를 신설해 L1 13→15(+2)건, 이 두 파일이 L1 전제(React·`@/` 별칭 미사용)를
+> 지켜야 하므로 제약 게이트도 파일당 2건씩 늘어 4→8(+4)건이 됐다. MQ-1201·1203·1204(Stage 1·3)가
+> `components/asset/DeadlinesPanel.tsx`·`RiskGradeGrid.tsx`(asset 글롭) + `app/(console)/manager/
+> deadlines/page.tsx`·`manager/risk-grade/page.tsx`(app 글롭) 4파일을 신설해 기존 글롭에 자동
+> 편입, L2 32→36파일(+4×6=24건)이 됐다. 뮤턴트 8종·메타 4건은 무변경. 2+4+24=30, 222+30=252 —
+> 산술과 실측(`uv run python spikes/ui_honesty_contract.py` 출력 "통과 — 계약 232건 + 제약 8 +
+> 뮤턴트 8 + 메타 4" = 252)이 일치한다 — 스위트는 **PASS 252/252**(신규 D87 위반 없음).
+> ⚠ **부수 정정(MQ-1205)**: 같은 전수 재실행에서 `prompt_rules` 실측이 **24건**으로 확인됐다 — 직전
+> 기록(23)과 어긋난다. `git log -- spikes/prompt_rules.py` 로 대조하면 Sprint 11 Stage 5(`390e7a9`)
+> 이후 이 파일은 무변경이라 **코드가 아니라 기록이 낡았던 것**(전사 표기 정리 때 옮겨 적은 값이
+> 틀렸을 가능성) — 24로 정정. 총계 870 이 아니라 **871** 인 이유가 이 +1 이다(252 델타 30 과는
+> 무관, 두 정정이 겹쳐 870→871 이 아니라 840→871 로 보인다: 기존 840 자체가 이미 23으로 잰
+> 합계였으므로 24 반영 시 841, 여기에 ui_honesty +30 을 더해 871).
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).

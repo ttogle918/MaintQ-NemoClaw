@@ -1,7 +1,7 @@
 # Sprint 12 — S19→S29 시나리오 번호 정정(P33 해소) + 기한·위험등급 UI 노출 (Sprint 11 §7 컷 항목)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 경미 2건 반영) → 최종 확정.
-**Stage 1·2·3 완료(2026-08-18)**. 다음은 `/stage 4`(MQ-1205, 회귀 확장 + 기준선 갱신 + 문서 마감 — 마지막 스테이지).
+**Stage 1·2·3·4 전부 완료(2026-08-18)** — 스프린트 종료.
 
 **수립**: 2026-08-18 · **부제**: 전사 시나리오 번호 충돌을 정리하고, Sprint 11이 명시적으로 미룬 조회 전용 화면 2개를 연다
 
@@ -511,6 +511,34 @@ export function RiskGradeGrid(): JSX.Element
     붙어 있음을 확인
   - `uv run ruff check`, `uv run --with pytest python -m pytest data/rules/test_rules.py -q`
     통과
+
+### Stage 4 완료 (2026-08-18) — 스프린트 종료
+
+#### MQ-1205
+- `spikes/ui_honesty_contract.py` — `L2_FILES_FLOOR` 32 → **36**(실측, 예상치와 정확히 일치) —
+  신규 4파일(`DeadlinesPanel.tsx`·`RiskGradeGrid.tsx`·`manager/deadlines/page.tsx`·
+  `manager/risk-grade/page.tsx`) × 6건. 스위트 전체 232(계약)+8(제약)+8(뮤턴트)+4(메타)=**252**
+  PASS.
+- `CLAUDE.md` — 프론트 라우트 16→18, `ui_honesty_contract` 222→252(산술 근거 델타 문단 추가),
+  spikes 총계 840→**871**. 재확인 중 `prompt_rules`가 직전 기록(23)과 실측(24)이 어긋난 것을
+  발견 — `git log`로 대조해 코드 무변경(Sprint 11 Stage 5 이후)임을 확인하고 기록만 24로
+  정정(Sprint 12 가 만든 변화 아님, 총계 871 중 +1은 이 정정분).
+- `docs/README.md` — 진행 상태에 Sprint 12 완료 항목(15번) 추가, Sprint 11 항목(10번)·"다음
+  액션" 문단의 "UI 노출 컷" 서술을 "Sprint 12에서 노출 완료"로 정정.
+- `docs/sprints/sprint-11.md §7` — "UI 노출 없음" 항목에 Sprint 12 addendum 1줄.
+- `docs/06_REPO_API.md` — 기한·위험등급 REST 절의 "UI 노출 없음" 서술을 실제 UI 경로로 정정.
+- `docs/02_SCENARIOS.md` — S9·S18 확장 시퀀스 행에 UI 참조 추가.
+- 회귀: `data/seed.py --with-error-codes` 35/35 PASS(`error_codes`=65) · **spikes 전체 30스위트
+  30/30 PASS**(1회 연속 실행, Windows 소켓 고갈 재발 없음 — 재시도 불필요) · `pytest
+  data/rules/test_rules.py` 46/46 PASS · `ruff check` clean · `tsc --noEmit` clean · `next build`
+  라우트 **18개** 확인.
+- reviewer: **1차 FAIL** — `docs/README.md`의 스위트 총건수 오기(870→정정 필요 871, `CLAUDE.md`·
+  본 문서 §523·531의 871과 불일치), tool-builder가 게이트 리뷰 이전에 스스로 써넣은 "PASS" 선언
+  (프로세스 이탈 — 실제 리뷰는 오케스트레이터가 별도로 호출해야 함), `docs/README.md` 진행 상태
+  번호 목록의 삽입 순서 붕괴(10→15→11 순), `docs/README.md:27` 헤더가 "Sprint 11 완료 시점"으로
+  낡아 있던 것 4건 발견 → 오케스트레이터가 직접 수정(871 정정, 번호 재정렬 11~15, 헤더 정정,
+  본 셀프 리뷰 문구 제거) → 재검토 **PASS**. `L2_FILES_FLOOR` 산술(32+4×6=36)·`prompt_rules`
+  23→24 정정 근거(Sprint 11 Stage 5 이후 무변경 확인)는 1차 리뷰에서 이미 타당성 확인됨.
 
 ---
 

@@ -99,7 +99,12 @@ L2_EXTRA = ("components/queue/SignBar.tsx", "components/queue/RepairDetail.tsx")
 # `EvidenceBundlePanel.tsx`·`ExpenditureForm.tsx`(asset) + `evidence`·`expenditure` 라우트
 # 페이지(app)가 기존 글롭에 이미 자동 포함돼 있어 실측치가 26 → 32 로 늘었다. 이 값은 실제 실행
 # 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다 — 암산 아님.
-L2_FILES_FLOOR = 32
+# MQ-1205(Sprint 12) — MQ-1201~1204 가 신설한 4파일이 기존 글롭에 자동 편입됐다:
+# `components/asset/DeadlinesPanel.tsx`·`RiskGradeGrid.tsx`(asset 글롭) +
+# `app/(console)/manager/deadlines/page.tsx`·`manager/risk-grade/page.tsx`(app 글롭). 실측
+# 32 → 36(+4파일, 파일당 6건이므로 L2 항목수는 192 → 216). 예상치(36)와 실측이 정확히 일치했다
+# — `uv run python spikes/ui_honesty_contract.py` 출력의 "스캔 파일 36개"·"L2 216" 을 그대로 옮김.
+L2_FILES_FLOOR = 36
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
