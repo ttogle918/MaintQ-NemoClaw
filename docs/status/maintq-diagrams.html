@@ -184,12 +184,24 @@
     <b>Sprint 9(D98)가 세 번째 쓰기 도구(<code>create_repair_record</code>)</b>를 더해 도구 <b>16종</b>·
     쓰기 도구 <b>3종</b>·테이블 <b>20개</b>가 됐고, <b>Sprint 10</b>이 근거 번들·지출 분류 화면과
     수리 증빙 승인 큐 상세를 열었다. 같은 시기 브레인스토밍이 재고 드로어·설비 하이라이트 대시보드
-    (<code>part_lifecycle_mock</code>, §19)를 더했다. 아래 개별 그림·표는 이 값으로 갱신했다.
+    (<code>part_lifecycle_mock</code>, §19)를 더했다.
+    <br>⚠ <b>같은 날 세션 안에서 Sprint 11(D102)이 통째로 진행·완료됐다.</b> 백로그 P36(F5·F6 —
+    기한·사고·위험 감시 계층)을 <b>MVP 완료 기준(핵심 1~6 + 확장 7~12)이 Sprint 9·10으로 전부 달성된
+    뒤 다시 열어</b> 착수한 것 — 이 프로젝트에서 처음으로 "완료된 MVP 위에 새 범위를 의도적으로 연"
+    사례다. 신규 테이블 4개(<code>deadlines</code>·<code>incidents</code>·<code>ownership_checks</code>·
+    <code>risk_profile</code>, §20~§23) + 읽기 전용 도구 2종(<code>track_deadlines</code>·
+    <code>assess_risk_grade</code>, §17·§18)이 더해져 도구 <b>18종</b>(코어 7 + 확장 11)·테이블
+    <b>24개</b>가 됐다. 쓰기 도구는 여전히 <b>3종 그대로</b> — 신규 2종은 둘 다 읽기 전용이라 D10
+    쓰기 경로 원칙에 변화가 없다. 새 REST 3경로(<code>GET /api/deadlines</code>·
+    <code>GET /api/buildings/{id}/risk-grade</code>·<code>GET /api/assets/{id}/risk-grade</code>)는
+    <b>MCP 프로세스를 거치지 않고 <code>core</code> 프로파일에서도 동작</b>한다(D73). <b>화면 신설은
+    이번 스프린트 범위 밖</b>이다 — 프론트 라우트는 16개 그대로. <code>detect_law_revision</code>(S17)은
+    이번에도 v2 제외 그대로다. 아래 개별 그림·표는 이 값으로 갱신했다.
   </div>
 
   <!-- ================= ① 유스케이스 ================= -->
   <section id="uc">
-    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 18</span></div>
+    <div class="sec-head"><h2>① 유스케이스</h2><span class="count">액터 2 · 유스케이스 19</span></div>
     <p class="sec-note">행위자는 <b>정비사</b>와 <b>팀장</b> 둘뿐입니다. 이 그림의 요점은 기능 목록이 아니라 <b>두 액터의 권한이 어디서 갈리는가</b> — 승인·반려로 가는 점선이 그것입니다.</p>
 
     <figure>
@@ -224,12 +236,16 @@ flowchart LR
       direction TB
       x4["수리 증빙 서명<br/>S19 · 완료 · 3번째 쓰기 도구"]
     end
-    subgraph LATER["후속 · F5~F6"]
+    subgraph S11["구현 완료 · Sprint 11 · F5~F6"]
       direction TB
-      y1["기한 임박 알림<br/>세액공제 24개월 · 안전검사 주기"]
+      y1["기한 임박 조회<br/>track_deadlines · 세액공제 24개월 · 안전검사 주기"]
+      y5["건물 위험등급 조회<br/>assess_risk_grade"]
+    end
+    subgraph LATER["후속 · 테이블 신설(§21·§22) · 쓰기 경로 없음"]
+      direction TB
       y2["사고 이력 기록<br/>충돌 · 정밀도 손상"]
       y3["실사 확인 결과 보존"]
-      y4["법령 개정 감지"]
+      y4["법령 개정 감지<br/>v2 제외 유지"]
     end
   end
 
@@ -252,6 +268,7 @@ flowchart LR
   tech --> y2
   tech --> y3
   mgr --> y1
+  mgr --> y5
   mgr --> y4
 
   u1 -.->|"repeated=true"| u4
@@ -259,20 +276,21 @@ flowchart LR
   x1 -.->|"판정 CONDITIONAL·CLEAR<br/>일 때만 서명 가능"| x2
   x5 -.->|"kind 로 po · decision 구분"| u8
   y1 -.->|"기한 임박 경고"| x1
+  y5 -.->|"HIGH 등급이면 안전검사 우선순위 상향"| x1
   y2 -.->|"자산가치 감점"| x3
 
   classDef blocked stroke-dasharray:5 3,stroke:#BC3B31,color:#BC3B31;
   class u8,x2 blocked;
 </pre>
       </div>
-      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. <b>S19(수리 증빙)도 Sprint 9에서 완료됐습니다</b> — 통합 큐가 미리 잡아 둔 <code>kind: "repair"</code> 자리에 <b>계약 변경 없이</b> 들어왔습니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). F5~F6은 새 기능이라기보다 <b>기존 룰이 이미 요구하는데 저장할 자리가 없던 것들</b>입니다.</figcaption>
+      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. <b>S19(수리 증빙)도 Sprint 9에서 완료됐습니다</b> — 통합 큐가 미리 잡아 둔 <code>kind: "repair"</code> 자리에 <b>계약 변경 없이</b> 들어왔습니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). <b>Sprint 11이 F5·F6 중 절반(<code>y1</code>·<code>y5</code> — 조회 도구 2종)을 "구현 완료"로 옮겼습니다</b>(D102) — 둘 다 읽기 전용이라 새 점선(<code>y5 -.-> x1</code>)만 추가되고 쓰기 경로는 그대로입니다. <b>나머지(<code>y2</code>·<code>y3</code> — 사고 이력 <i>기록</i>·실사 확인 <i>보존</i>)는 여전히 "후속"입니다</b> — 저장할 테이블(<code>incidents</code>·<code>ownership_checks</code>)은 Sprint 11이 신설했지만, 절대 규칙 1(쓰기 도구 3종 고정)에 따라 <b>기록하는 경로 자체가 아직 없습니다</b> — 지금 채워진 값은 전부 시드입니다. <code>y4</code>(법령 개정 감지·S17)는 Sprint 11의 편입 대상에서도 제외된 채 그대로입니다.</figcaption>
     </figure>
   </section>
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 16 · 테이블 20</span></div>
-    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다.</p>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 18 · 테이블 24</span></div>
+    <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다. <b>Sprint 11은 읽기 도구만 7 → 9종으로 늘렸습니다</b>(<code>track_deadlines</code>·<code>assess_risk_grade</code>) — 쓰기 도구는 손대지 않았습니다.</p>
 
     <figure>
       <div class="plate">
@@ -297,14 +315,14 @@ flowchart TB
 
   subgraph MCPP["MCP 서버 · 별도 프로세스 · D15"]
     direction TB
-    rd["읽기 도구 13종<br/>코어 6 + 확장 7<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …"]
+    rd["읽기 도구 15종<br/>코어 6 + 확장 9<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …<br/>deadlines · risk_grade (Sprint 11)"]
     wr1["create_po_draft"]
     wr2["generate_disposal_document"]
     wr3["create_repair_record"]
   end
 
   llm["Gemini API"]
-  db[("SQLite · 20 테이블 · WAL")]
+  db[("SQLite · 24 테이블 · WAL")]
   vec[("매뉴얼 인덱스<br/>1,035 청크")]
   laws[("법령 원문 8조문 · 8,197자<br/>text_hash · append-only")]
 
@@ -341,7 +359,7 @@ flowchart TB
       </div>
       <figcaption><b>굵은 화살표 다섯이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 셋(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주·처분·수리 증빙을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81·D98). <b>세 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code> / <code>repair_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
       <div class="note" style="margin-top:14px">
-        <b>확장 도구 9종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69).
+        <b>확장 도구 11종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69). <b>Sprint 11이 더한 <code>track_deadlines</code>·<code>assess_risk_grade</code>도 같은 게이트 안에 있습니다</b> — 다만 이 둘과 동형인 REST 3경로(<code>GET /api/deadlines</code> 등)는 MCP 프로세스를 거치지 않아 <code>core</code>에서도 동작합니다(D73).
         이유는 평가입니다 — 도구를 늘린 채 지표를 재면 <b>"수정의 효과"와 "도구가 늘어난 효과"를 분리할 수 없습니다.</b>
         <b>D88이 이 기준선을 코드로 잠갔습니다</b>: 평가 러너가 실행 전 <code>/health</code>를 읽어 <code>core</code>가 아니면 <code>exit 2</code>로 멈춥니다.
         env 에코 하나만 보면 MCP 자식이 다른 env로 떴을 때 통과하므로, <b><code>list_tools()</code> 실측 개수와 겹쳐서</b> 봅니다.
@@ -712,7 +730,7 @@ flowchart TB
 
   <!-- ================= ⑨ 데이터 모델 ================= -->
   <section id="model">
-    <div class="sec-head"><h2>⑨ 자산 ↔ 설비 — 실측이 바꾼 데이터 모델</h2><span class="count">신규 · D68</span></div>
+    <div class="sec-head"><h2>⑨ 자산 ↔ 설비 — 실측이 바꾼 데이터 모델</h2><span class="count">D68 · Sprint 11이 4테이블 추가(D102)</span></div>
     <p class="sec-note">중고설비 시장 데이터를 실제로 열어 보니 <b>대상이 어긋나 있었습니다.</b> 매물 16,011건 중 <b>인버터는 4건</b>, 공작기계는 7,048건. 이 시장은 완제품 설비지 부품이 아닌데, 확장 범위의 대상은 <code>equipment_id</code>(인버터)였습니다.</p>
 
     <figure>
@@ -727,6 +745,10 @@ erDiagram
   ERROR_CODES ||--o{ ERROR_HISTORY : "model + code"
   RULES }o--o{ LAW_REFS : "law_refs · 무결성 게이트"
   DECISIONS }o--|| RULES : "evidence_bundle 에 rule_hash"
+  ASSETS ||--o{ DEADLINES : "법정 기한 · track_deadlines(§17)"
+  ASSETS ||--o{ INCIDENTS : "물리적 사고 이력 · 쓰기 경로 없음"
+  ASSETS ||--o{ OWNERSHIP_CHECKS : "실사 확인 스냅샷 · 시드뿐"
+  ASSETS }o--|| RISK_PROFILE : "building_id 로 위험등급 · assess_risk_grade(§18)"
 
   ASSETS {
     text asset_id PK "9건"
@@ -750,9 +772,26 @@ erDiagram
     text fetch_status "FETCHED 8 · PENDING 0"
     text text_hash "append-only"
   }
+  DEADLINES {
+    text asset_id FK "anchor · decision 이전 사실에서 계산"
+    text type "TAX-CREDIT-2Y · SAFETY-INSPECTION"
+    text state "OPEN · DISMISSED · 시드 0행이 정상"
+  }
+  RISK_PROFILE {
+    text building_id PK "assets.building_id 재사용 · FK 없음"
+    text risk_grade "LOW · MEDIUM · HIGH · 시드 4행"
+  }
 </pre>
       </div>
       <figcaption><b>해결의 실마리는 이미 데이터 안에 있었습니다.</b> <code>equipment.location</code>에 호스트가 이미 문자열로 들어 있었습니다 — 반송 컨베이어 · 랩핑기 · 집진기 · 리프터 · 절삭유 펌프. <b>지어낸 게 아니라 있던 정보를 승격한 것</b>입니다. 그래서 <code>assets</code>를 신설하고 <code>equipment.asset_id</code> FK를 걸되, <b>확장 도구만 <code>asset_id</code>를 쓰고 기존 코어 6종은 <code>equipment_id</code>를 그대로</b> 씁니다 — 기존 도구 계약이 한 글자도 바뀌지 않았습니다. <code>11 §1</code>이 처분 서사의 근거로 든 "수명 20~30년 · 신품 납기 수개월~1년"은 <b>공작기계 특성이지 인버터가 아닙니다.</b></figcaption>
+      <div class="note" style="margin-top:14px">
+        <b>Sprint 11의 4테이블은 전부 <code>assets</code>를 anchor로 씁니다(D68 원칙의 연장).</b> <code>DEADLINES</code>는
+        <code>decision_id</code>가 아니라 <code>asset_id</code>가 anchor입니다 — 기한은 처분 <b>결정 이전에</b> 자산 사실(취득일 등)에서
+        바로 계산되기 때문에, 결정에 종속시키면 "아직 처분을 시도한 적 없는 자산의 기한"을 표현할 자리가 없어집니다.
+        <code>RISK_PROFILE</code>만 <code>asset_id</code>가 아니라 <code>building_id</code>를 키로 씁니다 — 위험은 개별 설비가
+        아니라 <b>건물 단위 속성</b>(방화·위험물·전력용량)이기 때문입니다. <code>INCIDENTS</code>·<code>OWNERSHIP_CHECKS</code>는
+        스키마만 신설됐을 뿐 <b>쓰기 도구가 없어 지금은 시드로만 채워집니다</b>(절대 규칙 1 — 쓰기 도구 3종 고정).
+      </div>
       <div class="note warn" style="margin-top:14px">
         <b><code>확인불가</code> 함정.</b> 원본 CSV의 제조년월 "결측률"은 <b>0%</b>지만, 결측 대신 <code>확인불가</code>라는 <b>문자열</b>이 채워져 있습니다.
         그대로 믿고 16,011을 분모로 쓰면 잔가곡선이 통째로 틀어집니다. 유효 표본은 <b>연도+가격≥1만 = 5,475건(34.2%)</b>이고(<code>D72</code> 고정 기준),
@@ -842,27 +881,29 @@ flowchart LR
       <table>
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
         <tbody>
-          <tr><td>REST 엔드포인트 <b>32종</b></td><td class="mono">backend/routers/ — chat · equipment · po · disposal(/api/assets) · decisions · approvals · <b>inventory · hotspot_status</b>(Sprint 10, D73)</td></tr>
-          <tr><td>MCP 도구 <b>16종</b> (코어 7 + 확장 9)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b></td></tr>
+          <tr><td>REST 엔드포인트 <b>35종</b></td><td class="mono">backend/routers/ — chat · equipment · po · disposal(/api/assets) · decisions · approvals · inventory · hotspot_status(Sprint 10, D73) · <b>asset_monitoring</b>(Sprint 11, D73·D102)</td></tr>
+          <tr><td>MCP 도구 <b>18종</b> (코어 7 + 확장 11)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b> · <b>Sprint 11 추가분(track_deadlines·assess_risk_grade)도 동일 게이트</b></td></tr>
           <tr><td>프론트 라우트 <b>16개</b></td><td class="mono">frontend/app/(console)/ — technician{,/asset/[id]/{disposal,ownership,evidence},/equipment-status{,/[assetId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,/trace/[sid]}</td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
           <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · DecisionDetail · SignBar · <b>RepairDetail</b>(Sprint 10, MQ-1002) · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
           <tr><td>자산 화면 컴포넌트</td><td class="mono">components/asset/ — AssetHeader · DisposalPanel · FindingList · VerificationMatrix · ResidualRiskCard · <b>EvidenceBundlePanel · ExpenditureForm</b>(Sprint 10, MQ-1001) · <b>InventoryDrawer · EquipmentHotspotDiagram</b>(Sprint 10 브레인스토밍)</td></tr>
           <tr><td>trace 패널</td><td class="mono">components/trace/ — TracePanel · TraceStep</td></tr>
           <tr><td>루프 상한</td><td class="mono">backend/agent/loop.py — MAX_LLM_CALLS_PER_TURN 10 · PER_SESSION 50</td></tr>
-          <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · <b>po.py · decisions.py 에서만</b> 호출 (precheck·ownership 에는 없음, D71)</td></tr>
+          <tr><td>권한 게이트</td><td class="mono">backend/deps.py — require() · <b>po.py · decisions.py 에서만</b> 호출 (precheck·ownership·<b>asset_monitoring</b>에는 없음, D71·D73)</td></tr>
           <tr><td><b>근거 3계층</b></td><td class="mono">data/rules/ — fetch_laws.py(계층 1) · engine.py + rules/*.json(계층 2) · mcp_server/tools/build_evidence_bundle.py(계층 3)</td></tr>
           <tr><td><b>4층 방어</b></td><td class="mono">generate_disposal_document.py(스키마) · mcp_server/db.py decision_writer()(트리거) · routers/decisions.py sign()(409) · data/seed.py DDL CHECK</td></tr>
           <tr><td><b>실사 판정</b></td><td class="mono">data/ownership.py — 9카테고리 · 38항목. MCP 도구는 위임 래퍼(D73)</td></tr>
+          <tr><td><b>기한 추적 · 위험등급 (Sprint 11, D102)</b></td><td class="mono">data/deadlines.py(track_deadlines 산출) · data/risk_grade.py(risk_grade 산출) · mcp_server/tools/track_deadlines.py·assess_risk_grade.py(§17·§18) · backend/routers/asset_monitoring.py + services/asset_monitoring.py(REST, MCP 미경유)</td></tr>
           <tr><td><b>튜닝 루프 · 흔들림 계측</b></td><td class="mono">eval/run_eval.py — <code>--repeat N</code> · <code>flip_analysis()</code> · <code>item_outcomes()</code> · 회차별 <code>.rN.traces.jsonl</code>·<code>.rN.server.log</code></td></tr>
           <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>29스위트 / 822건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>30스위트 / 840건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
+      <code>deadline_risk_contract</code>(Sprint 11 신설 — 기한·위험등급 계약) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).
       도구에 UPDATE를 추가하는 코드는 리뷰 이전에 회귀에서 먼저 잡힙니다.
     </div>
