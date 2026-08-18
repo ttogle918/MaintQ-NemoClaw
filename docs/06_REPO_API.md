@@ -375,6 +375,37 @@ GET  /api/assets/{asset_id}/hotspot-status                → 부품별 하이�
 `backend/routers/hotspot_status.py` 가 `data.hotspot_status.hotspot_status()`(§4-5·§4-6)를 그대로 부른다 —
 역할 게이트 없음(읽기 판정) · `core` 프로파일에서도 동작(D73) · 연결된 인버터가 없는 자산은 404.
 
+#### 기한 추적 · 위험등급 — `GET /api/deadlines`·`GET /api/{buildings,assets}/{id}/risk-grade` (Sprint 11, MQ-1105, D73·D102)
+
+```
+GET  /api/deadlines?asset_id=&window_days=                → track_deadlines 상당
+GET  /api/buildings/{building_id}/risk-grade               → assess_risk_grade 상당
+GET  /api/assets/{asset_id}/risk-grade                     → assess_risk_grade 상당 (asset_id 해석 편의)
+```
+
+`backend/routers/asset_monitoring.py` 가 `backend/services/asset_monitoring.py` 를 거쳐
+`data.deadlines.track_deadlines`·`data.risk_grade.risk_grade`(D101)를 그대로 부른다 — 도구
+서버 패키지를 import 하지 않는다(D15). `services/maint_value.py`·`services/disposal.py` 와
+같은 3단 구조(서비스가 커넥션 열고 위임 → 예외는 `db_missing`/`db_error`/`internal_error` →
+라우터가 HTTP 매핑)이고, 세 번째 `mode=ro` 헬퍼를 새로 만들지 않고 `services/disposal.
+read_only` 를 재사용한다.
+
+- **역할 게이트가 없다** — 둘 다 읽기 판정이라 이 세 경로에서 403 은 나오지 않는다
+  (`/disposal/precheck`·`maint_value.py` 와 같은 이유, D38·D71).
+- **오류 매핑**(도구 `status`/`reason` 을 재포장 없이 그대로 싣는다): `status:"ok"` → 200 ·
+  `status:"not_found"`(`unknown_asset`·`unknown_building`·`no_building`) → 404 ·
+  `reason:"invalid_input"` → 422 · 그 밖 `status:"error"`(`db_missing`·`db_error`·
+  `internal_error`·`rule_catalog_not_loaded` 등) → 500.
+- `window_days` 가 쿼리 문자열로 왔는데 정수로 파싱되지 않으면 이 표와 별개로 FastAPI 자체
+  타입 검증이 422 를 낸다 — 위 표의 `invalid_input` 은 타입은 맞았지만 값이 부적절한 경우
+  (음수 등)를 `data.deadlines` 가 판정한 결과다. 두 층위를 섞지 않는다.
+- **`core` 프로파일(D69 기본값)에서도 세 경로 전부 산다(D73)** — MCP 프로세스를 애초에
+  거치지 않으므로 도구 등록 여부와 무관하다. `GET /api/deadlines`(기본 파라미터)는 시드
+  특성상 `items: []` 가 정상이다(D62 — 실패 아님); `window_days=500` 이면 `AST-L2-SPDL` 이
+  잡힌다.
+- **UI 노출 없음**(§7 참고, `docs/sprints/sprint-11.md`) — 이 세 경로를 보여주는 화면은
+  이번 스프린트 범위 밖이다.
+
 ### 2.6 처분 결정 — 제출·서명·반려 (S10 계층 3 확정 · D85)
 
 ```
