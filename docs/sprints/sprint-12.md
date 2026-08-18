@@ -1,7 +1,7 @@
 # Sprint 12 — S19→S29 시나리오 번호 정정(P33 해소) + 기한·위험등급 UI 노출 (Sprint 11 §7 컷 항목)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 경미 2건 반영) → 최종 확정.
-**Stage 1 완료(2026-08-18)**. 다음은 `/stage 2`(MQ-1203, 컴포넌트 2종).
+**Stage 1·2 완료(2026-08-18)**. 다음은 `/stage 3`(MQ-1204, 페이지 2종 + 크로스링크).
 
 **수립**: 2026-08-18 · **부제**: 전사 시나리오 번호 충돌을 정리하고, Sprint 11이 명시적으로 미룬 조회 전용 화면 2개를 연다
 
@@ -397,6 +397,25 @@ export function RiskGradeGrid(): JSX.Element
 - **DoD**: `npx tsc --noEmit` 통과. 로컬 백엔드 기동 후 수동 확인: `DeadlinesPanel`을
   `windowDays=500`으로 열면 `AST-L2-SPDL` 1건 `UPCOMING` 렌더. `RiskGradeGrid`에서 `BLD-C`가
   `changed=true` 알림과 함께, `BLD-A`는 알림 없이 렌더.
+
+### Stage 2 완료 (2026-08-18)
+**커밋**: `0bca340`
+
+#### MQ-1203 (+ Stage 1 결함 수정)
+- 구현 파일: `frontend/components/asset/DeadlinesPanel.tsx`(신규)·`RiskGradeGrid.tsx`(신규)·
+  `spikes/ui_honesty_contract.py`(수정 — L1 건수 13→15 정정, 제약 게이트 C5~C8 신설)
+- **Stage 1(MQ-1202)이 남긴 실제 결함 발견·수정**: `ui_honesty_contract.py`가 여전히 L1 건수를
+  13건으로 하드코딩하고 있어(실제 15건) 그대로 두면 반드시 FAIL — Stage 1 회귀 때 이 스위트를
+  안 돌려서 놓쳤던 것. `constraint_gate()` 헬퍼로 C1~C4 로직을 파라미터화해 C5~C8(신규
+  `deadlines.ts`·`riskGrade.ts`용) 재사용 — 새 판정 로직 없이 순수 확장.
+- 회귀: `ui_honesty_contract.py` **240/240**(L1 15·L2 204·게이트 8·뮤턴트 8) · seed 35 · sp2 20 ·
+  write_tool 30 · api_contract 28 · sp3 22 · ruff clean · tsc clean — 오케스트레이터가 tool-builder
+  보고를 그대로 믿지 않고 독립 재실행해 확인.
+- reviewer: **PASS** — D87(색상은 전부 `deadlineStateView`/`gradeView`→`TONE_COLOR` 경유, 리터럴
+  비교 없음) · D64(진행바·랭킹 없음, 점수는 `rationale` 안에서만) · D10(`RiskGradeGrid`에 쓰기
+  액션 전무) · D62(빈 상태·`gradeView(null)` 중립 톤 확인) 전부 검증. `TONE_COLOR.ok`가 `--ok`
+  대신 `--blue-tx`를 쓴 것은 `RepairDetail.tsx`의 `HashVerified` 선례와 일치함을 확인. 정보성
+  1건(JSDoc 절 번호 오기 §14/§15→§17/§18) 발견해 커밋 전 직접 정정.
 
 ---
 
