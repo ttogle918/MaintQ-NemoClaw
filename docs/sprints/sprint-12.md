@@ -1,6 +1,7 @@
 # Sprint 12 — S19→S29 시나리오 번호 정정(P33 해소) + 기한·위험등급 UI 노출 (Sprint 11 §7 컷 항목)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 경미 2건 반영) → 최종 확정.
+**Stage 1 완료(2026-08-18)**. 다음은 `/stage 2`(MQ-1203, 컴포넌트 2종).
 
 **수립**: 2026-08-18 · **부제**: 전사 시나리오 번호 충돌을 정리하고, Sprint 11이 명시적으로 미룬 조회 전용 화면 2개를 연다
 
@@ -322,6 +323,28 @@ export function gradeView(grade: string | null): GradeView;    // null→unknown
     --target es2020 --skipLibCheck && node <tmp>/__checks__/ui_honesty.js` →
     `L1-SUMMARY|PASS|총 15건 · 실패 0건`
   - `npx tsc --noEmit` 전체 통과
+
+### Stage 1 완료 (2026-08-18)
+**커밋**: `f808f39`(MQ-1201) · `939e595`(MQ-1202)
+
+#### MQ-1201
+- 구현 파일: `docs/02_SCENARIOS.md`·`docs/12_MAINT_VALUE.md`·`docs/00_MVP_SCOPE.md`·`docs/04_MCP_TOOLS.md`·
+  `docs/06_REPO_API.md`·`docs/07_BACKLOG.md`·`docs/README.md`·`docs/status/*.html`(3종)·`TODO_직접할일.md`·
+  `docs/sprints/sprint-6~11.md`(forward-ref/인라인 첨언)·`spikes/repair_flow_contract.py`
+- 회귀: 문서 정합성 grep 9파일 0건 · `sprint-9.md` 16건(기존 15+forward-ref 1) · `sprint-11.md:159`
+  존재+첨언 확인 · `spikes/repair_flow_contract.py` 19건 · 코드 계약 무변경(회귀 스위트 영향 없음).
+- reviewer: **PASS** — `docs/07_BACKLOG.md:90`의 잔존 `S19` 11회 전부 과거 사실 서술·인용문으로
+  확인(치환 누락 아님). 역사 문서(sprint-6~9) 본문 무변경, `docs/sessions/*.md` 8개 미편집 확인.
+  ⚠ 정보성: `frontend/` 코드 주석 4곳(`api.ts:793`·`RepairDetail.tsx:23`·`mappers.tsx:177`·
+  `types.ts:31`)에 `S19` 잔존 — 이번 태스크 범위 밖(Sprint 9·10 산출물), 후속 정리 대상으로 기록.
+
+#### MQ-1202
+- 구현 파일: `frontend/lib/api.ts`(수정)·`frontend/lib/deadlines.ts`(신규)·`frontend/lib/riskGrade.ts`(신규)·
+  `frontend/lib/__checks__/ui_honesty.ts`(수정)
+- 회귀: `ui_honesty.ts` L1-14·L1-15 신규 — 총 15건 전부 PASS. `npx tsc --noEmit` clean.
+- reviewer: **PASS** — `gradeView(null)`이 `LOW`로 오분류 안 됨(명시적 `null` 얼리 리턴 확인, D62),
+  두 신규 파일 React·`@/` 별칭 미의존 확인(D87), 서버 어휘(`data/deadlines.py`·`data/risk_grade.py`)와
+  프론트 매핑 테이블 정확히 일치, `ApiAsset.building_id` 타입 승격이 백엔드 `SELECT a.*` 응답과 정합.
 
 ---
 
