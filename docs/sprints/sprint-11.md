@@ -1,7 +1,21 @@
 # Sprint 11 — 기한·사고·위험 감시 계층 (백로그 P36 F5·F6, D102)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 3건 반영) → 최종 확정.
-아직 착수 전. 실행: `/stage 1`
+**Stage 1 완료(2026-08-18)**. 다음은 `/stage 2`(MQ-1102·1103, 병렬).
+
+### Stage 1 완료 (2026-08-18)
+**커밋**: `d7a5375` — `[M4] feat: Sprint 11 Stage 1 — 기한·사고·위험 감시 4테이블 신설 (MQ-1101, D102)`
+
+#### MQ-1101
+- 구현 파일: `data/seed.py`(SCHEMA §20~§23 신설, `seed_incidents`·`seed_ownership_checks`·`seed_risk_profile`,
+  `verify()` ㉜~㉟ 4건) · `docs/05_DB_SCHEMA.md`(§20~§23 + 카운트 19절/20개→23절/24개) ·
+  `docs/11_ASSET_LIFECYCLE.md`(§10-2 초안→확정, `equipment_id`→`asset_id`·`status`→`state` 정정 이력 기록)
+- 회귀: seed 35(31+4) · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 · asset_tools 49 ·
+  disposal_api 26 · ownership_api 10 · rules_db_load 25 · db_concurrency 13 · bundle_integrity 25 ·
+  pytest 46 · ruff clean — 전부 기존 건수 그대로, 회귀 없음. `sqlite_master` 테이블 20→24개.
+- reviewer: **PASS** — D10·D68·D9·D62·liveness 앵커 전부 준수 확인(`ownership_checks` 시드를
+  `verify_ownership` 실제 출력과 37/38항목 정적 대조, 나머지 1항목은 RNG 의존이라 실행 재현 권고만).
+  경고 2건은 정보성(블로커 아님) — 반복 고장 패턴 1행 미재현 확인, `§10-2` 문구 잔재 정리 권고.
 
 ## 0. 왜 지금 이 스프린트인가
 
