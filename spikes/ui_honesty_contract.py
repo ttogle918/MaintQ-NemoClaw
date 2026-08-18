@@ -7,10 +7,13 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
 프론트에 테스트 러너가 없다(실측: `tsc --noEmit`·`next build` 뿐). 러너를 새로 들이지 않고
 **이미 회귀에 있는 `tsc` + `node`** 만으로 2층 검사를 세운다 — 신규 의존성 0.
 
-  제약 게이트 4건  `lib/ownership.ts`·`lib/maintValue.ts` 가 React 를 쓰지 않고 `@/` 별칭도
-                    쓰지 않는다(이 두 가지가 성립해야 L1 이 단독 `tsc` 로 돌아간다 — 계약이자 전제다)
-  L1  순수 함수  13건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
-                    (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다)
+  제약 게이트 8건  `lib/ownership.ts`·`lib/maintValue.ts`·`lib/deadlines.ts`·`lib/riskGrade.ts` 가
+                    React 를 쓰지 않고 `@/` 별칭도 쓰지 않는다(이 두 가지가 성립해야 L1 이 단독
+                    `tsc` 로 돌아간다 — 계약이자 전제다)
+  L1  순수 함수  15건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+                    (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다.
+                     Sprint 12(MQ-1202)가 `deadlines.ts`(2함수)·`riskGrade.ts`(1함수) 관련
+                     L1-14·L1-15 를 더했다)
   L2  소스 정적      상태·판정 어휘를 다루는 **컴포넌트 전부**에 상태 문자열·색 토큰·
                     상태 비교가 0건 → **컴포넌트는 스스로 "확인/통과" 여부를 말할 수단이 없다**
   D64 성능 점수화 금지  스캔 대상 전체에 `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축
@@ -42,6 +45,11 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   에 등재했다(`Decision*.tsx` 글롭이 접두어 불일치로 놓치는 파일). `L2_FILES_FLOOR` 를 실측
   32(하한, 이전 26)로 갱신했다. 이 스위트는 실측대로만 옮긴다 — 예상치를 미리 적지 않는다.
 
+★ MQ-1202 (Sprint 12) — L1 에 `lib/deadlines.ts`(2함수)·`lib/riskGrade.ts`(1함수)를 추가해
+  13건 → 15건이 됐다(L1-14·L1-15). 제약 게이트도 두 파일분(C5~C8)을 더해 4건 → 8건이 됐다 —
+  L1 이 단독 `tsc` 컴파일로 돌려면 새 lib 파일도 C1~C4 와 같은 전제(React 미사용·`@/` 별칭
+  미사용)를 지켜야 한다.
+
 ⚠ **L3(실 데이터 렌더)은 이 스위트가 검증하지 않는다.** 서버 기동·자산 순회는 이 태스크의
   검증 단위를 넘는다 — 출력 말미에 그 사실을 다시 고지한다. 초록 표를 보고 "전부 확인됐다"고
   읽는 것이야말로 이 스위트가 막으려는 그 오류다.
@@ -63,6 +71,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
 OWNERSHIP_TS = FRONTEND / "lib" / "ownership.ts"
 MAINT_VALUE_TS = FRONTEND / "lib" / "maintValue.ts"
+DEADLINES_TS = FRONTEND / "lib" / "deadlines.ts"
+RISK_GRADE_TS = FRONTEND / "lib" / "riskGrade.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
@@ -424,50 +434,39 @@ def mutate_l1(marker: str, filename: str, old: str, new: str) -> tuple[bool, str
 
 
 # ---------------------------------------------------------------------------
+# 제약 게이트 — React 미사용·`@/` 별칭 미사용을 확인한다 (L1 이 단독 `tsc` 로 돌 수 있는 전제).
+# C1~C4(ownership.ts·maintValue.ts) 가 쓰던 로직을 그대로 헬퍼로 뽑았다 — 새 lib 파일이
+# 늘 때마다(C5~C8: deadlines.ts·riskGrade.ts, MQ-1202) 파라미터만 바꿔 재호출한다.
 
 
-def run() -> None:
-    # ── 제약 게이트 ────────────────────────────────────────────────────────
-    own_src = OWNERSHIP_TS.read_text(encoding="utf-8")
-    specs = module_specifiers(own_src)
+def constraint_gate(react_id: str, alias_id: str, filename: str, path: Path, note: str = "") -> None:
+    src = path.read_text(encoding="utf-8")
+    specs = module_specifiers(src)
     react_specs = [s for s in specs if s == "react" or s.startswith("react/") or s == "react-dom"]
     check(
         "제약",
-        "C1 lib/ownership.ts 가 React 를 들여오지 않는다",
+        f"{react_id} lib/{filename} 가 React 를 들여오지 않는다{note}",
         not react_specs,
         f"import 대상 {len(specs)}개 {specs or '(없음)'} · react 계열 {react_specs or '0건'}",
     )
     alias_specs = [s for s in specs if s.startswith("@/")]
     # 따옴표 뒤의 `@/` 만 센다 — 주석에서 백틱으로 규칙을 설명하는 문장에 반응하면 안 된다
-    quoted_alias = re.findall(r"""['"]@/""", own_src)
+    quoted_alias = re.findall(r"""['"]@/""", src)
     check(
         "제약",
-        "C2 lib/ownership.ts 가 `@/` 경로 별칭을 쓰지 않는다 (단독 tsc 컴파일 가능)",
+        f"{alias_id} lib/{filename} 가 `@/` 경로 별칭을 쓰지 않는다 (단독 tsc 컴파일 가능){note}",
         not alias_specs and not quoted_alias,
         f"별칭 import {alias_specs or '0건'} · 따옴표 뒤 '@/' {len(quoted_alias)}건 "
         f"(주석 언급은 세지 않는다)",
     )
 
-    mv_src = MAINT_VALUE_TS.read_text(encoding="utf-8")
-    mv_specs = module_specifiers(mv_src)
-    mv_react_specs = [
-        s for s in mv_specs if s == "react" or s.startswith("react/") or s == "react-dom"
-    ]
-    check(
-        "제약",
-        "C3 lib/maintValue.ts 가 React 를 들여오지 않는다 (MQ-917)",
-        not mv_react_specs,
-        f"import 대상 {len(mv_specs)}개 {mv_specs or '(없음)'} · react 계열 {mv_react_specs or '0건'}",
-    )
-    mv_alias_specs = [s for s in mv_specs if s.startswith("@/")]
-    mv_quoted_alias = re.findall(r"""['"]@/""", mv_src)
-    check(
-        "제약",
-        "C4 lib/maintValue.ts 가 `@/` 경로 별칭을 쓰지 않는다 (단독 tsc 컴파일 가능, MQ-917)",
-        not mv_alias_specs and not mv_quoted_alias,
-        f"별칭 import {mv_alias_specs or '0건'} · 따옴표 뒤 '@/' {len(mv_quoted_alias)}건 "
-        f"(주석 언급은 세지 않는다)",
-    )
+
+def run() -> None:
+    # ── 제약 게이트 ────────────────────────────────────────────────────────
+    constraint_gate("C1", "C2", "ownership.ts", OWNERSHIP_TS)
+    constraint_gate("C3", "C4", "maintValue.ts", MAINT_VALUE_TS, " (MQ-917)")
+    constraint_gate("C5", "C6", "deadlines.ts", DEADLINES_TS, " (MQ-1202)")
+    constraint_gate("C7", "C8", "riskGrade.ts", RISK_GRADE_TS, " (MQ-1202)")
 
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
@@ -478,11 +477,12 @@ def run() -> None:
         check("L1", f"L1-{idx} {name}", ok, detail)
     check(
         "L1",
-        "L1 건수 13건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했다)",
-        len(rows) == 13 and (code == 0) == all(o for _, o, _, _ in rows),
+        "L1 건수 15건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
+        "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을 더했다)",
+        len(rows) == 15 and (code == 0) == all(o for _, o, _, _ in rows),
         f"{len(rows)}건 · node exit={code}",
     )
-    # 위 '건수' 검사는 13건 밖의 메타 검사다 — 표에는 남기되 계약 13건에는 세지 않는다
+    # 위 '건수' 검사는 15건 밖의 메타 검사다 — 표에는 남기되 계약 15건에는 세지 않는다
     results[-1] = ("메타", results[-1][1], results[-1][2], results[-1][3])
 
     # ── L2 ────────────────────────────────────────────────────────────────
@@ -673,6 +673,8 @@ def main() -> None:
     for path in (
         OWNERSHIP_TS,
         MAINT_VALUE_TS,
+        DEADLINES_TS,
+        RISK_GRADE_TS,
         CHECK_TS,
         MATRIX_TSX,
         DISPOSAL_TSX,
