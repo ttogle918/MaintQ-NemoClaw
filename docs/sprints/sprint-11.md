@@ -1,7 +1,7 @@
 # Sprint 11 — 기한·사고·위험 감시 계층 (백로그 P36 F5·F6, D102)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 3건 반영) → 최종 확정.
-**Stage 1·2·3·4 완료(2026-08-18)**. 다음은 `/stage 5`(MQ-1106, 회귀 스위트 신설 + 문서 전파 마감).
+**전 스테이지 완료(2026-08-18) — Sprint 11 종료.** 5스테이지·6태스크 전부 커밋됨. `/done`으로 세션 마무리 가능.
 
 ### Stage 1 완료 (2026-08-18)
 **커밋**: `d7a5375` — `[M4] feat: Sprint 11 Stage 1 — 기한·사고·위험 감시 4테이블 신설 (MQ-1101, D102)`
@@ -65,6 +65,40 @@
 - reviewer: **PASS** — 위반 0건. `risk_grade` 모듈명/함수명 충돌 회피용 별칭(`risk_grade_data`) 필요성 확인,
   세 번째 `mode=ro` 헬퍼 미신설(`disposal.read_only` 재사용) 확인, `rule_catalog_not_loaded`→500 매핑이
   스펙·D50과 일치함을 확인(정보성 — verdict 우선순위 라우터의 503 패턴과는 다른 성격이라 블로커 아님).
+
+### Stage 5 완료 (2026-08-18) — Sprint 11 종료
+**커밋**: `390e7a9` — `[M4] feat: Sprint 11 Stage 5 — 회귀 스위트 신설 + 확장 도구 전사 표기 정리 (MQ-1106)`
+
+#### MQ-1106
+- 구현 파일: `spikes/deadline_risk_contract.py`(신규, 30번째, 18건) · `spikes/tools_profile_contract.py`(수정) ·
+  `docs/00_MVP_SCOPE.md`·`docs/07_BACKLOG.md`(P36 완료)·`docs/README.md`·`docs/04_MCP_TOOLS.md`(5곳)·
+  `docs/06_REPO_API.md`·`CLAUDE.md`(전사 "확장 9종/16종"→"확장 11종/18종" 정리) ·
+  `docs/sprints/sprint-9.md`(역사적 사실 보존 + forward-reference)
+- **1차 reviewer FAIL** — `spikes/s10_smoke.py`의 `EXPECTED_TOOLS_FULL=16` 하드코딩이 Stage 3 변경 후
+  갱신 안 돼 실행 시 반드시 FAIL하던 것 발견 → 18로 정정 → 재검토 PASS
+- **2차 발견(reviewer가 범위 밖에서 찾은 실결함, MQ-1106 원 범위를 넘어 처리)** —
+  `backend/agent/prompts.py`의 `EXT_TOOLS`·`EXT_RULES`에 Sprint 11 신규 도구(`track_deadlines`·
+  `assess_risk_grade`)가 안 실려 있어 **MCP엔 등록됐는데 에이전트가 실제 대화에서 호출할 방법이
+  없던** 배선 누락 — "도구 오케스트레이션"이 핵심 주제인 프로젝트에서 신규 도구가 오케스트레이션
+  계층에 미연결 상태였다. 규칙 16·17 추가로 해소, `spikes/prompt_rules.py`에 자기참조 위장통과
+  방지용 검사 ㉔ 신설(server.py 실등록 도구명 ↔ prompts.EXT_TOOLS 집합 대조 — 이 검사가 있었다면
+  원래 결함을 바로 잡아냈을 것) → 재검토 PASS
+- 회귀(오케스트레이터 직접 재실행): seed 35 · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 ·
+  deadline_risk_contract 18(신규) · prompt_rules 24(23+㉔) · s10_smoke 17 · agent_loop_contract 35 ·
+  tools_profile_contract 7 · pytest 46 · ruff clean — 전부 통과. **spikes 30스위트 완주**.
+
+## Sprint 11 요약
+
+D102로 백로그 P36(F5·F6)을 의도적으로 본 범위 편입해 착수한 스프린트. 5스테이지·6태스크
+(MQ-1101~1106) 전부 완료 — `deadlines`·`incidents`·`ownership_checks`·`risk_profile` 4테이블,
+`track_deadlines`·`assess_risk_grade` 2도구(읽기 전용), REST 노출(D73, core 프로파일에서도 동작),
+에이전트 시스템 프롬프트 배선까지 전 계층 완결. `detect_law_revision`(S17)은 계획대로 제외 유지.
+UI 노출은 명시적으로 컷(§7) — 다음 스프린트 후보.
+
+reviewer 게이트가 스테이지마다 최소 1건씩 실제 결함을 잡아냈다(Stage 3: db_missing 문서-코드
+불일치, Stage 4: 없음, Stage 5: 도구 카운트 하드코딩 + 프롬프트 배선 누락). 특히 Stage 5의
+프롬프트 배선 누락은 원 태스크 범위(`04_MCP_TOOLS.md` 등 문서 표기 정리) 밖에서 리뷰어가
+종합확인 중에 찾아낸 것으로, "문서만 최신화됐다고 기능이 완결된 게 아니다"를 실증했다.
 
 ## 0. 왜 지금 이 스프린트인가
 
