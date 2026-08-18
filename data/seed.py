@@ -6,6 +6,7 @@
        + Sprint 8 partner_links·A2A 계측 자리(㉒~㉕) + parts.mfr_part_no(㉖)
        + Sprint 9 repair_records 상태 불변식·error_codes 출처 컬럼·해시 재대조(㉗~㉙)
        + actions 병합 검증(㉚, MQ-919) + part_lifecycle_mock(㉛)
+       + Sprint 11 deadlines·incidents·ownership_checks·risk_profile DDL 확정(㉜~㉟, MQ-1101)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -419,6 +420,74 @@ CREATE TABLE part_lifecycle_mock (
   part_no      TEXT NOT NULL REFERENCES parts,
   next_maintenance_due DATE NOT NULL,
   PRIMARY KEY (equipment_id, part_no)
+);
+
+-- §20 deadlines — 기한 추적 (F5, `11 §10-2`). *시점*을 관리한다 — flags(§15)는 *상태*
+-- (발생→이행→해소)를 관리해 성격이 다르다: LIEN-CONSENT 는 flag, "세액공제 사후관리 24개월"은
+-- deadline. ⛔ **MCP 쓰기 도구 3종(create_po_draft·generate_disposal_document·
+-- create_repair_record) 중 어느 것도 이 테이블에 쓰지 않는다** — 향후 도구가 늘어도 여기 INSERT
+-- 는 추가하지 않는다(D10, 절대 규칙 1). 시드는 flags 와 같은 이유로 **0행**(쓰기 경로 없음).
+CREATE TABLE deadlines (
+  deadline_id INTEGER PRIMARY KEY,
+  asset_id    TEXT NOT NULL REFERENCES assets,     -- ★ §10-2 초안 정정: decision 이전 자산 사실에서 계산되므로 anchor
+  decision_id TEXT REFERENCES decisions,           -- nullable — 특정 서명 결정에서 파생된 기한만 채움(미래 확장)
+  type        TEXT NOT NULL,                       -- 'TAX-CREDIT-2Y' | 'SAFETY-INSPECTION'
+  due_date    DATE NOT NULL,
+  state       TEXT NOT NULL DEFAULT 'OPEN',        -- 'OPEN' | 'DISMISSED' — flags.state 관행 재사용 (컬럼명 'status' 아님, D9)
+  reminder_sent_at DATETIME,
+  CHECK (type IN ('TAX-CREDIT-2Y','SAFETY-INSPECTION')),
+  CHECK (state IN ('OPEN','DISMISSED'))
+);
+
+-- §21 incidents — 물리적 사고 이력 (F5, `11 §10-2`). error_history 와 별개다 — 그건 인버터
+-- 에러코드 트립이고 이건 충돌·정렬 손상처럼 회복 불가능한 감가 신호다(`12 §1`). verify_ownership
+-- 의 '알람 이력' 항목이 이 구분을 이미 그대로 쓴다(D68 ⓑ). MCP 쓰기 도구는 이 테이블에 쓰지 않는다(D10).
+CREATE TABLE incidents (
+  incident_id INTEGER PRIMARY KEY,
+  asset_id    TEXT NOT NULL REFERENCES assets,     -- ★ 물리적 사고는 호스트 자산 단위 (D68)
+  type        TEXT NOT NULL,                       -- 'COLLISION' | 'ALIGNMENT_LOSS' | 'FIRE' | 'FLOOD' | 'OTHER'
+  occurred_at DATETIME NOT NULL,
+  book_value_at_loss INTEGER,                      -- NULL 허용 — 그 시점 장부가를 모를 수 있음 (D62)
+  description TEXT,
+  recorded_by TEXT REFERENCES users,               -- 시드분은 NULL (error_history 관행)
+  CHECK (type IN ('COLLISION','ALIGNMENT_LOSS','FIRE','FLOOD','OTHER'))
+);
+
+-- §22 ownership_checks — 권리관계·실사 확인 결과 보존 (S18, F6, `11 §10-2`). verify_ownership
+-- (`04 §9`)의 판정 스키마(9카테고리·38항목, PARTIAL 비승격)는 이 테이블이 생겨도 바뀌지 않는다 —
+-- 여기 담기는 건 그 판정 **결과의 스냅샷**뿐이다. ⛔ **verify_ownership 은 읽기 전용(D10)이고
+-- 이 테이블에 INSERT 하지 않는다.** MCP 쓰기 도구 3종 중 어느 것도 이 테이블에 쓰지 않으며,
+-- 향후에도 그렇다 — 채우는 주체는 시드와 사람 승인을 거치는 백엔드 서비스뿐이다.
+CREATE TABLE ownership_checks (
+  check_id     INTEGER PRIMARY KEY,
+  asset_id     TEXT NOT NULL REFERENCES assets,    -- ★ verify_ownership(§9)의 판정 단위와 일치 (D68)
+  category     TEXT NOT NULL,                      -- verify_ownership 9카테고리 라벨 그대로
+  check_item   TEXT NOT NULL,
+  state        TEXT NOT NULL,                       -- 'VERIFIED' | 'UNVERIFIED'
+  evidence_ref TEXT,                                -- VERIFIED 일 때만
+  limit_note   TEXT,                                -- UNVERIFIED 일 때만
+  checked_at   DATETIME NOT NULL,
+  checked_by   TEXT REFERENCES users,
+  CHECK (state IN ('VERIFIED','UNVERIFIED')),
+  CHECK (evidence_ref IS NULL OR state = 'VERIFIED'),
+  CHECK (limit_note IS NULL OR state = 'UNVERIFIED')
+);
+
+-- §23 risk_profile — 건물 단위 위험 프로파일 (F6, `11 §10-2`). SAFETY-INSPECTION 대상 판정과
+-- verify_ownership '법정 요건' 카테고리는 건물 조건에 걸리는데 equipment.location 은 문자열이라
+-- 담을 자리가 없었다. FK 없음 — assets.building_id 와 같은 이유(참조 테이블 자체가 없다).
+CREATE TABLE risk_profile (
+  building_id   TEXT PRIMARY KEY,                  -- assets.building_id 재사용. FK 없음(참조 테이블 없음, §11 주석과 같은 사유)
+  fire_handling  TEXT,                              -- 'LOW'|'MEDIUM'|'HIGH'. NULL=모름
+  hazmat_volume  TEXT,
+  power_capacity TEXT,
+  product_type   TEXT,                              -- 자유 서술, 점수화 안 함
+  risk_grade     TEXT,                              -- 마지막 저장된 등급. NULL=미산출
+  risk_grade_updated_at DATETIME,
+  CHECK (fire_handling  IS NULL OR fire_handling  IN ('LOW','MEDIUM','HIGH')),
+  CHECK (hazmat_volume  IS NULL OR hazmat_volume  IN ('LOW','MEDIUM','HIGH')),
+  CHECK (power_capacity IS NULL OR power_capacity IN ('LOW','MEDIUM','HIGH')),
+  CHECK (risk_grade     IS NULL OR risk_grade     IN ('LOW','MEDIUM','HIGH'))
 );
 """
 
@@ -1396,6 +1465,182 @@ def seed_partner_links(con: sqlite3.Connection, now_utc: datetime) -> int:
     return len(rows)
 
 
+# ───────────────────────────────────────── §20~§23 확장 (Sprint 11, MQ-1101, `11 §10-2`)
+
+# §21 incidents 2행. `seed_assets` 이후 호출한다(FK). `months_ago` 는 `--today` 기준 상대값 —
+# 반복 고장·처분 프로브와 같은 이유로 절대 날짜를 박지 않는다.
+INCIDENTS: list[dict] = [
+    {
+        "asset_id": "AST-L2-SPDL",
+        "type": "COLLISION",
+        "months_ago": 24,  # 약 2년 전
+        # 사고 시점 장부가 추정치 — seed_assets 와 같은 정액법 산식(BOOK_VALUE_LIFE_YEARS·
+        # BOOK_VALUE_FLOOR_RATIO)을 사고 시점 연차(age_years=16 - 2년=14)에 적용한 값.
+        # ratio = max(0.05, 1-14/12) = 0.05 → 120,000,000 * 0.05 = 6,000,000.
+        "book_value_at_loss": 6_000_000,
+        "description": "지게차 충돌 — 주축 정렬 손상 의심",
+    },
+    {
+        "asset_id": "AST-L4-WRAP",
+        "type": "OTHER",
+        "months_ago": 8,
+        # 장부가 추정 불가 시점 — "모른다"를 0 으로 채우지 않는다 (D62)
+        "book_value_at_loss": None,
+        "description": "설비 프레임 변형 발견 — 충돌·화재·침수 4종 어디에도 해당하지 않아 OTHER 로 기록. 원인 미상",
+    },
+]
+
+
+def seed_incidents(con: sqlite3.Connection, today: date) -> int:
+    """§21 incidents 적재. MCP 쓰기 도구는 이 테이블에 쓰지 않는다(D10) — 시드만이 채운다."""
+    rows = [
+        (
+            i["asset_id"],
+            i["type"],
+            f"{_shift_months(today, -i['months_ago'])} 09:00:00",
+            i["book_value_at_loss"],
+            i["description"],
+        )
+        for i in INCIDENTS
+    ]
+    con.executemany(
+        "INSERT INTO incidents (asset_id, type, occurred_at, book_value_at_loss, description)"
+        " VALUES (?,?,?,?,?)",
+        rows,
+    )
+    return len(rows)
+
+
+# §22 ownership_checks — `verify_ownership(con, asset_id='AST-L3-LIFT')`(`data/ownership.py`)의
+# **실제 출력**을 그대로 옮겨 심는다 (추측 금지 — 태스크 지시). 9카테고리·38항목.
+# (category, check_item, state, evidence_ref, limit_note)
+OWNERSHIP_CHECKS_LIFT: list[tuple[str, str, str, str | None, str | None]] = [
+    ('물리적 상태', '정밀도 검사', 'UNVERIFIED', None, '현장 실사 원천 없음 — 육안·계측 결과를 담는 테이블이 저장소에 없다'),
+    ('물리적 상태', '진동·소음 측정', 'UNVERIFIED', None, '현장 실사 원천 없음 — 육안·계측 결과를 담는 테이블이 저장소에 없다'),
+    ('물리적 상태', '누유 점검', 'UNVERIFIED', None, '현장 실사 원천 없음 — 육안·계측 결과를 담는 테이블이 저장소에 없다'),
+    ('물리적 상태', '전장부 상태', 'UNVERIFIED', None, '현장 실사 원천 없음 — 육안·계측 결과를 담는 테이블이 저장소에 없다'),
+    ('물리적 상태', '베드·가이드 마모', 'UNVERIFIED', None, '현장 실사 원천 없음 — 육안·계측 결과를 담는 테이블이 저장소에 없다'),
+    ('가동 이력', '누적 가동시간', 'UNVERIFIED', None, '가동시간 원천 없음 — 컨트롤러 로그·가동시간 컬럼이 저장소에 없다 (D70)'),
+    ('가동 이력', '스핀들 시간', 'UNVERIFIED', None, '가동시간 원천 없음 — 컨트롤러 로그·가동시간 컬럼이 저장소에 없다 (D70)'),
+    ('가동 이력', '알람 이력', 'UNVERIFIED', None, "error_history 는 인버터 에러코드 이력이며 자산 전체의 알람 이력이 아니다 — '반복 고장 패턴' 항목에서만 인버터 단위로 사용한다 (D68 ⓑ)"),
+    ('가동 이력', '교대 패턴', 'UNVERIFIED', None, '생산 운영 원천 없음 — 교대·가공 실적을 담는 테이블이 없다'),
+    ('가동 이력', '가공 소재', 'UNVERIFIED', None, '생산 운영 원천 없음 — 교대·가공 실적을 담는 테이블이 없다'),
+    ('정비 이력', '정기점검 기록', 'UNVERIFIED', None, "서명된 정기점검 레코드 0건 — 점검을 안 한 것인지 기록이 없는 것인지 구분할 수 없다 (빈 이력은 '문제 없음'이 아니다)"),
+    ('정비 이력', '핵심부품 교체', 'UNVERIFIED', None, '서명된 핵심부품 교체 레코드 0건 — 교체 이력 없음으로 읽을 수 없다'),
+    ('정비 이력', '오버홀', 'UNVERIFIED', None, 'assets.last_overhaul_at 이 비어 있다 — 오버홀 미실시인지 기록 누락인지 구분할 수 없다'),
+    ('정비 이력', '반복 고장 패턴', 'VERIFIED', '반복 고장 미감지 — 30일 내 2건 (인버터별 최대 2회 < 3회)', None),
+    ('기술적 진부화', '제어기 세대', 'VERIFIED', 'S100/2022 (assets.controller_generation)', None),
+    ('기술적 진부화', '부품 단종', 'VERIFIED', '호환 부품 28종 중 단종 1종 (PCB-S100-CTRL) · assets.parts_eol_flag=0', None),
+    ('기술적 진부화', '통신 규격', 'UNVERIFIED', None, '통신 옵션·프로토콜을 기록하는 컬럼이 없다'),
+    ('기술적 진부화', '제조사 존속', 'UNVERIFIED', None, '사전 수집 스냅샷 없음 — 외부 기관을 런타임에 조회하지 않는다 (.env.example §외부 데이터 원천)'),
+    ('권리관계', '담보 설정 (사내 기록)', 'VERIFIED', '사내 기록상 담보 설정 없음 (assets.has_lien=0)', None),
+    ('권리관계', '부보 여부', 'VERIFIED', '확인된 미부보 (assets.insured=0) — 사실은 확인됐으나 무보험 위험은 그대로 남는다', None),
+    ('권리관계', '소유자 실재·처분 권한', 'UNVERIFIED', None, '사전 수집 스냅샷 없음 — 외부 기관을 런타임에 조회하지 않는다 (.env.example §외부 데이터 원천)'),
+    ('권리관계', '동산담보등기 조회', 'UNVERIFIED', None, '개별 물건 조회 수단이 없다 — 등기정보광장은 집계 통계만 제공'),
+    ('권리관계', '리스 여부', 'UNVERIFIED', None, '원천 없음 — 리스는 동산담보등기 대상이 아니고 저장소에 리스 계약 원천이 없다 (점유가 곧 권리 외관이라 육안으로도 구분되지 않는다)'),
+    ('권리관계', '압류·가압류', 'UNVERIFIED', None, '원천 없음 — 집행 기록을 담는 테이블이 없다'),
+    ('법정 요건', '안전검사', 'VERIFIED', '안전검사 비대상으로 기록됨 (safety_inspection_target=0)', None),
+    ('법정 요건', '안전인증', 'UNVERIFIED', None, '인증서 원천 없음 — 인증번호를 기록하는 컬럼이 없다'),
+    ('법정 요건', '환경 규제 대상 여부', 'UNVERIFIED', None, '환경 인허가 원천 없음'),
+    ('재무·회계', '감가상각 명세', 'UNVERIFIED', None, 'acquisition_cost · book_value 이 NULL — 장부가를 산출할 수 없다'),
+    ('재무·회계', '매도인 세액공제', 'VERIFIED', '세액공제 미적용 (assets.tax_credit_applied)', None),
+    ('재무·회계', '내용연수 결정', 'UNVERIFIED', None, '내용연수 결정 근거 원천 없음 — 잔가곡선의 기준내용연수는 목업 파라미터이지 이 자산의 내용연수 결정이 아니다 (D65·D74)'),
+    ('시장·가격', '동일 기종 거래가', 'UNVERIFIED', None, "실거래 비교가 아님 — 참고 잔가율 0.7579 (카테고리 '일반산업' · 연차 3-5) 는 법정 기준내용연수 10년 기반 정률법 추정 (목업) — 실거래 데이터 아님 [r=0.0670, floor=0.1, D74]"),
+    ('시장·가격', '감정평가서', 'UNVERIFIED', None, '감정평가서 원천 없음'),
+    ('시장·가격', '매도 사유', 'UNVERIFIED', None, '매도인 진술 원천 없음'),
+    ('이전 비용', '해체·상차', 'UNVERIFIED', None, '이전 견적 원천 없음 — 해체·운송·설치 비용은 현장 조사 후 견적으로만 산출된다'),
+    ('이전 비용', '운송', 'UNVERIFIED', None, '이전 견적 원천 없음 — 해체·운송·설치 비용은 현장 조사 후 견적으로만 산출된다'),
+    ('이전 비용', '반입 경로', 'UNVERIFIED', None, '이전 견적 원천 없음 — 해체·운송·설치 비용은 현장 조사 후 견적으로만 산출된다'),
+    ('이전 비용', '설치·정렬', 'UNVERIFIED', None, '이전 견적 원천 없음 — 해체·운송·설치 비용은 현장 조사 후 견적으로만 산출된다'),
+    ('이전 비용', '시운전', 'UNVERIFIED', None, '이전 견적 원천 없음 — 해체·운송·설치 비용은 현장 조사 후 견적으로만 산출된다'),
+]
+
+
+def seed_ownership_checks(con: sqlite3.Connection, today: date) -> int:
+    """§22 ownership_checks — `AST-L3-LIFT` 실사 스냅샷 38행. `checked_at` ≈ 1개월 전.
+
+    verify_ownership 은 읽기 전용이라(D10) 이 테이블에 쓰지 않는다 — 채우는 건 시드뿐이다.
+    """
+    checked_at = f"{_shift_months(today, -1)} 10:00:00"
+    rows = [
+        ("AST-L3-LIFT", category, item, state, evidence, limit, checked_at)
+        for category, item, state, evidence, limit in OWNERSHIP_CHECKS_LIFT
+    ]
+    con.executemany(
+        "INSERT INTO ownership_checks (asset_id, category, check_item, state, evidence_ref,"
+        " limit_note, checked_at) VALUES (?,?,?,?,?,?,?)",
+        rows,
+    )
+    return len(rows)
+
+
+# §23 risk_profile 4행. `stored_grade` 는 **마지막으로 저장된 등급**이고 BLD-C 는 의도적으로
+# 재계산 등급(HIGH)과 다르게 둔다(LOW) — "저장된 값이 최신 산출과 어긋날 수 있다"는 데모 케이스.
+# LOW=1/MEDIUM=2/HIGH=3 합산 점수는 `_risk_grade_from_score()` 참고(self-check 전용, 아래).
+RISK_PROFILE: list[dict] = [
+    {
+        "building_id": "BLD-A",
+        "fire_handling": "LOW", "hazmat_volume": "LOW", "power_capacity": "MEDIUM",
+        "product_type": "일반 조립품 (경공정)",
+        "stored_grade": "LOW", "months_ago": 3,
+    },
+    {
+        "building_id": "BLD-B",
+        "fire_handling": "MEDIUM", "hazmat_volume": "LOW", "power_capacity": "HIGH",
+        "product_type": "정밀 가공품 (고전력 설비)",
+        "stored_grade": "MEDIUM", "months_ago": 3,
+    },
+    {
+        "building_id": "BLD-C",
+        "fire_handling": "HIGH", "hazmat_volume": "MEDIUM", "power_capacity": "MEDIUM",
+        "product_type": "도장·코팅 공정품 (인화성 도료 취급)",
+        "stored_grade": "LOW",  # ★ 의도적 불일치 — 재계산 등급은 HIGH (검사 ㉟ 이 대조)
+        "months_ago": 14,
+    },
+    {
+        "building_id": "BLD-D",
+        "fire_handling": "LOW", "hazmat_volume": "HIGH", "power_capacity": "LOW",
+        "product_type": "화학 자재 보관 (포장동)",
+        "stored_grade": "MEDIUM", "months_ago": 3,
+    },
+]
+
+# self-check 전용 점수식 — **정본이 아니다.** 실 산정 로직은 Sprint 11 Stage 2(MQ-1103)의
+# `data/risk_grade.py` 가 만든다. 여기서는 시드 표(sprint-11.md §6)의 "산출 등급" 열을 검사 ㉟
+# 에서 재현하기 위한 최소 역산일 뿐이다.
+_RISK_LEVEL_SCORE = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+
+
+def _risk_grade_from_score(score: int) -> str:
+    if score <= 4:
+        return "LOW"
+    if score <= 6:
+        return "MEDIUM"
+    return "HIGH"
+
+
+def seed_risk_profile(con: sqlite3.Connection, today: date) -> int:
+    """§23 risk_profile 4행. `building_id` 는 `assets.building_id` 재사용 — FK 없음(참조 테이블 없음)."""
+    rows = [
+        (
+            r["building_id"],
+            r["fire_handling"],
+            r["hazmat_volume"],
+            r["power_capacity"],
+            r["product_type"],
+            r["stored_grade"],
+            f"{_shift_months(today, -r['months_ago'])} 00:00:00",
+        )
+        for r in RISK_PROFILE
+    ]
+    con.executemany(
+        "INSERT INTO risk_profile (building_id, fire_handling, hazmat_volume, power_capacity,"
+        " product_type, risk_grade, risk_grade_updated_at) VALUES (?,?,?,?,?,?,?)",
+        rows,
+    )
+    return len(rows)
+
+
 def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) -> None:
     """수리 증빙 12건. 쓰기 경로는 Sprint 9 (MQ-909) 이고 여기서는 시드만 넣는다.
 
@@ -1994,7 +2239,8 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
     parts.mfr_part_no 1건(㉖) · Sprint 9 repair_records 상태 불변식(D98)·error_codes 출처
     컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙) · actions 병합 검증
-    (MQ-919) 1건(㉚) · part_lifecycle_mock 1건(㉛, Sprint 10 브레인스토밍 D)이 뒤에 붙는다.
+    (MQ-919) 1건(㉚) · part_lifecycle_mock 1건(㉛, Sprint 10 브레인스토밍 D) ·
+    Sprint 11 deadlines·incidents·ownership_checks·risk_profile 4건(㉜~㉟, MQ-1101)이 뒤에 붙는다.
     ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
       D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
@@ -2702,6 +2948,124 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         len(rows_pl) == 27 and not mismatched,
         f"행수={len(rows_pl)} (기대 27) · 모델 불일치 {len(mismatched)}건 {mismatched[:3]}",
     )
+
+    # ㉜ deadlines — CHECK 프로브(음성: 잘못된 type INSERT 거부) + 0행 유지(양성) (Sprint 11, D10)
+    #   MCP 쓰기 도구가 없어 정상 상태는 0행이다(flags 와 같은 이유) — "0행이라 통과"가 아니라,
+    #   실제로 잘못된 INSERT 를 **시도**해 CHECK 가 실제로 막는지(양성 축: 시도 자체가 실행됨을
+    #   sqlite3.IntegrityError 로 확인) 함께 잠근다.
+    dl_before = q("SELECT count(*) FROM deadlines")[0]
+    dl_rejected, dl_error = False, ""
+    try:
+        con.execute(
+            "INSERT INTO deadlines (asset_id, type, due_date) VALUES (?,?,?)",
+            ("AST-L3-LIFT", "NOT-A-TYPE", "2027-01-01"),
+        )
+    except sqlite3.IntegrityError as exc:
+        dl_rejected, dl_error = True, str(exc)
+    dl_after = q("SELECT count(*) FROM deadlines")[0]
+    check(
+        "㉜ deadlines CHECK 프로브 — 잘못된 type INSERT 거부 (D10)",
+        dl_rejected and dl_before == 0 and dl_after == 0,
+        "[음성] 잘못된 type INSERT 시도 → "
+        + (f"거부됨 (IntegrityError: {dl_error})" if dl_rejected else "거부되지 않음 (FAIL)")
+        + f" · [양성] 행수 before={dl_before} after={dl_after} (기대 0·0, 쓰기 경로 없음 D10)",
+    )
+
+    # ㉝ incidents — 2행 · FK 정합(asset_id ∈ assets, 고아 0건) · type enum 밖 0건 (Sprint 11, D68)
+    inc_rows = con.execute("SELECT incident_id, asset_id, type FROM incidents").fetchall()
+    inc_orphan = q(
+        "SELECT count(*) FROM incidents i LEFT JOIN assets a ON a.asset_id = i.asset_id"
+        " WHERE a.asset_id IS NULL"
+    )[0]
+    inc_enum_bad = [
+        r[2] for r in inc_rows if r[2] not in ("COLLISION", "ALIGNMENT_LOSS", "FIRE", "FLOOD", "OTHER")
+    ]
+    inc_expected = {("AST-L2-SPDL", "COLLISION"), ("AST-L4-WRAP", "OTHER")}
+    inc_actual = {(r[1], r[2]) for r in inc_rows}
+    check(
+        "㉝ incidents 2행 · FK 정합(고아 0건) · type enum (Sprint 11, D68)",
+        len(inc_rows) == 2 and inc_orphan == 0 and not inc_enum_bad and inc_actual == inc_expected,
+        f"행수={len(inc_rows)}(기대 2) · FK 고아={inc_orphan}건 · enum 밖={inc_enum_bad}"
+        f" · 자산/유형={sorted(inc_actual)}",
+    )
+
+    # ㉞ ownership_checks — 행수 == verify_ownership(AST-L3-LIFT) 실측 항목 수 · either-or CHECK
+    #    음성 검사 2건 (S18, D68). 실측은 하드코딩 38이 아니라 **판정기를 직접 호출**해서 댄다 —
+    #    상수만 대조하면 판정기가 항목을 늘려도(또는 줄여도) 시드가 조용히 낡는다.
+    sys.path.insert(0, str(ROOT.parent))
+    from data.ownership import verify as own_verify  # noqa: PLC0415
+
+    prev_factory = con.row_factory
+    con.row_factory = sqlite3.Row
+    try:
+        live = own_verify(con, asset_id="AST-L3-LIFT")
+    finally:
+        con.row_factory = prev_factory
+    live_item_count = (
+        sum(len(c["items"]) for c in live["categories"]) if live.get("status") == "ok" else -1
+    )
+    oc_rows = q("SELECT count(*) FROM ownership_checks WHERE asset_id='AST-L3-LIFT'")[0]
+    oc_neg1, oc_neg2 = False, False
+    try:
+        con.execute(
+            "INSERT INTO ownership_checks (asset_id, category, check_item, state, evidence_ref,"
+            " limit_note, checked_at) VALUES (?,?,?,?,?,?,?)",
+            ("AST-L3-LIFT", "테스트", "음성검사①", "VERIFIED", None,
+             "state=VERIFIED 인데 limit_note 채움 — 거부돼야 함", "2026-01-01 00:00:00"),
+        )
+    except sqlite3.IntegrityError:
+        oc_neg1 = True
+    try:
+        con.execute(
+            "INSERT INTO ownership_checks (asset_id, category, check_item, state, evidence_ref,"
+            " limit_note, checked_at) VALUES (?,?,?,?,?,?,?)",
+            ("AST-L3-LIFT", "테스트", "음성검사②",
+             "UNVERIFIED", "state=UNVERIFIED 인데 evidence_ref 채움 — 거부돼야 함", None,
+             "2026-01-01 00:00:00"),
+        )
+    except sqlite3.IntegrityError:
+        oc_neg2 = True
+    check(
+        "㉞ ownership_checks 행수=verify_ownership 실측 · either-or CHECK 음성 (S18, D68)",
+        oc_rows == live_item_count and oc_neg1 and oc_neg2,
+        f"DB행수={oc_rows} · verify_ownership(AST-L3-LIFT) 실측 항목수={live_item_count}"
+        f" · [음성①] VERIFIED+limit_note 동시 채움 → "
+        + ("거부됨" if oc_neg1 else "거부 안 됨 (FAIL)")
+        + " · [음성②] UNVERIFIED+evidence_ref 동시 채움 → "
+        + ("거부됨" if oc_neg2 else "거부 안 됨 (FAIL)"),
+    )
+
+    # ㉟ risk_profile — 4행 · building_id 집합 == assets.building_id distinct (동적 대조) ·
+    #    점수식 재계산이 시드 표(sprint-11.md §6)와 일치 (Sprint 11, self-check 전용 §_RISK_LEVEL_SCORE)
+    rp_rows = con.execute(
+        "SELECT building_id, fire_handling, hazmat_volume, power_capacity, risk_grade"
+        " FROM risk_profile"
+    ).fetchall()
+    rp_bld = {r[0] for r in rp_rows}
+    assets_bld = {
+        r[0]
+        for r in con.execute(
+            "SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL"
+        ).fetchall()
+    }
+    recompute_mismatch = []
+    for building_id, fire, hazmat, power, stored_grade in rp_rows:
+        score = _RISK_LEVEL_SCORE[fire] + _RISK_LEVEL_SCORE[hazmat] + _RISK_LEVEL_SCORE[power]
+        computed = _risk_grade_from_score(score)
+        expected_row = next(r for r in RISK_PROFILE if r["building_id"] == building_id)
+        if computed != expected_row["stored_grade"] and building_id != "BLD-C":
+            # BLD-C 는 의도적 불일치(데모) — 그 외 3건은 저장값과 재계산이 일치해야 한다
+            recompute_mismatch.append((building_id, score, computed, stored_grade))
+        if building_id == "BLD-C" and computed == stored_grade:
+            # BLD-C 데모가 깨졌다면(우연히 일치) 그것도 실패로 잡는다
+            recompute_mismatch.append((building_id, score, computed, stored_grade, "데모 불일치 소실"))
+    check(
+        "㉟ risk_profile 4행 · building_id 동적 대조 · 점수식 재계산 (Sprint 11, self-check)",
+        len(rp_rows) == 4 and rp_bld == assets_bld and not recompute_mismatch,
+        f"행수={len(rp_rows)}(기대 4) · building_id={sorted(rp_bld)} vs assets={sorted(assets_bld)}"
+        f" · 재계산 불일치={recompute_mismatch}"
+        f" · BLD-C stored=LOW/computed=HIGH 가 의도된 형태(데모)",
+    )
     return results
 
 
@@ -2751,6 +3115,10 @@ def main() -> None:
         # ← assets 직후. subject_ref 가 building_id 를 참조하는 결이라 자산이 먼저다 (D92).
         #   기준 시각은 `--today` 가 아니라 **실제 UTC 현재 시각** — seed_partner_links 독스트링 참조
         n_links = seed_partner_links(con, datetime.now(timezone.utc))
+        # ← assets 직후. §21~§23 은 asset_id/building_id 를 참조하는 결이라 자산이 먼저다 (D68).
+        n_incidents = seed_incidents(con, args.today)
+        n_ownership_checks = seed_ownership_checks(con, args.today)
+        n_risk_profile = seed_risk_profile(con, args.today)
         seed_masters(con)
         n_lifecycle = seed_part_lifecycle_mock(con, args.today)
         seed_inventory(con, rng)
@@ -2788,6 +3156,10 @@ def main() -> None:
         con.commit()
 
         print(f"[파트너대장] partner_links {n_links}행 (D92 — 목업 전제, 표 뒤 고지 참조)")
+        print(
+            f"[자산 생애주기 확장] incidents {n_incidents}행 · ownership_checks {n_ownership_checks}행"
+            f" · risk_profile {n_risk_profile}행 · deadlines 0행(쓰기 경로 없음) (Sprint 11, MQ-1101)"
+        )
 
         print(f"\n[기준일] {args.today}  (반복 고장 3건 = 기준일 -22/-12/-4일)")
         print(f"[완료] {args.db}\n")

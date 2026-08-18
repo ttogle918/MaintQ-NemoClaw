@@ -532,19 +532,34 @@ F1이 가장 크고 나머지는 그 위에 얇게 얹힌다. **F1만 해도 "�
 | `12 §1` 자산가치 | *"충돌·사고 이력은 마이너스다 — 베드·주축 정렬이 영구히 틀어지면 정밀도가 회복되지 않는다"* 고 써 뒀는데 **사고를 기록할 테이블이 없다.** `error_history` 는 에러코드 트립이지 물리적 사고가 아니다 |
 | `verify_ownership` (§5·§6 S18) | 9개 카테고리를 확인한 **결과를 남길 자리가 없다.** 매번 처음부터 다시 확인하게 된다 |
 
-### 10-2. 신규 테이블 4종
+### 10-2. 신규 테이블 4종 — ✅ 확정 (Sprint 11, MQ-1101)
+
+> **이 절은 더 이상 초안이 아니다.** 최초 버전은 컬럼 이름만 나열한 구상이었고 실제 DDL 로
+> 확정하며 두 군데가 바뀌었다 — ⓐ `incidents`·`ownership_checks` 의 anchor 를 `equipment_id`
+> 가 아니라 **`asset_id`(호스트 설비)로 정정**했다. 확장 범위(처분·취득·자산가치)의 판정 단위는
+> 인버터가 아니라 인버터가 구동하는 호스트 설비라는 **D68** 그대로다 — `verify_ownership` 의
+> '알람 이력' 항목이 이미 *"error_history 는 인버터 에러코드 이력이며 자산 전체의 알람 이력이
+> 아니다"*(D68 ⓑ)로 이 구분을 쓰고 있었는데 초안 컬럼명이 거기서 벗어나 있었다. ⓑ `deadlines`
+> 의 상태 컬럼명을 `status` 가 아니라 **`state`** 로 정정했다 — `status` 는 MCP 응답 봉투의
+> 예약어이고(D9), 워크플로우 상태 컬럼은 전 테이블에서 `state` 로 통일돼 있다(`po_drafts`·
+> `decisions`·`repair_records`·`flags`). `ownership_checks`·`incidents` 도 같은 이유로
+> 상태/구분 컬럼을 `state`·`type` 으로 확정했다(`status` 를 쓰지 않는다).
+>
+> **정확한 DDL 4종의 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고, 사람이 읽는 사본은
+> **`docs/05_DB_SCHEMA.md §20~§23`** 이다 — 아래는 그 요지만 남긴다(전체 DDL·CHECK·시드값은
+> 그 문서를 볼 것).
 
 ```
-deadlines          기한 추적 — 시점을 관리한다
-  deadline_id, decision_id, type, due_date, status, reminder_sent_at
+deadlines          기한 추적 — 시점을 관리한다. 시드 0행(쓰기 경로 없음, D10)
+  deadline_id, asset_id, decision_id, type, due_date, state, reminder_sent_at
 
-incidents          물리적 사고 이력 (error_history 와 별개)
-  incident_id, equipment_id, type, occurred_at, book_value_at_loss
+incidents          물리적 사고 이력 (error_history 와 별개). 시드 2행
+  incident_id, asset_id, type, occurred_at, book_value_at_loss, description, recorded_by
 
-ownership_checks   권리관계·실사 확인 항목 (S18 결과 보존)
-  check_id, equipment_id, check_item, status, evidence_ref, checked_at
+ownership_checks   권리관계·실사 확인 항목 (S18 결과 보존). 시드 38행
+  check_id, asset_id, category, check_item, state, evidence_ref, limit_note, checked_at, checked_by
 
-risk_profile       건물 단위 속성
+risk_profile       건물 단위 속성. 시드 4행
   building_id, fire_handling, hazmat_volume, power_capacity,
   product_type, risk_grade, risk_grade_updated_at
 ```
@@ -557,6 +572,15 @@ risk_profile       건물 단위 속성
 **`deadlines` 와 `flags`(§3)는 성격이 다르다** — `flags` 는 *상태*(발생 → 이행 → 해소)를,
 `deadlines` 는 *시점*을 관리한다. 같은 사안이 양쪽에 각각 걸린다: `LIEN-CONSENT` 는 flag,
 "세액공제 사후관리 24개월"은 deadline.
+
+**`ownership_checks` 시드는 `verify_ownership(AST-L3-LIFT)` 의 실제 출력을 그대로 옮겨 심었다**
+(추측이 아니라 `data/ownership.py:verify()` 를 직접 호출해 확인 — 절대 규칙 6과 같은 태도).
+9카테고리·38항목 실측: 물리적 상태 5 · 가동 이력 5 · 정비 이력 4 · 기술적 진부화 4 · 권리관계 6 ·
+법정 요건 3 · 재무·회계 3 · 시장·가격 3 · 이전 비용 5. 이 39→38 구성은 §5 가 정의한 9카테고리
+고정 순서와 정확히 같고(항목 추가·삭제 없음), `verify_ownership` 자체의 판정 스키마(9카테고리·
+`PARTIAL` 비승격)는 이 테이블이 생겨도 바뀌지 않는다 — 근거는 위 D68(판정·저장 단위가 `asset_id`
+로 일치) + `verify_ownership` 실제 출력(항목 수·카테고리 라벨이 저장 스키마와 정확히 대응)
+두 가지다.
 
 ### 10-3. 도구 3종 추가
 

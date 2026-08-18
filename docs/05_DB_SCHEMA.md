@@ -7,21 +7,25 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 `repair_records`·`residual_curve` (§11~§17).
 → **Sprint 8 (A2A 신원 식별)에서 1개 추가** — `partner_links` (§18).
 → **Sprint 10 (설비 하이라이트 대시보드)에서 1개 추가** — `part_lifecycle_mock` (§19).
+→ **Sprint 11 (기한·사고·실사 보존·위험 프로파일, F5·F6)에서 4개 추가** — `deadlines`·`incidents`·
+`ownership_checks`·`risk_profile` (§20~§23). `11_ASSET_LIFECYCLE.md §10-2` 가 초안으로 남겨 둔
+4테이블을 DDL로 확정한다 (MQ-1101).
 
-> **세는 단위 주의 — "19"가 두 뜻으로 등장한다.** 아래 두 숫자는 서로 다른 것을 센다.
+> **세는 단위 주의 — 절과 `CREATE TABLE`은 다른 것을 센다.** 아래 두 숫자는 서로 다른 것을 센다.
 > 문장을 읽을 때 *"절"* 을 세는지 *"`CREATE TABLE`"* 을 세는지 반드시 구분할 것.
 >
-> - **`CREATE TABLE` 은 20개다** (`data/seed.py` 의 `SCHEMA` 기준) —
+> - **`CREATE TABLE` 은 24개다** (`data/seed.py` 의 `SCHEMA` 기준) —
 >   코어 **11개** + Sprint 6 **7개** + Sprint 8 **1개**(`partner_links`) + Sprint 10 **1개**
->   (`part_lifecycle_mock`).
-> - **절(§)은 19절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**,
->   `§19` **1절**.
+>   (`part_lifecycle_mock`) + Sprint 11 **4개**(`deadlines`·`incidents`·`ownership_checks`·
+>   `risk_profile`).
+> - **절(§)은 23절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**,
+>   `§19` **1절**, `§20`~`§23` **4절**.
 > - 절보다 `CREATE TABLE` 이 1개 많은 이유는 **`§7`이 `suppliers`와 `supplier_parts`
 >   두 테이블을 함께 다루기 때문**이다.
 > - **`§10`은 존재하지 않는다** (`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
 >   `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
 >   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 `§18`을, Sprint 10 은
->   `§19`를 끝에 잇기만 한다.
+>   `§19`를, Sprint 11 은 `§20`~`§23`을 끝에 잇기만 한다.
 
 ---
 
@@ -705,7 +709,8 @@ CREATE TABLE residual_curve (
 
 > `docs/A2A_IDENTITY.md`·`docs/A2A_CONTRACTS.md` 가 참조하는 **기반층 1종**.
 > 이 절이 더해져(Sprint 8 시점) `CREATE TABLE` 은 **19개**, 절은 **18절**이 됐다 — Sprint 10 이
-> `part_lifecycle_mock`(§19)을 더해 지금은 **20개 / 19절**이다(서두 "세는 단위 주의" 참조).
+> `part_lifecycle_mock`(§19)을 더해 **20개 / 19절**, Sprint 11 이 §20~§23(`deadlines`·`incidents`·
+> `ownership_checks`·`risk_profile`)을 더해 지금은 **24개 / 23절**이다(서두 "세는 단위 주의" 참조).
 > ⚠ **A2A 호출부는 미착수다** — 이 스프린트가 만드는 것은 **대장(테이블)과 계측 자리**뿐이다.
 
 ## 18. partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D95·D96)
@@ -906,6 +911,147 @@ CREATE TABLE part_lifecycle_mock (
 
 ---
 
+# Sprint 11 확장 — 기한·사고·실사 보존·위험 프로파일 (F5·F6)
+
+> `docs/11_ASSET_LIFECYCLE.md §10-2` 가 초안으로 남겨 둔 4테이블을 DDL 로 확정한다(MQ-1101,
+> D102 로 F5·F6 가 본 범위에 편입). **DDL 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고
+> 아래는 그 사본이다(D60 과 같은 사본 규약). 넷 다 `assets`(또는 `assets.building_id`)를
+> 참조하는 결이라 **`seed_assets()` 이후**에 적재한다.
+>
+> ⛔ **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
+> 3종뿐이다.** 넷 중 어느 테이블도 이 3종의 쓰기 대상이 아니고, **향후에도 그렇다** — 새 도구가
+> 이 절의 테이블에 쓰게 하려면 그 자체가 계약 변경(새 쓰기 도구 4번째)이라 이 문서 수정만으로는
+> 안 된다. `deadlines`·`ownership_checks`는 이번 스프린트에서 **시드가** INSERT 하지만, 그건
+> "MCP 도구가 쓴다"가 아니라 "사람이 승인한 값을 시드/백엔드 서비스가 채운다"는 뜻이다.
+
+## 20. deadlines — 기한 추적
+
+> *시점*을 관리한다. `flags`(§15)는 *상태*(발생→이행→해소)를 관리해 성격이 다르다 —
+> 같은 사안이 양쪽에 각각 걸린다: `LIEN-CONSENT` 는 flag, "세액공제 사후관리 24개월"은 deadline.
+> `TAX-CREDIT-2Y`(`11 §3`)가 `months_since_acquisition` 을 쓰고 경계(`review_band [22,26]`)까지
+> 있는데, 기한이 다가오는 걸 미리 알 방법이 없었다 — 지금은 처분을 요청해야만 `BLOCKED` 를 안다.
+
+```sql
+CREATE TABLE deadlines (
+  deadline_id INTEGER PRIMARY KEY,
+  asset_id    TEXT NOT NULL REFERENCES assets,     -- ★ §10-2 초안 정정: decision 이전 자산 사실에서 계산되므로 anchor
+  decision_id TEXT REFERENCES decisions,           -- nullable — 특정 서명 결정에서 파생된 기한만 채움(미래 확장)
+  type        TEXT NOT NULL,                       -- 'TAX-CREDIT-2Y' | 'SAFETY-INSPECTION'
+  due_date    DATE NOT NULL,
+  state       TEXT NOT NULL DEFAULT 'OPEN',        -- 'OPEN' | 'DISMISSED' — flags.state 관행 재사용 (컬럼명 'status' 아님, D9)
+  reminder_sent_at DATETIME,
+  CHECK (type IN ('TAX-CREDIT-2Y','SAFETY-INSPECTION')),
+  CHECK (state IN ('OPEN','DISMISSED'))
+);
+```
+
+**anchor 가 `decision_id` 가 아니라 `asset_id` 인 이유** — §10-2 초안은 `decision_id` 를 anchor로
+적었으나, 기한은 **결정 이전에** 자산 사실(취득일 등)에서 바로 계산된다. 결정에 종속시키면
+"아직 처분을 시도한 적 없는 자산의 기한"을 표현할 자리가 없어져 `track_deadlines`(F5, MQ-1102)의
+핵심 가치("BLOCKED 를 미리 안다")가 성립하지 않는다. `decision_id` 는 특정 서명 결정에서 파생된
+기한만 채우는 **nullable 부가 필드**로 남긴다.
+
+**시드는 0행이다** — `flags` 와 같은 이유로 쓰기 경로가 없다(절대 규칙 1). 시드 검사 ㉜ 이
+0행 유지와 함께 **잘못된 `type` 값의 INSERT 를 실제로 시도**해 CHECK 가 거부하는지 확인한다.
+
+## 21. incidents — 물리적 사고 이력
+
+> `error_history` 와 별개다 — 그건 인버터 에러코드 트립이고 이것은 충돌·정렬 손상처럼
+> **회복 불가능한** 감가 신호다(`12 §1`이 "충돌·사고 이력은 마이너스다 — 베드·주축 정렬이
+> 영구히 틀어지면 정밀도가 회복되지 않는다"고 써 뒀지만 담을 테이블이 없었다).
+> `verify_ownership`(§9)의 '가동 이력 → 알람 이력' 항목이 이미 이 구분을 그대로 쓴다:
+> *"error_history 는 인버터 에러코드 이력이며 자산 전체의 알람 이력이 아니다"*(D68 ⓑ).
+
+```sql
+CREATE TABLE incidents (
+  incident_id INTEGER PRIMARY KEY,
+  asset_id    TEXT NOT NULL REFERENCES assets,     -- ★ 물리적 사고는 호스트 자산 단위 (D68)
+  type        TEXT NOT NULL,                       -- 'COLLISION' | 'ALIGNMENT_LOSS' | 'FIRE' | 'FLOOD' | 'OTHER'
+  occurred_at DATETIME NOT NULL,
+  book_value_at_loss INTEGER,                      -- NULL 허용 — 그 시점 장부가를 모를 수 있음 (D62)
+  description TEXT,
+  recorded_by TEXT REFERENCES users,               -- 시드분은 NULL (error_history 관행)
+  CHECK (type IN ('COLLISION','ALIGNMENT_LOSS','FIRE','FLOOD','OTHER'))
+);
+```
+
+**시드 2행**: `AST-L2-SPDL`/`COLLISION`(약 2년 전, `book_value_at_loss` 는 그 시점 정액법 추정치
+6,000,000 — `seed_assets` 의 `BOOK_VALUE_LIFE_YEARS`·`BOOK_VALUE_FLOOR_RATIO` 산식을 사고 시점
+연차에 적용), `AST-L4-WRAP`/`OTHER`(`book_value_at_loss=NULL` — 모르는 값을 0 으로 채우지 않는다,
+D62). `recorded_by=NULL`. 시드 검사 ㉝ 이 2행·FK 정합(고아 0건)·`type` enum 밖 0건을 확인한다.
+
+## 22. ownership_checks — 권리관계·실사 확인 결과 보존
+
+> `verify_ownership`(S18, `04 §9`)이 9개 카테고리를 확인한 **결과를 남길 자리가 없어서**
+> 매번 처음부터 다시 확인해야 했다. 이 테이블은 그 판정의 **스냅샷**만 담는다 — `verify_ownership`
+> 자체의 판정 스키마(9카테고리·38항목, `PARTIAL` 비승격, `11 §6`)는 바꾸지 않는다.
+
+```sql
+CREATE TABLE ownership_checks (
+  check_id     INTEGER PRIMARY KEY,
+  asset_id     TEXT NOT NULL REFERENCES assets,    -- ★ verify_ownership(§9)의 판정 단위와 일치 (D68)
+  category     TEXT NOT NULL,                      -- verify_ownership 9카테고리 라벨 그대로
+  check_item   TEXT NOT NULL,
+  state        TEXT NOT NULL,                       -- 'VERIFIED' | 'UNVERIFIED'
+  evidence_ref TEXT,                                -- VERIFIED 일 때만
+  limit_note   TEXT,                                -- UNVERIFIED 일 때만
+  checked_at   DATETIME NOT NULL,
+  checked_by   TEXT REFERENCES users,
+  CHECK (state IN ('VERIFIED','UNVERIFIED')),
+  CHECK (evidence_ref IS NULL OR state = 'VERIFIED'),
+  CHECK (limit_note IS NULL OR state = 'UNVERIFIED')
+);
+```
+
+**시드 38행**: `AST-L3-LIFT` 의 `verify_ownership` **실제 출력**(`data/ownership.py:verify()` 를
+직접 호출해 확인, 추측 금지)을 그대로 옮겨 심는다 — 9카테고리(물리적 상태 5·가동 이력 5·정비
+이력 4·기술적 진부화 4·권리관계 6·법정 요건 3·재무·회계 3·시장·가격 3·이전 비용 5 = **38항목**).
+`checked_at` ≈ 1개월 전, `checked_by=NULL`. 시드 검사 ㉞ 가 DB 행수를 **하드코딩 38이 아니라
+`verify_ownership()` 을 그 자리에서 다시 호출한 실측치와 대조**하고(판정기가 항목을 늘리면 시드가
+조용히 낡는 것을 막는다), either-or CHECK 2종(`VERIFIED`인데 `limit_note` 채움 / `UNVERIFIED`인데
+`evidence_ref` 채움)에 대해 **실제 INSERT 를 시도해** 거부되는지 확인한다(음성 검사).
+
+## 23. risk_profile — 건물 단위 위험 프로파일
+
+> `SAFETY-INSPECTION`(`11 §3`) 대상 판정과 `verify_ownership` '법정 요건' 카테고리(안전검사·
+> 안전인증·환경 규제)는 **건물 조건**에 걸리는데, `equipment.location` 은
+> `"3번 조립라인 반송 컨베이어"` 같은 **문자열**이라 담을 자리가 없었다.
+
+```sql
+CREATE TABLE risk_profile (
+  building_id   TEXT PRIMARY KEY,                  -- assets.building_id 재사용. FK 없음(참조 테이블 없음, §11 주석과 같은 사유)
+  fire_handling  TEXT,                              -- 'LOW'|'MEDIUM'|'HIGH'. NULL=모름
+  hazmat_volume  TEXT,
+  power_capacity TEXT,
+  product_type   TEXT,                              -- 자유 서술, 점수화 안 함
+  risk_grade     TEXT,                              -- 마지막 저장된 등급. NULL=미산출
+  risk_grade_updated_at DATETIME,
+  CHECK (fire_handling  IS NULL OR fire_handling  IN ('LOW','MEDIUM','HIGH')),
+  CHECK (hazmat_volume  IS NULL OR hazmat_volume  IN ('LOW','MEDIUM','HIGH')),
+  CHECK (power_capacity IS NULL OR power_capacity IN ('LOW','MEDIUM','HIGH')),
+  CHECK (risk_grade     IS NULL OR risk_grade     IN ('LOW','MEDIUM','HIGH'))
+);
+```
+
+**시드 4행 — `BLD-C` 가 의도적 데모 케이스다**:
+
+| building_id | fire_handling | hazmat_volume | power_capacity | 점수 | 산출 등급 | 저장 `risk_grade` |
+|---|---|---|---|---|---|---|
+| `BLD-A` | LOW | LOW | MEDIUM | 4 | LOW | LOW |
+| `BLD-B` | MEDIUM | LOW | HIGH | 6 | MEDIUM | MEDIUM |
+| `BLD-C` | HIGH | MEDIUM | MEDIUM | 7 | **HIGH** | **LOW**(의도적 불일치) |
+| `BLD-D` | LOW | HIGH | LOW | 5 | MEDIUM | MEDIUM |
+
+`BLD-C` 는 "저장된 등급이 최신 산출과 어긋날 수 있다"(재실사·재산정 지연)를 보여주는 자리다 —
+실 산정 로직(`assess_risk_grade`, F6, MQ-1103)이 아직 없으므로 `data/seed.py` 의 점수식은
+**self-check 전용**(`_RISK_LEVEL_SCORE`)이며 정본이 아니다. `risk_grade_updated_at` 은 `BLD-C`
+만 오래된 값(≈14개월 전), 나머지는 최근(≈3개월 전)이다. 시드 검사 ㉟ 가 4행·`building_id`
+집합이 `SELECT DISTINCT building_id FROM assets` 와 **동적으로 일치**하는지(하드코딩 4종 대조가
+아니라 건물이 늘 때 대장 누락을 즉시 잡는 방식, `partner_links` ㉒-ⓒ 선례와 동형), 그리고
+점수식 재계산이 위 표(BLD-C 는 의도된 불일치 그대로)와 일치하는지 확인한다.
+
+---
+
 ## 시드 데이터 전략 — "일부러 꼬아놓은" 케이스 맵
 
 | 케이스 | 시드 | 검증 시나리오 |
@@ -987,6 +1133,10 @@ CREATE TABLE part_lifecycle_mock (
 | ㉙ | `repair_records.record_hash` **재계산 대조**(D84 태도) — `data/repair_hash.compute_record_hash()` 로 서명 11행을 다시 계산해 저장 해시와 전건 일치하는지 확인 | D84·D98 |
 | ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL 62건은 기대치 | MQ-919 |
 | ㉛ | `part_lifecycle_mock` **27행**(9자산 × 부품 3종) · **모델-부품 정합**(`equipment.model` 이 `iG5A` 면 `part_no` 에 `IG5`, `S100` 이면 `S100` 포함, 불일치 0건) | Sprint 10 브레인스토밍 D |
+| ㉜ | `deadlines` **CHECK 프로브**(음성) — 잘못된 `type` 값 INSERT 를 **실제로 시도**해 `IntegrityError` 로 거부되는지 확인, 정상 상태는 0행 유지(양성) | D10·`11 §10-2` |
+| ㉝ | `incidents` **2행** · FK 정합(자산 고아 0건) · `type` enum 밖 0건 | D68·`11 §10-2` |
+| ㉞ | `ownership_checks` 행수 == `verify_ownership(AST-L3-LIFT)` **실측 항목 수**(하드코딩 아닌 그 자리에서 재호출한 값과 대조) · either-or CHECK 2종 음성 검사(`VERIFIED`+`limit_note`, `UNVERIFIED`+`evidence_ref` 각각 INSERT 시도 → 거부 확인) | S18·D68 |
+| ㉟ | `risk_profile` **4행** · `building_id` 집합이 `SELECT DISTINCT building_id FROM assets` 와 **동적으로 일치** · 점수식 재계산이 시드 표와 일치(`BLD-C` 의 의도적 불일치 포함) | D102·`11 §10-2` |
 
-> **실측 (2026-08-17)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (31건)**.
+> **실측 (2026-08-18)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (35건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.
