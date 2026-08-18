@@ -31,6 +31,8 @@ import {
 } from "../ownership";
 import { estimateNotice, isHoldVerdict, showMetric, showTrend } from "../maintValue";
 import { stateView } from "../queueState";
+import { deadlineStateView } from "../deadlines";
+import { gradeView } from "../riskGrade";
 
 /* -------------------------------------------------------------------------- */
 /* 러너                                                                        */
@@ -382,6 +384,64 @@ function nineRows(extra: Row[] = []): Row[] {
       withSource.includes("추정치") &&
       withoutSource === null,
     `source 있음="${withSource}" · source 없음=${withoutSource === null ? "null(정상)" : String(withoutSource)}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-14 — deadlineStateView 맵 밖 값은 unknown + 원문, OVERDUE ≠ IN_REVIEW_BAND 톤 (MQ-1202) */
+
+{
+  const upcoming = deadlineStateView("UPCOMING");
+  const reviewBand = deadlineStateView("IN_REVIEW_BAND");
+  const overdue = deadlineStateView("OVERDUE");
+  const unknowns = ["EXPIRED", "PENDING", "", "upcoming"];
+  const bad: string[] = [];
+  for (const s of unknowns) {
+    const v = deadlineStateView(s);
+    if (v.tone === "ok") bad.push(`${s || "(빈문자열)"}→tone=ok (초록 누수)`);
+    if (v.tone !== "unknown") bad.push(`${s || "(빈문자열)"}→tone=${v.tone} (전용 톤 아님)`);
+    if (!v.label.includes(s)) bad.push(`${s || "(빈문자열)"}→label=${v.label} (원문 미보존)`);
+  }
+  // 톤을 string 으로 넓혀 비교한다(L1-4 와 같은 이유) — 리터럴끼리 두면 tsc 가 "겹치지 않는
+  // 비교"로 막아 단언이 사라지고, 나중에 두 값이 같아져도 아무도 모르게 된다.
+  const overdueTone: string = overdue.tone;
+  const reviewBandTone: string = reviewBand.tone;
+  check(
+    "deadlineStateView — 맵 밖 값 4종은 unknown+원문 · OVERDUE(error) ≠ IN_REVIEW_BAND(warn) 톤",
+    bad.length === 0 &&
+      upcoming.tone === "warn" &&
+      reviewBand.tone === "warn" &&
+      overdue.tone === "error" &&
+      overdueTone !== reviewBandTone,
+    bad.length
+      ? bad.join(" / ")
+      : `UPCOMING=${upcoming.tone} IN_REVIEW_BAND=${reviewBand.tone} OVERDUE=${overdue.tone} · 맵 밖 ${unknowns.length}종 전부 unknown+원문`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-15 — gradeView(null) 은 LOW/ok 로 오분류되지 않는다 · 맵 밖 값도 unknown+원문 (D62, MQ-1202) */
+
+{
+  const nullGrade = gradeView(null);
+  const low = gradeView("LOW");
+  const unknowns = ["low", "CRITICAL", "", "unknown"];
+  const bad: string[] = [];
+  if (nullGrade.tone === "ok") bad.push("null→tone=ok (초록 누수)");
+  if (nullGrade.tone === low.tone) bad.push(`null→tone=${nullGrade.tone} (LOW 와 동일 톤)`);
+  if (nullGrade.label === low.label) bad.push(`null→label=${nullGrade.label} (LOW 라벨과 동일)`);
+  for (const s of unknowns) {
+    const v = gradeView(s);
+    if (v.tone === "ok") bad.push(`${s || "(빈문자열)"}→tone=ok (초록 누수)`);
+    if (v.tone !== "unknown") bad.push(`${s || "(빈문자열)"}→tone=${v.tone} (전용 톤 아님)`);
+    if (!v.label.includes(s)) bad.push(`${s || "(빈문자열)"}→label=${v.label} (원문 미보존)`);
+  }
+  check(
+    "gradeView(null) — LOW/ok 로 오분류되지 않는다(D62) · 맵 밖 값 4종은 unknown+원문",
+    bad.length === 0 && nullGrade.tone === "unknown" && low.tone === "ok",
+    bad.length
+      ? bad.join(" / ")
+      : `null→{${nullGrade.label},${nullGrade.tone}} LOW→{${low.label},${low.tone}} · 맵 밖 ${unknowns.length}종 전부 unknown+원문`
   );
 }
 
