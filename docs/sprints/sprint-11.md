@@ -1,7 +1,7 @@
 # Sprint 11 — 기한·사고·위험 감시 계층 (백로그 P36 F5·F6, D102)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 3건 반영) → 최종 확정.
-**Stage 1·2 완료(2026-08-18)**. 다음은 `/stage 3`(MQ-1104, MCP 도구 등록 2종).
+**Stage 1·2·3 완료(2026-08-18)**. 다음은 `/stage 4`(MQ-1105, REST 노출).
 
 ### Stage 1 완료 (2026-08-18)
 **커밋**: `d7a5375` — `[M4] feat: Sprint 11 Stage 1 — 기한·사고·위험 감시 4테이블 신설 (MQ-1101, D102)`
@@ -32,6 +32,23 @@
 - reviewer: **PASS** — 위반 0건. `_months_between`을 `data/rules/engine.py`의 비공개 헬퍼와 동일 로직으로
   복제한 지점을 두 파일 직접 대조로 확인(갈림 없음), either-or 미등록 사유 3종 어휘가 명세 대안 표기와
   일치함을 확인.
+
+### Stage 3 완료 (2026-08-18)
+**커밋**: `a8abac2` — `[M4] feat: Sprint 11 Stage 3 — track_deadlines·assess_risk_grade MCP 도구 등록 (MQ-1104)`
+
+#### MQ-1104
+- 구현 파일: `mcp_server/tools/track_deadlines.py`(신규) · `mcp_server/tools/assess_risk_grade.py`(신규) ·
+  `mcp_server/server.py`(수정, full 프로파일 등록) · `docs/04_MCP_TOOLS.md`(§17·§18 신설 + 헤더/공통설계원칙5
+  갱신) · `docs/02_SCENARIOS.md`(S9·S18 문단에 참조 추가, 새 S번호 없음)
+- 회귀: seed 35 · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 · mcp_client_contract 15 ·
+  agent_loop_contract 35 · pytest 46 · ruff clean — 전부 기존 건수 그대로. `full`=18종(코어7+확장11)·
+  `core`=7종을 런타임+정적 카운트 이중 확인. `tools_profile_contract` ①만 예상된 FAIL(하드코딩 기대값
+  갱신은 Stage 5/MQ-1106 배정, ②~⑦은 PASS) — 계획된 스테이지 경계, 회귀 아님.
+- reviewer: **1차 FAIL → 수정 → 재검토 PASS**. FAIL 사유: §17·§18 문서가 `db_missing` 사유를 명시했는데
+  코드는 `except Exception` 단일 계층이라 그 경로가 없어 문서-코드 불일치(체크리스트 4·6 위반). 수정:
+  기존 확장 도구(`create_repair_record`·`build_evidence_bundle`·`generate_disposal_document`) 관례대로
+  `except FileNotFoundError`를 `except Exception`보다 먼저 추가해 `db_missing`을 실제로 내도록 코드를
+  문서에 맞춤(문서를 낮추지 않음). 재검토에서 예외 순서·반환 형식·diff 범위 전부 확인 후 PASS.
 
 ## 0. 왜 지금 이 스프린트인가
 
