@@ -473,7 +473,7 @@ GET /api/approvals?state=pending&kind=disposal
 - 정렬은 `created_at DESC`. `/api/po` 의 긴급 우선 정렬을 여기로 옮기지 않는다 — 통합 큐에 발주 전용
   정렬을 끌어오면 처분서가 항상 뒤로 밀린다. **두 목록은 정렬 기준이 다른 게 정상이다.**
 
-### 2.8 수리 증빙 — 제출·서명·반려 (S19 · D85·D98, Sprint 9 신설)
+### 2.8 수리 증빙 — 제출·서명·반려 (S29 · D85·D98, Sprint 9 신설)
 
 ```
 GET  /api/repairs?state=pending      # 목록. **역할 무관 조회** — 정비사도 자기 요청 상태를 봐야 한다

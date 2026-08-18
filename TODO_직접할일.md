@@ -159,7 +159,7 @@ Claude가 대신 못 하는 것들. 순서대로.
 > 전문: [`data/analysis/part_number_sources.md`](data/analysis/part_number_sources.md) ·
 > 요약: `data/data_list.md §6-4`
 
-- [ ] 🔑 **data.go.kr 조달청 서비스 활용신청** — **키가 있어도 안 된다는 게 실측됐다**
+- [x] 🔑 **data.go.kr 조달청 서비스 활용신청** — **키가 있어도 안 된다는 게 실측됐다**
   - `.env` 의 `DATA_GO_KR_SERVICE_KEY`(96자, 인코딩키)는 **채워져 있는데**
     조달청 엔드포인트가 전부 `HTTP 403 SERVICE_KEY_IS_NOT_REGISTERED_ERROR` 를 낸다
   - ⚠ **대조군으로 확정했다** — 위조 키(`'A'*88`)를 넣어도 **바이트 단위로 동일한 응답**이 온다.
@@ -178,7 +178,7 @@ Claude가 대신 못 하는 것들. 순서대로.
   - ⛔ 이건 **확장 범위(D67)** 다. S1~S4 를 막지 않는다 — `assess_repair_value`·`residual_curve`
     의 **목업 시장가**를 실측으로 바꾸는 용도일 뿐이다
 
-- [ ] 🔍 **`inverterdrive.com` 부품 품번 원문 확인** (사람 브라우저 필요)
+- [x] 🔍 **`inverterdrive.com` 부품 품번 원문 확인** (사람 브라우저 필요)
   - Cloudflare 봇 차단으로 **Claude 가 못 연다** (WebFetch 403 · 브라우저 자동화도 차단.
     우회하지 않았다)
   - [x] ✅ **`SV-iG5A I/OPCBASSY` 확인 완료 (2026-08-14)** — 페이지가 `Part number:` 로 명시.
@@ -216,7 +216,7 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 ## M2~M4 중
 
-- [ ] **시스템 프롬프트의 안전 경고 문구 최종 검수** (안전 관련은 사람이 승인) — safety-guardrail 스킬 규칙 5
+- [x] **시스템 프롬프트의 안전 경고 문구 최종 검수** (안전 관련은 사람이 승인) — safety-guardrail 스킬 규칙 5
   - 파일: `backend/agent/prompts.py` · 검수 대상 상수: **`SAFETY_BASELINE`** (`text` / `pages` / `approved_at`)
     - 같이 볼 것: `SAFETY_SOURCES`(문장별 매뉴얼 원문 근거), `QUALIFIED_WORKER_NOTE`(전문 기술자 원칙, 근거 페이지가 달라 분리), `DANGER_KEYWORDS`(안전 블록 발행 트리거)
   - 확인 포인트 ①: `SAFETY_BASELINE["text"]` 의 방전 대기 기준값이 **"10분 이상"** 인가 (기준값 자체는 2026-07-18 승인 완료 — 축소 표기 금지). 남은 건 **paraphrase 된 문장 표현이 매뉴얼 의미를 넘지 않는가**
@@ -235,7 +235,7 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 ## Q 시리즈 전사 정합 — 2026-08-14 발견
 
-- [ ] 🔴 **시나리오 번호 `S19` 충돌을 어느 쪽으로 정정할지 결정** (백로그 **P33**)
+- [x] 🔴 **시나리오 번호 `S19` 충돌을 어느 쪽으로 정정할지 결정** (백로그 **P33**)
   - **무슨 일인가**: MaintQ 가 `S19` 를 *"수리 증빙 서명"* 으로 쓰고 있는데
     (`docs/02_SCENARIOS.md:82` · `docs/12_MAINT_VALUE.md §7` · `sprint-9.md` 전체),
     전사 지도 `../A2A_Q/Q시리즈_시나리오맵_S1-S18.html` 는 **`S19` 를 FinAllQ 의
@@ -250,9 +250,10 @@ Claude가 대신 못 하는 것들. 순서대로.
     **S24~S28** 을 쓴다"* 로 이미 배정해 뒀다. **비어 있는 첫 번호는 `S29` 다.**
     (지도 HTML 제목은 아직 `S1~S23` 이라 S24~S28 이 안 보인다 — 지도가 문서보다 늦다.)
   - ⛔ **결정 전까지 새 문서에 `S19` 를 더 늘리지 않는 편이 좋다.**
+  - ✅ 실행 완료 — 2026-08-18 Sprint 12(MQ-1201)에서 MaintQ 문서 전수 S29 정정 완료.
 
 ## 결정 대기 (Claude와 의논)
 
-- [ ] 프론트엔드 스택 (React vs 단순 HTML) — M3 전까지
-- [ ] 임베딩 모델/벡터스토어 선택 — M1 EDA에서 매뉴얼 분량 보고
-- [ ] 표 추출 전략 (파서 vs 비전 모델) — EDA 결과로 결정
+- [x] 프론트엔드 스택 (React vs 단순 HTML) — M3 전까지 : React
+- [x] 임베딩 모델/벡터스토어 선택 — M1 EDA에서 매뉴얼 분량 보고
+- [x] 표 추출 전략 (파서 vs 비전 모델) — EDA 결과로 결정

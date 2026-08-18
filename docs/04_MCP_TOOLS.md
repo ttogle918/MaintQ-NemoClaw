@@ -888,7 +888,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 ---
 
-## 16. create_repair_record — 수리 증빙 초안 생성 (S19) ⚠️ 세 번째 쓰기 도구 (D98)
+## 16. create_repair_record — 수리 증빙 초안 생성 (S29) ⚠️ 세 번째 쓰기 도구 (D98)
 
 **description (코드 정본 = `create_repair_record.py:DESCRIPTION`):**
 > "수리 작업의 증빙 '초안'을 생성한다. 확정이 아니다. 수리가 끝난 뒤 무엇을 어떻게 고쳤는지(작업유형·수리범위·비용·교체 부품)를 기록할 때 호출할 것. 이 초안은 팀장이 서명해야 정식 증빙이 되며, 서명 전에는 get_maintenance_metrics 의 보전지표에 들어가지 않는다. 교체한 부품 품번을 정확히 넣을 것 — 등록되지 않은 품번은 거부된다(unknown_part). 지출의 자본적/수익적 분류(expenditure_class)는 시스템이 자동 산출한다 — 파라미터로 받지 않으며 네가 추측하거나 지어내지 말 것. 에러코드로부터 시작된 수리이면 model·error_code 를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다."
@@ -1146,7 +1146,7 @@ D69·D88(프로파일)
 | **S9** 처분 차단 (확장) | (사전 경보) **track_deadlines**(§17, 법정 기한 임박 확인, Sprint 11) → **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
 | **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(§18, 건물 위험등급, Sprint 11) |
-| **S19** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
+| **S29** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
 
 ## 다음 단계
 목업 DB 스키마 — 이 도구들이 읽을 테이블: `05_DB_SCHEMA.md` 참조

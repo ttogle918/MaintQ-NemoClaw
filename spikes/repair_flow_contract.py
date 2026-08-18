@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""수리 증빙 흐름 회귀 (MQ-913, S19 — `create_repair_record` §16 · MQ-908 5경로 · MQ-909 REST 왕복).
+"""수리 증빙 흐름 회귀 (MQ-913, S29 (구 S19) — `create_repair_record` §16 · MQ-908 5경로 · MQ-909 REST 왕복).
 
 ## 이 스위트가 보는 것
 

@@ -157,7 +157,7 @@ MaintQ 블로커 체크리스트(`error_codes` 사람 승인·`related_parts` �
 - `04_MCP_TOOLS.md`는 §16까지 차 있으므로 신규 도구는 **§17**(`track_deadlines`)·**§18**(`assess_risk_grade`).
   `05_DB_SCHEMA.md`는 §19까지 차 있으므로 신규 테이블은 **§20~§23**.
 - **시나리오 번호**: `TODO_직접할일.md:238-252`에 따르면 `S1~S29`가 전사적으로 이미 전부 배정돼 있다(`S19`
-  충돌 건과 같은 사정). **새 S번호를 만들지 않는다** — `track_deadlines`는 기존 **S9**(처분 차단)의 사전
+  충돌 건과 같은 사정(→ 2026-08-18 Sprint 12에서 S29로 정정 확정)). **새 S번호를 만들지 않는다** — `track_deadlines`는 기존 **S9**(처분 차단)의 사전
   경보로, `assess_risk_grade`는 기존 **S18**(중고 취득 검증)의 실사 보존 확장으로 문서에 명시한다.
 
 ## 4. 현실성 평가 (tool-builder)
