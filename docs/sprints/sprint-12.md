@@ -1,7 +1,7 @@
 # Sprint 12 — S19→S29 시나리오 번호 정정(P33 해소) + 기한·위험등급 UI 노출 (Sprint 11 §7 컷 항목)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 경미 2건 반영) → 최종 확정.
-**Stage 1·2 완료(2026-08-18)**. 다음은 `/stage 3`(MQ-1204, 페이지 2종 + 크로스링크).
+**Stage 1·2·3 완료(2026-08-18)**. 다음은 `/stage 4`(MQ-1205, 회귀 확장 + 기준선 갱신 + 문서 마감 — 마지막 스테이지).
 
 **수립**: 2026-08-18 · **부제**: 전사 시나리오 번호 충돌을 정리하고, Sprint 11이 명시적으로 미룬 조회 전용 화면 2개를 연다
 
@@ -447,6 +447,24 @@ export function RiskGradeGrid(): JSX.Element
   `MAINTQ_TOOLS_PROFILE`에 의존하지 않음을 재확인).
 - **DoD**: `npx next build` → 프론트 라우트 **16 → 18**(신규 `page.tsx` 2개).
   `MAINTQ_TOOLS_PROFILE` 미설정(core) 상태의 로컬 백엔드로 두 라우트 정상 렌더 확인(수동).
+
+### Stage 3 완료 (2026-08-18)
+**커밋**: `a66bc5e`
+
+#### MQ-1204
+- 구현 파일: `frontend/app/(console)/manager/deadlines/page.tsx`(신규)·`manager/risk-grade/page.tsx`(신규)·
+  `technician/equipment-status/[assetId]/page.tsx`(수정, 크로스링크 1개)
+- **구현 편차(계약 변경 아님)**: 명세의 `useSearchParams()` 훅 대신 기존 코드베이스 관행(`technician/
+  page.tsx`가 이미 쓰는 `searchParams` prop 패턴)을 채택 — App Router의 `<Suspense>` 경계 요구를
+  피하기 위함. 리뷰에서 `?asset_id=X` 방문 시 `DeadlinesPanel`까지 값이 정확히 전달됨을 코드로 확인,
+  출력 동작 차이 없음.
+- 회귀: `next build` 라우트 16→18 · `ui_honesty_contract` L2 204→216(+12, 신규 page 2개×6건)
+  232/232 PASS · seed 35 · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 · ruff/tsc clean —
+  오케스트레이터 독립 재실행 확인. `core` 프로파일 실서버로 `/manager/deadlines`·`/manager/risk-grade`
+  200 렌더 확인(curl + 컴파일된 JS 번들 대조로 크로스링크 존재도 확인).
+- reviewer: **PASS** — D71(무저장 안내 문구) · D73(역할 게이트 부재) · 크로스링크 정확성(기존
+  "← 목록" 손상 없음, `evidence/page.tsx` 선례와 스타일 일관) · 페이지가 새 API/상태 로직 없이
+  Stage 2 컴포넌트에 전적 위임 확인.
 
 ---
 
