@@ -1,7 +1,7 @@
 # Sprint 11 — 기한·사고·위험 감시 계층 (백로그 P36 F5·F6, D102)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 3건 반영) → 최종 확정.
-**Stage 1·2·3 완료(2026-08-18)**. 다음은 `/stage 4`(MQ-1105, REST 노출).
+**Stage 1·2·3·4 완료(2026-08-18)**. 다음은 `/stage 5`(MQ-1106, 회귀 스위트 신설 + 문서 전파 마감).
 
 ### Stage 1 완료 (2026-08-18)
 **커밋**: `d7a5375` — `[M4] feat: Sprint 11 Stage 1 — 기한·사고·위험 감시 4테이블 신설 (MQ-1101, D102)`
@@ -49,6 +49,22 @@
   기존 확장 도구(`create_repair_record`·`build_evidence_bundle`·`generate_disposal_document`) 관례대로
   `except FileNotFoundError`를 `except Exception`보다 먼저 추가해 `db_missing`을 실제로 내도록 코드를
   문서에 맞춤(문서를 낮추지 않음). 재검토에서 예외 순서·반환 형식·diff 범위 전부 확인 후 PASS.
+
+### Stage 4 완료 (2026-08-18)
+**커밋**: `d59857a` — `[M4] feat: Sprint 11 Stage 4 — 기한·위험등급 REST 노출 (MQ-1105, D73)`
+
+#### MQ-1105
+- 구현 파일: `backend/services/asset_monitoring.py`(신규) · `backend/routers/asset_monitoring.py`(신규,
+  `GET /api/deadlines`·`GET /api/buildings/{building_id}/risk-grade`·`GET /api/assets/{asset_id}/risk-grade`) ·
+  `backend/main.py`(라우터 등록 1줄) · `docs/06_REPO_API.md`
+- 회귀: seed 35 · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 · asset_tools 49 · disposal_api 26 ·
+  ownership_api 10 · approvals_contract 26 · pytest 46 · ruff clean — 전부 기존 건수 그대로.
+  `tools_profile_contract` ①만 예상된 FAIL(Stage 5 배정), ②~⑦ PASS.
+- **D73 핵심 DoD**: `MAINTQ_TOOLS_PROFILE` 미설정(core) 상태로 실서버 기동해 5경로 전부 200/404/422
+  확인(eval-runner 독립 재현 + reviewer가 `require()` 미호출을 코드로 구조적 확인).
+- reviewer: **PASS** — 위반 0건. `risk_grade` 모듈명/함수명 충돌 회피용 별칭(`risk_grade_data`) 필요성 확인,
+  세 번째 `mode=ro` 헬퍼 미신설(`disposal.read_only` 재사용) 확인, `rule_catalog_not_loaded`→500 매핑이
+  스펙·D50과 일치함을 확인(정보성 — verdict 우선순위 라우터의 503 패턴과는 다른 성격이라 블로커 아님).
 
 ## 0. 왜 지금 이 스프린트인가
 
