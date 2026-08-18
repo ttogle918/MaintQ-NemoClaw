@@ -1,7 +1,7 @@
 # Sprint 11 — 기한·사고·위험 감시 계층 (백로그 P36 F5·F6, D102)
 
 **상태**: 계획 확정(2026-08-18) — PM 계획 → tool-builder 현실성 평가(수정 필요 Y, 3건 반영) → 최종 확정.
-**Stage 1 완료(2026-08-18)**. 다음은 `/stage 2`(MQ-1102·1103, 병렬).
+**Stage 1·2 완료(2026-08-18)**. 다음은 `/stage 3`(MQ-1104, MCP 도구 등록 2종).
 
 ### Stage 1 완료 (2026-08-18)
 **커밋**: `d7a5375` — `[M4] feat: Sprint 11 Stage 1 — 기한·사고·위험 감시 4테이블 신설 (MQ-1101, D102)`
@@ -16,6 +16,22 @@
 - reviewer: **PASS** — D10·D68·D9·D62·liveness 앵커 전부 준수 확인(`ownership_checks` 시드를
   `verify_ownership` 실제 출력과 37/38항목 정적 대조, 나머지 1항목은 RNG 의존이라 실행 재현 권고만).
   경고 2건은 정보성(블로커 아님) — 반복 고장 패턴 1행 미재현 확인, `§10-2` 문구 잔재 정리 권고.
+
+### Stage 2 완료 (2026-08-18)
+**커밋**: `3694ed4` — `[M4] feat: Sprint 11 Stage 2 — track_deadlines·assess_risk_grade 산출 로직 (MQ-1102·1103)`
+
+#### MQ-1102 · MQ-1103
+- 구현 파일: `data/deadlines.py`(신규, `track_deadlines`) · `data/risk_grade.py`(신규, `risk_grade`)
+- 회귀: seed 35 · sp2 20 · write_tool 30 · api_contract 28 · sp3 22 · rules_db_load 25 · asset_tools 49 ·
+  disposal_api 26 · db_concurrency 13 · pytest 46 · ruff clean — 전부 기존 건수 그대로.
+- 신규 모듈 재현 검증(eval-runner 독립 실행): `track_deadlines(con)` 기본 호출 0건(정상) ·
+  `track_deadlines(con, window_days=500)` → `AST-L2-SPDL`/`UPCOMING`/`days_remaining=457` ·
+  `risk_grade(con, building_id="BLD-C")` → `changed=true` · `BLD-A` → `changed=false`. 전부 기대값과 일치.
+- **DoD 수치 정정**: 계획 문서가 `days_remaining=456`으로 적었던 것은 1일 오차 — 실제 날짜 연산(2026-08-18→
+  2027-11-18)으로 457이 맞음을 확인, 코드 문제 아님. 위 MQ-1102 절 DoD도 정정 반영.
+- reviewer: **PASS** — 위반 0건. `_months_between`을 `data/rules/engine.py`의 비공개 헬퍼와 동일 로직으로
+  복제한 지점을 두 파일 직접 대조로 확인(갈림 없음), either-or 미등록 사유 3종 어휘가 명세 대안 표기와
+  일치함을 확인.
 
 ## 0. 왜 지금 이 스프린트인가
 
@@ -293,7 +309,8 @@ def track_deadlines(
   SAFETY-INSPECTION 경로도 0건(`AST-L2-SPDL` 잔여 456일 > 180일) — **두 경로 모두 정확히 0건임을 확인하는
   것 자체가 DoD**(정직한 실패 없음, D62). 이 결과를 실패로 취급하지 말 것.
 - **SAFETY-INSPECTION 데모**: `track_deadlines(con, window_days=500)` 명시 호출 → `AST-L2-SPDL` 1건,
-  `state="UPCOMING"`, `days_remaining=456`.
+  `state="UPCOMING"`, `days_remaining=457`(계획 수립 시 456으로 적었던 것은 1일 오차 — 2026-08-18→
+  2027-11-18 실제 날짜 연산 재검증으로 457이 맞음을 확인, 코드가 아니라 문서 쪽 오류였다).
 - **TAX-CREDIT-2Y 데모**: `today=AST-L3-CONV.acquired_at + 23개월` 주입 → `state="IN_REVIEW_BAND"` 재현.
 
 ---
