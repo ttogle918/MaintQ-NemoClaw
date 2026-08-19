@@ -198,6 +198,23 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 물어볼 것: `SV-iG5A` **2.2kW·4.0kW** 냉각팬의 **주문 품번**. 있으면 `parts` 에 넣는다
   - ⚠ **급하지 않다.** 이게 없어도 S1~S4 는 돈다 — `부품 특정` 지표 상한만 묶여 있다
 
+## Sprint 13 — Elice 실호출 승인 (2026-08-19 신설)
+
+- [ ] 🔴 **Elice DocVision 실호출 승인 — 34페이지 × 45원 = 1,530원** (예산 40,000원의 3.8%)
+  - 무엇을 사나: S100 `p.412~425`(14p) · iG5A 트러블슈팅 `p.20~31`(12p) · iG5A 표준본 `p.200~207`(8p)
+  - 왜 사나: `actions` 결측 34건에 대해 저장소 안에 **서로 충돌하는 진단이 셋** 있는데
+    (`_pending_review` "원래 없음" vs `extract_triage` "`CELL_SPLIT`" vs 백로그 "재추출 후보")
+    아무도 대조한 적이 없다. **독립 2차 판독기**로 가른다
+  - ⛔ **회수를 기대하고 사는 것이 아니다** — 부재가 사실로 확정되는 것도 유효한 산출이다.
+    회수 건수를 지표로 삼으면 없는 조치문을 만들어내는 압력이 생긴다 (절대규칙 3)
+  - ⚠ 판독 범위는 `extract_triage` 권고(1페이지 45원)보다 **33페이지 넓다** — Elice 의 표 HTML
+    변환이 `CELL_SPLIT` 도 푼다는 **Claude 의 판단**이다. 근거는 설계 §2-3, 틀리면 1,485원이 헛돈이다
+  - 설계: `docs/superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md`
+  - ⛔ 지출은 **Stage 3 한 곳**에만 있다. Stage 1·2 는 네트워크·지출 0
+  - ✅ `.env.example` 키 이름 등재는 **완료**(`ELICE_API_KEY`·`ELICE_DOCVISION_URL`, 값 없음)
+- [ ] **판독 결과 반영 시 D99 재승인** — `RECOVERABLE` 판정분이 나오면 정본 병합 전 사람 검수
+  (기존 MQ-919 경로와 동일). 나오지 않으면 이 항목은 자동 소멸한다
+
 ## actions 검수
 
 > Sprint 9 MQ-911 산출물. 검수 자료: `data/analysis/actions_review.md`(기계 생성, 표 3종 + 재승인 범위 절).
