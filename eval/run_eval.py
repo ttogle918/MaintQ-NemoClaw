@@ -95,6 +95,7 @@ sys.path.insert(0, str(ROOT))
 # (2026-07-29 실 20문항 실행에서 S4 문항만 매번 "MAINTQ_LLM_MODEL 없음"으로 실패해 발견).
 load_dotenv(ROOT / ".env", override=False)
 
+from backend.agent.llm_cache import ENV_FLAG  # noqa: E402 — 카세트 env 키는 생산자가 정본이다
 from backend.agent.loop import (  # noqa: E402 — 마커 형식은 생산자(loop.py)가 정본이다
     LLM_END_MARKER,
     TRUNCATION_REASONS,
@@ -1549,10 +1550,46 @@ def main() -> None:
             "eval_gap_3rd.md §4 — 단일 실행으로는 수정 효과와 응답 요동을 구분할 수 없다"
         ),
     )
+    parser.add_argument(
+        "--replay",
+        action="store_true",
+        help=(
+            "LLM 응답 카세트를 켜고 실행한다 (D105). 채점·집계·배선을 고칠 때 빠르게 "
+            "돌리기 위한 모드다. ⛔ 캐시 히트 세션은 D55 표식이 붙어 지표 분모에서 "
+            "제외되므로 이 모드의 수치를 실적으로 인용할 수 없다."
+        ),
+    )
     args = parser.parse_args()
 
     if args.repeat < 1:
         raise SystemExit(f"[중단] --repeat 는 1 이상이어야 합니다 (받은 값: {args.repeat})")
+
+    # ── D105 카세트 게이트 (Task 5) ──────────────────────────────────────────
+    # 클라이언트를 만들기 **전**에 결정한다 — `backend/agent/llm.py:get_client()` 가
+    # 이 env 를 읽어 `CachingClient` 로 감쌀지 정하므로, 이 시점을 놓치면 늦다
+    # (`_start_server` 가 부모 `os.environ` 을 그대로 상속해 자식 서버에 넘긴다, D56).
+    #
+    # `--replay` 가 없으면(=기본, 지표를 재는 경로) **환경에 이미 켜져 있어도 강제로 끈다.**
+    # D55 표식만으로는 못 막는 경로가 있다 — 캐시 히트 턴이 텍스트만 답하고 도구를 한 번도
+    # 안 부르면 `trace.replay=True` 가 켜져도 그 턴엔 `traces` 에 저장되는 이벤트가 0건이라
+    # (D41, token 은 저장 안 함) `eval/score.py:has_replay()` 가 False 를 돌려주고 그 문항이
+    # 분모에 그대로 남는다. 그래서 표식이 잡히기를 바라는 대신, 지표를 재는 경로에서는
+    # 캐시를 원천 차단하는 것이 유일하게 확실한 방법이다.
+    if args.replay:
+        os.environ[ENV_FLAG] = "on"
+        print(
+            "[모드] 재생 — 카세트를 켰습니다. 캐시 히트 세션은 D55 표식이 붙어 "
+            "지표 분모에서 제외됩니다. ⛔ 이 실행의 수치를 실적으로 인용하지 마세요.",
+            file=sys.stderr,
+        )
+    else:
+        was_on = os.environ.pop(ENV_FLAG, None) is not None
+        if was_on:
+            print(
+                "[모드] 실측 — 환경에 켜져 있던 카세트를 껐습니다. "
+                "지표는 캐시 없이 측정됩니다.",
+                file=sys.stderr,
+            )
 
     all_items = load_testset(args.testset)
     validate_testset(all_items)
