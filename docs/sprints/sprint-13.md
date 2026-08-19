@@ -355,7 +355,7 @@ ELICE_AXES = ("ACTION_FOUND", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
 
 ### MQ-1311 — 회귀 전수 + 기준선 + 절대규칙 5
 
-31스위트 전수 재실행(실패 시 **단독 재실행 후 보고** — Windows 소켓 고갈 규칙) · pytest 2파일 합산 · CLAUDE.md 4지점: ⓐ 스위트 목록 30→31 ⓑ 건수표 + 총계 ⓒ **pytest 커맨드 갱신**(2파일) ⓓ **절대규칙 5 예외 명문화 — 예외가 셋이다**(reviewer W4): ㉠ **git 추적** 예외(응답 JSON + `data/raw/external/README.md`) ㉡ **쓰기** 예외(`README.md` 1건만, `.claude/hooks/guard_writes.py` 허용) ㉢ **캐시 JSON 은 사람·에이전트 손편집 금지**(`store.py` 단일 경유). ⛔ ㉡㉢ 을 빠뜨리면 훅과 문서가 어긋난 채로 남는다
+31스위트 전수 재실행(실패 시 **단독 재실행 후 보고** — Windows 소켓 고갈 규칙) · pytest 2파일 합산 · CLAUDE.md 4지점: ⓐ 스위트 목록 30→31 ⓑ 건수표 + 총계 ⓒ **pytest 커맨드 갱신**(2파일) ⓒ' ✅ **D 범위 표기 갱신은 2026-08-19 `/done` 이 이미 처리했다**(`D1~D102` → `D1~D104`, 5파일: `CLAUDE.md`·루트 `README.md`·`docs/README.md`·`.claude/agents/reviewer.md`·`docs/status/maintq-status.html`). MQ-1311 은 **다시 하지 말고 실제 마지막 번호만 재확인**할 것 — Stage 2 가 D105 를 더하면 그때 또 밀린다. ⓓ **절대규칙 5 예외 명문화 — 예외가 셋이다**(reviewer W4): ㉠ **git 추적** 예외(응답 JSON + `data/raw/external/README.md`) ㉡ **쓰기** 예외(`README.md` 1건만, `.claude/hooks/guard_writes.py` 허용) ㉢ **캐시 JSON 은 사람·에이전트 손편집 금지**(`store.py` 단일 경유). ⛔ ㉡㉢ 을 빠뜨리면 훅과 문서가 어긋난 채로 남는다
 
 ⚠ 건수가 예측과 다르면 **예측이 아니라 실측을 적는다.** `ruff format` 은 돌리지 않는다(2026-08-19 선례). 프론트는 무변경이라 `next build` 재실행 불필요 — 그 사실을 기록에 명시.
 

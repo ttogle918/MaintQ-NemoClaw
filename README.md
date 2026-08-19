@@ -119,7 +119,7 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 11 = 18종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D102** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D104** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 
