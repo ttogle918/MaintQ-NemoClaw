@@ -112,6 +112,7 @@ P28 ⓐ·P31 은 `07_BACKLOG.md` 항목이다. `/sprint` 스킬의 가드(*"백�
 | `docs/07_BACKLOG.md` | MQ-1312 / MQ-1314 | **4 / 5** | ⚠ 분리 |
 | `data/raw/external/elice/*.json` | MQ-1313 | 5 | 단독 |
 | `TODO_직접할일.md` | MQ-1314 | 5 | 단독 |
+| `.claude/hooks/guard_writes.py` | **Stage 1 사후 추가**(사용자 승인) | 1 | `data/raw/external/README.md` 쓰기 예외 1건. **캐시 JSON 은 계속 차단** — `store.py` 가 파이썬 `os.replace` 로 쓰므로 PreToolUse 훅을 타지 않아 파이프라인은 안 막히고 손편집만 막힌다 |
 
 **같은 스테이지에서 같은 파일을 쓰는 태스크 0건.**
 
@@ -349,7 +350,7 @@ ELICE_AXES = ("ACTION_FOUND", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
 
 ### MQ-1311 — 회귀 전수 + 기준선 + 절대규칙 5
 
-31스위트 전수 재실행(실패 시 **단독 재실행 후 보고** — Windows 소켓 고갈 규칙) · pytest 2파일 합산 · CLAUDE.md 4지점: ⓐ 스위트 목록 30→31 ⓑ 건수표 + 총계 ⓒ **pytest 커맨드 갱신**(2파일) ⓓ **절대규칙 5 예외 명문화** — *"단 `data/raw/external/` 은 D103 의 예외로 추적한다(외부 응답 JSON 만; 매뉴얼 PDF·배포 CSV 는 그대로 제외)"*
+31스위트 전수 재실행(실패 시 **단독 재실행 후 보고** — Windows 소켓 고갈 규칙) · pytest 2파일 합산 · CLAUDE.md 4지점: ⓐ 스위트 목록 30→31 ⓑ 건수표 + 총계 ⓒ **pytest 커맨드 갱신**(2파일) ⓓ **절대규칙 5 예외 명문화 — 예외가 셋이다**(reviewer W4): ㉠ **git 추적** 예외(응답 JSON + `data/raw/external/README.md`) ㉡ **쓰기** 예외(`README.md` 1건만, `.claude/hooks/guard_writes.py` 허용) ㉢ **캐시 JSON 은 사람·에이전트 손편집 금지**(`store.py` 단일 경유). ⛔ ㉡㉢ 을 빠뜨리면 훅과 문서가 어긋난 채로 남는다
 
 ⚠ 건수가 예측과 다르면 **예측이 아니라 실측을 적는다.** `ruff format` 은 돌리지 않는다(2026-08-19 선례). 프론트는 무변경이라 `next build` 재실행 불필요 — 그 사실을 기록에 명시.
 
