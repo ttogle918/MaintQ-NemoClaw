@@ -415,3 +415,31 @@ tool-builder 가 *"CLAUDE.md 기준선이 낡았다(기록 871/252 vs 실측 872
 ---
 
 **실행**: `git switch -c sprint-13-external-store` 후 `/stage 1`
+
+---
+
+## Stage 1 완료 (2026-08-19)
+
+**커밋**: `e647991` — `[M1] feat: Sprint 13 Stage 1 — 외부 응답 원본 보관 규약 (D103, P28 ⓐ)`
+**브랜치**: `sprint-13-external-store` (master·sprint-12 미머지)
+
+| TASK | 산출물 | 결과 |
+|---|---|---|
+| MQ-1301 | `data/external/store.py` (신규) | 왕복 시나리오 **28건 PASS** · 네트워크 라이브러리 참조 **0**(주석 포함) · 파생 상수 **0**(뮤턴트로 실증) |
+| MQ-1302 | `.gitignore` · `data/raw/external/README.md` | `git check-ignore` **4/4** |
+| MQ-1303 | `docs/10_DECISIONS.md` D103 | 1행 +0 −0 · 4셀 |
+| MQ-1304 | (검증만) | 재실행 불필요 확인 — 산출물 무변경 |
+| 사후 | `.claude/hooks/guard_writes.py` | README 쓰기 예외 1건(사용자 승인) · **5케이스 검증** |
+
+**회귀**: spikes **30스위트 872건 · FAIL 0**(`mcp_client_contract` 연속 실행 시 1회 소켓 고갈 → **단독 재실행 통과**) · `ruff check` 통과 · ⛔ 재시드 안 함(DB 무개봉)
+
+**reviewer**: **PASS** — 블로커 0 · 경고 5 · 참고 2. **경고 5건 전부 같은 커밋에서 해소**(W1 D103 문구 · W2 자격증명 스캔 우회 · W3 key 원문 인쇄 · W4 훅 미등재 · W5 판정 로직 이중화).
+
+### Stage 2 로 넘어가는 미결
+
+1. **`retrieved_at` 은 `+00:00` 로 확정** — D39 의 `...Z` 는 **API 전송** 규정이고 파일 계층 선례(`fetch_laws.py:677`)가 `+00:00` 이다. ⛔ **MQ-1310 이 `endswith("Z")` 로 단언하면 안 된다**
+2. **`store.py` 공개 함수는 7개** — 명세의 6개 + `credential_scan_status()`. reviewer 가 *"오히려 요구된 것"*(P30 양성 축)으로 판정했다. ⛔ MQ-1310 이 "정확히 6개"로 잠그면 안 된다
+3. **메타 값은 스칼라 제한**(`_META_VALUE_TYPES`) — 명세에 없던 추가 제약이나 D103 ⓓ 를 강화하는 방향이라 채택. 소비자 메타가 전부 스칼라라 파손 0
+4. **참고 N1**(reviewer) — D103 ⓔ *"`store.py` 단일 경유"* 는 현재 강제 수단이 0이다. MQ-1310 에 *"`store.py` 외 모듈에 `raw/external` 경로 리터럴 0건 + 양성 축"* 정적 검사 1행 추가 권고
+5. **참고 N2**(reviewer) — `store_response` 는 `exists()` → `os.replace` check-then-act 라 동시 실행 시 append-only 가 원리적으로 뚫린다. 단일 프로세스 스크립트라 실해 없음
+
