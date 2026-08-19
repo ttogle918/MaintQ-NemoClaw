@@ -220,7 +220,7 @@ InsuQ 의 규율을 그대로 계승한다. 해당 테스트 파일의 서두가
 스프린트가 정직하게 닫힌다"는 성질이 실증된 사례다.
 
 실측 결과 요약(전체는 `docs/sprints/sprint-13.md` Stage 1~5 완료 기록과 `docs/07_BACKLOG.md` P28·P31):
-spikes **31스위트 916건** · pytest **83건**(3파일 합산) · 새 D-결정 **3건**(D103·D104·D105 —
+spikes **31스위트 919건** · pytest **83건**(3파일 합산) ※ 916 → 919 는 사후 매트릭스 갭 수정이 `external_store_contract` 에 검사 3건을 더한 것 · 새 D-결정 **3건**(D103·D104·D105 —
 D104 는 병행 브랜치의 LLM 응답 카세트 작업이 먼저 등재해 Elice 결정이 D105 로 밀렸다, 문서 상단 정정
 참조) · 실판독 지출 **1,530원**(2단 구매: 파일럿 90원 → 본판독 1,440원) · 판독 결과
 `CONFIRMED_ABSENT` 24 · `DISAGREE` 6 · `STILL_AMBIGUOUS` 3 · `RECOVERABLE` 1 · `INCONCLUSIVE` 0.

@@ -308,10 +308,12 @@ ELICE_AXES = ("ACTION_FOUND", "ROW_TEXT_ONLY", "ANCHOR_ONLY", "NO_ANCHOR", "UNRE
 |---|---|---|---|---|---|
 | `ABSENT_IN_MANUAL` | **DISAGREE** | **CONFIRMED_ABSENT** | **CONFIRMED_ABSENT** | INCONCLUSIVE | INCONCLUSIVE |
 | `AMBIGUOUS` | **RECOVERABLE**(rowspan 1:1 귀속 시) / **STILL_AMBIGUOUS**(아니면) | DISAGREE | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
-| `NOT_FOUND_ON_PAGE` | **RECOVERABLE** | DISAGREE | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
-| `UNCLASSIFIED`·`NO_CLAIM` | RECOVERABLE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE |
+| `NOT_FOUND_ON_PAGE` | **RECOVERABLE**(rowspan 1:1 귀속 시) / **STILL_AMBIGUOUS**(아니면) | DISAGREE | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
+| `UNCLASSIFIED`·`NO_CLAIM` | **RECOVERABLE**(rowspan 1:1 귀속 시) / **STILL_AMBIGUOUS**(아니면) | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE |
 
 ⚠ **`NO_ANCHOR` 는 절대 `CONFIRMED_ABSENT` 가 되지 않는다** — 양성 축이 죽은 상태에서 부재를 주장할 수 없다(P30 · D65).
+
+🔴 **MQ-1310 수정 (판정 매트릭스 갭 봉합).** 위 표는 원래 `NOT_FOUND_ON_PAGE`·`UNCLASSIFIED`·`NO_CLAIM` 세 칸에서 `× ACTION_FOUND` 를 **무조건 `RECOVERABLE`** 로 냈다. 실물 사례로 물렸다 — iG5A `NTC` 의 근거는 `text_window`(표 밖 폴백, 귀속행 0, `rowspan_resolved=False`)인데, `_pending_review` 사유가 "찾지 못함"이라 파서 주장이 `AMBIGUOUS` 가 아니라 `NOT_FOUND_ON_PAGE` 로 분류됐다는 이유만으로 회수됐다. 같은 공유 조치문(같은 `rowspan=5` 셀)의 `HWT`·`EEP`·`ERR`·`COM` 은 `AMBIGUOUS` 라서 `STILL_AMBIGUOUS` 로 남았다 — **데이터 상황이 동일한데 파서의 내부 분류 차이만으로 결론이 갈린 것**이고, 회수 방향이라 절대규칙 3(안전 문구는 매뉴얼 근거 없이 생성 금지) 위반 방향이었다. `RECOVERABLE` 을 내는 네 칸 전부(`AMBIGUOUS`·`NOT_FOUND_ON_PAGE`·`UNCLASSIFIED`·`NO_CLAIM`) 에 `rowspan_resolved` 게이트를 통일해 닫았다. `ABSENT_IN_MANUAL × ACTION_FOUND` 는 게이트 대상이 아니다 — "부재" 주장과 조치문 발견 자체가 정면 충돌이라 귀속 여부와 무관하게 `DISAGREE`(사람이 볼 곳)가 맞다. 수정 후 실측: `RECOVERABLE 0 · STILL_AMBIGUOUS 4`(iG5A `NTC` 는 `NOT_FOUND_ON_PAGE`→`STILL_AMBIGUOUS` 로 이동), 정본 sha256 불변.
 
 ---
 
@@ -492,7 +494,7 @@ tool-builder 가 *"CLAUDE.md 기준선이 낡았다(기록 871/252 vs 실측 872
 | MQ-1309 | `data/verify_actions_absence.py` · 리포트 2종 | dry-run 전건 `INCONCLUSIVE` · exit 0 · 조인 무결성 **34/34** · 정본 sha256 불변 |
 | MQ-1310 | `spikes/external_store_contract.py` | **44건 전건 PASS** (명세 15 letter → 원자 check 44) |
 
-**회귀**: spikes **31스위트 916건 · FAIL 0 · 재시도 0**(872 + 44) · `ruff` 통과 · ⛔ 재시드 안 함 · ⛔ 네트워크·지출 **0**
+**회귀**: spikes **31스위트 919건 · FAIL 0 · 재시도 0**(872 + 44) · `ruff` 통과 · ⛔ 재시드 안 함 · ⛔ 네트워크·지출 **0**
 
 **리뷰**: 2라운드. **Critical 2건 + Important 8건 + Minor 9건** — 전부 해소 후 승인.
 
@@ -556,7 +558,7 @@ CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 3 · RECOVERABLE 1 · INCON
 
 **커밋**: `2c45221`
 
-**실측 기준선**: spikes **31스위트 916건**(FAIL 0 · 재시도 0) · pytest **83건**(3파일 합산) · `ls spikes/*.py` 31개 = CLAUDE.md 목록 **이름 집합 일치** · `ruff` 통과
+**실측 기준선**: spikes **31스위트 919건**(FAIL 0 · 재시도 0) · pytest **83건**(3파일 합산) · `ls spikes/*.py` 31개 = CLAUDE.md 목록 **이름 집합 일치** · `ruff` 통과
 
 - **절대규칙 5 예외를 셋으로 명문화** — ㉠ git 추적(응답 JSON + README) ㉡ 쓰기(README 1건만) ㉢ 캐시 JSON 손편집 금지(`store.py` 단일 경유)
 - **D 범위 `D1~D105`**(5파일) — 이 세션에 **두 번 낡았던** 자리
@@ -580,7 +582,48 @@ CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 3 · RECOVERABLE 1 · INCON
 **리뷰가 잡은 Critical 2건이 이 스프린트의 값이었다** — 둘 다 *"검사가 통과했다는 사실이 아무것도 보증하지 않는"* 형태였고, 안 잡혔으면 1,530원이 무의미해졌다.
 
 ### 남은 사람 승인
-- [ ] 🔴 **`iG5A NTC` 1건 D99 재승인** (정본 병합)
+- [x] ~~🔴 **`iG5A NTC` 1건 D99 재승인** (정본 병합)~~ → **철회.** 사후 재검수(위임 검수, 2026-08-19)에서
+  판정 매트릭스 갭이 드러나 `NTC` 는 `RECOVERABLE` 이 아니라 `STILL_AMBIGUOUS` 로 정정됐다.
+  자세한 내용은 아래 "판정 매트릭스 갭 봉합" 절 참조 — **더 이상 승인 대상이 아니다.**
 - [ ] **`DISAGREE` 중 `iG5A EEP`·`HWT` 2건** 확인
 - [ ] (기존) 안전 문구 검수 · A2A 자격증명 실값
+
+---
+
+## 사후 수정 — 판정 매트릭스 갭 봉합 (2026-08-19, 위임 검수)
+
+**대상**: `data/verify_actions_absence.py::_MATRIX`·`decide()` · `spikes/external_store_contract.py` ⓜ 오라클 검사
+
+Stage 5 실판독 직후 결과(`RECOVERABLE 1` = `iG5A NTC`)를 검수하는 과정에서, `_MATRIX` 의
+`× ACTION_FOUND` 축에서 `RECOVERABLE` 을 내는 칸이 **넷**인데(`AMBIGUOUS`·`NOT_FOUND_ON_PAGE`·
+`UNCLASSIFIED`·`NO_CLAIM`) 귀속(`rowspan_resolved`) 게이트가 `AMBIGUOUS` **한 칸에만** 걸려
+있었다는 사실이 드러났다. `iG5A NTC` 가 실제로 그 갭에 물렸다 — 근거가 표 행이 아니라
+`text_window`(240자 표 밖 폴백)이고 귀속행이 0(`rowspan_resolved=False`)인데도, `_pending_review`
+사유가 "찾지 못함"(`NOT_FOUND_ON_PAGE`)으로 분류됐다는 이유만으로 `RECOVERABLE` 이 났다. 같은
+공유 조치문(`rowspan=5` 셀)을 가리키는 `HWT`·`EEP`·`ERR`·`COM` 은 파서 주장이 `AMBIGUOUS` 라서
+`STILL_AMBIGUOUS` 로 남았다 — **데이터 상황이 동일한데 파서의 내부 분류 차이만으로 결론이 갈린
+것**이었고, 회수(귀속 없는 조치문 생성) 방향이라 절대규칙 3 위반 방향이었다.
+
+**수정**: `RECOVERABLE` 을 내는 네 칸 전부에 `rowspan_resolved` 게이트를 통일했다 — 미해소면
+`STILL_AMBIGUOUS`. `ABSENT_IN_MANUAL × ACTION_FOUND` 는 게이트 대상이 아니다("부재" 주장과
+조치문 발견 자체가 정면 충돌이므로 귀속 여부와 무관하게 `DISAGREE`가 맞다).
+
+**실측 (수정 후, `uv run python data/verify_actions_absence.py`, 인자 없음 — 캐시만 읽음, 추가
+지출 0)**:
+
+```
+파서 주장: ABSENT_IN_MANUAL 28 · AMBIGUOUS 5 · NOT_FOUND_ON_PAGE 1
+Elice 축: ACTION_FOUND 8 · ROW_TEXT_ONLY 25 · ANCHOR_ONLY 1 · NO_ANCHOR 0 · UNREAD 0
+판정: CONFIRMED_ABSENT 24 · RECOVERABLE 0 · STILL_AMBIGUOUS 4 · DISAGREE 6 · INCONCLUSIVE 0
+```
+
+`iG5A NTC` 행 변화: `elice_axis=ACTION_FOUND`(`evidence_kind=text_window`) · `rowspan=0` ·
+`covers_item_rows=0` · `rowspan_resolved=False` — 판정이 `RECOVERABLE` → **`STILL_AMBIGUOUS`**
+로 이동. `STILL_AMBIGUOUS` 총건수는 3 → **4**(`HWT`·`EEP`·`ERR`·`COM` 3건 + `NTC` 합류).
+
+`spikes/external_store_contract.py` 에 ⓜ-7b(`NOT_FOUND_ON_PAGE` 미해소 → `STILL_AMBIGUOUS`,
+NTC 사례 직접 주석)·ⓜ-11(`UNCLASSIFIED`)·ⓜ-12(`NO_CLAIM`) 3건을 추가했다(기존 ⓜ-7 은 해소
+축으로 분리) — **전건 47건 PASS**(44 → 47, +3). 뮤턴트 실증(게이트를 다시 빼는 원복 실험)으로
+ⓜ-7b·ⓜ-11·ⓜ-12 3건이 정확히 FAIL 하는 것을 확인했고 되돌렸다. 정본 2종(`error_codes.json`·
+`error_codes_actions.candidate.json`) sha256 은 이 수정 전체에서 **불변**이다(D99).
 

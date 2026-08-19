@@ -536,10 +536,33 @@ def _check_m() -> None:
         decide("ABSENT_IN_MANUAL", "ACTION_FOUND") == "DISAGREE",
         decide("ABSENT_IN_MANUAL", "ACTION_FOUND"),
     )
+    # ⓜ-7·ⓜ-11·ⓜ-12 (MQ-1310): `NOT_FOUND_ON_PAGE`·`UNCLASSIFIED`·`NO_CLAIM` 도 `AMBIGUOUS`
+    # 와 같은 귀속 게이트를 탄다 — iG5A `NTC` 사례(귀속행 0인데 `NOT_FOUND_ON_PAGE` 라는 이유만
+    # 으로 예전엔 무조건 `RECOVERABLE` 이었다. 같은 공유 조치문의 `AMBIGUOUS` 항목들은
+    # `STILL_AMBIGUOUS` 로 남았으니 파서 내부 분류 차이만으로 결론이 갈린 것이었다).
     check(
-        "ⓜ-7 NOT_FOUND_ON_PAGE × ACTION_FOUND → RECOVERABLE",
-        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND") == "RECOVERABLE",
-        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND"),
+        "ⓜ-7 NOT_FOUND_ON_PAGE × ACTION_FOUND (rowspan 1:1 해소) → RECOVERABLE",
+        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND", rowspan_resolved=True) == "RECOVERABLE",
+        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND", rowspan_resolved=True),
+    )
+    check(
+        "ⓜ-7b NOT_FOUND_ON_PAGE × ACTION_FOUND (rowspan 미해소) → STILL_AMBIGUOUS (NTC 사례)",
+        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND", rowspan_resolved=False) == "STILL_AMBIGUOUS",
+        decide("NOT_FOUND_ON_PAGE", "ACTION_FOUND", rowspan_resolved=False),
+    )
+    check(
+        "ⓜ-11 UNCLASSIFIED × ACTION_FOUND: 해소 True→RECOVERABLE / False→STILL_AMBIGUOUS",
+        decide("UNCLASSIFIED", "ACTION_FOUND", rowspan_resolved=True) == "RECOVERABLE"
+        and decide("UNCLASSIFIED", "ACTION_FOUND", rowspan_resolved=False) == "STILL_AMBIGUOUS",
+        f"True→{decide('UNCLASSIFIED', 'ACTION_FOUND', rowspan_resolved=True)} · "
+        f"False→{decide('UNCLASSIFIED', 'ACTION_FOUND', rowspan_resolved=False)}",
+    )
+    check(
+        "ⓜ-12 NO_CLAIM × ACTION_FOUND: 해소 True→RECOVERABLE / False→STILL_AMBIGUOUS",
+        decide("NO_CLAIM", "ACTION_FOUND", rowspan_resolved=True) == "RECOVERABLE"
+        and decide("NO_CLAIM", "ACTION_FOUND", rowspan_resolved=False) == "STILL_AMBIGUOUS",
+        f"True→{decide('NO_CLAIM', 'ACTION_FOUND', rowspan_resolved=True)} · "
+        f"False→{decide('NO_CLAIM', 'ACTION_FOUND', rowspan_resolved=False)}",
     )
     try:
         decide("NOT_A_CLAIM", "ACTION_FOUND")

@@ -41,9 +41,14 @@
   → 앵커 = {`error_name`, `display_code`, `code`} 정규화(대소문자·공백 무시) **부분일치**.
 ② **축의 정의역은 페이지가 아니라 "읽은 페이지 union(대상 문서 범위)"다.** 앵커는 9.1(416~419)에,
   조치문은 9.2(420~421)에 있다. 페이지 단위로 재면 전부 `ANCHOR_ONLY` 가 된다.
-③ **`AMBIGUOUS × ACTION_FOUND` 는 `rowspan` 귀속이 1:1 로 풀렸을 때만 `RECOVERABLE`**,
-  아니면 `STILL_AMBIGUOUS`. 파서가 멈춘 이유가 *"조치문이 5개 항목과 공유"* = 귀속 불가인데,
-  Elice 가 그 셀을 읽어도 귀속이 안 되면 회수 후보가 아니다(지어내기 압력 차단).
+③ **`{AMBIGUOUS, NOT_FOUND_ON_PAGE, UNCLASSIFIED, NO_CLAIM} × ACTION_FOUND` 는 `rowspan`
+  귀속이 1:1 로 풀렸을 때만 `RECOVERABLE`**, 아니면 `STILL_AMBIGUOUS`(MQ-1310). 파서가 멈춘
+  이유가 *"조치문이 5개 항목과 공유"* = 귀속 불가인데, Elice 가 그 셀을 읽어도 귀속이 안 되면
+  회수 후보가 아니다(지어내기 압력 차단). iG5A `NTC` 가 실증 사례다 — 근거가 `text_window`
+  폴백(귀속행 0)인데 파서 내부 분류가 `NOT_FOUND_ON_PAGE`(≠ `AMBIGUOUS`)라는 이유만으로
+  예전엔 `RECOVERABLE` 이 났다. 같은 공유 조치문의 `HWT`·`EEP`·`ERR`·`COM`(`AMBIGUOUS`)은
+  `STILL_AMBIGUOUS` 로 남았으니 데이터가 같은데 파서의 내부 분류 차이만으로 결론이 갈린
+  것 — 네 칸 전부에 같은 귀속 조건을 걸어 통일했다.
 ④ **`_pending_review` 는 dict 가 아니라 문자열 35개**이고 그중 S100 `FANW` 1건은 **이미 회수돼
   정본에 있다**. 그래서 조인 대상은 34건이고 그 사실을 리포트에 인쇄한다.
 
@@ -202,7 +207,13 @@ _PENDING_LINE_RE: Final[re.Pattern[str]] = re.compile(
     r"^\s*(?P<model>iG5A|S100)\s+(?P<code>[A-Za-z0-9_]+)\s*:\s*(?P<reason>.+)$", re.DOTALL
 )
 
-# ── 판정 매트릭스 (이 표가 계약이다). `AMBIGUOUS × ACTION_FOUND` 만 rowspan 귀속을 본다.
+# ── 판정 매트릭스 (이 표가 계약이다). `× ACTION_FOUND` 네 칸(`AMBIGUOUS`·`NOT_FOUND_ON_PAGE`·
+# `UNCLASSIFIED`·`NO_CLAIM`) 은 전부 rowspan 귀속을 본다 — `decide()` 가 값을 채운다.
+# 급소(MQ-1310, NTC 사례): `NOT_FOUND_ON_PAGE`/`UNCLASSIFIED`/`NO_CLAIM` 도 예전엔 이 축에서
+# 무조건 `RECOVERABLE` 이었다. iG5A `NTC` 는 근거가 `text_window`(표 밖 폴백)라 귀속행이 0인데도
+# `NOT_FOUND_ON_PAGE` 로 분류됐다는 이유만으로 회수됐다 — 같은 공유 조치문을 두고 `HWT`·`EEP`·
+# `ERR`·`COM` 은 `AMBIGUOUS` 라서 `STILL_AMBIGUOUS` 로 남았는데 `NTC` 만 다른 결론이 났다.
+# 파서의 내부 분류(왜 멈췄는가)가 아니라 **데이터 상황**(귀속이 풀렸는가)이 판정을 갈라야 한다.
 _MATRIX: Final[dict[tuple[str, str], str]] = {
     ("ABSENT_IN_MANUAL", "ACTION_FOUND"): "DISAGREE",
     ("ABSENT_IN_MANUAL", "ROW_TEXT_ONLY"): "CONFIRMED_ABSENT",
@@ -214,22 +225,29 @@ _MATRIX: Final[dict[tuple[str, str], str]] = {
     ("AMBIGUOUS", "ANCHOR_ONLY"): "DISAGREE",
     ("AMBIGUOUS", "NO_ANCHOR"): "INCONCLUSIVE",
     ("AMBIGUOUS", "UNREAD"): "INCONCLUSIVE",
-    ("NOT_FOUND_ON_PAGE", "ACTION_FOUND"): "RECOVERABLE",
+    ("NOT_FOUND_ON_PAGE", "ACTION_FOUND"): "",  # rowspan 귀속이 가른다 (decide 참조)
     ("NOT_FOUND_ON_PAGE", "ROW_TEXT_ONLY"): "DISAGREE",
     ("NOT_FOUND_ON_PAGE", "ANCHOR_ONLY"): "DISAGREE",
     ("NOT_FOUND_ON_PAGE", "NO_ANCHOR"): "INCONCLUSIVE",
     ("NOT_FOUND_ON_PAGE", "UNREAD"): "INCONCLUSIVE",
-    ("UNCLASSIFIED", "ACTION_FOUND"): "RECOVERABLE",
+    ("UNCLASSIFIED", "ACTION_FOUND"): "",  # rowspan 귀속이 가른다 (decide 참조)
     ("UNCLASSIFIED", "ROW_TEXT_ONLY"): "INCONCLUSIVE",
     ("UNCLASSIFIED", "ANCHOR_ONLY"): "INCONCLUSIVE",
     ("UNCLASSIFIED", "NO_ANCHOR"): "INCONCLUSIVE",
     ("UNCLASSIFIED", "UNREAD"): "INCONCLUSIVE",
-    ("NO_CLAIM", "ACTION_FOUND"): "RECOVERABLE",
+    ("NO_CLAIM", "ACTION_FOUND"): "",  # rowspan 귀속이 가른다 (decide 참조)
     ("NO_CLAIM", "ROW_TEXT_ONLY"): "INCONCLUSIVE",
     ("NO_CLAIM", "ANCHOR_ONLY"): "INCONCLUSIVE",
     ("NO_CLAIM", "NO_ANCHOR"): "INCONCLUSIVE",
     ("NO_CLAIM", "UNREAD"): "INCONCLUSIVE",
 }
+
+# `× ACTION_FOUND` 에서 귀속(`rowspan_resolved`) 조건을 거는 파서 주장 전체. `ABSENT_IN_MANUAL`
+# 은 제외한다 — "부재"라는 주장 자체와 조치문 발견이 정면 충돌하므로 귀속 여부와 무관하게
+# `DISAGREE`(사람이 볼 곳)가 맞다.
+_ATTRIBUTION_GATED_CLAIMS: Final[frozenset[str]] = frozenset(
+    {"AMBIGUOUS", "NOT_FOUND_ON_PAGE", "UNCLASSIFIED", "NO_CLAIM"}
+)
 
 # 축 우선순위 — 한 코드가 여러 대상(iG5A 는 표준본+트러블슈팅본)에 걸릴 때 결합 규칙.
 _AXIS_RANK: Final[dict[str, int]] = {
@@ -251,8 +269,16 @@ def decide(
 ) -> str:
     """판정 매트릭스 오라클. **순수 함수** — 파일도 네트워크도 건드리지 않는다.
 
-    - `AMBIGUOUS × ACTION_FOUND` 는 `rowspan_resolved=True`(귀속이 1:1 로 풀림)일 때만
-      `RECOVERABLE`, 아니면 `STILL_AMBIGUOUS`. 귀속 불가가 파서가 멈춘 이유 그 자체다.
+    - `{AMBIGUOUS, NOT_FOUND_ON_PAGE, UNCLASSIFIED, NO_CLAIM} × ACTION_FOUND` 는
+      `rowspan_resolved=True`(귀속이 1:1 로 풀림)일 때만 `RECOVERABLE`, 아니면
+      `STILL_AMBIGUOUS`. **파서가 왜 멈췄는지(내부 분류)가 아니라 귀속이 풀렸는지(데이터
+      상황)가 판정을 가른다** — 네 칸 모두 같은 원칙이다. `NOT_FOUND_ON_PAGE`·`UNCLASSIFIED`
+      가 예전엔 무조건 `RECOVERABLE` 이었는데, iG5A `NTC` 가 `text_window` 폴백(귀속행 0,
+      `rowspan_resolved=False`)에서 `NOT_FOUND_ON_PAGE` 로 분류됐다는 이유만으로 회수됐다.
+      같은 공유 조치문을 두고 `AMBIGUOUS` 로 분류된 `HWT`·`EEP`·`ERR`·`COM` 은 `STILL_AMBIGUOUS`
+      로 남았으니 데이터가 같은데 결론만 갈린 것 — 지어내기 압력이라 통일했다.
+      `ABSENT_IN_MANUAL` 은 여기 포함하지 않는다 — "부재" 주장과 조치문 발견이 정면 충돌하므로
+      귀속 여부와 무관하게 `DISAGREE`(사람이 볼 곳)다.
     - `NO_ANCHOR` 는 **절대** `CONFIRMED_ABSENT` 가 되지 않는다 — 양성 축이 죽은 상태에서
       부재를 주장할 수 없다 (P30 · D65).
     - `ROW_TEXT_ONLY` 는 판정상 `ANCHOR_ONLY` 와 같다 — "긴 이웃 셀이 있다"는 조치문의
@@ -265,7 +291,7 @@ def decide(
         raise ValueError(f"모르는 파서 주장: {claim!r} (허용 {PARSER_CLAIMS})")
     if axis not in ELICE_AXES:
         raise ValueError(f"모르는 Elice 축: {axis!r} (허용 {ELICE_AXES})")
-    if claim == "AMBIGUOUS" and axis == "ACTION_FOUND":
+    if claim in _ATTRIBUTION_GATED_CLAIMS and axis == "ACTION_FOUND":
         verdict = "RECOVERABLE" if rowspan_resolved else "STILL_AMBIGUOUS"
     else:
         verdict = _MATRIX[(claim, axis)]

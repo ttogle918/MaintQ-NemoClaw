@@ -70,7 +70,7 @@ D105 로 Elice DocVision 도입)을 5스테이지로 완결했다** — 대조 �
 | REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/repairs`(제출·서명·반려, D98)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. ⚠ `/api/po` 는 **형태 불변** |
 | 프론트 | 라우트 **18개** (실측 `npx next build`, Sprint 12 이후 무변경) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace · 설비 하이라이트 대시보드 · 근거 번들/지출 분류 · 수리 증빙 상세 · 기한·위험등급 조회 |
 | 외부 응답 보관 | ✅ **`data/external/store.py`(D103)** — `data/raw/external/<source>/<key>.json` 에 git 추적 봉투(요청 파라미터·헤더·인증값 미저장, allowlist 강제). 소비자 2종: `fetch_laws` payload 소급 보관 · **Elice DocVision**(D105, 독립 2차 판독기, 정답지 아님) 캐시 |
-| 회귀 (실측 2026-08-19, Sprint 13 완료 후) | spikes **31스위트 / 916건**(신규 `external_store_contract` 44건) · seed **35건**(`error_codes`=65, 불변) · pytest **83건**(3파일 합산 — `data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 + `data/external/test_elice_docvision.py` 13) · ruff clean · `next build` 재실행 불필요(프론트 무변경, 18 라우트 유지) · `ui_honesty_contract` **253/253**(전 계약 PASS). ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절), Sprint 13 전수 실행은 재시도 0회 |
+| 회귀 (실측 2026-08-19, Sprint 13 완료 후) | spikes **31스위트 / 919건**(신규 `external_store_contract` 44건) · seed **35건**(`error_codes`=65, 불변) · pytest **83건**(3파일 합산 — `data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 + `data/external/test_elice_docvision.py` 13) · ruff clean · `next build` 재실행 불필요(프론트 무변경, 18 라우트 유지) · `ui_honesty_contract` **253/253**(전 계약 PASS). ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절), Sprint 13 전수 실행은 재시도 0회 |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
 | 계층 1 (법령 원문) | ✅ **8/8 `FETCHED` 완성 (2026-08-13)** — 총 **8,197자** · 해시 전건 무결. 마지막 `PENDING` 이던 `KR-CITA-ENF-31` 은 등록 제목(`즉시상각의제` → `즉시상각의 의제`) 사람 승인 후 수집됐다. 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
 
@@ -144,7 +144,7 @@ D105 로 Elice DocVision 도입)을 5스테이지로 완결했다** — 대조 �
     **완료.** Stage 1: `data/external/store.py`(보관 모듈) · `.gitignore` 추적 경계 · D103 등재.
     Stage 2: `fetch_laws` 소급 보관 · Elice DocVision 클라이언트 이식 · D105 등재 · 지출 가드
     pytest 13건. Stage 3: 3자 대조 엔진(`data/verify_actions_absence.py`, 캐시 0건에서도 완주) +
-    신규 스파이크 `external_store_contract`(스위트 30→31). Stage 4: 회귀 전수(31스위트/916건) +
+    신규 스파이크 `external_store_contract`(스위트 30→31). Stage 4: 회귀 전수(31스위트/919건) +
     기준선·절대규칙 5 예외 명문화. **Stage 5(사람 승인 후, 같은 세션)**: Elice 34페이지 실판독
     1,530원 집행 → `CONFIRMED_ABSENT` 24·`DISAGREE` 6·`STILL_AMBIGUOUS` 3·`RECOVERABLE` 1·
     `INCONCLUSIVE` 0 확정, 백로그 P28·P31 상태 갱신

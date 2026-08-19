@@ -115,7 +115,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-19, Sprint 13 Stage 3 완료 후)** — spikes **31스위트 / 916건** · seed **35건**(불변,
+**실측 기준선 (2026-08-19, Sprint 13 Stage 3 완료 후)** — spikes **31스위트 / 919건** · seed **35건**(불변,
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
@@ -129,7 +129,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
-`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 44` ·
+`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
