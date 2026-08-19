@@ -371,3 +371,19 @@ def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path):
     assert all(e.data.get("replay") is True for e in tool_calls), (
         f"tool_call 이벤트에 replay:true 가 안 실렸다 — {[e.data for e in tool_calls]}"
     )
+
+
+def test_get_client_wraps_only_when_enabled(monkeypatch):
+    """기본 꺼짐이면 감싸지 않는다 — 설정 안 하면 현재 동작 그대로."""
+    from backend.agent import llm as llm_mod
+
+    monkeypatch.setenv("MAINTQ_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("MAINTQ_LLM_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("GEMINI_API_KEY", "x" * 20)
+
+    monkeypatch.delenv(lc.ENV_FLAG, raising=False)
+    assert not isinstance(llm_mod.get_client(), lc.CachingClient)
+
+    monkeypatch.setenv(lc.ENV_FLAG, "on")
+    wrapped = llm_mod.get_client()
+    assert isinstance(wrapped, lc.CachingClient)

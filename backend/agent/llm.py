@@ -332,6 +332,14 @@ def get_client() -> LlmClient:
             f"(provider={provider}). 테스트용 스크립트 응답으로 자동 대체하지 않습니다 "
             "(D40) — 가짜 응답을 진짜로 착각하는 사고를 막기 위해서입니다."
         )
-    if provider == "gemini":
-        return GeminiClient(model=model, api_key=api_key)
-    return AnthropicClient(model=model, api_key=api_key)
+    inner = (
+        GeminiClient(model=model, api_key=api_key)
+        if provider == "gemini"
+        else AnthropicClient(model=model, api_key=api_key)
+    )
+    # 카세트는 **명시적 옵트인**이다 (D105). 켜지 않으면 위 클라이언트가 그대로 나간다.
+    from backend.agent.llm_cache import CachingClient, cache_enabled  # noqa: PLC0415
+
+    if cache_enabled():
+        return CachingClient(inner, provider=provider, model=model)
+    return inner
