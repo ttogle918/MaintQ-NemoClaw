@@ -232,3 +232,40 @@ def test_interrupted_stream_is_not_cached(tmp_path):
         asyncio.run(go())
 
     assert len(list(tmp_path.glob("*.json"))) == 0
+
+
+from backend.agent.trace import TraceWriter  # noqa: E402
+
+
+def test_trace_replay_marks_events_when_cached(tmp_path, monkeypatch):
+    """히트 세션은 replay 표식이 붙어 eval/score.has_replay() 가 분모에서 뺀다 (D55).
+
+    이 한 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다 — 이 테스트가 그것만 본다.
+    """
+    trace = TraceWriter("sess-cache-test", db_path=tmp_path / "t.db")
+    assert trace.replay is False
+
+    _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
+    cached = lc.CachingClient(_Boom(), provider="p", model="m", root=tmp_path)
+    _drain(cached, **_KW)
+
+    # run_turn 이 하는 것과 같은 판정 — 히트면 켠다
+    if getattr(cached, "last_hit", False):
+        trace.replay = True
+
+    assert trace.replay is True
+    event = trace.tool_call("lookup_error_code", {"model": "iG5A"})
+    assert event.data.get("replay") is True
+
+
+def test_loop_wires_replay_marker():
+    """`loop.py` 에 배선이 실제로 있는가 — 양성 축(앵커)을 함께 건다 (P30).
+
+    부재 검사가 아니라 **존재 검사**이지만, 파일을 못 읽었을 때 조용히 통과하지 않도록
+    앵커를 함께 본다.
+    """
+    src = (ROOT / "backend" / "agent" / "loop.py").read_text(encoding="utf-8")
+    anchors = [a for a in ("async def run_turn(", "_safe_stream(") if a in src]
+    assert len(anchors) == 2, f"loop.py 앵커 {anchors} — 파일이 바뀌었거나 못 읽었다"
+    assert "last_hit" in src, "run_turn 에 캐시 히트 → trace.replay 배선이 없다"
+    assert "trace.replay = True" in src

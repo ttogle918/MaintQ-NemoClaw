@@ -399,6 +399,12 @@ async def run_turn(
         finish_raw: object | None = None
         saw_end = False
         async for kind, value in stream:
+            # 캐시 히트면 이 턴을 D55 재생으로 표식한다 — `eval/score.has_replay()` 가
+            # 지표 분모에서 뺀다. ⚠ 이 세 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다.
+            # `_safe_stream` 이 async generator 라 `llm.stream()` 은 첫 델타를 당길 때
+            # 호출된다 — 그래서 루프 밖이 아니라 **첫 회차 안**에서 읽는다.
+            if not trace.replay and getattr(llm, "last_hit", False):
+                trace.replay = True
             if kind == "_stream_error":
                 failed = True
                 break
