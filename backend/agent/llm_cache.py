@@ -96,7 +96,10 @@ def _load_cached_deltas(path: Path) -> list[LlmDelta] | None:
     """
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        # UnicodeDecodeError 는 OSError 의 하위 클래스가 아니다(ValueError 계열) —
+        # 파일 바이트가 깨져 UTF-8 디코딩이 실패하는 경우도 명시적으로 잡아야
+        # 손상 캐시가 예외로 새지 않고 미스로 폴백한다.
         return None
     if not isinstance(record, dict) or record.get("_schema") != SCHEMA:
         return None

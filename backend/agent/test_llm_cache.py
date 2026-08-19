@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -190,3 +192,43 @@ def test_corrupted_unknown_kind_is_treated_as_miss(tmp_path):
     assert inner.calls == 1
     assert c.last_hit is False
     assert [k for k, _ in out] == ["text", "tool_use", "end"]
+
+
+def test_corrupted_utf8_bytes_is_treated_as_miss(tmp_path):
+    """캐시 파일 바이트가 깨져 UTF-8 디코딩이 실패해도 예외가 새지 않고 미스로
+    폴백해야 한다 — `UnicodeDecodeError` 는 `OSError` 의 하위 클래스가 아니다."""
+    _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
+    [f] = list(tmp_path.glob("*.json"))
+    f.write_bytes(b"\xff\xfe\x00invalid")
+
+    inner = _Fake(_DELTAS)
+    c = lc.CachingClient(inner, provider="p", model="m", root=tmp_path)
+    out = _drain(c, **_KW)
+    assert inner.calls == 1
+    assert c.last_hit is False
+    assert [k for k, _ in out] == ["text", "tool_use", "end"]
+
+
+def test_interrupted_stream_is_not_cached(tmp_path):
+    """도중에 끊긴 스트림은 캐시 파일로 남지 않아야 한다 — 잘린 응답이 다음 실행에서
+    "정상"으로 재생되면 안 된다."""
+
+    class _Interrupted:
+        def stream(self, *, system, messages, tools):
+            async def gen():
+                yield ("text", "일부")
+                raise RuntimeError("연결 끊김")
+
+            return gen()
+
+    c = lc.CachingClient(_Interrupted(), provider="p", model="m", root=tmp_path)
+
+    async def go():
+        out = []
+        async for d in c.stream(**_KW):
+            out.append(d)
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(go())
+
+    assert len(list(tmp_path.glob("*.json"))) == 0
