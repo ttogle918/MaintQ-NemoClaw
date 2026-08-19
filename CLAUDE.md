@@ -67,8 +67,10 @@
   검사 ⑤(반복 고장)가 위양성 FAIL 한다.
   📌 이 두 함정으로 **에이전트가 두 번(MQ-708·MQ-713a) DB 를 망가뜨렸다.** 재시드 후에는
   `SELECT count(*) FROM error_codes` 가 **65** 인지 확인한다.
-- `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
-  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
+- `data/rules/test_rules.py` · `backend/agent/test_llm_cache.py` — 룰 카탈로그(근거 무결성 ·
+  **발화 가능성**(D77) · **해제 가능성**(D78)) + **LLM 응답 카세트**(D104 — 키·값 직렬화·
+  `CachingClient`·`stats_line()`)
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py backend/agent/test_llm_cache.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
 - `spikes/` — **30종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
@@ -104,7 +106,8 @@
 **실측 기준선 (2026-08-19, P30 해소 후)** — spikes **30스위트 / 872건** · seed **35건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
-`ownership_checks`/`risk_profile`) · pytest **46건** ·
+`ownership_checks`/`risk_profile`) · pytest **64건**(`data/rules/test_rules.py` 46 +
+`backend/agent/test_llm_cache.py` 신설 18 — D104 카세트, 커맨드가 2파일 합산으로 바뀐다) ·
 프론트 라우트 **18개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
 `/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개,
 Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 16→17→18). spikes 스위트별 건수:
