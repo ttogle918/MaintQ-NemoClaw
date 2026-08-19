@@ -1,5 +1,10 @@
 # Sprint 13 — `actions` 부재 주장 교차검증 + 외부 응답 원본 보관 (P31 · P28 ⓐ)
 
+> 🔴 **번호 정정 (2026-08-19)**: 이 계획은 원래 Elice 도입 결정에 **D104** 를 예약했으나,
+> 같은 브랜치에서 병행한 **LLM 응답 카세트 작업이 D104 를 먼저 등재**했다(커밋 `51f63ad`).
+> 그래서 이 문서의 Elice 결정 번호를 **D105** 로 전부 옮겼다. ⚠ MQ-1307 착수 시
+> `docs/10_DECISIONS.md` 의 **실제 마지막 번호를 다시 확인**할 것 — 병행 작업이 또 선점할 수 있다.
+
 **상태**: 확정 (PM 계획 → tool-builder 평가 → 실측 검증 반영) · **평가 결론 Y(수정 필요) 전건 반영 완료** · **작성일**: 2026-08-19
 **설계 근거**: [`docs/superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md`](../superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md) (사용자 승인 완료)
 
@@ -62,7 +67,7 @@ P28 ⓐ·P31 은 `07_BACKLOG.md` 항목이다. `/sprint` 스킬의 가드(*"백�
 |------|------|------|------|
 | MQ-1305 | `fetch_laws._fetch_with_meta` 의 버려지던 `payload` 소급 보관 | `data/rules/fetch_laws.py` | MQ-1301 |
 | MQ-1306 | Elice DocVision 클라이언트 이식 (지출 가드 포함) + `pypdfium2` 선언 | `data/external/elice_docvision.py` · `pyproject.toml` | MQ-1301 · MQ-1302 |
-| MQ-1307 | **D104** 등재 | `docs/10_DECISIONS.md` | MQ-1303 (같은 파일) |
+| MQ-1307 | **D105** 등재 | `docs/10_DECISIONS.md` | MQ-1303 (같은 파일) |
 | MQ-1308 | Elice 지출 가드 pytest 이식 (13건) — **Stage 3 → 2 이동** | `data/external/test_elice_docvision.py` | MQ-1306 (스테이지 내 순차) |
 
 ⚠ **MQ-1308 을 여기로 옮긴 이유**: 지출 가드 테스트가 구현보다 늦으면 **Stage 2 종료 시점에 레포에 검증 안 된 유료 클라이언트가 남는다.** 스펙 §4 의 규율과 어긋난다. 파일 충돌은 0이라 같은 스테이지에서 순차로 처리하면 된다.
@@ -216,11 +221,11 @@ data/raw/external/*/*
 **DoD** (4건 전부): JSON → rc=1 · **`_tmp_*.pdf` → rc=0** · 매뉴얼 PDF → rc=0 · 기존 CSV → rc=0
 **결정**: D103 · D60 · ⚠ **절대규칙 5 예외 생성**(문구 정정은 MQ-1311)
 
-### MQ-1303 / MQ-1307 — D103 · D104 등재
+### MQ-1303 / MQ-1307 — D103 · D105 등재
 
 **D103**: 외부 응답 원본을 `data/raw/external/<source>/` 에 JSON 으로 **git 추적** 보관. **요청 파라미터·헤더 미저장.** 저장은 `store.py` **한 곳** 경유. 대안 ⓐ미추적(P28 자체 원칙 위반) ⓑDB(재시드 소실) ⓒ파일+DB(소비자 0, YAGNI). **반드시 포함**: 2026-08-13 평문 유출 → `git filter-repo` **커밋 10개** 재작성 이력 · **allowlist 로 구조 강제** · **절대규칙 5 의 예외를 여기서 만든다**
 
-**D104**: Elice 를 **독립 2차 판독기**로 도입, **정답지로 취급하지 않는다.** 지출은 `allow_purchase` + 캐시 우선으로 게이트, 정본 반영은 D99 경유. 대안 ⓐ미도입 ⓑ정답지 삼아 자동병합(InsuQ 실측 오탈자가 반증 · **절대규칙 3** 위반 직결) ⓒ파서 우선수정(스펙 §1 비목표). **반드시 포함**: 판독 범위를 triage 권고보다 **33p 넓힌 것은 Claude 의 판단** · **회수 건수를 성공 지표로 삼지 않는다** · `CONFIRMED_ABSENT` 는 **양성 축이 살아 있을 때만** 낼 수 있다(P30)
+**D105**: Elice 를 **독립 2차 판독기**로 도입, **정답지로 취급하지 않는다.** 지출은 `allow_purchase` + 캐시 우선으로 게이트, 정본 반영은 D99 경유. 대안 ⓐ미도입 ⓑ정답지 삼아 자동병합(InsuQ 실측 오탈자가 반증 · **절대규칙 3** 위반 직결) ⓒ파서 우선수정(스펙 §1 비목표). **반드시 포함**: 판독 범위를 triage 권고보다 **33p 넓힌 것은 Claude 의 판단** · **회수 건수를 성공 지표로 삼지 않는다** · `CONFIRMED_ABSENT` 는 **양성 축이 살아 있을 때만** 낼 수 있다(P30)
 
 **공통 DoD**: `docs/10_DECISIONS.md` 에 **각 1행 추가만.** 🔴 **D 범위 표기 갱신은 이 태스크가 하지 않는다** — `D1~D102` 문자열은 `10_DECISIONS.md` 에 **없고** 다른 5개 파일에 있다(실측). 갱신은 **MQ-1311** 소관이다. 여기서 건드리면 Stage 1·2 가 `CLAUDE.md`·`docs/README.md` 를 만져 충돌 매트릭스가 깨진다
 
@@ -266,7 +271,7 @@ data/raw/external/*/*
 **추가**: 단일 페이지 임시 PDF 는 `tempfile.mkdtemp()` 로 **store 밖에** 쓴다 (MQ-1302 tmp PDF 방어와 짝).
 
 **DoD**: `PRICE_PER_PAGE_WON == 45` · **캐시 확인 코드가 `_submit_and_wait` 호출보다 앞**(문자열 인덱스로 실증) · `requests` import 0건 · **네트워크 0회** · `uv.lock` 갱신 포함
-**결정**: D104 · D103 · D9 성격 · D26
+**결정**: D105 · D103 · D9 성격 · D26
 
 ### MQ-1308 — 지출 가드 pytest 13건
 
@@ -336,7 +341,7 @@ ELICE_AXES = ("ACTION_FOUND", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
 **지출 경로**: `--allow-purchase` 는 `--confirm-won <총액>` 이 `cost_estimate()["won_total"]` 과 **정확히 일치**할 때만 진행.
 
 **DoD**: 인자 없이 실행 → **네트워크 0 · 지출 0**, 리포트 2종 생성, 전건 `INCONCLUSIVE`, `NOT_READ` 경고, exit 0 · `n_pages=34 · won_total=1530` · 조인 무결성 `34/34` 리포트 인쇄 · 정본·후보 파일 sha256 **불변**
-**결정**: **D99**(정본 쓰기 0) · D104 · D103 · D26 · D32 · D65 · 절대규칙 3
+**결정**: **D99**(정본 쓰기 0) · D105 · D103 · D26 · D32 · D65 · 절대규칙 3
 
 ### MQ-1310 — `spikes/external_store_contract.py` (15건 설계)
 
