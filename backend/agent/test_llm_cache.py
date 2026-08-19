@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""LLM 응답 카세트 회귀 — **네트워크를 절대 타지 않는다** (D105).
+"""LLM 응답 카세트 회귀 — **네트워크를 절대 타지 않는다** (D104).
 
 최우선 목적은 "기능이 되는가"가 아니라 **"캐시가 지표를 조용히 오염시키지 않는가"** 다.
 """
@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -437,3 +438,34 @@ def test_get_client_wraps_only_when_enabled(monkeypatch):
     monkeypatch.setenv(lc.ENV_FLAG, "on")
     wrapped = llm_mod.get_client()
     assert isinstance(wrapped, lc.CachingClient)
+
+
+def test_cache_dir_is_git_ignored():
+    """`data/cache/`(카세트 저장 위치)가 git 추적에서 빠지는지 실측한다 (I2 · 스펙 §7-7).
+
+    카세트 본문은 LLM 응답 원문이고 매뉴얼 인용문이 그대로 실릴 수 있다 — 되돌림을
+    자동으로 잡을 회귀가 지금까지 pytest·spikes 어디에도 없었다.
+
+    🔴 **양성 축을 함께 건다** (이 저장소 P30 규약) — `git check-ignore` 가 카세트 경로에
+    대해 rc==0(제외됨)인 것 **그리고** 추적 대상 파일 하나에 대해 rc!=0(제외 안 됨)인
+    것을 **둘 다** 확인한다. 부재(제외됨) 한쪽만 보면 `git` 이 없거나 rc 해석이 뒤집혀도
+    조용히 통과한다 — 두 축을 함께 걸어야 "스캐너가 눈이 멀었다"와 "사실이 참이다"가
+    구분된다.
+    """
+    ignored = subprocess.run(  # noqa: S603, S607 — 이 회귀 목적 자체가 로컬 git 검사다
+        ["git", "check-ignore", "-q", "data/cache/llm/deadbeef.json"],
+        cwd=ROOT,
+        check=False,
+    )
+    tracked = subprocess.run(  # noqa: S603, S607
+        ["git", "check-ignore", "-q", "backend/agent/llm_cache.py"],
+        cwd=ROOT,
+        check=False,
+    )
+    assert ignored.returncode == 0, (
+        f"data/cache/ 가 git 추적에서 빠져야 한다 (rc={ignored.returncode})"
+    )
+    assert tracked.returncode != 0, (
+        "양성 축 실패 — 추적 대상 파일도 rc!=0(제외됨)이면 이 검사가 아무것도 구분하지 "
+        f"못한다는 뜻이다 (rc={tracked.returncode})"
+    )

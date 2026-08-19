@@ -106,8 +106,8 @@
 **실측 기준선 (2026-08-19, P30 해소 후)** — spikes **30스위트 / 872건** · seed **35건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
-`ownership_checks`/`risk_profile`) · pytest **64건**(`data/rules/test_rules.py` 46 +
-`backend/agent/test_llm_cache.py` 신설 18 — D104 카세트, 커맨드가 2파일 합산으로 바뀐다) ·
+`ownership_checks`/`risk_profile`) · pytest **70건**(`data/rules/test_rules.py` 46 +
+`backend/agent/test_llm_cache.py` 신설 24 — D104 카세트, 커맨드가 2파일 합산으로 바뀐다) ·
 프론트 라우트 **18개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
 `/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개,
 Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 16→17→18). spikes 스위트별 건수:

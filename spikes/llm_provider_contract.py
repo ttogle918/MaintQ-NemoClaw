@@ -42,13 +42,17 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     results.append((name, ok, detail))
 
 
-#: get_client 가 보는 env 전부 — 컨텍스트 안에서 이것만 통제하고 나머지는 건드리지 않는다
+#: get_client 가 보는 env 전부 — 컨텍스트 안에서 이것만 통제하고 나머지는 건드리지 않는다.
+#: `MAINTQ_LLM_CACHE` 도 포함한다 — Task 4 가 `get_client()` 에 이 여섯 번째 env 키를
+#: 추가해 켜져 있으면 `CachingClient` 로 감싸므로(D104), 안 비우면 ⑩·⑬ 의
+#: `isinstance(c, GeminiClient)` 판정이 환경에 따라 흔들린다.
 _ENV_KEYS = (
     "MAINTQ_LLM_PROVIDER",
     "MAINTQ_LLM_MODEL",
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
     "ANTHROPIC_API_KEY",
+    "MAINTQ_LLM_CACHE",
 )
 
 

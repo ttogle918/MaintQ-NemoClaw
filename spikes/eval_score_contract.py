@@ -452,9 +452,12 @@ def run() -> None:
         set_meta["llm_model"] == "gemini-2.5-flash"
         and blank_meta["llm_model"] is None
         and unset_meta["llm_model"] is None
-        and set(set_meta) == {"tools_profile", "tools", "llm_provider", "llm_model"},
+        # I3(D104) — llm_cache 가 meta 키 집합에 추가됐다. tools_profile·llm_model 과 같은
+        # 논리(D88): 사후에 이 회차가 캐시로 돌았는지 복원할 수 없으면 실적으로 인용할지도
+        # 판단할 수 없다.
+        and set(set_meta) == {"tools_profile", "tools", "llm_provider", "llm_model", "llm_cache"},
         f"설정={set_meta['llm_model']!r} / 빈값={blank_meta['llm_model']!r} / "
-        f"미설정={unset_meta['llm_model']!r}",
+        f"미설정={unset_meta['llm_model']!r} / meta키={sorted(set_meta)}",
     )
 
     # ── ㉑ MQ-713a ③ — 잘림 계측의 **생산자↔소비자**를 한 검사로 묶는다 ──

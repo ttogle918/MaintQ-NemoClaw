@@ -96,6 +96,7 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env", override=False)
 
 from backend.agent.llm_cache import ENV_FLAG  # noqa: E402 — 카세트 env 키는 생산자가 정본이다
+from backend.agent.llm_cache import cache_enabled  # noqa: E402 — meta 고지용(I3)
 from backend.agent.llm_cache import reset_stats, stats_line  # noqa: E402 — 히트율 사이드카(Task 7)
 from backend.agent.loop import (  # noqa: E402 — 마커 형식은 생산자(loop.py)가 정본이다
     LLM_END_MARKER,
@@ -431,6 +432,11 @@ def build_meta(health: dict) -> dict:
     D88 이 `tools_profile`·`tools` 를 실은 논리("3차가 full 로 돌았는지 사후에 알 수 없다")가
     모델명에도 그대로 적용되는데 그것만 빠져 있었다: `llm_provider: gemini` 만으로는
     `gemini-2.5-flash` 인지 `flash-lite` 인지 구분되지 않는다.
+
+    같은 논리가 `llm_cache` 에도 적용된다(D104) — 이 프로세스가 문항 루프 직전에 겪은
+    카세트 게이트 판정(§ 위 D104 주석) 결과를 `cache_enabled()` 로 그대로 읽어 싣는다.
+    사후에 "이 회차가 캐시로 돌았는지"를 복원할 수 없으면 지표를 실적으로 인용할지 여부
+    자체를 판단할 수 없다.
     """
     return {
         "tools_profile": health.get("tools_profile"),
@@ -438,6 +444,7 @@ def build_meta(health: dict) -> dict:
         # `or` — .env 의 빈 키를 미설정과 같게 본다 (backend/agent/llm.py:310 과 같은 근거).
         "llm_provider": os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini",
         "llm_model": (os.environ.get("MAINTQ_LLM_MODEL") or "").strip() or None,
+        "llm_cache": "on" if cache_enabled() else "off",
     }
 
 
@@ -1555,7 +1562,7 @@ def main() -> None:
         "--replay",
         action="store_true",
         help=(
-            "LLM 응답 카세트를 켜고 실행한다 (D105). 채점·집계·배선을 고칠 때 빠르게 "
+            "LLM 응답 카세트를 켜고 실행한다 (D104). 채점·집계·배선을 고칠 때 빠르게 "
             "돌리기 위한 모드다. ⛔ 캐시 히트 세션은 D55 표식이 붙어 지표 분모에서 "
             "제외되므로 이 모드의 수치를 실적으로 인용할 수 없다."
         ),
@@ -1565,10 +1572,18 @@ def main() -> None:
     if args.repeat < 1:
         raise SystemExit(f"[중단] --repeat 는 1 이상이어야 합니다 (받은 값: {args.repeat})")
 
-    # ── D105 카세트 게이트 (Task 5) ──────────────────────────────────────────
+    # ── D104 카세트 게이트 (Task 5) ──────────────────────────────────────────
     # 클라이언트를 만들기 **전**에 결정한다 — `backend/agent/llm.py:get_client()` 가
     # 이 env 를 읽어 `CachingClient` 로 감쌀지 정하므로, 이 시점을 놓치면 늦다
     # (`_start_server` 가 부모 `os.environ` 을 그대로 상속해 자식 서버에 넘긴다, D56).
+    # ⚠ 그런데 **자식은 그 상속된 env 를 그대로 쓰지 않는다** — `backend/main.py` 가
+    # 기동 시 자기 `load_dotenv(override=False)` 를 한 번 더 돌린다. `override=False`
+    # 는 "OS 환경변수가 우선, `.env` 는 **빈 곳만 채운다**"는 뜻이라 — 부모가 `pop()` 으로
+    # 키를 아예 지워 넘기면 자식 입장에선 "빈 곳"이 되어 `.env` 의 값(켜져 있었다면 `on`)이
+    # 그 자리를 다시 채운다. 즉 `pop` 은 **부모(judge 호출)만** 끄고 **정작 지표를 만드는
+    # 자식 서버는 그대로 캐시로 돈다.** 그래서 지워 넘기지 않고 **명시적으로 `"off"` 를
+    # 심어 넘긴다** — 이미 값이 있으면 자식의 `load_dotenv(override=False)` 도 덮지
+    # 않으므로 `"off"` 가 자식까지 그대로 살아남는다.
     #
     # `--replay` 가 없으면(=기본, 지표를 재는 경로) **환경에 이미 켜져 있어도 강제로 끈다.**
     # D55 표식만으로는 못 막는 경로가 있다 — 캐시 히트 턴이 텍스트만 답하고 도구를 한 번도
@@ -1584,7 +1599,9 @@ def main() -> None:
             file=sys.stderr,
         )
     else:
-        was_on = os.environ.pop(ENV_FLAG, None) is not None
+        prev = os.environ.get(ENV_FLAG)
+        was_on = (prev or "").strip().lower() == "on"
+        os.environ[ENV_FLAG] = "off"
         if was_on:
             print(
                 "[모드] 실측 — 환경에 켜져 있던 카세트를 껐습니다. "

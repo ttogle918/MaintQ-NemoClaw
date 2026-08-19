@@ -77,6 +77,6 @@ allowlist 밖의 키는 저장이 거부된다. 추가로 환경 자격증명 �
 
 ## 관련 문서
 
-- `docs/10_DECISIONS.md` — **D103**(이 디렉터리의 근거 · 절대규칙 5 예외) · D104 · D60 · D19 · D39
+- `docs/10_DECISIONS.md` — **D103**(이 디렉터리의 근거 · 절대규칙 5 예외) · D105 · D60 · D19 · D39
 - `data/external/store.py` — 저장 봉투 · 키 규칙 · allowlist 의 정본
 - `CLAUDE.md` 절대규칙 5 — `data/raw/` 읽기 전용 원칙과 그 예외

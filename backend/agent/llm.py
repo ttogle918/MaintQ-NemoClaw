@@ -337,7 +337,7 @@ def get_client() -> LlmClient:
         if provider == "gemini"
         else AnthropicClient(model=model, api_key=api_key)
     )
-    # 카세트는 **명시적 옵트인**이다 (D105). 켜지 않으면 위 클라이언트가 그대로 나간다.
+    # 카세트는 **명시적 옵트인**이다 (D104). 켜지 않으면 위 클라이언트가 그대로 나간다.
     from backend.agent.llm_cache import CachingClient, cache_enabled  # noqa: PLC0415
 
     if cache_enabled():
