@@ -1144,6 +1144,7 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pdfplumber" },
+    { name = "pypdfium2" },
     { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
@@ -1168,6 +1169,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.28.1" },
     { name = "pdfplumber", specifier = ">=0.11" },
+    { name = "pypdfium2", specifier = ">=5.9.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "uvicorn", specifier = ">=0.51.0" },
 ]

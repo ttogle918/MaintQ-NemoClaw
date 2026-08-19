@@ -399,6 +399,33 @@ def parse_article_response(payload: dict, *, article: str, law_ref_id: str = "")
     }
 
 
+def _store_payload(law_ref_id: str, article: str, payload: dict) -> None:
+    """법제처 원본 응답을 `data/raw/external/law/` 에 소급 보관한다 (D103 · P28 ⓐ).
+
+    ⛔ **지연 import + ROOT 부트스트랩** — `spikes/law_fetch_contract.py` 는 30개 스파이크 중
+    유일하게 `sys.path` 에 REPO_ROOT 를 넣지 않는다(`data/rules` 만 넣는다). 이 함수를
+    최상단에서 import 하면 그 스파이크가 `ModuleNotFoundError` 로 전멸한다.
+    `_get_json` 의 `import httpx  # noqa: PLC0415` 지연 import 와 같은 형태다.
+
+    key 는 내용 주소(`content_key`) — 같은 응답을 다시 받아도 파일이 늘지 않고,
+    개정되면 새 파일이 는다. meta 는 allowlist 가 정확히 받는 2개(law_ref_id·article)만
+    넘긴다 — 요청 파라미터(OC·MST·JO)·헤더는 넘기지 않는다(D103).
+
+    실패해도 수집을 막지 않는다 — 예외를 삼키고 경고만 남긴다. 원본 보관은
+    수집의 부수효과이지 필수조건이 아니다(D75, 기존 동작 불변).
+    """
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from data.external.store import ExternalStoreError, content_key, store_response  # noqa: PLC0415
+
+    try:
+        key = content_key(law_ref_id, payload)
+        store_response("law", key, payload, meta={"law_ref_id": law_ref_id, "article": article})
+    except (ExternalStoreError, OSError) as exc:
+        print(f"[경고] 원본 보관 실패({law_ref_id}): {type(exc).__name__}", file=sys.stderr)
+        return None
+
+
 def _fetch_with_meta(law_ref_id: str, *, timeout: float = DEFAULT_TIMEOUT) -> tuple[dict, dict]:
     """`fetch_from_api` 의 본체. 결과표·검증용 계측치를 함께 돌려준다.
 
@@ -426,6 +453,7 @@ def _fetch_with_meta(law_ref_id: str, *, timeout: float = DEFAULT_TIMEOUT) -> tu
         "JO": jo,
     }
     payload = _get_json(SERVICE_URL, params, timeout)
+    _store_payload(law_ref_id, article, payload)
     fetched = parse_article_response(payload, article=article, law_ref_id=law_ref_id)
 
     units = [

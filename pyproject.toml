@@ -11,6 +11,10 @@ dependencies = [
     "mcp>=1.28.1",
     # M1 데이터 파이프라인 (SP1 EDA·extract_error_codes.py에서 사용)
     "pdfplumber>=0.11",
+    # 단일 페이지 PDF 분할 (data/external/elice_docvision.py, D105). pdfplumber 의
+    # 전이 의존성으로 이미 설치돼 있었으나 직접 선언으로 승격 — pdfplumber 가 의존성을
+    # 바꾸면 조용히 깨지는 것을 막는다.
+    "pypdfium2>=5.9.0",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.51.0",
 ]
