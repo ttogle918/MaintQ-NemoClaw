@@ -121,7 +121,7 @@ DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`err
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **18개**(`npx next build` — **Sprint 13 은 프론트 무변경이라 재실행 불필요**, Sprint 10
+프론트 라우트 **18개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 **17개**다. 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이 다르다**. 17로 '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라 재실행 불필요**, Sprint 10
 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가
 `/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade`
 2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:

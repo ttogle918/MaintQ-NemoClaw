@@ -276,7 +276,7 @@
     <code>D104</code>(LLM 응답 캐시, 기본 꺼짐 · 캐시 히트는 D55 재생으로 표식해 지표 분모 제외) ·
     <code>D105</code>(Elice DocVision을 <b>독립 2차 판독기</b>로 도입, <b>정답지로 취급하지 않음</b>).<br>
     3자 대조 엔진(<code>data/verify_actions_absence.py</code>)이 34페이지(1,530원) 실판독으로 저장소 안에서 서로 충돌하던 세 진단을 판가름했습니다:
-    <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 3 · RECOVERABLE 1 · INCONCLUSIVE 0</code>.
+    <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0 · INCONCLUSIVE 0</code>.
     <code>_pending_review</code>(MQ-911)의 "매뉴얼에 원래 없음"이 24건에서 맞았고, <code>extract_triage</code>의 "S100 25건은 재추출로 회수"와
     백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 회수는 <code>iG5A NTC</code> 1건뿐(D99 재승인 대기)입니다.
     ⛔ 회수 건수는 목표가 아니었습니다 — <b>부재가 사실로 확정되는 것도 유효한 산출</b>입니다(절대규칙 3 위반 방지).
@@ -643,7 +643,7 @@
       <b>법령 원문 8조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
       <b>126조가 채운 것은 "주기"입니다.</b> 93조는 <i>안전검사를 받아야 한다</i>까지만 말하고 <b>몇 년마다인지는 시행규칙에 있습니다</b> — 컨베이어는 <b>설치 후 3년 이내 최초, 이후 2년마다</b>. 이 값 없이 <code>SAFETY-INSPECTION</code> 룰이 기한을 말하면 그건 근거 없는 해석입니다. 그래서 룰의 <code>law_refs</code>가 2건이 되고 <code>rule_version</code>이 올라갔습니다.<br>
       마지막 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인을 거쳐 2026-08-13 수집 완료</b>됐습니다 — 계층 1 은 <b>8/8 FETCHED</b> 입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b><br>
-      <b>Elice 재판독 34페이지가 새로 "실제 데이터"에 들어왔지만, "정답지"로 격상되지는 않습니다(D105).</b> InsuQ 실측 오탈자(<code>용어풀이</code>→<code>용어풀0</code>)가 자동 병합을 반증하므로, Elice 응답은 <code>_pending_review</code>·<code>extract_triage</code>와 <b>나란히 대조되는 3번째 진단</b>일 뿐입니다. 판독 결과 <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 3 · RECOVERABLE 1</code> — <code>error_codes.json</code> 정본은 <b>아직 한 글자도 바뀌지 않았습니다</b>. 회수 후보(<code>iG5A NTC</code>) 1건이 D99 게이트를 통과해야 실제로 반영됩니다.
+      <b>Elice 재판독 34페이지가 새로 "실제 데이터"에 들어왔지만, "정답지"로 격상되지는 않습니다(D105).</b> InsuQ 실측 오탈자(<code>용어풀이</code>→<code>용어풀0</code>)가 자동 병합을 반증하므로, Elice 응답은 <code>_pending_review</code>·<code>extract_triage</code>와 <b>나란히 대조되는 3번째 진단</b>일 뿐입니다. 판독 결과 <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0</code> — <code>error_codes.json</code> 정본은 <b>아직 한 글자도 바뀌지 않았습니다</b>. 회수 후보(<code>iG5A NTC</code>) 1건이 D99 게이트를 통과해야 실제로 반영됩니다.
     </div>
   </section>
 
