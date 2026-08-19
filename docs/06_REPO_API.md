@@ -28,6 +28,8 @@ MaintQ/
 ├── uv.lock                    # 재현 가능한 의존성 잠금 (D27)
 ├── .python-version            # Python 버전 고정 (D27)
 ├── .gitignore                 # data/raw/*(manifest.json 제외)·*.db·.env·.venv
+│                              #   예외: data/raw/external/(응답 JSON + README.md 는 git 추적 — D103,
+│                              #   CLAUDE.md 절대규칙 5 예외 ㉠). 캐시 중간 산물(임시 PDF 조각)은 계속 제외
 ├── .claude/
 │   ├── commands/              # /sprint · /stage · /done · /checkpoint
 │   ├── skills/                # 도메인 5종 + 워크플로우 3종(sprint·stage·done)
@@ -50,8 +52,14 @@ MaintQ/
 │   │   ├── rules/*.json       #   계층 2 해석 룰 (처분 플래그 전용, disposal_type 필수)
 │   │   ├── pending_revisions/ #   개정본 대기 (applied: null|intent|confirmed — D75)
 │   │   ├── engine.py          #   룰 엔진 (build_facts·evaluate_rule·check_disposal_blockers)
-│   │   ├── fetch_laws.py      #   법령 수집기 (수집 fetch_from_api + 적용 apply_fetch 분리 — 둘 다 완료)
+│   │   ├── fetch_laws.py      #   법령 수집기 (수집 fetch_from_api + 적용 apply_fetch 분리 — 둘 다 완료.
+│   │   │                      #   `_store_payload` 가 응답 payload 를 store.py 로 소급 보관 — D103·MQ-1305)
 │   │   └── test_rules.py      #   pytest — 발화 가능성·해제 가능성 회귀 (D77·D78)
+│   ├── external/               # Sprint 13 신설 — 외부 API 응답 원본 보관 규약 (D103)
+│   │   ├── store.py           #   보관 모듈 — 유일한 기입 경로. 봉투·메타 allowlist·내용 주소 멱등
+│   │   ├── elice_docvision.py #   Elice DocVision 클라이언트 (D105) — 캐시 우선, 지출 전 예외
+│   │   └── test_elice_docvision.py  # pytest — 지출 가드 13건 (네트워크 전 방어선)
+│   ├── verify_actions_absence.py    # `actions` 결측 34건 3자 대조 엔진 (파서·Elice·정본, D99 게이트 통과)
 │   └── analysis/residual_curve.md  # 잔가곡선 산출 근거 + 호가 데이터 한계 실증 (D72→D74)
 │
 ├── mcp_server/
@@ -114,7 +122,7 @@ MaintQ/
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
-│   │                          # **29종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
+│   │                          # **31종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
 │   ├── write_tool_contract.py # 쓰기 도구 **3종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84·D98)
@@ -125,7 +133,8 @@ MaintQ/
 │   ├── s10_smoke.py           # 실 서버·실 MCP 로 S9→S10 관통
 │   ├── ui_honesty_contract.py # D87 — 미확인 상태가 "확인됨"으로 렌더되지 않는가
 │   ├── a2a_identity_contract.py # D91~D96 — partner_links CHECK · request_chain_id "쓰는 쪽 없음" · 자격증명 격리
-│   └── repair_flow_contract.py  # D98 — create_repair_record draft INSERT · /api/repairs 403/409/422 경계
+│   ├── repair_flow_contract.py  # D98 — create_repair_record draft INSERT · /api/repairs 403/409/422 경계
+│   └── external_store_contract.py # D103·D105 — store.py 왕복·메타 allowlist·.gitignore 3종·대조 매트릭스 오라클
 │
 ├── eval/
 │   ├── testset.json           # 에러코드 20개 + 기대 부품/분기
