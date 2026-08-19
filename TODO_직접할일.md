@@ -200,7 +200,8 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 ## Sprint 13 — Elice 실호출 승인 (2026-08-19 신설)
 
-- [ ] 🔴 **Elice DocVision 실호출 승인 — 34페이지 × 45원 = 1,530원** (예산 40,000원의 3.8%)
+- [x] ✅ **Elice DocVision 실호출 — 2026-08-19 사용자 승인 후 집행 완료. 실지출 1,530원**
+  (34/34페이지 · 2단 구매: 파일럿 90원 → 나머지 1,440원 · 예산 40,000원의 3.8%)
   - 무엇을 사나: S100 `p.412~425`(14p) · iG5A 트러블슈팅 `p.20~31`(12p) · iG5A 표준본 `p.200~207`(8p)
   - 왜 사나: `actions` 결측 34건에 대해 저장소 안에 **서로 충돌하는 진단이 셋** 있는데
     (`_pending_review` "원래 없음" vs `extract_triage` "`CELL_SPLIT`" vs 백로그 "재추출 후보")
@@ -212,8 +213,14 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 설계: `docs/superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md`
   - ⛔ 지출은 **Stage 3 한 곳**에만 있다. Stage 1·2 는 네트워크·지출 0
   - ✅ `.env.example` 키 이름 등재는 **완료**(`ELICE_API_KEY`·`ELICE_DOCVISION_URL`, 값 없음)
-- [ ] **판독 결과 반영 시 D99 재승인** — `RECOVERABLE` 판정분이 나오면 정본 병합 전 사람 검수
-  (기존 MQ-919 경로와 동일). 나오지 않으면 이 항목은 자동 소멸한다
+- [ ] 🔴 **D99 재승인 — 대상은 `iG5A NTC` 단 1건이다** (2026-08-19 판독 결과)
+  판정 34건 중 `RECOVERABLE` 은 **1건뿐**이다. 정본 병합 전 사람 검수가 필요하다(MQ-919 경로).
+  - 검수 자료: `data/analysis/actions_absence_verification.md` (기계 생성, 근거 원문 열 포함)
+  - ⛔ 이 스프린트는 정본을 쓰지 않았다(D99) — sha256 불변 확인됨
+- [ ] **`DISAGREE` 6건 확인** — 사람이 볼 곳으로 판정된 것들이다. 다만 **4건은 알려진 위양성**이다:
+  `S100 EFAN`·`iG5A COL` 은 설명·원인문의 `교체` 가 조치 표지어에 걸린 것이고,
+  `S100 LCW`·`LOR` 은 **`error_name` 이 둘 다 `Lost Command` 라 앵커가 충돌**했다.
+  실제 판단이 필요한 것은 **`iG5A EEP`·`HWT` 2건**(파서는 귀속 불가, 판독기는 앵커만 확인)
 
 ## actions 검수
 
