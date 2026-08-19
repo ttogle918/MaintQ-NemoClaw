@@ -448,3 +448,29 @@ tool-builder 가 *"CLAUDE.md 기준선이 낡았다(기록 871/252 vs 실측 872
 4. **참고 N1**(reviewer) — D103 ⓔ *"`store.py` 단일 경유"* 는 현재 강제 수단이 0이다. MQ-1310 에 *"`store.py` 외 모듈에 `raw/external` 경로 리터럴 0건 + 양성 축"* 정적 검사 1행 추가 권고
 5. **참고 N2**(reviewer) — `store_response` 는 `exists()` → `os.replace` check-then-act 라 동시 실행 시 append-only 가 원리적으로 뚫린다. 단일 프로세스 스크립트라 실해 없음
 
+---
+
+## Stage 2 완료 (2026-08-19)
+
+**커밋**: `4b8f8e8` — `[M1] feat: Sprint 13 Stage 2 — 보관 모듈 소비자 2종 + Elice 도입 (D105)`
+
+| TASK | 산출물 | 결과 |
+|---|---|---|
+| MQ-1305 | `data/rules/fetch_laws.py` (`_store_payload` 신설 + 호출 1지점) | **지뢰 2종 회피 확인** — 금칙어 4종 실측 **0건**, import 는 419행 **함수 안 지연 import**. `law_fetch_contract` **28건 1회차 PASS** |
+| MQ-1306 | `data/external/elice_docvision.py`(신규) · `pyproject.toml` · `uv.lock` | 캐시 확인(184행)이 `_submit_and_wait`(212행)보다 **앞** · `requests` 0건 · `pypdfium2>=5.9.0` 직접 선언 |
+| MQ-1307 | `docs/10_DECISIONS.md` **D105** | 1행 +0 −0 · 4셀 · 요구 문구 3종 포함 |
+| MQ-1308 | `data/external/test_elice_docvision.py`(신규) | **13 passed** · 실 캐시 디렉터리 미생성(격리 확인) |
+
+**회귀**: spikes **30스위트 872건 · FAIL 0 · 재시도 0** · pytest **83**(rules 46 + llm_cache 24 + elice 13) · `ruff check` 통과 · ⛔ 재시드 안 함 · ⛔ 네트워크·지출 **0**
+
+**reviewer**: **PASS** — Critical·Important·Minor **전부 0건**. 구현자 우려 3건 판단:
+- `_elements_of` 의 `payload.get("body", payload)` — 오인 시 **fail-soft**(빈 리스트) 방향이고 판정 정본이 아니라 파싱 편의 함수 → 위반 아님. 실 Elice 스키마 검증 전까지 **관찰 항목**
+- 임시 디렉터리 `rmdir()` 실패 무시 — 지출·정본과 무관한 부수 정리라 적절한 견고화
+- `_no_network` autouse fixture — **"과보호가 아니라 D105 가 요구하는 수준의 방어"**(reviewer 판정)
+
+### Stage 3 로 넘기는 미결
+
+1. 🔴 **D 범위 표기가 또 낡았다** — D105 신설로 `D1~D104`(5파일)가 어긋났다. **한 세션에 두 번째**다(`/done` 이 D102→D104 로 맞춘 직후). **MQ-1311 이 반드시 처리**할 것
+2. ⚠ `_elements_of` 의 봉투/생응답 정규화는 **실 Elice 응답으로 검증되지 않았다** — Stage 5 실판독 때 첫 응답에서 확인할 것
+3. `uv.lock` 의 `pypdfium2` 잠금이 실제로 `uv sync` 가능한지는 육안 확인에 그쳤다(reviewer ⚠)
+
