@@ -110,6 +110,14 @@ _DELTAS = [("text", "답"), ("tool_use", ToolUse(id="t1", name="lookup_error_cod
                                                 input={"model": "iG5A"})), ("end", "STOP")]
 
 
+def _cache_files(tmp_path):
+    """카세트 파일만 센다 — Task 7 이 같은 디렉터리에 사이드카 통계 파일
+    (`_stats.json`)을 함께 쓰기 시작해서, 기존 `glob("*.json")` 카운트가 그대로면
+    사이드카까지 카세트로 세어 깨진다. 카세트 키는 sha256 hex(64자) 파일명이라
+    `_stats.json` 과 이름으로 구분된다."""
+    return [p for p in tmp_path.glob("*.json") if p.name != lc.STATS_NAME]
+
+
 def test_miss_calls_inner_and_records(tmp_path):
     inner = _Fake(_DELTAS)
     c = lc.CachingClient(inner, provider="p", model="m", root=tmp_path)
@@ -117,7 +125,7 @@ def test_miss_calls_inner_and_records(tmp_path):
     assert inner.calls == 1
     assert c.last_hit is False and c.hits == 0 and c.misses == 1
     assert [k for k, _ in out] == ["text", "tool_use", "end"]
-    assert len(list(tmp_path.glob("*.json"))) == 1
+    assert len(_cache_files(tmp_path)) == 1
 
 
 def test_hit_does_not_touch_inner(tmp_path):
@@ -148,7 +156,7 @@ def test_corrupted_schema_is_treated_as_miss(tmp_path):
     """`_schema` 가 다르면(구버전·다른 프로그램이 쓴 파일 등) 캐시가 있어도 미스로 취급한다
     (D62 — 모름을 통과로 바꾸지 않는다). 예외로 실행을 죽이지 않고 inner 로 폴백한다."""
     _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
-    [f] = list(tmp_path.glob("*.json"))
+    [f] = _cache_files(tmp_path)
     record = json.loads(f.read_text(encoding="utf-8"))
     record["_schema"] = "bogus.v0"
     f.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
@@ -163,7 +171,7 @@ def test_corrupted_schema_is_treated_as_miss(tmp_path):
 
 def test_corrupted_deltas_not_a_list_is_treated_as_miss(tmp_path):
     _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
-    [f] = list(tmp_path.glob("*.json"))
+    [f] = _cache_files(tmp_path)
     record = json.loads(f.read_text(encoding="utf-8"))
     record["deltas"] = "not-a-list"
     f.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
@@ -181,7 +189,7 @@ def test_corrupted_unknown_kind_is_treated_as_miss(tmp_path):
     그 관용성이 손상된 캐시를 조용히 이상한 델타로 재생하지 않도록 로드 시점에서 kind
     화이트리스트({"text","tool_use","end"})를 검사한다."""
     _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
-    [f] = list(tmp_path.glob("*.json"))
+    [f] = _cache_files(tmp_path)
     record = json.loads(f.read_text(encoding="utf-8"))
     record["deltas"][0]["kind"] = None
     f.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
@@ -198,7 +206,7 @@ def test_corrupted_utf8_bytes_is_treated_as_miss(tmp_path):
     """캐시 파일 바이트가 깨져 UTF-8 디코딩이 실패해도 예외가 새지 않고 미스로
     폴백해야 한다 — `UnicodeDecodeError` 는 `OSError` 의 하위 클래스가 아니다."""
     _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
-    [f] = list(tmp_path.glob("*.json"))
+    [f] = _cache_files(tmp_path)
     f.write_bytes(b"\xff\xfe\x00invalid")
 
     inner = _Fake(_DELTAS)
@@ -231,7 +239,7 @@ def test_interrupted_stream_is_not_cached(tmp_path):
     with pytest.raises(RuntimeError):
         asyncio.run(go())
 
-    assert len(list(tmp_path.glob("*.json"))) == 0
+    assert len(_cache_files(tmp_path)) == 0
 
 
 from backend.agent.trace import TraceWriter  # noqa: E402
@@ -371,6 +379,48 @@ def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path):
     assert all(e.data.get("replay") is True for e in tool_calls), (
         f"tool_call 이벤트에 replay:true 가 안 실렸다 — {[e.data for e in tool_calls]}"
     )
+
+
+def test_reset_stats_then_read_is_zero(tmp_path):
+    """`reset_stats()` 는 파일이 없어도 무동작이어야 한다(예외 없음)."""
+    lc.reset_stats(root=tmp_path)
+    assert lc.read_stats(root=tmp_path) == {"hits": 0, "misses": 0}
+
+
+def test_miss_bumps_sidecar_misses(tmp_path):
+    c = lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path)
+    _drain(c, **_KW)
+    assert lc.read_stats(root=tmp_path) == {"hits": 0, "misses": 1}
+
+
+def test_hit_after_miss_bumps_sidecar_hits(tmp_path):
+    _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
+    _drain(lc.CachingClient(_Boom(), provider="p", model="m", root=tmp_path), **_KW)
+    assert lc.read_stats(root=tmp_path) == {"hits": 1, "misses": 1}
+
+
+def test_stats_line_reads_sidecar_across_instances(tmp_path):
+    """모듈 레벨 `stats_line()` 은 인스턴스가 갈려도(=다른 프로세스를 흉내) 사이드카에서
+    누적치를 읽는다 — `CachingClient.stats_line()`(인스턴스 메서드)과는 다른 함수다."""
+    _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
+    _drain(lc.CachingClient(_Boom(), provider="p", model="m", root=tmp_path), **_KW)
+    line = lc.stats_line(root=tmp_path)
+    assert "1/2" in line and "50.0%" in line
+
+
+def test_sidecar_write_failure_does_not_break_streaming(tmp_path, monkeypatch):
+    """사이드카 쓰기가 실패해도(예: 상위 경로가 디렉터리가 아님) 캐시 스트림 자체는
+    정상 완주해야 한다 — 이건 계측이지 기능이 아니다."""
+    blocker = tmp_path / "blocker"
+    blocker.write_text("나는 파일이다 — 디렉터리가 아니다", encoding="utf-8")
+    monkeypatch.setattr(lc, "stats_path", lambda root=None: blocker / lc.STATS_NAME)
+
+    inner = _Fake(_DELTAS)
+    c = lc.CachingClient(inner, provider="p", model="m", root=tmp_path)
+    out = _drain(c, **_KW)
+    assert inner.calls == 1
+    assert [k for k, _ in out] == ["text", "tool_use", "end"]
+    assert c.misses == 1  # 인스턴스 카운터는 사이드카 실패와 무관하게 정상 동작한다
 
 
 def test_get_client_wraps_only_when_enabled(monkeypatch):

@@ -31,6 +31,14 @@ ENV_FLAG: Final[str] = "MAINTQ_LLM_CACHE"
 CACHE_ROOT: Final[Path] = Path(__file__).resolve().parents[2] / "data" / "cache" / "llm"
 SCHEMA: Final[str] = "maintq.llmcache.v1"
 
+#: 사이드카 히트율 통계 파일명 — 캐시 항목(sha256 hex 64자 파일명)과 겹치지 않는다.
+#: 프로세스 경계를 넘겨야 하는 상황(`eval/run_eval.py::_start_server` 가 백엔드를 별도
+#: OS 서브프로세스로 띄운다)에서 인스턴스 카운터 대신 이 파일을 읽고 쓴다 — 설계 스펙
+#: §6-2. 로그로 풀지 않는 이유는 이 파일 상단 독스트링이 아니라 태스크 브리프(Task 7)를
+#: 참조: 2026-08-12 사고 이력(로그 증설이 서버 이벤트 루프를 멈춘 적이 있다) 때문에
+#: `eval/run_eval.py::_start_server` 근처에는 로그를 늘리지 않는다.
+STATS_NAME: Final[str] = "_stats.json"
+
 
 def cache_enabled() -> bool:
     """`MAINTQ_LLM_CACHE` 가 정확히 `on` 일 때만 True. 빈 값·미설정은 꺼짐(D56 선례)."""
@@ -115,6 +123,80 @@ def _load_cached_deltas(path: Path) -> list[LlmDelta] | None:
         return None
 
 
+def stats_path(root: Path | None = None) -> Path:
+    """사이드카 통계 파일 경로. `root` 를 안 주면 기본 캐시 디렉터리(`CACHE_ROOT`)."""
+    base = Path(root) if root is not None else CACHE_ROOT
+    return base / STATS_NAME
+
+
+def reset_stats(root: Path | None = None) -> None:
+    """사이드카 통계 파일을 지운다. 없으면 무동작(예외를 내지 않는다).
+
+    `eval/run_eval.py` 가 실행 시작 시 부른다 — 이번 실행의 수치만 재기 위해서다.
+    """
+    try:
+        stats_path(root).unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        # 계측용 파일이다 — 삭제가 안 돼도(권한 등) 실행을 막지 않는다.
+        pass
+
+
+def read_stats(root: Path | None = None) -> dict[str, int]:
+    """사이드카에서 `{"hits": int, "misses": int}` 를 읽는다.
+
+    파일이 없거나 손상됐으면 `{"hits": 0, "misses": 0}` 을 돌려준다 — 카세트 본체
+    (`_load_cached_deltas`)와 같은 태도로, 계측 파일이 깨졌다고 실행을 죽이지 않는다.
+    """
+    try:
+        record = json.loads(stats_path(root).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"hits": 0, "misses": 0}
+    if not isinstance(record, dict):
+        return {"hits": 0, "misses": 0}
+    hits, misses = record.get("hits"), record.get("misses")
+    if not isinstance(hits, int) or not isinstance(misses, int):
+        return {"hits": 0, "misses": 0}
+    return {"hits": hits, "misses": misses}
+
+
+def stats_line(root: Path | None = None) -> str:
+    """`캐시 히트 N/M (히트율 X%)` — **사이드카 파일에서 읽는** 모듈 레벨 버전.
+
+    ⚠ `CachingClient.stats_line()`(인스턴스 메서드, 아래)과 이름이 같지만 다른 함수다.
+    인스턴스 메서드는 그 인스턴스 하나가 겪은 호출만 본다. 이 함수는 프로세스 경계를
+    넘어 사이드카 파일에 누적된 값을 읽는다 — `run_eval.py` 가 서브프로세스로 띄운
+    백엔드 서버 안의 `CachingClient` 인스턴스에는 접근할 수 없으므로, 서버가 매 호출마다
+    갱신해 둔 이 파일을 CLI 프로세스가 읽어 인쇄한다(설계 스펙 §6-2).
+    """
+    stats = read_stats(root)
+    hits, misses = stats["hits"], stats["misses"]
+    total = hits + misses
+    rate = (hits / total * 100) if total else 0.0
+    return f"캐시 히트 {hits}/{total} (히트율 {rate:.1f}%)"
+
+
+def _bump_stats(root: Path | None, *, hit: bool) -> None:
+    """사이드카 통계를 read-modify-write 로 1 증가시킨다.
+
+    개발 보조물이라 경합은 고려하지 않는다 — 단일 프로세스 전제(`SessionStore` 독스트링이
+    같은 전제를 적어 뒀다). 🔴 이 함수의 실패가 LLM 호출을 죽이면 안 된다 — 계측이지
+    기능이 아니다. 그래서 파일 IO/직렬화 실패를 조용히 삼킨다.
+    """
+    try:
+        stats = read_stats(root)
+        if hit:
+            stats["hits"] += 1
+        else:
+            stats["misses"] += 1
+        path = stats_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(stats, ensure_ascii=False), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
 class CachingClient:
     """`LlmClient` 데코레이터 — 응답만 재생하고 도구 실행은 그대로 둔다.
 
@@ -158,6 +240,7 @@ class CachingClient:
             if deltas is not None:
                 self.last_hit = True
                 self.hits += 1
+                _bump_stats(self._root, hit=True)
 
                 async def replay():
                     for d in deltas:
@@ -168,6 +251,7 @@ class CachingClient:
 
         self.last_hit = False
         self.misses += 1
+        _bump_stats(self._root, hit=False)
         inner_stream = self._inner.stream(system=system, messages=messages, tools=tools)
 
         async def record_and_yield():
@@ -200,7 +284,13 @@ class CachingClient:
         return record_and_yield()
 
     def stats_line(self) -> str:
-        """`캐시 히트 N/M (히트율 X%)`. 실익이 있는지 **재고 나서** 판단하기 위한 실측치다."""
+        """`캐시 히트 N/M (히트율 X%)`. 실익이 있는지 **재고 나서** 판단하기 위한 실측치다.
+
+        ⚠ 이 **인스턴스** 메서드는 `self.hits`/`self.misses` 만 본다 — 이 인스턴스가
+        생성된 뒤 겪은 호출만 반영한다. 프로세스 경계를 넘는 누적치가 필요하면(예:
+        `eval/run_eval.py` 가 서브프로세스로 띄운 서버 안의 인스턴스) 모듈 레벨
+        `llm_cache.stats_line(root=...)` 를 쓴다 — 그건 사이드카 파일에서 읽는다.
+        """
         total = self.hits + self.misses
         rate = (self.hits / total * 100) if total else 0.0
         return f"캐시 히트 {self.hits}/{total} (히트율 {rate:.1f}%)"

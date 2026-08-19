@@ -96,6 +96,7 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env", override=False)
 
 from backend.agent.llm_cache import ENV_FLAG  # noqa: E402 — 카세트 env 키는 생산자가 정본이다
+from backend.agent.llm_cache import reset_stats, stats_line  # noqa: E402 — 히트율 사이드카(Task 7)
 from backend.agent.loop import (  # noqa: E402 — 마커 형식은 생산자(loop.py)가 정본이다
     LLM_END_MARKER,
     TRUNCATION_REASONS,
@@ -1591,6 +1592,11 @@ def main() -> None:
                 file=sys.stderr,
             )
 
+    # 이번 실행의 히트율만 재기 위해 사이드카를 리셋한다(설계 스펙 §6-2). `--replay` 여부와
+    # 무관하게 항상 리셋 — 기본 모드는 캐시가 꺼져 있으니 어차피 0/0 이 나오고, 그 자체가
+    # "캐시를 안 썼다"는 정직한 표시다(Task 7).
+    reset_stats()
+
     all_items = load_testset(args.testset)
     validate_testset(all_items)
     print(f"testset 검증 통과: {len(all_items)}문항 ({args.testset})")
@@ -1704,6 +1710,10 @@ def main() -> None:
     _print_summary(agg, perm_result)
     _print_llm_end(llm_end)
     _print_flip(flip)
+    # `--replay` 여부와 무관하게 항상 인쇄한다(설계 스펙 §6-2) — 기본 모드에서는 캐시가
+    # 꺼져 있으므로 0/0 이 나오고, 그것 자체가 "이번 실행은 캐시를 안 썼다"는 정직한
+    # 표시다. 서버는 별도 서브프로세스라 인스턴스에 접근할 수 없어 사이드카를 읽는다.
+    print(stats_line())
     print(f"\n리포트: {report_path}")
 
 
