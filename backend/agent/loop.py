@@ -419,6 +419,13 @@ async def run_turn(
                 finish_raw = value
                 saw_end = True
 
+        # 위 루프 안의 판정과 **같은 조건을 멱등하게 한 번 더** 건다. 카세트가 빈 델타
+        # 목록으로 끝나면(정상 경로에서는 llm_cache.py 가 그런 카세트를 애초에 안 쓰지만,
+        # 이미 존재하는 파일이나 향후 리팩터가 그 전제를 깰 수 있다) `async for` 루프가
+        # 한 번도 안 돌아 안쪽 판정이 통째로 스킵된다 — 그 경우에도 히트라면 여기서 켠다.
+        if not trace.replay and getattr(llm, "last_hit", False):
+            trace.replay = True
+
         # 종료 사유 기록. 스트림 실패도 같은 줄로 남긴다 — 마커가 아예 없는 것과
         # "실패해서 끝났다"는 다른 사실이고, 뒤섞이면 잘림 집계의 분모가 흐려진다.
         # `end` 델타를 안 흘리는 클라이언트(`ScriptedClient` 기본)는 기록하지 않는다:

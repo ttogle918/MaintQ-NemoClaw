@@ -241,6 +241,13 @@ def test_trace_replay_marks_events_when_cached(tmp_path, monkeypatch):
     """히트 세션은 replay 표식이 붙어 eval/score.has_replay() 가 분모에서 뺀다 (D55).
 
     이 한 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다 — 이 테스트가 그것만 본다.
+
+    ⚠ **DB 까지는 검증하지 않는다.** `tmp_path / "t.db"` 는 스키마가 없는 빈 sqlite 파일이라
+    `trace.tool_call(...)` 의 `TraceWriter._persist` 는 `traces` 테이블이 없어 예외를 삼키고
+    `persist_errors` 를 올린 뒤 조용히 리턴한다(모듈 설계상 저장 실패가 스트림을 끊지 않는다).
+    이 테스트가 보는 것은 **메모리상 `event.data`** 뿐이다 — 실제로 DB 행이 쓰였는지는
+    검증하지 않는다. `assert trace.persist_errors == 0` 을 넣으면 이 테스트 자체가 (스키마가
+    없으므로) 항상 실패해 목적과 다른 이유로 깨진다.
     """
     trace = TraceWriter("sess-cache-test", db_path=tmp_path / "t.db")
     assert trace.replay is False
@@ -263,9 +270,104 @@ def test_loop_wires_replay_marker():
 
     부재 검사가 아니라 **존재 검사**이지만, 파일을 못 읽었을 때 조용히 통과하지 않도록
     앵커를 함께 본다.
+
+    단순 `in` 검사(문자열이 파일 어딘가에 있다)는 배선이 **잘못된 위치**로 옮겨져도
+    통과한다 — 예를 들어 `last_hit` 판정을 `stream = _safe_stream(...)` 직후(=
+    루프가 시작되기도 전이라 항상 이전 델타의 값을 읽는 자리)로 옮겨도 문자열
+    자체는 여전히 파일에 있으므로 그대로 PASS 해버린다. 그래서 **위치(순서)** 를
+    비교한다: `last_hit` 판정은 델타 소비 루프(`async for ... in stream:`) **안쪽**
+    에서, 그리고 스트림 실패 분기(`if kind == "_stream_error"`)보다 **먼저** 읽혀야
+    한다 — 그래야 그 턴의 첫 델타 처리 시점에 표식이 붙는다.
     """
     src = (ROOT / "backend" / "agent" / "loop.py").read_text(encoding="utf-8")
     anchors = [a for a in ("async def run_turn(", "_safe_stream(") if a in src]
     assert len(anchors) == 2, f"loop.py 앵커 {anchors} — 파일이 바뀌었거나 못 읽었다"
     assert "last_hit" in src, "run_turn 에 캐시 히트 → trace.replay 배선이 없다"
     assert "trace.replay = True" in src
+
+    i_loop = src.index("async for kind, value in stream:")
+    i_last_hit = src.index('getattr(llm, "last_hit"')
+    i_stream_error = src.index('if kind == "_stream_error"')
+    assert i_loop < i_last_hit < i_stream_error, (
+        "last_hit 판정이 델타 소비 루프 안쪽 · 스트림 실패 분기보다 앞에 있어야 한다 "
+        f"(loop={i_loop}, last_hit={i_last_hit}, stream_error={i_stream_error})"
+    )
+
+
+class _CachedHitLlm:
+    """`last_hit=True` 로 고정된 페이크 LLM — 카세트 히트를 흉내낸다.
+
+    `ScriptedClient`(backend/agent/llm.py)와 동작은 같지만(턴별 고정 델타를 흘린다)
+    `CachingClient` 가 히트일 때 노출하는 `last_hit` 속성을 함께 흉내낸다. 실제
+    `CachingClient` 를 쓰지 않는 이유는 이 테스트가 `run_turn` **배선**만 보면 되기
+    때문이다 — 카세트 파일 IO 는 `llm_cache.py` 쪽 단위 테스트가 이미 덮는다.
+    """
+
+    def __init__(self, script):
+        self._script = [list(turn) for turn in script]
+        self.calls = 0
+        self.last_hit = True
+
+    def stream(self, *, system, messages, tools):
+        deltas = self._script[self.calls]
+        self.calls += 1
+
+        async def gen():
+            for d in deltas:
+                yield d
+
+        return gen()
+
+
+class _FakeMcp:
+    """`run_turn` 이 쓰는 최소 표면(`list_tools`/`call`)만 흉내낸다 — 네트워크 없음."""
+
+    def __init__(self, responses):
+        self.responses = responses
+
+    async def list_tools(self):
+        return [{"name": n, "description": n, "inputSchema": {}} for n in self.responses]
+
+    async def call(self, tool, args=None, *, timeout=None):
+        return self.responses.get(tool, {"status": "error", "reason": "unknown_tool"})
+
+
+def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path):
+    """e2e — 기존 두 테스트는 판정식을 **재현**만 할 뿐이라 `loop.py` 의 배선이 통째로
+    빠져도 통과한다. 이 테스트는 실제 `run_turn` 을 한 턴 돌려, `last_hit=True` 인
+    LLM 으로 나온 `tool_call` 이벤트에 `replay: true` 가 실제로 실리는지 확인한다
+    (`spikes/agent_loop_contract.py` 의 `FakeMcp`/`drive()` 하네스 방식을 따른다).
+    """
+    from backend.agent.loop import SessionStore, run_turn
+
+    script = [
+        [("tool_use", ToolUse(id="t1", name="lookup_error_code", input={"model": "iG5A"}))],
+        [("text", "확인했습니다.")],
+    ]
+    llm = _CachedHitLlm(script)
+    mcp = _FakeMcp({"lookup_error_code": {"status": "ok", "code": "OHT"}})
+    trace = TraceWriter("sess-cache-e2e", db_path=tmp_path / "t.db")
+
+    async def go():
+        events = []
+        async for ev in run_turn(
+            session_id="sess-cache-e2e",
+            message="테스트",
+            equipment_id="INV-L1-01",
+            user_id="tech-01",
+            llm=llm,
+            client=mcp,
+            trace=trace,
+            store=SessionStore(),
+        ):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(go())
+
+    assert trace.replay is True, "히트 세션인데 trace.replay 가 켜지지 않았다"
+    tool_calls = [e for e in events if e.event == "tool_call"]
+    assert tool_calls, f"tool_call 이벤트가 없다 — events={[e.event for e in events]}"
+    assert all(e.data.get("replay") is True for e in tool_calls), (
+        f"tool_call 이벤트에 replay:true 가 안 실렸다 — {[e.data for e in tool_calls]}"
+    )

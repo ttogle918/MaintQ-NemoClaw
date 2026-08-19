@@ -177,6 +177,15 @@ class CachingClient:
                 yield delta
             # 스트림이 끝까지 온 경우에만 기록한다 — 도중에 끊긴 응답을 캐시하면
             # 다음 실행이 잘린 답을 "정상"으로 재생한다.
+            if not captured:
+                # 빈 델타 목록은 캐시하지 않는다. 이 카세트를 나중에 히트로 재생하면
+                # `record_and_yield` 가 아니라 `replay()`(위)가 델타를 하나도 안 흘리고
+                # 끝난다 — `run_turn` 의 델타 소비 루프 본문이 **한 번도 실행되지 않아**
+                # `trace.replay = True` 배선(loop.py)도 함께 건너뛴다. 그러면 캐시 히트가
+                # `eval/score.has_replay()` 의 분모에서 빠지지 않고 **무표식으로 지표에
+                # 섞인다** — 도중에 끊긴 응답을 캐시하지 않는 것과 같은 이유(잘못된 재생
+                # 방지)로, 빈 응답에도 같은 원칙을 적용한다.
+                return
             self._root.mkdir(parents=True, exist_ok=True)
             payload = {
                 "_schema": SCHEMA,
