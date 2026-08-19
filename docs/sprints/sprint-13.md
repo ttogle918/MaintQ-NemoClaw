@@ -292,17 +292,24 @@ READ_PLAN = (
 )  # 14+12+8 = 34p
 VERDICTS = ("CONFIRMED_ABSENT", "RECOVERABLE", "STILL_AMBIGUOUS", "DISAGREE", "INCONCLUSIVE")
 PARSER_CLAIMS = ("ABSENT_IN_MANUAL", "AMBIGUOUS", "NOT_FOUND_ON_PAGE", "UNCLASSIFIED", "NO_CLAIM")
-ELICE_AXES = ("ACTION_FOUND", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
+ELICE_AXES = ("ACTION_FOUND", "ROW_TEXT_ONLY", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
 ```
 
-**판정 매트릭스 (이 표가 계약이다)**
+⚠ **구현이 이 초안 이후 축을 5종으로 늘렸다** (`ROW_TEXT_ONLY` 신설, `data/verify_actions_absence.py`
+가 최신 소스 — 이 문서는 계획서일 뿐 구현 시점의 계약은 `docs/04_MCP_TOOLS.md` 가 아니라 코드
+자신이다). 판독 범위의 1차 표(트립·보호기능표)에는 앵커 행마다 **항상** 긴 설명 셀이 있어,
+그걸 `ACTION_FOUND` 로 세면 대조군이 자명 충족돼 리더 생존 검사(급소, 아래)가 원리적으로
+발화하지 못한다(리뷰 C1) — 그래서 "앵커 행에 긴 이웃 셀이 있을 뿐"인 경우를 `ROW_TEXT_ONLY`
+로 분리했다. 판정상으로는 `ANCHOR_ONLY` 와 동일하게 다룬다.
 
-| 파서 \ Elice | ACTION_FOUND | ANCHOR_ONLY | NO_ANCHOR | UNREAD |
-|---|---|---|---|---|
-| `ABSENT_IN_MANUAL` | **DISAGREE** | **CONFIRMED_ABSENT** | INCONCLUSIVE | INCONCLUSIVE |
-| `AMBIGUOUS` | **RECOVERABLE**(rowspan 1:1 귀속 시) / **STILL_AMBIGUOUS**(아니면) | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
-| `NOT_FOUND_ON_PAGE` | **RECOVERABLE** | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
-| `UNCLASSIFIED`·`NO_CLAIM` | RECOVERABLE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE |
+**판정 매트릭스 (구현 시점 실제 값 — 5열, `data/verify_actions_absence.py::_MATRIX` 가 정본)**
+
+| 파서 \ Elice | ACTION_FOUND | ROW_TEXT_ONLY | ANCHOR_ONLY | NO_ANCHOR | UNREAD |
+|---|---|---|---|---|---|
+| `ABSENT_IN_MANUAL` | **DISAGREE** | **CONFIRMED_ABSENT** | **CONFIRMED_ABSENT** | INCONCLUSIVE | INCONCLUSIVE |
+| `AMBIGUOUS` | **RECOVERABLE**(rowspan 1:1 귀속 시) / **STILL_AMBIGUOUS**(아니면) | DISAGREE | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
+| `NOT_FOUND_ON_PAGE` | **RECOVERABLE** | DISAGREE | DISAGREE | INCONCLUSIVE | INCONCLUSIVE |
+| `UNCLASSIFIED`·`NO_CLAIM` | RECOVERABLE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE | INCONCLUSIVE |
 
 ⚠ **`NO_ANCHOR` 는 절대 `CONFIRMED_ABSENT` 가 되지 않는다** — 양성 축이 죽은 상태에서 부재를 주장할 수 없다(P30 · D65).
 
@@ -334,7 +341,7 @@ ELICE_AXES = ("ACTION_FOUND", "ANCHOR_ONLY", "NO_ANCHOR", "UNREAD")
 
 ⚠ 세 조건: ⓐ **앵커를 `error_name` 으로 잡아야** 한다(①) ⓑ `actions_page` 는 31건 중 **3건만** 채워져 있다(D100: null = "출처 미기록") → 대조군 선정은 *"`actions` 보유 + 앵커 페이지가 판독 범위 안"* 으로 정의하고 **실제 발견 페이지를 리포트에 인쇄** ⓒ `ig5a-troubleshooting` 은 대조군이 **2건뿐**이라 대상별 판정 시 위양성 강등이 쉽다 → **대상별 판정을 쓰되 "대조군 2건, 통계적으로 약함"을 경고로 인쇄**한다.
 
-🔴 **리더 생존 검사 (이 태스크의 급소)**: `control_codes()` — 판독 범위 안에 있으면서 **`actions` 가 이미 있는** 코드(iG5A `OCT` p.204, S100 `FANW` p.421 등)를 같은 알고리즘으로 찾는다. **`ACTION_FOUND` 가 0건이면** `READER_BLIND` 경고 + **모든 `CONFIRMED_ABSENT` 를 `INCONCLUSIVE` 로 강등**한다. *"조치문이 실재하는 코드조차 못 찾는 판독기의 '없다'는 근거가 아니다."*
+🔴 **리더 생존 검사 (이 태스크의 급소)**: `control_codes()` — 판독 범위 안에 있으면서 **`actions` 가 이미 있는** 코드(iG5A `OCT` p.204, S100 `FANW` p.421 등)를 같은 알고리즘으로 찾는다. 초안 시점 생존 축은 "`ACTION_FOUND` 가 0건이면"이었으나, 구현 리뷰(C1)에서 **그 축 자체가 대조 대상과 무관하게 자명 참이 되는 결함**(판독 범위 1차 표에는 앵커 행마다 항상 긴 설명 셀이 있어 `ACTION_FOUND` 가 항상 ≥1이 됨)이 드러나 뒤집었다 — **생존 축은 정본 `actions` 문장 대조 통과 건수(`action_verified`)다.** `action_verified` 가 0건이면 `READER_BLIND` 경고 + **모든 `CONFIRMED_ABSENT` 를 `INCONCLUSIVE` 로 강등**한다. *"조치문이 실재하는 코드조차 못 찾는 판독기의 '없다'는 근거가 아니다."*
 
 **조인 무결성**: 결측 34건이 `_pending_review` 사유와 34/34 매칭돼야 하고, 실패분은 `NO_CLAIM` 으로 **표에 그대로 싣는다**(조용히 버리지 않는다).
 
