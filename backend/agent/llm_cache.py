@@ -79,3 +79,116 @@ def decode_delta(raw: dict[str, Any]) -> LlmDelta:
     if kind == "tool_use":
         return ("tool_use", ToolUse(id=raw["id"], name=raw["name"], input=raw.get("input") or {}))
     return (str(kind), raw.get("value"))
+
+
+#: `decode_delta` 가 받아도 되는 kind 화이트리스트. 이 밖은 캐시 파일 손상으로 본다.
+_KNOWN_KINDS = frozenset({"text", "tool_use", "end"})
+
+
+def _load_cached_deltas(path: Path) -> list[LlmDelta] | None:
+    """캐시 파일을 로드·검증한다. 손상됐으면 `None`(미스로 취급)을 돌려준다.
+
+    `decode_delta` 는 예상 밖 `kind`(예: `None`)에도 예외 없이 `("None", None)` 을
+    돌려준다 — 그 관용성이 손상된 캐시 파일을 조용히 이상한 델타로 재생하지 않도록,
+    로드 시점에서 `_schema`·`deltas` 형태·`kind` 화이트리스트를 검사한다(D62 — 모름을
+    통과로 바꾸지 않는다). 캐시는 개발 보조물이라 손상됐다고 예외를 던져 실행을 죽이지
+    않는다 — 캐시가 없는 것처럼 미스로 폴백한다.
+    """
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(record, dict) or record.get("_schema") != SCHEMA:
+        return None
+    raw_deltas = record.get("deltas")
+    if not isinstance(raw_deltas, list):
+        return None
+    for raw in raw_deltas:
+        if not isinstance(raw, dict) or raw.get("kind") not in _KNOWN_KINDS:
+            return None
+    try:
+        return [decode_delta(raw) for raw in raw_deltas]
+    except (KeyError, TypeError):
+        return None
+
+
+class CachingClient:
+    """`LlmClient` 데코레이터 — 응답만 재생하고 도구 실행은 그대로 둔다.
+
+    ⚠ `last_hit` 은 `stream()` **호출 시점에** 확정된다(조회가 동기라서). `run_turn` 은
+    델타 루프 첫 회차에서 이 값을 읽어 `trace.replay` 를 켠다 — `_safe_stream` 이
+    async generator 라 `stream()` 이 첫 델타를 당길 때 비로소 호출되기 때문이다.
+    """
+
+    def __init__(
+        self,
+        inner: Any,
+        *,
+        provider: str,
+        model: str,
+        root: Path | None = None,
+    ) -> None:
+        self._inner = inner
+        self._provider = provider
+        self._model = model
+        self._root = Path(root) if root is not None else CACHE_ROOT
+        self.last_hit: bool = False
+        self.hits: int = 0
+        self.misses: int = 0
+
+    def _path(self, key: str) -> Path:
+        return self._root / f"{key}.json"
+
+    def stream(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ):
+        key = cache_key(
+            provider=self._provider,
+            model=self._model,
+            system=system,
+            messages=messages,
+            tools=tools,
+        )
+        path = self._path(key)
+        if path.exists():
+            deltas = _load_cached_deltas(path)
+            if deltas is not None:
+                self.last_hit = True
+                self.hits += 1
+
+                async def replay():
+                    for d in deltas:
+                        yield d
+
+                return replay()
+            # 손상된 캐시 파일 — 미스로 취급하고 아래 inner 호출 경로로 진행한다.
+
+        self.last_hit = False
+        self.misses += 1
+        inner_stream = self._inner.stream(system=system, messages=messages, tools=tools)
+
+        async def record_and_yield():
+            captured: list[LlmDelta] = []
+            async for delta in inner_stream:
+                captured.append(delta)
+                yield delta
+            # 스트림이 끝까지 온 경우에만 기록한다 — 도중에 끊긴 응답을 캐시하면
+            # 다음 실행이 잘린 답을 "정상"으로 재생한다.
+            self._root.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "_schema": SCHEMA,
+                "provider": self._provider,
+                "model": self._model,
+                "deltas": [encode_delta(d) for d in captured],
+            }
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+
+        return record_and_yield()
+
+    def stats_line(self) -> str:
+        """`캐시 히트 N/M (히트율 X%)`. 실익이 있는지 **재고 나서** 판단하기 위한 실측치다."""
+        total = self.hits + self.misses
+        rate = (self.hits / total * 100) if total else 0.0
+        return f"캐시 히트 {self.hits}/{total} (히트율 {rate:.1f}%)"
