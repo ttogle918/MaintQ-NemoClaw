@@ -94,9 +94,14 @@
 > **detail 에는 결론이 아니라 두 축의 실측값을 찍는다** — `"쓰기 경로 없음"` 같은 하드코딩 문구는
 > FAIL 일 때도 그대로 인쇄돼 표를 읽는 사람이 정반대로 이해한다.
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
-> (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
+> (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트에 남아 있던 같은 결함 2건(**P30**)은
+> **2026-08-19 해소됐다** — `agent_loop_contract ⑯ A7` 은 앵커 3종 + 스캐너 생존을 판정에 넣고
+> 하드코딩 detail 을 실측값으로 바꿨고, `ui_honesty_contract` 의 C1~C8(대상 `lib/*.ts` 4개가
+> **import 0개인 것이 정상**이라 앵커를 못 만든다)은 **오라클 메타검사 1건**을 스파이크 안에 세웠다.
+> 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
+> **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-18, Sprint 12 완료 후)** — spikes **30스위트 / 871건** · seed **35건**(㉖ `mfr_part_no` D97 ·
+**실측 기준선 (2026-08-19, P30 해소 후)** — spikes **30스위트 / 872건** · seed **35건**(㉖ `mfr_part_no` D97 ·
 ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
 ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
 `ownership_checks`/`risk_profile`) · pytest **46건** ·
@@ -111,7 +116,7 @@ Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 1
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 252` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 253` · `write_tool_contract 30`
 
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
@@ -141,12 +146,21 @@ Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 1
 > 편입, L2 32→36파일(+4×6=24건)이 됐다. 뮤턴트 8종·메타 4건은 무변경. 2+4+24=30, 222+30=252 —
 > 산술과 실측(`uv run python spikes/ui_honesty_contract.py` 출력 "통과 — 계약 232건 + 제약 8 +
 > 뮤턴트 8 + 메타 4" = 252)이 일치한다 — 스위트는 **PASS 252/252**(신규 D87 위반 없음).
+> **252→253**: P30 해소(2026-08-19)가 **메타 4→5** 로 1건 더했다 — `IMPORT_SPEC` 오라클.
+> C1~C8 은 전부 부재 검사인데 대상 `frontend/lib/*.ts` 4개는 **import 문이 0개인 것이 정상**이라
+> 파일 안에 걸 앵커가 없다. 그래서 알려진 픽스처(from·부수효과·require·동적 import 4문법)를
+> `module_specifiers()` 에 넣어 **추출기가 살아 있음**을 단언하는 오라클을 스파이크 안에 뒀다
+> (L2 뮤턴트 메타검사와 같은 방식). 계약 232 + 제약 8 + 뮤턴트 8 + **메타 5** = 253 —
+> 스위트는 **PASS 253/253**.
 > ⚠ **부수 정정(MQ-1205)**: 같은 전수 재실행에서 `prompt_rules` 실측이 **24건**으로 확인됐다 — 직전
 > 기록(23)과 어긋난다. `git log -- spikes/prompt_rules.py` 로 대조하면 Sprint 11 Stage 5(`390e7a9`)
 > 이후 이 파일은 무변경이라 **코드가 아니라 기록이 낡았던 것**(전사 표기 정리 때 옮겨 적은 값이
 > 틀렸을 가능성) — 24로 정정. 총계 870 이 아니라 **871** 인 이유가 이 +1 이다(252 델타 30 과는
 > 무관, 두 정정이 겹쳐 870→871 이 아니라 840→871 로 보인다: 기존 840 자체가 이미 23으로 잰
 > 합계였으므로 24 반영 시 841, 여기에 ui_honesty +30 을 더해 871).
+> **871→872**: P30 이 `ui_honesty_contract` 에 오라클 1건을 더한 것(252→253)이 전부다.
+> 나머지 29스위트는 전건 무변경 — 2026-08-19 전수 재실행에서 스위트별 건수가 위 표와
+> 하나도 어긋나지 않았고 **FAIL 0 · 소켓 고갈 재시도 0회**였다.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).

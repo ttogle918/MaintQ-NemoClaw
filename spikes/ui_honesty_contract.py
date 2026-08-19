@@ -467,6 +467,32 @@ def constraint_gate(react_id: str, alias_id: str, filename: str, path: Path, not
 
 
 def run() -> None:
+    # ── 제약 게이트의 오라클 (P30) ─────────────────────────────────────────
+    #
+    # C1~C8 은 전부 **부재 검사**(`not react_specs` · `not alias_specs`)인데, 대상
+    # `frontend/lib/*.ts` 4개는 **import 문이 0개인 것이 정상**이다(전부 `export`).
+    # 즉 그 파일들 안에는 걸 앵커가 없고, `IMPORT_SPEC` 이 한 글자도 못 잡게 망가져도
+    # C1~C8 은 전건 통과한다 — 실제로 지금까지 그 정규식은 **한 번도 매치한 적이 없다**.
+    # 대상에 앵커를 못 만들므로 **오라클을 스파이크 안에 둔다**: 알려진 픽스처를 넣어
+    # 추출기가 살아 있음을 단언한다 (L2 뮤턴트 메타검사와 같은 방식).
+    fixture = """
+    import React from 'react'
+    import 'react/jsx-runtime'
+    const rd = require("react-dom")
+    const lazy = import('@/lib/ownership')
+    // 주석의 react 와 '@/' 는 세지 않는다
+    const s = "이 문장은 import 가 아니다"
+    """
+    got = sorted(set(module_specifiers(fixture)))
+    want = sorted({"react", "react/jsx-runtime", "react-dom", "@/lib/ownership"})
+    check(
+        "메타",
+        "IMPORT_SPEC 오라클 — 4개 문법(from·부수효과·require·동적 import)을 실제로 추출한다 "
+        "(C1~C8 은 부재 검사라 이 오라클이 없으면 정규식이 죽어도 통과한다)",
+        got == want,
+        f"픽스처 추출 {len(got)}건 {got} · 기대 {want}",
+    )
+
     # ── 제약 게이트 ────────────────────────────────────────────────────────
     constraint_gate("C1", "C2", "ownership.ts", OWNERSHIP_TS)
     constraint_gate("C3", "C4", "maintValue.ts", MAINT_VALUE_TS, " (MQ-917)")
