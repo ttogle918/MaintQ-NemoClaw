@@ -328,3 +328,34 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 
 `seed 36` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean` · `lookup_contract 14`
 (무영향) · `rag_contract 12`(무영향) · `citation_render 18`(수정 후 재통과)
+
+---
+
+## Stage 3 완료 (2026-08-21)
+
+**커밋**: `a47de62` — `[M1] feat: Sprint 15 Stage 3 — IE5 5건 정본 병합 (D109, P11)`
+**reviewer**: **PASS**(블로커 0, 비블로커 권고 1건)
+
+### 산출물
+
+| 태스크 | 파일 |
+|---|---|
+| MQ-1507 | `data/merge_ie5_codes.py`(신규) → `data/extracted/error_codes.json` 65→70건, `ie5_code_candidates.json` `manifest_registered:true` |
+| MQ-1508 | `data/seed.py`(검사 ㉚·㉘ 갱신 + 신규 ㊱), `spikes/lookup_contract.py`(검사 ⑭ 쌍둥이 하드코딩 갱신) |
+
+### 실측 (IE5 5건)
+
+`OCT`(과전류)·`IOL`(인버터 과부하)·`OHT`(냉각핀 과열)·`OVT`(과전압)·`LVT`(저전압) — 전부
+`severity:"fault"`, `related_parts:[]`, `actions_manual_id`/`actions_page`는 `null`.
+
+### 비블로커 권고 (기록만, 이번 스테이지에서 해소 안 함)
+
+`related_parts: []` 필드가 `data/seed.py`의 `load_error_codes()` 로더에서 전혀 읽히지 않는 죽은
+키다(로더는 `related_parts.seed.json` 오버레이만 사용). 기존 65건에는 이 키 자체가 없어 스키마
+일관성이 살짝 어긋난다 — 기능 영향은 0이지만, 후속 정리 시 필드를 빼거나 로더가 폴백으로 읽게
+하는 것을 검토할 만하다.
+
+### 회귀
+
+`seed 37`(`--with-error-codes`, `error_codes` 70행) · `seed 37`(게이트 없이, 0행 정상) ·
+`lookup_contract 14` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean`
