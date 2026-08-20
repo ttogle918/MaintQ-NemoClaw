@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D105**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D107**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
@@ -83,7 +83,7 @@
   ⚠ 실행 커맨드(**3파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
   backend/agent/test_llm_cache.py data/external/test_elice_docvision.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **31종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **32종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
@@ -95,7 +95,8 @@
   a2a_identity_contract ·
   repair_flow_contract ·
   deadline_risk_contract ·
-  **external_store_contract**
+  **external_store_contract** ·
+  **ie5_extract_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -115,7 +116,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-19, Sprint 13 Stage 3 완료 후)** — spikes **31스위트 / 919건** · seed **35건**(불변,
+**실측 기준선 (2026-08-20, Sprint 14 Stage 2 완료 후 전수 재실행)** — spikes **32스위트 / 969건** · seed **35건**(불변,
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
@@ -130,19 +131,29 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
-`law_fetch_contract 28` ·
+`ie5_extract_contract 50` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
 `trace_persist 17` · `ui_honesty_contract 253` · `write_tool_contract 30`
 
-> **872→916**: Sprint 13 이 신설 스위트 `external_store_contract`(D103·D105 왕복 검증)를 더한 것이
-> 전부다(872+44=916) — 기존 30스위트는 Stage 1~3 을 거치는 동안 건수가 **하나도 바뀌지 않았다**
+> 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
+> **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**
+> 로 적고 헤드라인이 **919** 를 적는다. 전수 실측(31스위트 합)이 **919** 로 나와 헤드라인·표가
+> 맞고 **이 문단의 `44`·`916` 이 틀렸다**. MQ-1205 의 `prompt_rules` 23→24 정정과 같은 유형이다.
+> **872→919**: Sprint 13 이 신설 스위트 `external_store_contract`(D103·D105 왕복 검증)를 더한 것이
+> 전부다(872+47=919) — 기존 30스위트는 Stage 1~3 을 거치는 동안 건수가 **하나도 바뀌지 않았다**
 > (`law_fetch_contract` 는 `fetch_laws.py` 에 저장 소급 호출이 붙었지만 28건 그대로 — MQ-1305 가
 > `_store_payload` 를 함수 내부 지연 import 로 격리해 스파이크 최상단 `sys.path` 제약을 건드리지
 > 않았기 때문이다). pytest **70→83**: `data/external/test_elice_docvision.py` 신설 13건(D105
 > 지출 가드) 그대로.
 
+> **919→969**: Sprint 14 Stage 1 이 신설 스위트 `ie5_extract_contract`(D107 · 괘선 없는 표
+> 추출 왕복 검증)를 더한 것이 전부다(919+50=969) — 2026-08-20 전수 재실행에서 **기존 31스위트는
+> 건수가 하나도 바뀌지 않았고 FAIL 0 · 소켓 고갈 재시도 0회**였다. 이 스위트는 `data/raw/` 의 IE5
+> PDF 가 `.gitignore` 대상이라 **기하 픽스처만으로 돈다** — PDF 가 있으면 대조 축 3건이 더 붙고,
+> 없으면 **`SKIPPED 3` 을 건수와 함께 인쇄**하고 통과한다(PASS 47 + SKIPPED 3, 종료코드 0).
+>
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
 > 12→14개가 되며 컴포넌트당 L2 검사 6건씩 자연 추가된 것(2×6=12) — 파일 1개가 아니라 두

@@ -59,7 +59,10 @@ equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 🟠(�
 
 ## 1. error_codes — 에러코드 마스터 ★매뉴얼에서 구조화 추출
 
+> **정본은 `data/extracted/error_codes.json`**(`data/extract_error_codes.py` 산출, D60·D33 승인 게이트).
 > `lookup_error_code`의 원천. M1에서 매뉴얼 PDF 표 → 이 테이블로 추출하는 게 최대 작업.
+> 🔴 승격 절차는 [`data/extracted/README.md`](../data/extracted/README.md) (**D106**) — 이 절은
+> **④(drift 자가검증)의 유일한 선례**다(`seed.py` 검사 ㉚). 반대로 §17 은 ④가 없다.
 
 ```sql
 CREATE TABLE error_codes (
@@ -674,6 +677,9 @@ CREATE TABLE repair_records (
 ## 17. residual_curve — 잔가율 격자 (D65·D74)
 
 > 정본은 `data/extracted/residual_curve.json`(`data/build_residual_curve.py` 산출).
+> 🔴 **파생 결과를 새로 테이블로 올리려면 먼저 [`data/extracted/README.md`](../data/extracted/README.md) 를 읽을 것**
+> — 승격 게이트 조건과 4단계 절차가 거기 있다 (**D106**). ⚠ 이 절(`residual_curve`)은 **4단계 중 ④(파일↔DB
+> drift 자가검증)가 없다** — 베낄 때 ④는 `error_codes` 검사 ㉚ 을 보고 채운다.
 
 ```sql
 CREATE TABLE residual_curve (

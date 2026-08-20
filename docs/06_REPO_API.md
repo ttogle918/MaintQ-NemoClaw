@@ -122,7 +122,7 @@ MaintQ/
 ├── frontend/                  # 화면 A(진단 콘솔) + 화면 B(승인 큐)
 │
 ├── spikes/                    # 개발 전 기술 검증 (09_RUNTIME §4) — 회귀 테스트로 유지
-│   │                          # **31종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
+│   │                          # **32종** (실측 `ls spikes/*.py`). 전체 목록은 CLAUDE.md 회귀 절
 │   ├── sp2_mcp_roundtrip.py   # MCP stdio 왕복 · status 반환 · D10 쓰기 격리
 │   ├── sp3_sse_events.py      # SSE 이벤트 4종 · block 중간 삽입 · A1 순서
 │   ├── write_tool_contract.py # 쓰기 도구 **3종** 경계 (D10·D23·D31·D33·D34·D37·D63·D80·D81·D84·D98)

@@ -29,16 +29,21 @@ data/extracted/extract_triage.json                  data/extracted/residual_curv
 `git check-ignore` 로 대조하면 **제외되는 것이 하나도 없다.** 즉 **D60 의 요구
 (*"원본은 파일(git)이 정본, DB 를 지워도 근거는 남는다"*)는 이미 100% 충족돼 있다.**
 
-빠져 있는 것은 *보관 자리*가 아니라 **"런타임 조인이 필요한 파생 결과에 대한 DB 사본"**
-하나뿐이다. 그리고 오늘 그 조건에 해당하는 것은 **`residual_curve` 뿐이고, 그것은 이미
-테이블이 있다** (`05_DB_SCHEMA §17`, D74, `seed.seed_residual_curve()`).
+빠져 있는 것은 *보관 자리*가 아니라 **"런타임 DB 질의 소비자(조인 포함)를 가진 파생 결과의
+DB 사본"** 뿐이고, **오늘 그 조건에 해당하는 것은 `residual_curve` 와 `error_codes` 둘이며
+둘 다 이미 테이블이 있다** (`05_DB_SCHEMA §17`·D74·`seed.seed_residual_curve()` / `seed.error_codes_gate()`).
+
+> 🔴 **정정 (Stage 2, §9 ②)** — 이 문단은 초안에서 *"`residual_curve` 뿐"* · *"런타임 **조인**"* 으로
+> 적혀 있었고 **둘 다 틀렸다.** `error_codes` 는 런타임 질의 3종(`lookup_error_code:71` ·
+> `create_po_draft:107` · **`data/hotspot_status.py:72` JOIN**) + FK 의존 1종을 갖는다.
+> 게이트를 *"SQL **조인**"* 으로 좁게 쓰면 **키 조회형 `error_codes` 가 자기 게이트를 통과하지 못한다.**
 
 나머지 7개의 소비자를 확인한 결과:
 
 | 산출물 | 소비자 | 런타임 조인? |
 |---|---|---|
 | `manual_chunks.jsonl` | `mcp_server/rag.py` | ❌ 파일 직접 로드 (DB 아님) |
-| `error_codes.json` | `seed.error_codes_gate()` → `error_codes` 테이블 | ✅ **이미 테이블** |
+| `error_codes.json` | `seed.error_codes_gate()` → `error_codes` 테이블 | ✅ **이미 테이블** — 런타임 질의 3종 |
 | `ig5a_code_map` · `ig5a_action_map` · `extract_triage` · `*.candidate` · `actions_absence_verification` | 추출·검증 **빌드타임 스크립트** | ❌ 런타임 질의 대상 아님 |
 
 → **지금 일반적 "분석 스냅샷 계층"을 짓는 것은 D103 이 자기 자신의 선택지 ⓒ 를 기각한
@@ -400,3 +405,85 @@ MQ-1402~1404 가 같은 파일 하나를 순차로 쌓는다. §1 에 명시.
 | 5 | `data/extract_error_codes.py:501` 의 `DRAFT_MARKERS`·`is_draft_status()` 선례가 있는데 새 스파이크가 AST 로 재구현했다(취약하지는 않다 — 앵커로 크게 FAIL 한다). 상호 참조 주석 또는 재사용 | 낮음 |
 
 ⚠ **권고 2·3 은 사람 검수 품질에 직접 영향**을 준다 — §6 체크리스트에 caveat 로 옮겼다.
+
+---
+
+## 9. Stage 2 완료 (2026-08-20)
+
+**reviewer**: **FAIL(6건) → 수정 → FAIL(3건) → 수정 → 재게이트**. 두 번의 FAIL 이 **같은 실패 유형**이었다 —
+*"정정을 뒤에 덧붙이고 앞 문장을 안 고쳐 한 칸이 정반대를 말한다."* 1차 블로커 ①(P28 리드인 vs 본문)과
+2차 【F1】(D106·P28 근거 서술)이 동일하다. **덧붙이지 말고 앞 문장을 고친다** 가 이 스테이지의 교훈이다.
+
+### 산출물
+
+| 파일 | 내용 |
+|---|---|
+| `data/extracted/README.md` | **승격 규약 정본** — 게이트 조건 1개 + 4단계 (MQ-1406) |
+| `docs/10_DECISIONS.md` | **D106**(승격 게이트) · **D107**(괘선 없는 표 추출) + D99 행에 IE5 적용 사례 (MQ-1408) |
+| `docs/07_BACKLOG.md` | P28 ✅ 완료 · ⓒ **종결 — 재정의** · P29 ✅ 완료 (MQ-1407) |
+| `docs/05_DB_SCHEMA.md` | §17 에 승격 규약 링크 + *"이 절은 ④가 없다"* 경고 |
+
+### 🔴 reviewer 가 잡은 사실 오류 — 내가 쓴 문서가 코드와 어긋났다
+
+| # | 어긋난 주장 | 실측 |
+|---|---|---|
+| ② | *"`residual_curve` 외엔 런타임 소비자가 없다 · 나머지는 빌드타임"* | **`error_codes` 는 런타임 질의 3종**(`lookup_error_code:71` · `create_po_draft:107` · **`data/hotspot_status.py:72` JOIN**) **+ FK 의존 1종**(`create_repair_record`). **승격 사례는 2개** |
+| ② | 게이트 문구 *"런타임 **SQL 조인**"* | 좁게 읽으면 **키 조회형 `error_codes` 가 자기 게이트를 통과 못 한다** → **"런타임 DB 질의(조인 포함)"** |
+| ③ | *"`residual_curve` 가 4단계를 그대로 밟았다"* | **④가 없다** — 검사 ⑯ 은 격자 내부 성질 + `assets` 조인만 보고 **파일 대조 코드 0**, `spikes/` 참조 **0건**. ④ 선례는 **`error_codes` 검사 ㉚** |
+| F3 | *"drift 선례가 둘"* 이라 쓰고 **⑬⑭㉚ 셋**을 나열 | **⑭ 는 drift 선례가 아니다** — `rules` 5행·근거 없는 룰 0건만 보는 **적재 무결성** 축(`seed.py:2390~2395`). 진짜 선례는 **⑬·㉚ 둘** |
+
+> 💡 **③ 이 가장 위험했다.** 규약 문서를 *"선례대로 하면 된다"* 고 믿고 따라간 다음 사람이
+> **④를 정확히 빼먹게** 되는 구조였다 — 그 문서가 막으려던 실패를 **문서 자신이 유도**한다.
+
+### 🔴 D 범위 표기 정본은 **5파일이 아니라 6파일**이다
+
+`docs/sprints/sprint-13.md:115` 가 5파일로 열거했으나(`CLAUDE.md` · 루트 `README.md` · `docs/README.md` ·
+`.claude/agents/reviewer.md` · `docs/status/maintq-status.html`), 이번에 `docs/00_MVP_SCOPE.md:148` 이
+**D1~D101 로 6단계 낡아 있던 것**이 발견돼 편입됐다.
+
+⚠ **이번에 실제로 누락 사고가 났다** — 정본 5곳 중 `maintq-status.html` 을 빠뜨리고 새로 편입한
+`00_MVP_SCOPE.md` 를 대신 세어 **합이 우연히 5가 되면서 누락이 가려졌다.** reviewer 가 잡았다.
+**다음 `/done` 은 6파일로 센다:**
+
+```
+CLAUDE.md:12 · README.md:157 · docs/README.md:17
+.claude/agents/reviewer.md:3 · docs/status/maintq-status.html:841 · docs/00_MVP_SCOPE.md:148
+```
+
+### 📌 이월 (기록 없이 넘기지 않는다)
+
+| # | 내용 | 미룬 이유 |
+|---|---|---|
+| 1 | 🔴 **픽스처에 `v_line_count: 0` 추가** — **D107 의 대전제(*"`page.lines` 세로선 0개"*)를 잠그는 회귀가 지금 없다.** 전제가 무너져도 스위트가 **조용히 통과**한다 (CLAUDE.md 부재검사 규칙 대상) | Stage 2 는 **코드 0** 이 전제. 픽스처 재생성은 Stage 1 산출물을 다시 돌려야 한다 |
+| 2 | D107 좌표의 **클램프 전/후 라벨** — `extract_ie5_codes.py:15` 은 클램프 전, D107 은 클램프 후 값 | 논지(*"페이지마다 다르다"*)가 라벨 유무로 바뀌지 않는다 |
+| 3 | Stage 1 reviewer 권고 5건 (§8 하단) — 특히 **`IOLt` 이름 충돌 필드**·**`pages` 축 분리** | 사람 검수 caveat 로 §6 체크리스트에 반영됨 |
+
+### 부수 정정
+
+- `CLAUDE.md` 기준선 — **32스위트 / 969건** (전수 재실행, FAIL 0 · 재시도 0회).
+  같은 문서 안 서술의 **`872+44=916` 이 틀렸음**을 발견해 **`872+47=919`** 로 정정(헤드라인·스위트별 표가 맞았다)
+- `data/rules/README.md:14` — `19개 테스트` → **46개** (실측)
+
+### 회귀
+
+`seed 35` · `sp2 20` · `write_tool 30` · `api 28` · `sp3 22` · `ie5 50` · `bundle_integrity 25` ·
+`rules_db_load 25` · `ruff clean`
+
+### 3차 게이트 지적 — **같은 실패가 네 자리 더** (2026-08-20)
+
+reviewer 가 *"문서를 통째로 읽으라"* 는 지시대로 훑어 **정정을 덧붙이고 앞을 안 고친 자리**를 더 찾았다.
+
+| # | 자리 | 내용 |
+|---|---|---|
+| 1 | **이 문서 §0-1** | 옛 문장(*"`residual_curve` 뿐"* · *"런타임 **조인**"*)이 살아 있어 §9 와 정면 충돌. §0 은 *"착수 전 **확정 사실**"* 절이라 히스토리로 넘길 수 없다 → 문장 교체 + 정정 주석 |
+| 2 | `04_MCP_TOOLS.md:329` · `11_ASSET_LIFECYCLE.md:448` · `07_BACKLOG.md:74`(**P28 ⓑ**) | *"두 사본이 어긋나면 ⑬**⑭** 가 잡는다"* — **표기 문제가 아니라 커버리지 공백의 오고지**다. 검사 ⑭ 는 `len(rule_rows)==5` 하드코딩이라 **룰 파일이 6개가 돼도 조용히 통과**한다 → ⑬ 단독으로 고치고 **`rules` 계층에 대조 검사가 없다는 사실을 명시** |
+| 3 | `data/rules/README.md:21` | 트리 주석은 46 으로 고쳤는데 **복붙 실행줄 `# 19 passed`** 를 놓쳤다 — 사람이 실제로 대조하는 줄이라 오도력이 더 크다 |
+| 4 | `maintq-status.html:839` | **`916`** — §9 부수정정이 *"틀렸다"* 고 판정한 바로 그 값이, F2 로 고친 줄 **두 줄 위**에 살아 있었다 |
+
+**기준선 32/969 전파** — 낡은 값이 살아있는 문서 **8곳**에 있었다:
+`README.md:135` · `docs/README.md:74` · `docs/06_REPO_API.md:125` · `docs/13_DEPLOYMENT.md:170` ·
+`maintq-status.html:328·607·839` · `maintq-data-map.html:228·308` · `maintq-diagrams.html:911`.
+⚠ `docs/README.md:101·148` 은 **Sprint 13 당시를 서술하는 과거형**이라 그대로 뒀다(그때는 31이 맞다).
+
+부수: `05_DB_SCHEMA §1`(`error_codes`)에 **②가 요구하는 정본 머리줄이 없었다** — 신설하고 *"이 절이 ④의
+유일한 선례"* 임을 명시했다. `extract_ie5_codes.py:24` 독스트링 *"버킷 3종"* → **4종**(실제 산출물 기준).

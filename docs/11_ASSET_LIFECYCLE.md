@@ -445,7 +445,7 @@ equipment 확장 — `asset_id` 1개뿐 (nullable FK)
 `required_facts=[]` 로 비우는 안을 버린 이유: 키 부재를 "미부보"로 읽게 되어 "모른다"와 "없다"가 다시 섞인다.
 이건 D77 ⓐ(`LIEN-CONSENT` 가 `has_lien` 불리언을 따로 둔 것)의 **거울상**이다.
 
-`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. **파일이 정본이고 SQLite 는 조회용 사본**이다 (D60) — 판정(`verdict`·인용)은 파일에서, 적재 게이트와 `fetch_status` 조회는 DB 사본에서 온다. 두 사본이 어긋나면 `data/seed.py` 자가검증 ⑬⑭ 가 먼저 잡는다. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
+`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. **파일이 정본이고 SQLite 는 조회용 사본**이다 (D60) — 판정(`verdict`·인용)은 파일에서, 적재 게이트와 `fetch_status` 조회는 DB 사본에서 온다. 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. ⚠ **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
 
 `decisions.reviewed_by`는 `users` FK (D41), ID 저장 (D36), 시각은 UTC (D39).
 
