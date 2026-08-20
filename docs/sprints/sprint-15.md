@@ -252,3 +252,35 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 ---
 
 실행: `/stage 1`
+
+---
+
+## Stage 1 완료 (2026-08-21)
+
+**커밋**: `a3243e7` — `[M4] docs: Sprint 15 Stage 1 — D109 결정 등재 (P11, model enum 3종 확장 전제)`
+**reviewer**: 1차 게이트 **PASS**(블로커 0) — 8개 지점·`safety_page()` 방어적 조회·`equipment` CHECK
+값을 전부 grep/read로 재확인, 정본 6파일 일관 갱신 확인.
+
+### 산출물
+
+| 파일 | 내용 |
+|---|---|
+| `docs/10_DECISIONS.md` | **D109** 신규 등재 — model enum 3종 확장 결정 |
+| `CLAUDE.md`·`README.md`·`docs/README.md`·`.claude/agents/reviewer.md`·`docs/status/maintq-status.html`·`docs/00_MVP_SCOPE.md` | D1~D108 → D1~D109 갱신 (정본 6파일) |
+
+### 검증
+
+`seed 36` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean` — 문서만 변경이라 코드
+회귀 영향은 없으나 고정 스위트 전부 재확인.
+
+### 🛑 다음 단계 — 사용자 승인 대기
+
+**Stage 2(실제 enum 코드 확장)는 사용자가 D109 결정문을 확인·승인해야 착수한다.** 결정문 전문은
+`docs/10_DECISIONS.md`의 D109 행 참조 — 요지는 §0 그대로:
+
+- `model` enum을 `("iG5A", "S100", "IE5")`로 확장
+- 대상 8개 코드 지점 + 하드코딩 메시지 3곳
+- 명시적 범위 밖: 안전 문구(`SAFETY_BASELINE`) 미확장 · RAG 청킹 안 함 · `equipment`/`assets` 물리
+  설비 미시드 — 즉 "정의 조회 경로만 편입"이지 "완전 동등 3기종"이 아니다
+
+승인되면 `/stage 2`로 Stage 2(MQ-1502~1506, 병렬 5태스크)를 진행한다.
