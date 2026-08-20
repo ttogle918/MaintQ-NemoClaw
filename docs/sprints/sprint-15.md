@@ -389,8 +389,49 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 `prompt_rules 24` · `citation_render 19` · `seed 37` · `sp2 20` · `write_tool 30` · `api 31` ·
 `sp3 22` · `ruff clean`
 
-### Sprint 15 전체 완료
+---
 
-5스테이지 전부 완료 — D109 결정 → enum 확장(6개 파일 + 하드코딩 메시지 4곳 + RULES 규칙 9) →
-정본 병합(65→70건) → 회귀 갱신. IE5는 이제 `lookup_error_code` 등 정의 조회 경로의 3번째
-기종이다. 다음은 Stage 5(문서 동기화, MQ-1511) 또는 `/done`.
+## Stage 5 완료 (2026-08-21) — Sprint 15 전체 완료
+
+**커밋**: `8fd28f4` — `[M4] docs: Sprint 15 Stage 5 — 문서 동기화 + 발견한 회귀 2건 정정 (D109, P11)`
+**reviewer**: **PASS**(블로커 0, 비블로커 권고 3건 — 같은 커밋에서 함께 정리)
+
+### 산출물
+
+| 태스크 | 파일 |
+|---|---|
+| MQ-1511 | `CLAUDE.md`·`docs/05_DB_SCHEMA.md`·`docs/07_BACKLOG.md`·`docs/04_MCP_TOOLS.md` |
+| 부수 발견 (계획 밖) | `spikes/ie5_extract_contract.py` C①·C⑦ 방향 반전 |
+
+### 부수 발견 — `ie5_extract_contract.py` 회귀 2건
+
+Stage 5 착수 전 회귀 재확인 중 발견. C①·C⑦ 이 sprint-14 시점(승인 전·미등재)의 전제로 짜여
+있었는데, Sprint 15 가 정확히 그 전제를 완료(승인+병합, manifest 등재)시켜 버렸다 — 판정 방향을
+뒤집어 해소. 건수 54 그대로, 죽은 헬퍼(`seed_draft_markers()`)도 함께 제거.
+
+### 비블로커 정리 3건 (reviewer 권고, 같은 커밋에서 해소)
+
+`CLAUDE.md` 절대규칙 4 의 enum 표기가 D109 반영 전 상태로 남아 있던 것 · `data/seed.py`
+`load_error_codes()` 독스트링의 옛 카운트(62→67) · `ie5_extract_contract.py` C①·C⑦ 체크
+타이틀이 반전된 판정 의미를 못 담던 것(리포트 가독성 문제, 판정 로직 자체는 이미 정확했음).
+
+### 회귀
+
+`seed 37` · `ie5_extract_contract 54`(SKIP 경로 51+3 포함) · `ruff clean`
+
+---
+
+## Sprint 15 전체 완료 요약
+
+5스테이지 전부 완료 — **D109 결정**(model enum 3종 확장, 안전문구·RAG·물리설비는 명시적 범위 밖)
+→ **enum 확장**(8개 코드 지점 + 하드코딩 메시지 4곳 + `RULES` 규칙 9, 6개 파일) → **정본 병합**
+(`error_codes` 65→70건, IE5 5건) → **회귀 갱신**(의도된 임시 회귀 2건 해소, 그 과정에서 안전 검사
+무력화 버그 1건도 reviewer 가 잡아 고침) → **문서 동기화**(+ 계획 밖 회귀 2건 추가 발견·수정).
+
+IE5는 이제 `lookup_error_code` 등 정의 조회 경로의 3번째 기종이다. `equipment.model` CHECK·
+`SAFETY_BASELINE`·RAG 청킹은 D109 가 정한 대로 미확장 상태로 남아 있다(의도된 경계, 다음 확장
+과제는 별도 스프린트).
+
+**최종 회귀**: spikes 32스위트/977건 · seed 37건 · pytest 83건 · `error_codes` 70건 · ruff clean.
+
+다음: `/done` 으로 세션 마무리.
