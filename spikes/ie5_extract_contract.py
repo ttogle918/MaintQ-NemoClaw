@@ -69,6 +69,7 @@ TOP_KEYS = (
 PAGE_KEYS = (
     "page",
     "v_edge_x",
+    "v_line_count",
     "column_bounds",
     "table_y_range",
     "text_extent",
@@ -273,6 +274,24 @@ def probe_band_arith(fx: dict) -> tuple[bool, str]:
     return derived == stated and derived > 0, f"기하 유도 {per} 합 {derived} · expected {stated}"
 
 
+@guard
+def probe_v_line_count(fx: dict) -> tuple[bool, str]:
+    """D107 의 대전제(**"괘선이 없다"**)를 회귀로 잠근다 (sprint-14 §9 이월 ①).
+
+    `v_edge_x`(=`page.edges`, rect 배경 유래 포함)는 이미 비어 있지 않은 것으로 검증되지만,
+    D107 이 실제로 말하는 것은 **`page.lines`(명시적 선 객체) 개수가 0**이라는 사실이다.
+    이 전제가 회귀 없이 조용히 무너지면(예: 다른 매뉴얼로 재실행) explicit 유도가 왜 필요한지
+    산출물이 더 이상 증명하지 못한다.
+    """
+    detail = {}
+    ok = bool(fx["pages"])
+    for p in fx["pages"]:
+        v_line = p.get("v_line_count")
+        detail[p["page"]] = v_line
+        ok = ok and v_line == 0
+    return ok, f"page.lines 세로선 개수 {detail} (기대: 전부 0 — 괘선 없음이 D107 의 전제)"
+
+
 # ── A⑭⑮ 추출기 **재실행** 축 (PDF-free)
 class FakePage:
     """픽스처 좌표만으로 만든 최소 page 대역.
@@ -281,9 +300,14 @@ class FakePage:
     `page.edges` 와 `page.extract_words()` 둘뿐이다. 픽스처가 `v_edges`(=[x0, top, bottom])와
     `text_extent` 를 이미 들고 있으므로 **PDF 없이 유도 로직을 그대로 태울 수 있다.**
     이 축이 없으면 §0-3 이 지목한 가장 위험한 로직이 기본 실행에서 한 줄도 안 돈다.
+
+    `lines` 는 빈 리스트로 둔다 — `parse_table_page()` 의 `v_line_count` 계산(D107 앵커)이
+    실패 경로(D④ liveness 재현)에서도 죽지 않게 하는 최소 대역이다. 실제 판정에는 안 쓰인다
+    (실패는 `column_bounds()` 가 `None` 을 반환하는 시점에 이미 확정된다).
     """
 
     def __init__(self, v_edges: list[list[float]], extent: list[float]) -> None:
+        self.lines: list[dict] = []
         self.edges = [
             {
                 "orientation": "v",
@@ -625,10 +649,18 @@ def probe_status(doc: dict) -> tuple[bool, str]:
     status = str(doc.get("_status", ""))
     markers = seed_draft_markers()
     hits = [m for m in markers if m in status]
+    # `data/extract_error_codes.py` 의 `DRAFT_MARKERS`/`is_draft_status()` 선례를 **재사용**한다
+    # (sprint-14 §8 이월 ⑤, reviewer 권고 "낮음" — 취약하지는 않으나 AST 재구현이 중복이었다).
+    # seed.py 어휘 대조(위 AST 스캔)와는 목적이 다르다 — 이건 **정본 스크립트의 판정 함수 자체**로
+    # 한 번 더 확인하는 것이라 대체가 아니라 추가다.
+    from data.extract_error_codes import is_draft_status  # noqa: PLC0415 — 지연 임포트
+
+    shared_draft = is_draft_status(status)
     return (
-        bool(markers) and bool(hits) and "pending" not in status,
+        bool(markers) and bool(hits) and "pending" not in status and shared_draft,
         f"_status={status!r} · seed.error_codes_gate() 마커 {markers} · 적중 {hits} "
-        f"(마커 0개면 스캐너가 눈먼 것이라 판정 불가)",
+        f"(마커 0개면 스캐너가 눈먼 것이라 판정 불가) · "
+        f"extract_error_codes.is_draft_status()={shared_draft} (DRAFT_MARKERS 재사용)",
     )
 
 
@@ -819,6 +851,62 @@ def probe_shape_bucket(doc: dict, fx: dict) -> tuple[bool, str]:
     )
 
 
+@guard
+def probe_pages_exact_split(doc: dict) -> tuple[bool, str]:
+    """`code_pages_exact`/`code_pages_case_folded` 가 전 버킷에 일관되게 있고 서로소인가.
+
+    이전에는 IGNORECASE 로만 얻은 페이지가 "정합적"으로 섞여 나와(§8 이월 ②), `GCt` 같은
+    코드는 버킷마다 `pages` 의 **의미가 달라** 리터럴 등장(p117)이 누락되는 사고가 있었다
+    (§8 이월 ①). 실측 앵커로 `COL`(대문자 그대로 등장 = exact) · `GCT`(p117 리콜 복구)를 쓴다.
+    """
+    un = doc["_unmatched"]
+    entries = doc["codes"] + un["codes"] + un["codes_excluded_by_shape"] + un["codes_without_name"]
+    bad = [
+        e["canonical_code"]
+        for e in entries
+        if "code_pages_exact" not in e
+        or "code_pages_case_folded" not in e
+        or set(e["code_pages_exact"]) & set(e["code_pages_case_folded"])
+    ]
+    col = next((e for e in un["codes_without_name"] if e["canonical_code"] == "COL"), None)
+    gct = next((e for e in un["codes"] if e["canonical_code"] == "GCT"), None)
+    col_ok = bool(col) and 117 in col.get("code_pages_exact", [])
+    gct_ok = bool(gct) and 117 in gct.get("code_pages_exact", [])
+    return (
+        not bad and col_ok and gct_ok,
+        f"검사 {len(entries)}건 · exact/case_folded 누락or겹침 {bad or '없음'} · "
+        f"COL.pages_exact에 p117 포함={col_ok}(reviewer '위양성 우려' 재검증 — 실측은 정합) · "
+        f"GCT.code_pages_exact에 p117 포함={gct_ok}(§8 이월① 리콜 복구 앵커)",
+    )
+
+
+@guard
+def probe_name_collision(doc: dict) -> tuple[bool, str]:
+    """`IOL`↔`IOLt` 명칭 충돌이 양방향으로 산출물에 드러나는가 (§8 Stage1 권고 "가장 높음").
+
+    매뉴얼 자체가 같은 트립("인버터 과부하")을 절마다 다르게 표기한다(11.5·12.6 절은 `IOL`,
+    7절 기능 일람표는 `IOLt`) — 실측으로 확인된 사실이지 추측이 아니다. `IOL` 만 보면
+    원인·대책까지 붙어 확정으로 오독하기 쉬운 것을 이 필드가 막는다.
+    """
+    iol = next((c for c in doc["codes"] if c["canonical_code"] == "IOL"), None)
+    iolt = next(
+        (u for u in doc["_unmatched"]["codes_excluded_by_shape"] if u["canonical_code"] == "IOLT"),
+        None,
+    )
+    reciprocal = (
+        bool(iol)
+        and bool(iolt)
+        and iol.get("name_collision_with") == ["IOLT"]
+        and iolt.get("name_collision_with") == ["IOL"]
+    )
+    return (
+        reciprocal,
+        f"IOL.name_collision_with={iol.get('name_collision_with') if iol else None} · "
+        f"IOLT.name_collision_with={iolt.get('name_collision_with') if iolt else None} "
+        f"(양방향 상호참조={reciprocal})",
+    )
+
+
 # ──────────────────────────────────────────────── D. 소스 정적 스캔 (부재 주장 + 앵커)
 SRC = SRC_PATH.read_text(encoding="utf-8") if SRC_PATH.exists() else ""
 TREE = ast.parse(SRC) if SRC else ast.parse("")
@@ -962,6 +1050,7 @@ def run_fixture_checks(fx: dict) -> None:
     check("A⑬ 밴드 산술 = table_rows", *probe_band_arith(fx))
     check("A⑭ 열 경계 재유도 (PDF-free 실행)", *probe_recolumn(fx))
     check("A⑮ 열 경계 실패 경로 = 상태 반환 (D9)", *probe_recolumn_d9(fx))
+    check("A⑯ 괘선 없음 = page.lines 0개 (D107 전제, §9 이월①)", *probe_v_line_count(fx))
 
 
 def run_join_checks(fx: dict, doc: dict) -> None:
@@ -986,12 +1075,35 @@ def run_candidate_checks(fx: dict, doc: dict) -> None:
     check("C⑧ 리콜 — 확정 12종 전건 등장", *probe_recall(doc))
     check("C⑨ 형상 제외 버킷 = 차집합 (블로커 ①)", *probe_shape_bucket(doc, fx))
     check("C⑩ canonical 접기 + 원표기 보존 (D25)", *probe_fold(doc, fx))
+    check("C⑪ code_pages exact/case_folded 분리 (§8 이월①②)", *probe_pages_exact_split(doc))
+    check("C⑫ IOL↔IOLt 명칭 충돌 상호참조 (§8 이월③)", *probe_name_collision(doc))
 
 
-def run_absence_checks() -> None:
+@guard
+def probe_warnings_liveness(doc: dict, fx: dict) -> tuple[bool, str]:
+    """`_warnings` 가 실제로 채워지는 경로가 있는가 (§8 이월 ④ — 스파이크가 한 번도 참조 안 함).
+
+    실 추출(정상 페이지)에서는 `_warnings` 가 항상 비어 있어, 스키마에 있어도 죽으면
+    조용히 통과한다. PDF 없이 기하 유도 **실패**를 직접 재현해 `parse_table_page()` 의
+    경고 문자열이 올바른 형식(D9 — 예외가 아니라 상태)으로 나오는지 확인한다.
+    """
+    real_warnings = doc.get("_warnings")
+    empty_page = FakePage([], fx["pages"][0]["text_extent"])
+    rows, _geo, warn = ie5.parse_table_page(empty_page, 999)
+    fmt_ok = rows == [] and bool(warn) and warn.startswith("p999:") and "스킵" in warn
+    return (
+        isinstance(real_warnings, list) and fmt_ok,
+        f"_warnings 타입={type(real_warnings).__name__} 실제건수={len(real_warnings or [])} "
+        f"(정상 실행은 0건이 맞다) · 인위적 실패 재현 rows={rows} warn={warn!r} "
+        f"(형식 유효={fmt_ok})",
+    )
+
+
+def run_absence_checks(doc: dict, fx: dict) -> None:
     check("D① 정본 error_codes.json 미기록 (D99)", *probe_no_canonical_write())
     check("D② data/raw/ 미기록 (절대규칙 5)", *probe_no_raw_write())
     check("D③ 표 파싱 경로에 extract_text 폴백 없음", *probe_no_text_fallback())
+    check("D④ _warnings 실패 경로 liveness (§8 이월④)", *probe_warnings_liveness(doc, fx))
 
 
 @guard
@@ -1233,7 +1345,7 @@ def main() -> None:
     run_fixture_checks(fx)
     run_join_checks(fx, doc)
     run_candidate_checks(fx, doc)
-    run_absence_checks()
+    run_absence_checks(doc, fx)
     n_skipped = run_pdf_axis(fx)
     run_meta_checks(fx, doc)
 

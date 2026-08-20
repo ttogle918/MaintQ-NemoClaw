@@ -116,7 +116,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-20, P41 ③ 부서 분리 완료 후 재실행)** — spikes **32스위트 / 972건** · seed **36건**(불변 아님 —
+**실측 기준선 (2026-08-20, IE5 검수 이월 항목 반영 후 재실행)** — spikes **32스위트 / 976건** · seed **36건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
@@ -131,7 +131,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
-`ie5_extract_contract 50` · `law_fetch_contract 28` ·
+`ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
@@ -158,6 +158,13 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > 검사 3건(헤더 스푸핑 무시·`GET /api/whoami` 왕복·미등록 사용자 처리)을 더했다
 > (969+3=972). `seed.py` 자가검증도 ⑨-b(department 가 role 을 안 바꾸는지) 신설로
 > 35→**36건**이 됐다 — 이건 spikes 969/972 건과 **별도 카운트**다.
+>
+> **972→976**: IE5 검수 이월 항목(§8·§9, TODO_직접할일.md Sprint 14절) 반영이
+> `ie5_extract_contract` 에 4건을 더했다(50→**54**, 972+4=976) — A⑯(`page.lines` 세로선
+> 0개 = D107 전제 회귀 고정) · C⑪(`code_pages_exact`/`code_pages_case_folded` 분리) ·
+> C⑫(`IOL`↔`IOLt` 명칭 충돌 상호참조) · D④(`_warnings` 실패 경로 liveness). 나머지
+> 31스위트는 무변경(FAIL 0 · 소켓 고갈 재시도 0회, 32스위트 전수 재실행). seed **36건**·
+> pytest **83건** 그대로. PDF 없을 때는 `ie5` 가 PASS 51 + **SKIPPED 3**(종료코드 0).
 >
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이

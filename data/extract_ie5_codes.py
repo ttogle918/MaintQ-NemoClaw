@@ -14,6 +14,11 @@
      `extract_tables({"vertical_strategy":"explicit", ...})` 로 3열을 얻는다.
      ⛔ 좌표 하드코딩 금지 — p125 는 84.98/160.98/314.39/474.36, p126 은 99.64/175.38/332.50/488.49
         으로 **페이지마다 다르다**(홀·짝 여백 미러링). 실측값은 주석의 예시일 뿐 상수가 아니다.
+        🔴 위 값은 **클램프 전** 원계산값이다(마지막 경계가 페이지 단어 범위를 벗어난 원본 edge
+        좌표) — `column_bounds()` 가 글자 범위로 클램프한 **최종** 산출값(D107 결정문 예시,
+        p125 우측 466.89 · p126 우측 487.26)과 다르다. 같은 표를 가리키는 두 값이라 나란히
+        읽으면 "코드와 결정문이 어긋났다"로 오독하기 쉽다 — 오독이 아니라 클램프 전/후 차이다
+        (sprint-14 §9 이월 ②).
   ② 가로 경계도 같은 `page.edges` 에서 유도한다. `horizontal_strategy:"text"` 는 **글자 줄 단위**로
      행을 끊어 "이 줄이 어느 보호기능의 것인가"를 다시 추론해야 하는데, 그 추론이 바로
      `extract_error_codes.span_key()` 가 금지한 "가장 가까운 항목으로 흘려보내기"다.
@@ -369,6 +374,13 @@ def parse_table_page(page, pno: int) -> tuple[list[dict], dict, str]:
     geo: dict = {
         "page": pno,
         "v_edge_x": sorted({round(e["x0"], 2) for e in page.edges if e["orientation"] == "v"}),
+        # D107 의 핵심 전제("괘선이 없다")를 회귀로 잠근다. `page.lines` 는 명시적 선 객체만
+        # 센다 — `page.edges`(v_edge_x 의 출처)는 배경 rect 에서도 유래해 이미 0이 아니다.
+        # 이 값이 0이어야 "왜 explicit 유도가 필요한가"가 산출물 자신에서 증명된다
+        # (sprint-14 §9 이월 1 — 픽스처가 이 전제를 잠그지 못했던 갭).
+        "v_line_count": sum(
+            1 for ln in page.lines if abs(ln.get("x0", 0) - ln.get("x1", 1)) < 0.01
+        ),
     }
     if bounds is None or y_range is None:
         return [], geo, f"p{pno}: 열 경계 유도 실패 — {why} (스킵)"
@@ -456,8 +468,10 @@ def parse_tables(pdf) -> tuple[list[dict], list[dict], list[str]]:
 
 
 # ──────────────────────────────────────────────── MQ-1403 ③ 본문 괄호 코드
-def body_code_names(pdf) -> tuple[list[dict], list[dict], dict[str, list[int]], list[dict], str]:
-    """본문 전체 스캔 → (occurrences, 형상 제외분, {canonical: 등장 물리 페이지}, 이름 없는 확정코드, 경고).
+def body_code_names(
+    pdf,
+) -> tuple[list[dict], list[dict], dict[str, list[int]], dict[str, list[int]], list[dict], str]:
+    """본문 전체 스캔 → (occurrences, 형상 제외분, {canonical: exact 페이지}, {canonical: case_folded 추가 페이지}, 이름 없는 확정코드, 경고).
 
     등장 페이지는 괄호 표기와 별개로 **코드 리터럴 전수 스캔**으로 잡는다 — 괄호 밖에서만
     언급되는 페이지가 있기 때문이다(예: p63 "OHt, Lvt, ESt, HWt 등의 보호기능"). 앞뒤가
@@ -498,29 +512,61 @@ def body_code_names(pdf) -> tuple[list[dict], list[dict], dict[str, list[int]], 
             f"codes_excluded_by_shape 를 차집합으로 읽으면 안 된다"
         )
 
-    wanted = {canon(o["code"]) for o in occ} | {canon(c) for c in CONFIRMED_CODES}
-    pages: dict[str, list[int]] = {}
+    wanted = (
+        {canon(o["code"]) for o in occ}
+        | {canon(c) for c in CONFIRMED_CODES}
+        | {canon(o["code"]) for o in shape_excluded}
+    )
+    # 원표기(대소문자 그대로) 인벤토리 — canonical 하나에 실제로 관측된 표기들.
+    known_variants: dict[str, set[str]] = {}
+    for o in occ:
+        known_variants.setdefault(canon(o["code"]), set()).add(o["code"])
+    for o in shape_excluded:
+        known_variants.setdefault(canon(o["code"]), set()).add(o["code"])
+
+    pages_exact: dict[str, list[int]] = {}
+    pages_case_folded: dict[str, list[int]] = {}
     for code in sorted(wanted):
-        rx = re.compile(rf"(?<![A-Za-z0-9]){re.escape(code)}(?![A-Za-z0-9])", re.IGNORECASE)
-        pages[code] = [pno for pno, t in enumerate(texts, start=1) if rx.search(t)]
+        # "exact" = canonical 표기 자체 또는 본문에서 실제 관측된 원표기 그대로 리터럴 매치된
+        # 페이지. "case_folded" = 대소문자를 무시했을 때만 추가로 걸리는 페이지 — 알려진 어느
+        # 표기와도 대소문자가 다르다는 뜻이라 사람이 한 번 더 볼 값이다. D25 는 매칭을
+        # case-insensitive 로 하라는 것이지 **증거에서 표기 차이를 지우라는 것이 아니다**
+        # (sprint-14 §8 이월 ②, reviewer 권고 "높음").
+        known = known_variants.get(code, set()) | {code}
+        exact_pages: set[int] = set()
+        for v in known:
+            rx = re.compile(rf"(?<![A-Za-z0-9]){re.escape(v)}(?![A-Za-z0-9])")
+            exact_pages |= {pno for pno, t in enumerate(texts, start=1) if rx.search(t)}
+        rx_ci = re.compile(rf"(?<![A-Za-z0-9]){re.escape(code)}(?![A-Za-z0-9])", re.IGNORECASE)
+        all_hits = {pno for pno, t in enumerate(texts, start=1) if rx_ci.search(t)}
+        pages_exact[code] = sorted(exact_pages)
+        pages_case_folded[code] = sorted(all_hits - exact_pages)
 
     seen = {canon(o["code"]) for o in occ}
     without_name = [
         {
             "code": c,
             "canonical_code": canon(c),
-            "pages": pages.get(canon(c), []),
+            "pages": sorted(
+                set(pages_exact.get(canon(c), [])) | set(pages_case_folded.get(canon(c), []))
+            ),
+            # 필드명은 `_unmatched.codes`·`codes_excluded_by_shape`·매칭 `codes` 와 **동일하게**
+            # `code_pages_exact`/`code_pages_case_folded` 로 맞춘다 — 버킷마다 다른 이름을 쓰면
+            # 지금 고치는 "pages 의미가 버킷마다 다르다"는 문제를 필드명 축에서 그대로 재현한다
+            # (sprint-14 §8 이월 ①).
+            "code_pages_exact": pages_exact.get(canon(c), []),
+            "code_pages_case_folded": pages_case_folded.get(canon(c), []),
             "reason": (
                 "본문에 코드 리터럴은 있으나 `한글명(코드)` 괄호 표기가 없어 조인 후보에 못 들어왔다 "
                 "— 이름은 지어내지 않는다 (절대규칙 6)"
-                if pages.get(canon(c))
+                if pages_exact.get(canon(c)) or pages_case_folded.get(canon(c))
                 else "본문 전수 스캔에서 코드 리터럴 자체를 찾지 못했다 — §0-2 실측과 어긋난다"
             ),
         }
         for c in CONFIRMED_CODES
         if canon(c) not in seen
     ]
-    return occ, shape_excluded, pages, without_name, warn
+    return occ, shape_excluded, pages_exact, pages_case_folded, without_name, warn
 
 
 def name_variants(phrase: str) -> list[str]:
@@ -627,6 +673,37 @@ def join(rows: list[dict], occ: list[dict]) -> tuple[list[dict], list[dict], lis
     return matched, unmatched_code_list, unmatched_names
 
 
+def detect_name_collisions(codes: list[dict], shape_excluded: list[dict]) -> None:
+    """매칭 코드 ↔ 형상 제외 코드의 명칭 충돌을 **상호 참조**한다 (제자리에서 딕셔너리를 수정).
+
+    실측 사례: `IOL`(매칭, 원인·대책까지 붙음, p110·p113)과 `IOLt`(형상 제외, p67)가
+    **같은 명칭** "인버터 과부하"를 공유한다 — 매뉴얼 자신의 표기가 절 사이에서 갈린 것이다
+    (12.6·11.5절은 `IOL`, 7절 기능 일람표는 `IOLt`). 이 충돌이 산출물에 안 보이면 사람이
+    원인·대책까지 붙은 `IOL` 만 보고 확정으로 오독하기 쉽다
+    (sprint-14 §8 Stage 1 reviewer 권고 — 우선순위 "가장 높음").
+
+    ⛔ 정규화 후 **완전 일치**만 인정한다 — 유사 명칭 추측 금지 (절대규칙 6). 매칭 코드의
+    표기·개수는 바꾸지 않는다 — 충돌 사실만 양방향으로 드러낸다.
+    """
+    matched_by_key: dict[str, list[str]] = {}
+    for c in codes:
+        matched_by_key.setdefault(norm_key(c["name_ko"]), []).append(c["canonical_code"])
+    excluded_by_key: dict[str, list[str]] = {}
+    for e in shape_excluded:
+        for name in e.get("name_candidates", []):
+            excluded_by_key.setdefault(norm_key(name), []).append(e["canonical_code"])
+
+    for entry in shape_excluded:
+        keys = {norm_key(n) for n in entry.get("name_candidates", [])}
+        hits = sorted({code for k in keys for code in matched_by_key.get(k, [])})
+        if hits:
+            entry["name_collision_with"] = hits
+    for c in codes:
+        hits = sorted(set(excluded_by_key.get(norm_key(c["name_ko"]), [])))
+        if hits:
+            c["name_collision_with"] = hits
+
+
 # ──────────────────────────────────────────────── MQ-1404 후보 파일
 def known_canonical_codes() -> set[str]:
     """정본 `error_codes.json` 을 **읽기만** 해 이미 등재된 코드를 확인한다 (D99).
@@ -651,7 +728,8 @@ def build_candidate(
     unmatched_names: list[dict],
     shape_excluded: list[dict],
     without_name: list[dict],
-    code_pages: dict[str, list[int]],
+    code_pages_exact: dict[str, list[int]],
+    code_pages_case_folded: dict[str, list[int]],
     n_codes: int,
     n_display: int,
     total_pages: int,
@@ -661,6 +739,8 @@ def build_candidate(
     codes: list[dict] = []
     for m in matched:
         r = rows[m["row"]]
+        cp_exact = code_pages_exact.get(m["canonical_code"], [])
+        cp_folded = code_pages_case_folded.get(m["canonical_code"], [])
         codes.append(
             {
                 "code": m["code"],
@@ -672,13 +752,16 @@ def build_candidate(
                 "cause": r["이상원인"],
                 "action": r["대책"],
                 "manual_page": r["manual_page"],
-                "code_pages": code_pages.get(m["canonical_code"], []),
+                "code_pages": sorted(set(cp_exact) | set(cp_folded)),
+                "code_pages_exact": cp_exact,
+                "code_pages_case_folded": cp_folded,
                 "join_variant": m["join_variant"],
                 "join_pages": sorted(m["join_pages"]),
                 "merged_with": r["merged_with"],
                 "collides_with_canonical_code": m["canonical_code"] in canonical,
             }
         )
+    detect_name_collisions(codes, shape_excluded)
     return {
         "_status": "초안 — 사람 검수 전이라 DB 에 적재되지 않는다 (승인 전, D33·D99)",
         "_설명": (
@@ -810,7 +893,9 @@ def run(pdf_path: Path) -> int:
     with pdfplumber.open(pdf_path) as pdf:
         total_pages = len(pdf.pages)
         rows, geos, warnings = parse_tables(pdf)
-        occ, shape_occ, code_pages, without_name, scan_warn = body_code_names(pdf)
+        occ, shape_occ, code_pages_exact, code_pages_case_folded, without_name, scan_warn = (
+            body_code_names(pdf)
+        )
     if scan_warn:
         warnings.append(scan_warn)
 
@@ -818,6 +903,15 @@ def run(pdf_path: Path) -> int:
     n_display = len({o["code"] for o in occ})
     matched, unmatched_codes, unmatched_names = join(rows, occ)
     shape_excluded = fold_occurrences(shape_occ)
+
+    # 조인 실패·형상 제외 버킷도 매칭 버킷과 **같은 방식**(exact/case_folded)의 code_pages 를
+    # 받는다 — 이전에는 `pages`(괄호 표기 등장분)만 있어 GCt 처럼 리터럴로만 등장하는 페이지
+    # (예: p117 의 `[GCt]` 표시)가 누락됐다 (sprint-14 §8 이월 ①, reviewer 권고).
+    for bucket in (unmatched_codes, shape_excluded):
+        for entry in bucket:
+            code = entry["canonical_code"]
+            entry["code_pages_exact"] = code_pages_exact.get(code, [])
+            entry["code_pages_case_folded"] = code_pages_case_folded.get(code, [])
 
     candidate = build_candidate(
         pdf_path,
@@ -827,7 +921,8 @@ def run(pdf_path: Path) -> int:
         unmatched_names,
         shape_excluded,
         without_name,
-        code_pages,
+        code_pages_exact,
+        code_pages_case_folded,
         n_codes,
         n_display,
         total_pages,

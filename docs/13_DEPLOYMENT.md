@@ -167,7 +167,7 @@ P14 는 *"docker-compose (backend + mcp-server **2서비스**)"* 로 적혀 있�
 ## 8. 배포 전 체크리스트
 
 - [ ] §6 미결정 3건 확정
-- [ ] 회귀 전수 통과 — spikes **32스위트** · seed **36건** · pytest **83건** (⚠ Windows 소켓 고갈 재시도 규칙은 CLAUDE.md 참조)
+- [ ] 회귀 전수 통과 — spikes **32스위트 / 976건** · seed **36건** · pytest **83건** (⚠ Windows 소켓 고갈 재시도 규칙은 CLAUDE.md 참조)
 - [ ] `MAINTQ_TOOLS_PROFILE` 값 확정 (데모는 `full`, 평가는 `core` — D88)
 - [ ] `MAINTQ_CORS_ORIGINS` 에 프론트 도메인 등재 확인
 - [ ] 이미지에 `data/raw/*.pdf` 가 **포함되지 않았는지** 확인 (저작권·용량)
