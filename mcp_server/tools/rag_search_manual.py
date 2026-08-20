@@ -34,7 +34,7 @@ def rag_search_manual(model: str, query: str, top_k: int = DEFAULT_TOP_K) -> dic
         return {
             "status": "error",
             "reason": "invalid_model",
-            "message": f"model 은 iG5A|S100 이어야 합니다: {model!r}",
+            "message": f"model 은 {'|'.join(MODELS)} 이어야 합니다: {model!r}",
         }
     if not query or not query.strip():
         return {

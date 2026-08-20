@@ -84,7 +84,7 @@ mcp = FastMCP("maintq")
 
 @mcp.tool(description=LOOKUP_DESC)
 def lookup_error_code(model: str, code: str) -> dict:
-    """model 은 enum('iG5A','S100') 강제 (D6·D13). 표에 없으면 not_found —
+    """model 은 enum('iG5A','S100','IE5') 강제 (D6·D13·D109). 표에 없으면 not_found —
     유사 코드를 추측해 돌려주지 않는다. 0행이면 not_found 가 아니라 error/catalog_not_loaded (D50)."""
     return _lookup_error_code(model=model, code=code)
 

@@ -27,7 +27,7 @@ DESCRIPTION = (
     "수량이 공급사 MOQ에 미달하면 거부되므로 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 )
 
-VALID_MODELS = ("iG5A", "S100")
+VALID_MODELS = ("iG5A", "S100", "IE5")
 
 
 def _next_po_id(con: sqlite3.Connection) -> str:
@@ -83,7 +83,7 @@ def create_po_draft(
         return {
             "status": "error",
             "reason": "invalid_model",
-            "message": f"model 은 iG5A|S100 이어야 합니다: {model!r}",
+            "message": f"model 은 {' | '.join(VALID_MODELS)} 이어야 합니다: {model!r}",
         }
 
     code = error_code.upper() if error_code else None  # 저장은 대문자 canonical (D25)

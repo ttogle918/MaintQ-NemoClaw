@@ -48,7 +48,7 @@ _DEFAULT_INDEX = (
 # (mcp_server/db.py 의 DB_PATH 와 같은 방식)
 INDEX_PATH = Path(os.environ.get("MAINTQ_CHUNKS") or _DEFAULT_INDEX)
 
-MODELS = ("iG5A", "S100")
+MODELS = ("iG5A", "S100", "IE5")
 
 DEFAULT_TOP_K = 3
 MAX_TOP_K = 10
@@ -213,7 +213,7 @@ def search(
     실패는 예외로 던진다 — status 변환은 도구 레이어의 책임이다 (D9).
     """
     if model not in MODELS:
-        raise ValueError(f"model은 iG5A|S100 이어야 합니다: {model!r}")
+        raise ValueError(f"model은 {'|'.join(MODELS)} 이어야 합니다: {model!r}")
 
     k = top_k if isinstance(top_k, int) and not isinstance(top_k, bool) else DEFAULT_TOP_K
     k = max(1, min(MAX_TOP_K, k))

@@ -216,10 +216,11 @@ def run() -> None:
     )
 
     # ── ⑫ 캐시: 같은 경로는 1회만 읽고 동일 객체를 돌려준다
+    # manuals 4건 = iG5A 표준본·트러블슈팅 + S100 표준본 + IE5 표준본(Sprint 15 MQ-1503, D109)
     first = manifest.load_manifest()
     check(
         "⑫ load_manifest 1회 캐시",
-        manifest.load_manifest() is first and len(first["manuals"]) == 3,
+        manifest.load_manifest() is first and len(first["manuals"]) == 4,
         f"동일 객체, manuals={len(first['manuals'])}건",
     )
 

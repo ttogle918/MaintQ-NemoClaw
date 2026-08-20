@@ -24,7 +24,7 @@
 | `iG5A_User_Manual_Standard_KR_210303.pdf` | iG5A | **주 원천** — `error_codes` 24건 · 안전 기준 p.4 | ✅ `ig5a-manual` |
 | `iG5A_Troubleshooting_Rev1.0_150415.pdf` | iG5A | 보조 — 조치 절차 보강 | ✅ `ig5a-troubleshooting` |
 | `S100_Manual_Korean_V4.2.pdf` | S100 | **주 원천** — `error_codes` 41건 · 안전 기준 p.2. ⚠ `print_page_offset = 16` | ✅ `s100-manual` |
-| `IE5_User Manual(Standard)_Kor_V1.0_200526.pdf` | IE5 | ⬜ **미사용** — 기종 enum 이 `iG5A`·`S100` 2종 고정(D6·D13) | ❌ |
+| `IE5_User Manual(Standard)_Kor_V1.0_200526.pdf` | IE5 | 🟡 **manifest 등재 완료**(Sprint 15 MQ-1503) — `error_codes` 정본 병합·`model` enum 확장(D109)은 별도 태스크(MQ-1504·MQ-1507) 소관, 그 전까지는 조회 경로에서 쓰이지 않는다 | ✅ `ie5-standard` |
 | `IE5_User Manual(Simple)_Kor_V1.0_200617.pdf` | IE5 | ⬜ 미사용 | ❌ |
 
 - 산출물: `data/extracted/error_codes.json` (**65건** — iG5A 24 + S100 41, 2026-07-28 사람 승인) ·
@@ -181,5 +181,5 @@
 
 | 항목 | 조치 |
 |---|---|
-| IE5 매뉴얼 2종 | 기종 enum 밖이라 미사용. 보관 / 삭제 판단 필요 |
+| IE5 매뉴얼 2종 | 표준판은 manifest 등재 완료(§1, `ie5-standard`), `model` enum 확장은 별도 진행 중(D109). 간편판(Simple)은 여전히 미사용 — 보관 / 삭제 판단 필요 |
 | DACON 14.3GB | ✅ **판단 완료 (2026-08-13) — 그대로 보관한다.** 당장 쓰지 않지만 재다운로드 비용이 크고, 백로그 **P10**(예지보전)에서 입력 축을 신설하면 후보가 된다. ⛔ git 에는 올리지 않는다 |

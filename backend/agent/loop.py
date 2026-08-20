@@ -514,7 +514,7 @@ async def run_turn(
                 },
             )
 
-            if tu.input.get("model") in ("iG5A", "S100"):
+            if tu.input.get("model") in prompts.MODELS:
                 st.observed_model = st.observed_model or tu.input["model"]
             if tu.name == "get_error_history" and isinstance(tu.input.get("days"), int):
                 st.repeat_window_days = tu.input["days"]
