@@ -31,11 +31,13 @@
 | | 값 |
 |---|---|
 | URL | `/v2/manager/po/[poId]` |
-| 파일 위치 | `frontend/app/(console)/v2/manager/po/[poId]/page.tsx` |
+| 파일 위치 | `frontend/app/v2/manager/po/[poId]/page.tsx` |
 
-Next.js 라우트 그룹 `(console)` 은 URL 세그먼트로 나타나지 않으므로, 이 위치에 둬도 URL 은 그대로 `/v2/manager/po/[poId]` 다.
+Next.js 라우트 그룹 `(console)` 은 URL 세그먼트로 나타나지 않으므로, `(console)` 안에 둬도 URL 은 `/v2/manager/po/[poId]` 가 된다 — **그러나 계획(writing-plans) 단계에서 이 결정을 뒤집었다.**
 
-**`(console)` 안에 두는 이유** — 백로그 P40 이 미리 짚어둔 갈림길: `app/(console)/v2/…` 에 두면 `spikes/ui_honesty_contract.py` 의 L2 글롭(`app/(console)/**/*.tsx`)이 **자동으로** 잡아 파일당 6건씩 D87(UI 정직성 규약) 검사가 붙는다. `app/v2/…` 로 빼면 글롭 밖이라 정직성 규약이 안 걸린 화면이 생긴다 — 이 프로젝트의 핵심 주장이 "화면이 거짓말하지 않는다"인데 비교판만 예외를 두면 비교 자체의 의미가 없어진다. **`(console)` 안으로 확정.**
+🔴 **정정 (계획 단계, 2026-08-20)** — 실측하니 `app/(console)/layout.tsx` 가 이미 `/manager`·`/technician` 전체를 감싸는 **기존 AppBar + 테마 컨텍스트**를 갖고 있었다. Next.js 는 하위 라우트가 상위 레이아웃을 생략할 방법이 없다 — `app/(console)/v2/…` 에 두면 D87 글롭은 자동으로 걸리지만 **v2 화면 위에 v1 AppBar 가 강제로 씌워져** "라이브러리 기본 미관 비교"라는 목적과 어긋난다.
+
+**해결책**: `app/v2/…` (완전히 밖, `(console)` 형제 경로)로 두고, 대신 `spikes/ui_honesty_contract.py` 의 `L2_GLOBS` 에 **`"app/v2/**/*.tsx"` 를 새 글롭으로 추가**한다 — Sprint 10 이 `app/(console)/**` 를 세 번째 글롭으로 더한 것과 같은 방식(스파이크 상단 주석 선례). 결과는 동일(D87 자동 적용)하면서 레이아웃은 완전히 격리되고, URL 도 그대로다. 사용자 확인 완료.
 
 ## 3. 데이터·로직 재사용
 
@@ -73,13 +75,13 @@ DecisionBarV2        (MUI Button)            ↔ components/queue/DecisionBar.ts
 
 신규 의존성: `@mui/material` · `@emotion/react` · `@emotion/styled` · `@mui/material-nextjs`(App Router 용 Emotion 캐시 프로바이더).
 
-`frontend/app/(console)/v2/layout.tsx` 신설 — `AppRouterCacheProvider` + `ThemeProvider(createTheme())` 로 감싼다. 테마는 **MUI 기본값 그대로**(§1 라이브러리 기본 미관 결정). 이 레이아웃은 `v2` 서브트리에만 적용되므로 나머지 앱은 영향 없음.
+`frontend/app/v2/layout.tsx` 신설 — `AppRouterCacheProvider` + `ThemeProvider(createTheme())` 로 감싼다. 테마는 **MUI 기본값 그대로**(§1 라이브러리 기본 미관 결정). 이 레이아웃은 `v2` 서브트리에만 적용되므로 나머지 앱은 영향 없음.
 
 ### 4-2. animata (Stage 2)
 
 신규 의존성: `tailwindcss` · `postcss` · `autoprefixer` · `framer-motion`.
 
-`tailwind.config.js` 의 `content` 를 `app/(console)/v2/**/*.{ts,tsx}` (+ `components/v2/**/*.{ts,tsx}`)로 좁혀 유틸리티 클래스 생성이 나머지 앱 파일을 스캔하지 않게 한다.
+`tailwind.config.js` 의 `content` 를 `app/v2/**/*.{ts,tsx}` (+ `components/v2/**/*.{ts,tsx}`)로 좁혀 유틸리티 클래스 생성이 나머지 앱 파일을 스캔하지 않게 한다.
 
 🔴 **리스크 — Tailwind `@tailwind base`(preflight) 전역 유출.** Tailwind 의 리셋 CSS 는 스코프 개념이 없어, 잘못 임포트하면 버튼·폼 기본 스타일이 앱 전체에서 깨질 수 있다. 대응:
 - Tailwind 스타일시트는 **`v2/layout.tsx` 에서만 임포트**한다(전역 `app/globals.css`·루트 `layout.tsx` 에는 손대지 않는다)
@@ -96,7 +98,7 @@ DecisionBarV2        (MUI Button)            ↔ components/queue/DecisionBar.ts
 
 | 항목 | 영향 |
 |---|---|
-| `spikes/ui_honesty_contract.py` | `(console)` 안이라 자동으로 걸림 — 새 컴포넌트마다 L2 검사 6건씩 추가. D87 준수 필수(상태→표시는 매핑 계층만 경유) |
+| `spikes/ui_honesty_contract.py` | `L2_GLOBS` 에 `"app/v2/**/*.tsx"` **와** `"components/v2/*.tsx"` **2개를 새 글롭으로 추가**해야 걸린다(자동 아님 — §2 정정 참조). 추가하면 새 컴포넌트마다 L2 검사 6건씩 늘어난다. D87 준수 필수(상태→표시는 매핑 계층만 경유) |
 | 프론트 라우트 기준선 | 18 → **19** (`CLAUDE.md` 갱신 대상) |
 | `tsc --noEmit` · `next build` | 클린 유지 필수 — MUI·Tailwind 최초 도입이라 설정 이슈 가능성 있음, Stage 별로 확인 |
 | 기존 v1 파일 | 무변경이지만 Tailwind preflight 격리는 §4-2 대로 **실측 확인** 필요 |
