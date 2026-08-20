@@ -117,8 +117,8 @@ def run() -> None:
         raised = True
     both_ok = all(build_system_prompt(m).endswith("이 값을 쓴다") for m in MODELS)
     check(
-        "⑤ build_system_prompt('iS7') → ValueError, enum 2종은 통과",
-        raised and both_ok and tuple(MODELS) == ("iG5A", "S100"),
+        "⑤ build_system_prompt('iS7') → ValueError, enum 3종은 통과",
+        raised and both_ok and tuple(MODELS) == ("iG5A", "S100", "IE5"),
         f"ValueError={raised}, MODELS={MODELS}",
     )
 
@@ -184,6 +184,7 @@ def run() -> None:
 
     # ── ⑭ 안전 문구의 매뉴얼 근거가 상수로 남아 있는가 (safety-guardrail 규칙 1)
     src_pages = {(s["model"], s["page"]) for s in SAFETY_SOURCES}
+    safety_models = {s["model"] for s in SAFETY_SOURCES}
     # 기종별로 "10분 이상"을 명시한 원문이 최소 1건 있어야 기준값이 근거를 갖는다
     baseline_quoted = {
         m
@@ -191,12 +192,24 @@ def run() -> None:
         for s in SAFETY_SOURCES
         if s["model"] == m and "10분 이상" in str(s["quote"])
     }
+    # IE5 는 SAFETY_BASELINE 근거 미확보 — 의도적 제외(D109 ⓐ, 절대규칙 3).
+    # ⚠ `baseline_quoted <= set(MODELS)` 는 baseline_quoted 자체가 `for m in MODELS` 컴프리헨션
+    # 산물이라 **항상 참인 항등식**이었다(뮤턴트로 실증: SAFETY_SOURCES 에서 "10분 이상" 문구를
+    # 전부 지워도 이 축은 여전히 통과한다 — reviewer 지적, P30 유형 무력화). 대신 "IE5 를 뺀
+    # 나머지 MODELS 는 반드시 원문 근거를 가져야 한다"는 실질 제약으로 되돌린다. 모델 누출 방지
+    # 축(SAFETY_SOURCES 가 가리키는 모델이 MODELS 밖으로 새지 않는가)은 `safety_models <=
+    # set(MODELS)` 로 그대로 유지한다.
+    required_quoted = set(MODELS) - {"IE5"}
     check(
-        "⑭ SAFETY_SOURCES 에 매뉴얼 원문·페이지 기록",
+        "⑭ SAFETY_SOURCES 에 매뉴얼 원문·페이지 기록 (IE5 는 근거 미확보로 의도적 제외 — D109)",
         {("iG5A", 4), ("S100", 2)} <= src_pages
-        and baseline_quoted == set(MODELS)
+        and safety_models <= set(MODELS)
+        and required_quoted <= baseline_quoted  # iG5A·S100 은 "10분 이상" 원문 근거 필수
         and all(str(s["quote"]).strip() for s in SAFETY_SOURCES),
-        f"{len(SAFETY_SOURCES)}건, 기준값 원문 보유={sorted(baseline_quoted)}",
+        f"SAFETY_SOURCES 모델={sorted(safety_models)}, MODELS={list(MODELS)}, "
+        f"MODELS-SAFETY_SOURCES 차집합={sorted(set(MODELS) - safety_models) or '없음'}, "
+        f"{len(SAFETY_SOURCES)}건, 기준값 원문 보유={sorted(baseline_quoted)}, "
+        f"필수 보유 대상={sorted(required_quoted)}, 누락={sorted(required_quoted - baseline_quoted) or '없음'}",
     )
 
     # ── ⑮ 위험 키워드 판정 (safety-guardrail 규칙 2) — MQ-306 이 쓰는 헬퍼
