@@ -284,3 +284,45 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
   설비 미시드 — 즉 "정의 조회 경로만 편입"이지 "완전 동등 3기종"이 아니다
 
 승인되면 `/stage 2`로 Stage 2(MQ-1502~1506, 병렬 5태스크)를 진행한다.
+
+---
+
+## Stage 2 완료 (2026-08-21)
+
+**커밋**: `acd2eee` — `[M2] feat: Sprint 15 Stage 2 — model enum 3종 확장 (D109, P11)`
+**reviewer**: 1차 **FAIL**(블로커 1) → 수정 → 2차 **PASS**
+
+### 산출물
+
+| 태스크 | 파일 |
+|---|---|
+| MQ-1502 | `data/extracted/ie5_code_candidates.json` — `_status` "승인 완료" |
+| MQ-1503 | `data/raw/manifest.json`·`data/raw/INDEX.md` — IE5 표준판 등재 |
+| MQ-1504 | `lookup_error_code.py`·`rag.py`·`manifest.py`·`rag_search_manual.py` — `MODELS` 3-tuple화 |
+| MQ-1505 | `create_po_draft.py`·`create_repair_record.py`·`data/inventory.py` — `VALID_MODELS` 3-tuple화 |
+| MQ-1506 | `prompts.py`·`loop.py` — `MODELS` 3-tuple화(`SAFETY_BASELINE` 등은 불변) |
+
+### 🔴 reviewer 1차 FAIL — 계획에 없던 세 번째 하드코딩
+
+`backend/agent/prompts.py`의 `RULES` 규칙 9가 "`model` 파라미터에는 `iG5A` 또는 `S100` 만 쓴다"로
+하드코딩돼 있어, 같은 시스템 프롬프트 안에서 `build_system_prompt()`의 장비 컨텍스트 절(`MODELS`
+동적 참조, IE5 포함)과 정면 모순됐다. D109가 실측한 "8개 지점 + 하드코딩 메시지 3곳"에도 없던
+지점이다 — **결정문 실측이 완전하지 않았다는 증거.** 규칙 9를 `MODELS` 참조 f-string으로 동적화해
+해소. 부수로 `mcp_server/server.py:87`의 낡은 docstring도 정리.
+
+### 코디네이터가 회귀 중 발견 — `citation_render.py` 하드코딩 카운트
+
+`⑫ load_manifest 1회 캐시` 검사가 `manuals` 개수를 `3`으로 하드코딩하고 있었는데 MQ-1503이 IE5를
+더해 4건이 됨 — `4`로 갱신. MQ-1510(Stage 4)이 담당할 "IE5 왕복 케이스 추가"와는 다른, MQ-1503의
+직접 여파라 이번 스테이지에서 즉시 수정했다.
+
+### 알려진 채 남겨둔 회귀 2건 (계획대로, Stage 4 MQ-1509 대상)
+
+`spikes/prompt_rules.py` ⑤(`MODELS` 정확 2종 일치 단언)·⑭(`SAFETY_SOURCES` 키 집합과 `MODELS`
+완전 일치 단언) — 둘 다 sprint-15.md §0-3③에 사전 식별된 것으로, IE5 enum 확장과 안전 문구
+의도적 미확장의 직접 결과다.
+
+### 회귀
+
+`seed 36` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean` · `lookup_contract 14`
+(무영향) · `rag_contract 12`(무영향) · `citation_render 18`(수정 후 재통과)
