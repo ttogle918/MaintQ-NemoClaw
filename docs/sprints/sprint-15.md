@@ -359,3 +359,38 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 
 `seed 37`(`--with-error-codes`, `error_codes` 70행) · `seed 37`(게이트 없이, 0행 정상) ·
 `lookup_contract 14` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean`
+
+---
+
+## Stage 4 완료 (2026-08-21)
+
+**커밋**: `c439999` — `[M4] test: Sprint 15 Stage 4 — 회귀 갱신 (D109, P11)`
+**reviewer**: 1차 **FAIL**(블로커 1) → 수정 → 2차 **PASS**
+
+### 산출물
+
+| 태스크 | 파일 | 결과 |
+|---|---|---|
+| MQ-1509 | `spikes/prompt_rules.py` | 검사 ⑤ 3종 갱신, 검사 ⑭ 부분집합 완화. 건수 불변 24건 |
+| MQ-1510 | `spikes/citation_render.py` | 검사 ④ IE5 케이스 추가, 신규 ⑯-b. 18→19건 |
+
+### 🔴 reviewer 1차 FAIL — 완화가 항등식으로 무력화
+
+검사 ⑭를 `baseline_quoted <= set(MODELS)`로 완화했는데, `baseline_quoted`가 `for m in MODELS`
+컴프리헨션 산물이라 **구조상 항상 참**이었다. `SAFETY_SOURCES`에서 "10분 이상" 원문 근거를 전부
+지워도 검사가 통과 — CLAUDE.md가 경계하는 "부재검사 무력화"(P30 유형)와 같은 결함. 원인은 부분집합
+완화의 **방향**이 잘못됐던 것 — "SAFETY_SOURCES가 MODELS 밖으로 새지 않는다"(그건
+`safety_models <= set(MODELS)`가 이미 담당)와 "iG5A·S100은 원문 근거를 반드시 가져야 한다"를
+같은 축으로 뭉갰다. `required_quoted = set(MODELS) - {"IE5"} <= baseline_quoted`로 방향을 뒤집어
+해소 — 뮤턴트(quote 제거)로 실제 FAIL 발화를 코디네이터가 직접 실증한 뒤 재게이트 PASS.
+
+### 회귀
+
+`prompt_rules 24` · `citation_render 19` · `seed 37` · `sp2 20` · `write_tool 30` · `api 31` ·
+`sp3 22` · `ruff clean`
+
+### Sprint 15 전체 완료
+
+5스테이지 전부 완료 — D109 결정 → enum 확장(6개 파일 + 하드코딩 메시지 4곳 + RULES 규칙 9) →
+정본 병합(65→70건) → 회귀 갱신. IE5는 이제 `lookup_error_code` 등 정의 조회 경로의 3번째
+기종이다. 다음은 Stage 5(문서 동기화, MQ-1511) 또는 `/done`.
