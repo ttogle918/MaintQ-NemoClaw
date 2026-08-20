@@ -247,6 +247,37 @@ def run(client) -> None:
         f"{r.status_code}, count={r.json().get('count')}",
     )
 
+    # ── D108 — department 는 권한이 아니고 헤더가 아니라 DB 조회로만 온다 ──────────────
+    body = client.get("/api/whoami", headers=MGR).json()
+    body2 = client.get("/api/whoami", headers={"X-Role": "manager", "X-User": "mgr-02"}).json()
+    body3 = client.get("/api/whoami", headers=TECH).json()
+    check(
+        "㉔ GET /api/whoami — department 는 user_id 별로 DB 값 그대로 (D108)",
+        body["department"] == "maintenance"
+        and body2["department"] == "finance"
+        and body3["department"] == "maintenance",
+        f"mgr-01={body['department']!r} mgr-02={body2['department']!r} tech-01={body3['department']!r}",
+    )
+
+    # X-Dept 헤더는 애초에 정의돼 있지 않다 — 보내도 서버가 읽지 않고 DB 값이 그대로 나와야 한다
+    spoofed = client.get(
+        "/api/whoami", headers={**MGR, "X-Dept": "finance"}
+    ).json()
+    check(
+        "㉕ X-Dept 헤더 스푸핑 무시 — mgr-01(maintenance)에 X-Dept:finance 를 실어도 무시 (D108)",
+        spoofed["department"] == "maintenance",
+        f"department={spoofed['department']!r} (기대: 'maintenance', 헤더값 'finance' 는 무시돼야 함)",
+    )
+
+    unknown = client.get(
+        "/api/whoami", headers={"X-Role": "manager", "X-User": "ghost-99"}
+    ).json()
+    check(
+        "㉖ 미등록 user_id → department:None, 400 아님 (D108)",
+        unknown["department"] is None and "role" in unknown and "user_id" in unknown,
+        f"{unknown}",
+    )
+
 
 def run_print_page_checks() -> None:
     """`_attach_print_pages` (D57) 순수 함수 검증 — DB·HTTP 없이 딕셔너리로만.
@@ -261,7 +292,7 @@ def run_print_page_checks() -> None:
     po = {"model": "iG5A", "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
     _attach_print_pages(po)
     check(
-        "㉔ D57 print_page — iG5A(offset 0): 202 → 202",
+        "㉗ D57 print_page — iG5A(offset 0): 202 → 202",
         po["evidence"]["basis"][0].get("print_page") == 202,
         f"{po['evidence']['basis'][0]}",
     )
@@ -270,7 +301,7 @@ def run_print_page_checks() -> None:
     po = {"model": "S100", "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
     _attach_print_pages(po)
     check(
-        "㉕ D57 print_page — S100(offset 16): 202 → 186 (★ 음성: 202 면 오프셋 미적용)",
+        "㉘ D57 print_page — S100(offset 16): 202 → 186 (★ 음성: 202 면 오프셋 미적용)",
         po["evidence"]["basis"][0].get("print_page") == 186,
         f"{po['evidence']['basis'][0]}",
     )
@@ -279,7 +310,7 @@ def run_print_page_checks() -> None:
     po = {"model": None, "evidence": {"basis": [{"tool": "lookup_error_code", "manual_page": 202}]}}
     _attach_print_pages(po)
     check(
-        "㉖ D57 print_page — model 없음 → 필드 없음",
+        "㉙ D57 print_page — model 없음 → 필드 없음",
         "print_page" not in po["evidence"]["basis"][0],
         f"{po['evidence']['basis'][0]}",
     )
@@ -291,7 +322,7 @@ def run_print_page_checks() -> None:
     }
     _attach_print_pages(po)
     check(
-        "㉗ D57 print_page — manual_page 없는 basis 항목은 무영향",
+        "㉚ D57 print_page — manual_page 없는 basis 항목은 무영향",
         "print_page" not in po["evidence"]["basis"][0],
         f"{po['evidence']['basis'][0]}",
     )
@@ -330,7 +361,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — 권한 403·전이 409·D29 기록·GET /trace(D43) 확인")
+    print(
+        f"\n통과 ({len(results)}건) — 권한 403·전이 409·D29 기록·GET /trace(D43)·"
+        "department 는 헤더 스푸핑 불가·DB 조회만(D108) 확인"
+    )
 
 
 if __name__ == "__main__":

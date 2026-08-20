@@ -132,8 +132,8 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 > 누가 무엇을 판단했는지가 지워지면 승인의 의미가 사라진다(`data/related_parts.seed.json`
 > 의 `_승인_이력`).
 
-**회귀 현황**(2026-08-19 기준, `CLAUDE.md` 실측 기준선): spikes **32스위트 / 969건** · pytest **83건** ·
-seed **35건** · 프론트 라우트 **18개**(`npx next build`).
+**회귀 현황**(2026-08-19 기준, `CLAUDE.md` 실측 기준선): spikes **32스위트 / 972건** · pytest **83건** ·
+seed **36건** · 프론트 라우트 **18개**(`npx next build`).
 
 **재현 방법**:
 
@@ -154,7 +154,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 11 = 18종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D107** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D108** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 

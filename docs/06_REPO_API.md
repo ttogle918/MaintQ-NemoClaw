@@ -158,10 +158,26 @@ MaintQ/
 > HTTP 헤더 값이 ASCII(latin-1) 범위라 httpx·브라우저 `fetch` 양쪽에서 거부된다 (SP3에서 확인).
 > DB에는 ID를 저장하고, 화면 표시명은 서버가 매핑한다.
 
-| 사용자 ID | 역할 | 표시명 |
-|---|---|---|
-| `tech-01` | technician | 정비사 김OO |
-| `mgr-01` | manager | 보전팀장 박OO |
+| 사용자 ID | 역할 | 소속 | 표시명 |
+|---|---|---|---|
+| `tech-01` | technician | maintenance | 정비사 김OO |
+| `tech-02` | technician | maintenance | 정비사 이OO |
+| `mgr-01` | manager | maintenance | 보전팀장 박OO |
+| `mgr-02` | manager | finance | 재무 담당 최OO |
+
+> 🔴 **`department`(소속)는 헤더에 없다 (D108).** `X-Dept` 같은 헤더를 두지 않는다 — 있으면
+> 클라이언트가 자기 부서를 자칭할 수 있다. **서버가 `users.department` 를 `X-User` 로 조회해
+> 주입**한다. 그 값을 클라이언트가 읽는 경로는 `GET /api/whoami` 뿐이다 — 아래 §2.0-b.
+> ⚠ **`department` 는 권한이 아니다** — 위 표의 `mgr-02`(재무)도 `role` 은 `manager` 라서
+> 지금 발주·처분·수리 승인 게이트(`require()`)에 아무 영향이 없다. 승인 자격은 여전히
+> `role` 하나로만 결정된다.
+
+### 2.0-b 신원 조회
+
+```
+GET /api/whoami                      # {role, user_id, department} — 판정 없음, Caller 값 그대로 반환
+                                     #   department 는 X-User 로 서버가 조회한 값 (D108)
+```
 
 > **시각 규약 (D39):** DB 저장·API 전송은 **UTC**, 표시만 클라이언트가 로컬로 변환한다.
 > API 는 타임존을 명시한 ISO-8601(`2026-07-23T04:51:44Z`)로 내보낸다 — 표기 없는 naive 문자열을

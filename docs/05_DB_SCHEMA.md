@@ -103,12 +103,14 @@ CREATE TABLE users (
   user_id       TEXT PRIMARY KEY,      -- 'tech-01' — X-User 헤더 값. ASCII (D36)
   email         TEXT UNIQUE,           -- 회사 이메일. 향후 IdP 매칭 키 (D52)
   display_name  TEXT NOT NULL,         -- '김OO' — 화면 표시용. 헤더·DB엔 안 들어간다
-  role          TEXT NOT NULL,         -- 'technician' | 'manager'
+  role          TEXT NOT NULL,         -- 권한. 'technician' | 'manager'
+  department    TEXT,                  -- 소속. **권한이 아니다** (D108). nullable = 미배정
   auth_provider TEXT NOT NULL DEFAULT 'local',  -- 'local' | 'google'
   external_id   TEXT,                  -- IdP의 sub/oid. 연동 전 NULL
   active        BOOLEAN NOT NULL DEFAULT 1,     -- 퇴사·휴직 시 0
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   CHECK (role IN ('technician','manager')),
+  CHECK (department IS NULL OR department IN ('maintenance','finance')),
   CHECK (auth_provider IN ('local','google')),
   CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
 );
@@ -119,6 +121,12 @@ CREATE TABLE users (
 **`role`은 회사가 사전 부여한다 (D52).** Google 로그인은 "누구인지"만 확인하고 권한을 정하지 않는다. OAuth가 권한을 결정하면 D4(진단자/승인자 분리)가 무의미해진다.
 
 **개인 소셜 로그인은 넣지 않는다 (D52).** `auth_provider`가 `local`·`google` 2종뿐인 이유다. `google`은 **회사 Google Workspace**이며, `hd`(hosted domain) 클레임 + 이 테이블의 사전 등록 두 겹으로 개인 Gmail을 막는다. 실제 인증 플로우 구현은 백로그 **P21**.
+
+**`department`(소속)는 `role`(권한)과 직교다 (D108, P41 ③).** 재무부 담당자(`mgr-02`)도 `role`
+은 그대로 `manager` 다 — 승인 권한은 `role` 하나로만 결정되고 `department` 는 어떤 판정 함수도
+참조하지 않는다. `role` 과 달리 헤더로 받지 않는다 — **서버가 이 컬럼을 `user_id` 로 조회해
+주입**한다(`backend/deps.py:_department_of`, `GET /api/whoami`). 클라이언트가 `X-Dept` 같은
+헤더로 자기 부서를 자칭할 길이 구조적으로 없다.
 
 ## 2. equipment — 설비 마스터
 

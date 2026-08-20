@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D107**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D108**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
@@ -116,7 +116,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-20, Sprint 14 Stage 2 완료 후 전수 재실행)** — spikes **32스위트 / 969건** · seed **35건**(불변,
+**실측 기준선 (2026-08-20, P41 ③ 부서 분리 완료 후 재실행)** — spikes **32스위트 / 972건** · seed **36건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
@@ -127,7 +127,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade`
 2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
-`agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`agent_loop_contract 35` · `api_contract 31` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
@@ -153,6 +153,11 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > 건수가 하나도 바뀌지 않았고 FAIL 0 · 소켓 고갈 재시도 0회**였다. 이 스위트는 `data/raw/` 의 IE5
 > PDF 가 `.gitignore` 대상이라 **기하 픽스처만으로 돈다** — PDF 가 있으면 대조 축 3건이 더 붙고,
 > 없으면 **`SKIPPED 3` 을 건수와 함께 인쇄**하고 통과한다(PASS 47 + SKIPPED 3, 종료코드 0).
+>
+> **969→972**: P41 ③(부서 분리, D108)이 `spikes/api_contract.py` 에 department 신뢰 경계
+> 검사 3건(헤더 스푸핑 무시·`GET /api/whoami` 왕복·미등록 사용자 처리)을 더했다
+> (969+3=972). `seed.py` 자가검증도 ⑨-b(department 가 role 을 안 바꾸는지) 신설로
+> 35→**36건**이 됐다 — 이건 spikes 969/972 건과 **별도 카운트**다.
 >
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이

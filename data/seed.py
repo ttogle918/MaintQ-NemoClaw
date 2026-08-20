@@ -81,12 +81,15 @@ CREATE TABLE users (
   user_id       TEXT PRIMARY KEY,         -- 'tech-01' — 헤더로 오가는 ASCII ID (D36)
   email         TEXT UNIQUE,              -- 회사 이메일. 향후 IdP 매칭 키 (D52)
   display_name  TEXT NOT NULL,            -- '김OO' — 화면 표시용
-  role          TEXT NOT NULL,            -- 회사가 사전 부여. OAuth 가 정하지 않는다 (D52)
+  role          TEXT NOT NULL,            -- 권한. 회사가 사전 부여. OAuth 가 정하지 않는다 (D52)
+  department    TEXT,                     -- 소속. **권한이 아니다** — require() 는 안 본다 (D108)
+                                           -- NULL 허용 = 미배정. 헤더로 받지 않고 이 컬럼에서만 주입
   auth_provider TEXT NOT NULL DEFAULT 'local',
   external_id   TEXT,                     -- IdP 의 sub/oid. 연동 전 NULL
   active        BOOLEAN NOT NULL DEFAULT 1,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   CHECK (role IN ('technician','manager')),
+  CHECK (department IS NULL OR department IN ('maintenance','finance')),
   CHECK (auth_provider IN ('local','google')),
   CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
 );
@@ -496,10 +499,12 @@ CREATE TABLE risk_profile (
 # (user_id, email, display_name, role, auth_provider) — D41·D52
 # auth_provider 는 전부 'local' : 회사 IdP 연동(google)은 백로그 P21 이고, 개인 소셜은 넣지 않는다.
 # 이메일은 회사 도메인 형식 예시 (.example 은 RFC 2606 예약 도메인 — 실제로 발송되지 않는다)
+# department: 소속. role(권한) 과 직교 — P41 ③ (D108). 재무부 담당자도 role 은 그대로 'manager' 다.
 USERS = [
-    ("tech-01", "kim@maintq.example", "김OO", "technician", "local"),
-    ("tech-02", "lee@maintq.example", "이OO", "technician", "local"),
-    ("mgr-01", "park@maintq.example", "박OO", "manager", "local"),
+    ("tech-01", "kim@maintq.example", "김OO", "technician", "maintenance", "local"),
+    ("tech-02", "lee@maintq.example", "이OO", "technician", "maintenance", "local"),
+    ("mgr-01", "park@maintq.example", "박OO", "manager", "maintenance", "local"),
+    ("mgr-02", "choi@maintq.example", "최OO", "manager", "finance", "local"),
 ]
 
 SUPPLIERS = [
@@ -1280,7 +1285,8 @@ def seed_users(con: sqlite3.Connection) -> None:
     FK 로 이 테이블을 참조한다 (D41). `PRAGMA foreign_keys=ON` 상태라 순서가 틀리면 즉시 실패한다.
     """
     con.executemany(
-        "INSERT INTO users (user_id, email, display_name, role, auth_provider) VALUES (?,?,?,?,?)",
+        "INSERT INTO users (user_id, email, display_name, role, department, auth_provider)"
+        " VALUES (?,?,?,?,?,?)",
         USERS,
     )
 
@@ -2319,16 +2325,28 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     )
 
     # ── D41 스키마 보강 4건 회귀
-    users = con.execute("SELECT user_id, display_name, role FROM users ORDER BY user_id").fetchall()
+    users = con.execute(
+        "SELECT user_id, display_name, role, department FROM users ORDER BY user_id"
+    ).fetchall()
     check(
-        "⑨ users 3행 적재 (D41)",
+        "⑨ users 4행 적재 (D41·D108)",
         users
         == [
-            ("mgr-01", "박OO", "manager"),
-            ("tech-01", "김OO", "technician"),
-            ("tech-02", "이OO", "technician"),
+            ("mgr-01", "박OO", "manager", "maintenance"),
+            ("mgr-02", "최OO", "manager", "finance"),
+            ("tech-01", "김OO", "technician", "maintenance"),
+            ("tech-02", "이OO", "technician", "maintenance"),
         ],
         f"{len(users)}행 {[u[0] for u in users]}",
+    )
+    # department 는 role 과 직교다 — 재무부(mgr-02)도 role 은 여전히 'manager' (D108)
+    dept_role_check = con.execute(
+        "SELECT count(*) FROM users WHERE department='finance' AND role != 'manager'"
+    ).fetchone()[0]
+    check(
+        "⑨-b department 는 role 을 바꾸지 않는다 (D108)",
+        dept_role_check == 0,
+        f"finance 소속인데 role≠manager 인 행 {dept_role_check}건",
     )
 
     # 실재하지 않는 user_id 로는 발주가 만들어지지 않는다 (D41 FK).
