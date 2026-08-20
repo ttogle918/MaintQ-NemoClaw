@@ -31,7 +31,8 @@
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
-4. **model 파라미터는 enum('iG5A','S100') 강제** (D6, D13)
+4. **model 파라미터는 enum('iG5A','S100','IE5') 강제** (D6, D13, D109 — IE5 는 정의 조회 경로만.
+   `equipment.model` CHECK 는 여전히 2종, 안전 문구·RAG 청킹은 IE5 미확장)
 5. **`data/raw/`는 읽기 전용** — 매뉴얼 원본 수정 금지, git에도 올리지 않음 (.gitignore 확인)
    - 🔴 **예외가 셋 있다 (D103, Sprint 13)**:
      ㉠ **git 추적 예외** — `data/raw/external/<source>/*.json`(외부 API 응답 원본) +
@@ -116,10 +117,11 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-20, IE5 검수 이월 항목 반영 후 재실행)** — spikes **32스위트 / 976건** · seed **36건**(불변 아님 —
+**실측 기준선 (2026-08-21, Sprint 15 P11·D109 model enum 3종 확장 후 재실행)** — spikes **32스위트 / 977건** · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
-F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile`) · pytest **83건**
+F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
+`error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
 프론트 라우트 **18개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 **17개**다. 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이 다르다**. 17로 '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라 재실행 불필요**, Sprint 10
@@ -128,7 +130,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
 `agent_loop_contract 35` · `api_contract 31` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
+`bundle_integrity 25` · `citation_render 19` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
@@ -165,6 +167,11 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > C⑫(`IOL`↔`IOLt` 명칭 충돌 상호참조) · D④(`_warnings` 실패 경로 liveness). 나머지
 > 31스위트는 무변경(FAIL 0 · 소켓 고갈 재시도 0회, 32스위트 전수 재실행). seed **36건**·
 > pytest **83건** 그대로. PDF 없을 때는 `ie5` 가 PASS 51 + **SKIPPED 3**(종료코드 0).
+>
+> **976→977**: Sprint 15(P11, D109)가 model enum 을 3종(iG5A·S100·IE5)으로 확장하고 IE5 5건을
+> 정본에 병합했다. spikes 변화는 `citation_render`(18→19, IE5 왕복 검증 신규) **하나뿐**이고
+> 나머지 31스위트는 건수 무변화(976+1=977). seed **36→37건**(신규 검사 ㊱, IE5 5건 병합 검증).
+> `error_codes` **65→70건**. pytest 83건·프론트 18라우트·MCP 도구 18종·DB 24테이블 전부 무변경.
 >
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이

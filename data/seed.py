@@ -2152,7 +2152,7 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
       조용히 깨진다(어느 값이 어느 컬럼에 들어갔는지 SQLite 가 검증해 주지 않는다).
       `actions_manual_id`·`actions_page` (D100) 는 JSON 에 키가 있으면 채우고 없으면
       `None` — MQ-919 가 승인 3건(iG5A RERR·ETB, S100 FANW)만 정본에 채웠으므로 그 3건만
-      값이 있고 나머지 62건은 `None` 이 정상이다.
+      값이 있고 나머지 67건은 `None` 이 정상이다(Sprint 15 가 IE5 5건을 더해 62→67, 검사 ㉚).
     """
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
     overlay: dict[tuple[str, str], list[str]] = {}

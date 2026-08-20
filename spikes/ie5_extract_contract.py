@@ -54,7 +54,6 @@ FIXTURE = ROOT / "spikes" / "fixtures" / "ie5_p125_geometry.json"
 CANDIDATE = ROOT / "data" / "extracted" / "ie5_code_candidates.json"
 CANONICAL = ROOT / "data" / "extracted" / "error_codes.json"
 SRC_PATH = ROOT / "data" / "extract_ie5_codes.py"
-SEED_PATH = ROOT / "data" / "seed.py"
 
 PAGES = (125, 126)  # 물리 페이지 (D26)
 TOP_KEYS = (
@@ -610,57 +609,28 @@ def probe_name_variants() -> tuple[bool, str]:
 
 
 # ──────────────────────────────────────────────── C. 후보 파일 계약
-def seed_draft_markers() -> list[str]:
-    """`data/seed.py` 의 `error_codes_gate()` 가 초안으로 판정하는 문자열 리터럴.
-
-    후보 파일 `_status` 어휘를 여기에 **묶어 둔다** — 게이트 선례가 한국어인데 후보 파일만
-    `"pending"` 이면, P11 이 같은 게이트를 재사용하는 순간 그 값이 **승인으로 읽힌다**.
-
-    ⚠ 함수 안 문자열을 통째로 긁으면 `''`·`'utf-8'` 까지 마커로 잡히고, **`'' in status` 는
-      언제나 참**이라 판정이 무의미해진다. 그래서 `<리터럴> in status` **비교식의 좌변만**
-      뽑는다 — 게이트가 판정에 실제로 쓰는 어휘 그것이다.
-    """
-    if not SEED_PATH.exists():
-        return []
-    for node in ast.walk(ast.parse(SEED_PATH.read_text(encoding="utf-8"))):
-        if not (isinstance(node, ast.FunctionDef) and node.name == "error_codes_gate"):
-            continue
-        out: set[str] = set()
-        for cmp_node in ast.walk(node):
-            if not isinstance(cmp_node, ast.Compare) or len(cmp_node.ops) != 1:
-                continue
-            right = cmp_node.comparators[0]
-            hits_status = isinstance(right, ast.Name) and right.id == "status"
-            left = cmp_node.left
-            if (
-                isinstance(cmp_node.ops[0], ast.In)
-                and hits_status
-                and isinstance(left, ast.Constant)
-                and isinstance(left.value, str)
-                and left.value
-            ):
-                out.add(left.value)
-        return sorted(out)
-    return []
-
-
 @guard
 def probe_status(doc: dict) -> tuple[bool, str]:
+    """`_status` 가 승인+정본 병합 완료를 정확히 반영하는가.
+
+    이 검사는 원래(sprint-14) "사람 검수 전 초안 마커가 살아 있는가"를 봤다 — `_status` 가
+    D33/D99 초안 어휘를 담고 `is_draft_status()` 가 `True` 여야 정상이었다. **Sprint 15 가 그
+    전제를 완료로 바꿨다**: 2026-08-20 사람 승인 + 2026-08-21 정본 병합(MQ-1507)까지 끝나
+    이 파일은 더 이상 초안이 아니다. 지금은 반대 방향이 정상이다 — `is_draft_status()` 가
+    `False` 여야 하고(승인 후에도 초안 어휘가 남아 있으면 D99 가드가 계속 오판하는 사고),
+    승인·병합 두 사실이 문구에 남아 있어야 한다(정정이 아니라 순차 사실 기록, Stage 3 reviewer
+    가 이미 확인한 관례).
+    """
     status = str(doc.get("_status", ""))
-    markers = seed_draft_markers()
-    hits = [m for m in markers if m in status]
-    # `data/extract_error_codes.py` 의 `DRAFT_MARKERS`/`is_draft_status()` 선례를 **재사용**한다
-    # (sprint-14 §8 이월 ⑤, reviewer 권고 "낮음" — 취약하지는 않으나 AST 재구현이 중복이었다).
-    # seed.py 어휘 대조(위 AST 스캔)와는 목적이 다르다 — 이건 **정본 스크립트의 판정 함수 자체**로
-    # 한 번 더 확인하는 것이라 대체가 아니라 추가다.
     from data.extract_error_codes import is_draft_status  # noqa: PLC0415 — 지연 임포트
 
-    shared_draft = is_draft_status(status)
+    approved = "승인 완료" in status
+    merged = "정본 병합 완료" in status
+    not_draft = not is_draft_status(status)
     return (
-        bool(markers) and bool(hits) and "pending" not in status and shared_draft,
-        f"_status={status!r} · seed.error_codes_gate() 마커 {markers} · 적중 {hits} "
-        f"(마커 0개면 스캐너가 눈먼 것이라 판정 불가) · "
-        f"extract_error_codes.is_draft_status()={shared_draft} (DRAFT_MARKERS 재사용)",
+        approved and merged and not_draft and "pending" not in status,
+        f"_status={status!r} · 승인 완료 표기={approved} · 정본 병합 완료 표기={merged} · "
+        f"is_draft_status()={is_draft_status(status)} (False 가 정답 — 승인·병합 후 초안 아님)",
     )
 
 
@@ -759,10 +729,23 @@ def probe_same_run(doc: dict, fx: dict) -> tuple[bool, str]:
 
 @guard
 def probe_manifest(doc: dict) -> tuple[bool, str]:
+    """manifest 등재 표기가 실제 등재 상태와 일치하는가.
+
+    sprint-14 는 "등재는 P11 소관"이라 `False`(미등재)를 기대했다. **Sprint 15 가 P11 자체**이고
+    `data/raw/manifest.json` 에 IE5 를 실제로 등재했으므로(D109, `role:"primary"`) 이제 `True`
+    가 정답이다 — 표기만 바뀌고 실제 파일은 안 바뀌는 드리프트를 막기 위해 manifest.json 을
+    직접 열어 대조한다(양성 축).
+    """
+    manifest_path = ROOT / "data" / "raw" / "manifest.json"
+    ie5_registered = False
+    if manifest_path.exists():
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+        ie5_registered = any(m.get("model") == "IE5" for m in raw.get("manuals", []))
+    flag = doc["_source"].get("manifest_registered")
     return (
-        doc["_source"].get("manifest_registered") is False,
-        f"manifest_registered={doc['_source'].get('manifest_registered')} · "
-        f"manual_id={doc['_source']['manual_id']!r} (등재는 P11 소관)",
+        flag is True and ie5_registered,
+        f"manifest_registered={flag} · manifest.json 에 IE5 실재={ie5_registered} · "
+        f"manual_id={doc['_source']['manual_id']!r} (Sprint 15 = P11 완료, D109)",
     )
 
 
@@ -1065,13 +1048,13 @@ def run_join_checks(fx: dict, doc: dict) -> None:
 
 
 def run_candidate_checks(fx: dict, doc: dict) -> None:
-    check("C① _status 초안 마커 (D33 · seed 게이트 어휘)", *probe_status(doc))
+    check("C① _status 승인·병합 완료 표기 (D33·D99, Sprint 15)", *probe_status(doc))
     check("C② _unmatched 3버킷 실재·비공백", *probe_unmatched_buckets(doc))
     check("C③ _stats 자기무결성 (행 폐포)", *probe_stats(doc))
     check("C④ manual_page = 물리 페이지 (D26)", *probe_manual_page(doc))
     check("C⑤ codes 필수 키 · model enum 미확장", *probe_code_keys(doc))
     check("C⑥ 후보 ↔ 픽스처 동일 실행 산출물", *probe_same_run(doc, fx))
-    check("C⑦ manifest 미등재 표기 (§7-1)", *probe_manifest(doc))
+    check("C⑦ manifest 등재 표기 (D109, Sprint 15 = P11)", *probe_manifest(doc))
     check("C⑧ 리콜 — 확정 12종 전건 등장", *probe_recall(doc))
     check("C⑨ 형상 제외 버킷 = 차집합 (블로커 ①)", *probe_shape_bucket(doc, fx))
     check("C⑩ canonical 접기 + 원표기 보존 (D25)", *probe_fold(doc, fx))

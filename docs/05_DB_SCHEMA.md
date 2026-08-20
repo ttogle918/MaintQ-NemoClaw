@@ -1125,7 +1125,7 @@ CREATE TABLE risk_profile (
 | # | 검사 | 근거 |
 |---|---|---|
 | ①~⑦ | 시드 케이스 맵 7종 | 위 표 |
-| ⑧ | `error_codes` 적재 (`--with-error-codes` 시 65건, 기본 0건) | 사람 승인 게이트 |
+| ⑧ | `error_codes` 적재 (`--with-error-codes` 시 70건 — iG5A/S100 65건 + Sprint 15 IE5 5건 병합, 기본 0건) | 사람 승인 게이트 |
 | ⑨~⑪ | `users` 3행 · 미등록 user_id FK 거부 · `display_name` DB 조회 | D41 |
 | ⑫ | `assets` 9행 · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`) | D68 |
 | ⑬ | `law_refs` 사본 == `data/rules/laws/*.json` **파일 목록** (하드코딩 금지) | D60 |
@@ -1145,12 +1145,13 @@ CREATE TABLE risk_profile (
 | ㉗ | `repair_records` **상태 불변식**(D98) — `state='signed' ⇔ signed_at·record_hash·verified_by 전부 non-null` 을 **양방향**(iff)으로 검사, 어휘 밖 상태 0건 + 미서명 정확히 1건(`RPR-2403`) | D98 |
 | ㉘ | `error_codes` **출처 컬럼 짝 불변식**(D100) — `actions_manual_id`·`actions_page` 짝 불일치 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D100 |
 | ㉙ | `repair_records.record_hash` **재계산 대조**(D84 태도) — `data/repair_hash.compute_record_hash()` 로 서명 11행을 다시 계산해 저장 해시와 전건 일치하는지 확인 | D84·D98 |
-| ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL 62건은 기대치 | MQ-919 |
+| ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL **67건**(Sprint 15 IE5 5건 병합으로 62→67)은 기대치 | MQ-919 |
 | ㉛ | `part_lifecycle_mock` **27행**(9자산 × 부품 3종) · **모델-부품 정합**(`equipment.model` 이 `iG5A` 면 `part_no` 에 `IG5`, `S100` 이면 `S100` 포함, 불일치 0건) | Sprint 10 브레인스토밍 D |
 | ㉜ | `deadlines` **CHECK 프로브**(음성) — 잘못된 `type` 값 INSERT 를 **실제로 시도**해 `IntegrityError` 로 거부되는지 확인, 정상 상태는 0행 유지(양성) | D10·`11 §10-2` |
 | ㉝ | `incidents` **2행** · FK 정합(자산 고아 0건) · `type` enum 밖 0건 | D68·`11 §10-2` |
 | ㉞ | `ownership_checks` 행수 == `verify_ownership(AST-L3-LIFT)` **실측 항목 수**(하드코딩 아닌 그 자리에서 재호출한 값과 대조) · either-or CHECK 2종 음성 검사(`VERIFIED`+`limit_note`, `UNVERIFIED`+`evidence_ref` 각각 INSERT 시도 → 거부 확인) | S18·D68 |
 | ㉟ | `risk_profile` **4행** · `building_id` 집합이 `SELECT DISTINCT building_id FROM assets` 와 **동적으로 일치** · 점수식 재계산이 시드 표와 일치(`BLD-C` 의 의도적 불일치 포함) | D102·`11 §10-2` |
+| ㊱ | `error_codes` **IE5 5건 병합 검증**(Sprint 15 MQ-1507) — `model='IE5'` 행 정확히 5건(양성) · `causes`/`actions` 가 빈 배열인 행 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D109 |
 
 > **실측 (2026-08-18)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (35건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.
