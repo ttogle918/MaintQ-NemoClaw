@@ -2843,7 +2843,7 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         ec_mismatch == 0 and ((ec_total > 0) if with_codes else True),
         f"[음성] 짝 불일치={ec_mismatch}건 · [양성] error_codes 총 {ec_total}행"
         + (
-            " (게이트: --with-error-codes 적재, 기대 65)"
+            " (게이트: --with-error-codes 적재, 기대 70)"
             if with_codes
             else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"
         ),
@@ -2942,11 +2942,11 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     check(
         "㉚ error_codes.actions 병합 검증 (MQ-919)",
         (
-            (merged_keys == expected_merged and null_count == 62 and content_ok)
+            (merged_keys == expected_merged and null_count == 67 and content_ok)
             if with_codes
             else (len(merged_rows) == 0)
         ),
-        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 62)"
+        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 67)"
         f" · [내용대조] {content_detail}"
         + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
@@ -3083,6 +3083,23 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"행수={len(rp_rows)}(기대 4) · building_id={sorted(rp_bld)} vs assets={sorted(assets_bld)}"
         f" · 재계산 불일치={recompute_mismatch}"
         f" · BLD-C stored=LOW/computed=HIGH 가 의도된 형태(데모)",
+    )
+
+    # ㊱ error_codes IE5 5건 병합 검증 (Sprint 15 MQ-1507). data/merge_ie5_codes.py 가
+    #    IE5 트립 코드 5건을 정본 error_codes.json 에 병합했다(65→70). 여기서는 model='IE5'
+    #    행이 정확히 5건이고(양성 축) 그중 causes/actions 가 빈 배열인 행이 없는지(음성 축)
+    #    실측한다. `--with-error-codes` 없이 실행하면 0행이 정상 — 이때는 FAIL 이 아니라
+    #    통과시킨다(㉘·㉚ 와 같은 태도).
+    ie5_rows = q("SELECT count(*) FROM error_codes WHERE model='IE5'")[0]
+    ie5_empty = q(
+        "SELECT count(*) FROM error_codes WHERE model='IE5'"
+        " AND (json_array_length(causes)=0 OR json_array_length(actions)=0)"
+    )[0]
+    check(
+        "㊱ error_codes IE5 5건 병합 검증 (Sprint 15 MQ-1507)",
+        (ie5_rows == 5 and ie5_empty == 0) if with_codes else (ie5_rows == 0),
+        f"IE5 행수={ie5_rows}(기대 5) · causes/actions 빈 값={ie5_empty}건"
+        + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
     return results
 
