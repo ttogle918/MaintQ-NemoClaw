@@ -21,7 +21,7 @@
 | 데이터 | 경로 | 크기 | 성격 |
 |---|---|---|---|
 | 목업 DB | `data/maintq.db` | **311 KB** | **읽기+쓰기** — 발주·처분·수리 상태 전이가 여기 쌓인다 |
-| 매뉴얼 검색 인덱스 | `data/extracted/manual_chunks.jsonl` | **1.2 MB** | **읽기 전용** — 이미지에 그대로 포함 |
+| 매뉴얼 검색 인덱스 | `data/extracted/manual_chunks.jsonl` | **1.4 MB** | **읽기 전용** — 이미지에 그대로 포함 |
 | 파생 산출물·룰·법령 | `data/extracted/*.json` · `data/rules/` | 수백 KB | **읽기 전용**, git 추적 (D60) |
 
 ⛔ **`data/raw/` 의 매뉴얼 PDF 는 런타임에 필요 없다.** 청킹·추출은 빌드타임(M1)에 끝났고
@@ -42,7 +42,8 @@
 
 - `backend/` 전체에 `dense`·`scorer` 문자열 **0건** — `backend/rag/` 디렉터리 자체가 없다 (D48)
 - `mcp_server/rag.py` 는 어떤 임베딩 모델도 import 하지 않는다 (모듈 docstring 이 명시)
-- 인덱스 = `manual_chunks.jsonl` **1.2 MB 텍스트 파일**, 프로세스 안에서 읽기 전용 로드
+- 인덱스 = `manual_chunks.jsonl` **1.4 MB 텍스트 파일**(D110 — IE5 194청크 편입 후, 총
+  1,229청크), 프로세스 안에서 읽기 전용 로드
 
 **결론**: 벡터 DB 서비스도, 그 인덱스를 담을 볼륨도 **필요 없다.** 다른 벡터 DB 로
 바꿀지 비교할 대상 자체가 없다. D51 이 풀리면 그때 이 절을 다시 연다.

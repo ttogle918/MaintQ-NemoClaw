@@ -41,6 +41,12 @@ EXTRACTED = ROOT / "extracted"
 MANIFEST = RAW / "manifest.json"
 OUTPUT = EXTRACTED / "manual_chunks.jsonl"
 
+# model enum — 이 파일 전용 상수 (data/inventory.py 의 기존 관례를 따른다: 중앙 import 없이
+# 지점마다 독립 상수를 두고 D109 가 그 지점들을 전부 열거). D6·D13 원본 enum을 D109·D110 이
+# 순차로 넓혔다 — D109 가 8개 코드 지점 + 메시지 3곳에 IE5 를 추가했고, D110 이 RAG 검색
+# 대상(이 파일의 verify())에도 편입한다.
+MODELS = ("iG5A", "S100", "IE5")
+
 # 청크 크기 (문자 수). 페이지 평균이 ~900자라 대부분의 페이지는 1~2청크가 된다.
 MAX_CHARS = 900  # 청크 상한 — 이 값을 넘으면 페이지 안에서 균등 분할
 MIN_CHARS = (
@@ -273,7 +279,7 @@ def verify(records: list[dict], page_texts: dict[str, dict[int, str]]) -> None:
     for r in records:
         assert tuple(r.keys()) == KEYS, f"키 불일치: {list(r.keys())}"
         assert isinstance(r["page"], int) and r["page"] >= 1, f"page 이상: {r['chunk_id']}"
-        assert r["model"] in ("iG5A", "S100"), f"model enum 위반: {r['model']}"  # D6·D13
+        assert r["model"] in MODELS, f"model enum 위반: {r['model']}"  # D6·D13·D109·D110
         assert r["char_len"] == len(r["text"]) >= MIN_CHARS, f"char_len 위반: {r['chunk_id']}"
         assert isinstance(r["section"], str), f"section 타입 위반: {r['chunk_id']}"
         assert CHUNK_ID_RE.match(r["chunk_id"]), f"chunk_id 형식 위반: {r['chunk_id']}"

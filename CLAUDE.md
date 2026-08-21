@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D109**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D110**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
@@ -117,7 +117,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-21, Sprint 15 P11·D109 model enum 3종 확장 후 재실행)** — spikes **32스위트 / 977건** · seed **37건**(불변 아님 —
+**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 978건** · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
@@ -135,7 +135,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
-`prompt_rules 24` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
+`prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
 `trace_persist 17` · `ui_honesty_contract 253` · `write_tool_contract 30`
 
@@ -172,6 +172,14 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > 정본에 병합했다. spikes 변화는 `citation_render`(18→19, IE5 왕복 검증 신규) **하나뿐**이고
 > 나머지 31스위트는 건수 무변화(976+1=977). seed **36→37건**(신규 검사 ㊱, IE5 5건 병합 검증).
 > `error_codes` **65→70건**. pytest 83건·프론트 18라우트·MCP 도구 18종·DB 24테이블 전부 무변경.
+>
+> **977→978**: D110(같은 날, 같은 세션)이 D109 ⓑ("RAG 는 별도 스프린트 대상")를 재조사로
+> 뒤집었다 — 실측 결과 막힌 지점은 `data/chunk_manual.py` 의 하드코딩 2종 assert 하나뿐이었고
+> IE5 PDF 는 코드 변경 없이 194청크로 정상 처리됐다(총 1,229청크). spikes 변화는
+> `rag_contract`(12→13, IE5 실 인덱스 검색 신규 검사) **하나뿐**(977+1=978). seed·pytest·
+> `error_codes`·프론트·도구·DB 전부 무변경. D109 ⓐ(안전 문구 미확장)·ⓒ(equipment CHECK 2종)는
+> 그대로 유지 — 안전 게이트(`needs_safety_block`)가 텍스트 내용 기반이라 데이터 출처와 무관하게
+> 동작함을 `backend/agent/loop.py:360-382` 직접 확인 후 결정했다.
 >
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이

@@ -7,8 +7,9 @@
   **D26** page 가 무가공 PDF 물리 페이지인가 (인용률 판정이 이 값을 traces 와 대조)
   **미구축 ≠ empty** 인덱스가 없을 때 empty 를 주면 "매뉴얼에 없다"는 잘못된 신호가 된다
 
-합성 인덱스로 돈다 — `MAINTQ_CHUNKS` 로 갈아끼워 실 인덱스(1,035청크)를 건드리지 않는다.
-실 인덱스는 마지막 한 케이스에서만 읽기 전용으로 확인한다.
+합성 인덱스로 돈다 — `MAINTQ_CHUNKS` 로 갈아끼워 실 인덱스(1,229청크 — iG5A 표준본 342 +
+iG5A 트러블슈팅 44 + S100 649 + IE5 194, D110)를 건드리지 않는다.
+실 인덱스는 마지막 두 케이스에서만 읽기 전용으로 확인한다.
 
 실행:  uv run python spikes/rag_contract.py
 """
@@ -205,8 +206,23 @@ def main() -> None:
             f"status={rr['status']}, {len(rr.get('chunks', []))}건, "
             f"pages={[c['page'] for c in rr.get('chunks', [])]}",
         )
+
+        # ── ⑬ ★ D110 — IE5 실 인덱스 검색 (RAG 대상 편입 확인)
+        before2 = real.stat().st_mtime_ns
+        ie5 = tool5(model="IE5", query="냉각핀 과열 원인", top_k=3)
+        n_hits = len(ie5.get("chunks", []))
+        check(
+            "⑬ D110 IE5 실 인덱스 검색 + 파일 불변",
+            ie5["status"] == "ok"
+            and n_hits > 0  # 양성 축 — 상태만 ok 인 것으로는 부족하다 (CLAUDE.md 부재검사 규칙)
+            and all(isinstance(c["page"], int) and c["text"] for c in ie5["chunks"])
+            and real.stat().st_mtime_ns == before2,
+            f"status={ie5['status']}, {n_hits}건, "
+            f"pages={[c['page'] for c in ie5.get('chunks', [])]}",
+        )
     else:
         check("⑫ 실 인덱스 검색", False, "manual_chunks.jsonl 없음 — chunk_manual.py 먼저 실행")
+        check("⑬ D110 IE5 실 인덱스 검색", False, "manual_chunks.jsonl 없음 — chunk_manual.py 먼저 실행")
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))
@@ -217,7 +233,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — D53 무절단 · D26 page 무가공 · 미구축≠empty 확인")
+    print(
+        f"\n통과 ({len(results)}건) — D53 무절단 · D26 page 무가공 · 미구축≠empty · "
+        "D110 IE5 실 인덱스 검색 확인"
+    )
 
 
 if __name__ == "__main__":
