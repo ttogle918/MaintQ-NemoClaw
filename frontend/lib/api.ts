@@ -357,6 +357,8 @@ export interface ApiAsset {
   acquired_at: string | null;
   book_value: number | null;
   acquisition_cost: number | null;
+  /** 위험등급 조회(`GET /api/assets/{id}/risk-grade`)가 이 값으로 건물을 해석한다. 없으면 null */
+  building_id: string | null;
   equipment_count?: number;
   equipment?: Record<string, unknown>[];
   [k: string]: unknown;
@@ -468,6 +470,92 @@ export interface ApiOwnership {
 
 export const getOwnership = (role: Role, assetId: string) =>
   apiFetch<ApiOwnership>(`/api/assets/${encodeURIComponent(assetId)}/ownership`, role);
+
+/* -------------------------------------------------------------------------- */
+/* 법정 기한 · 위험등급 (S9 · S18, MQ-1102·MQ-1105) — `backend/routers/asset_monitoring.py`  */
+
+/**
+ * 이 두 경로 전부 **역할 게이트가 없다**(읽기 판정, `asset_monitoring.py` 상단 주석) —
+ * `maintValue`·`ownership`·`disposal/precheck` 와 같은 이유로 403 이 안 난다.
+ * 표시는 `lib/deadlines.ts`·`lib/riskGrade.ts` 를 거친다 — 여기서는 원 어휘를 좁히지 않는다.
+ */
+
+/** `GET /api/deadlines` 응답의 항목 하나. `type`·`state` 는 원 어휘 그대로(D9/D50). */
+export interface ApiDeadlineItem {
+  asset_id: string;
+  /** "TAX-CREDIT-2Y" | "SAFETY-INSPECTION" — 원 어휘 그대로 */
+  type: string;
+  law_refs: string[];
+  due_date: string;
+  days_remaining: number;
+  /** "UPCOMING" | "IN_REVIEW_BAND" | "OVERDUE" — 원 어휘 그대로 */
+  state: string;
+  message: string;
+  resolve_options: string[];
+  [k: string]: unknown;
+}
+
+/** `GET /api/deadlines` 응답. 0건도 `status:"ok"` 다 — 실패가 아니다(D62). */
+export interface ApiDeadlines {
+  status: string;
+  evaluated_at?: string;
+  window_days?: number;
+  items?: ApiDeadlineItem[];
+  not_considered?: string[];
+  disclaimer?: string;
+  /** status != "ok" 일 때만 */
+  reason?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export const getDeadlines = (
+  role: Role,
+  params?: { assetId?: string; windowDays?: number }
+) => {
+  const q = new URLSearchParams();
+  if (params?.assetId) q.set("asset_id", params.assetId);
+  if (params?.windowDays !== undefined) q.set("window_days", String(params.windowDays));
+  const qs = q.toString();
+  return apiFetch<ApiDeadlines>(`/api/deadlines${qs ? `?${qs}` : ""}`, role);
+};
+
+/**
+ * `GET /api/buildings/{id}/risk-grade`·`GET /api/assets/{id}/risk-grade` 공통 응답.
+ * `current_grade` 는 3속성 중 하나라도 미확인이면 `null` 이다 — `LOW` 로 접지 않는다(D62,
+ * `lib/riskGrade.ts` 참조).
+ */
+export interface ApiRiskGrade {
+  status: string;
+  building_id?: string;
+  facts?: {
+    fire_handling: string | null;
+    hazmat_volume: string | null;
+    power_capacity: string | null;
+    product_type: string | null;
+  };
+  current_grade?: string | null;
+  stored_grade?: string | null;
+  stored_grade_updated_at?: string | null;
+  changed?: boolean;
+  grade_scale?: string[];
+  rationale?: string;
+  not_considered?: string[];
+  disclaimer?: string;
+  /** status != "ok" 일 때만 */
+  reason?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export const getBuildingRiskGrade = (role: Role, buildingId: string) =>
+  apiFetch<ApiRiskGrade>(
+    `/api/buildings/${encodeURIComponent(buildingId)}/risk-grade`,
+    role
+  );
+
+export const getAssetRiskGrade = (role: Role, assetId: string) =>
+  apiFetch<ApiRiskGrade>(`/api/assets/${encodeURIComponent(assetId)}/risk-grade`, role);
 
 /* -------------------------------------------------------------------------- */
 /* 보전지표 · 수리가치 판단 (S1+, MQ-908) — `backend/routers/maint_value.py` 5경로  */
@@ -843,6 +931,10 @@ export const endpoints = {
   equipmentHistory: (id: string) => `/api/equipment/${id}/history`,
   /** 에러 발생 이력 기록 — 정비사의 명시적 액션만 (D29) */
   equipmentErrors: (id: string) => `/api/equipment/${id}/errors`,
+  /** 법정 기한 · 위험등급 (MQ-1102·MQ-1105) */
+  deadlines: "/api/deadlines",
+  buildingRiskGrade: (buildingId: string) => `/api/buildings/${buildingId}/risk-grade`,
+  assetRiskGrade: (assetId: string) => `/api/assets/${assetId}/risk-grade`,
   /** 보전지표 · 수리가치 판단 (MQ-908) */
   assetMetrics: (assetId: string) => `/api/assets/${assetId}/metrics`,
   equipmentRepairValue: (equipmentId: string) => `/api/equipment/${equipmentId}/repair-value`,

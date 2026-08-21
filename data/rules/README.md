@@ -11,14 +11,14 @@ data/rules/
 ├── pending_revisions/  개정 감지분 (자동 반영 금지 — 사람 검토·서명 대기). 최초 감지 시 생성
 ├── engine.py           결정론적 판정기
 ├── fetch_laws.py       수집(미구현) · 적용 · 개정 감지
-└── test_rules.py       19개 테스트
+└── test_rules.py       46개 테스트 (2026-08-20 실측 — 오래 19 로 적혀 있었다)
 ```
 
 ## 실행
 
 ```bash
 # ⚠ pytest 는 dev 의존성에 없다 (--with 로 임시 설치). `uv run python -m pytest` 는 실패한다.
-uv run --with pytest python -m pytest data/rules/test_rules.py -q   # 19 passed
+uv run --with pytest python -m pytest data/rules/test_rules.py -q   # 46 passed
 uv run python spikes/law_fetch_contract.py                          # apply_fetch 계약 (네트워크 미사용)
 ```
 

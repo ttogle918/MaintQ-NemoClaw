@@ -12,6 +12,12 @@ import { sx } from "@/lib/sx";
  *
  * **아무것도 저장하지 않는다** (D71) — `classify_expenditure` 는 무저장 판정이고, 이 화면은
  * 조회·판정만 한다. 신고를 대신하지 않는다(세무·회계 참고용).
+ *
+ * **소속 배지는 정적이다 (P41 ③, D108)** — 이 화면이 조직상 재무부 소관이라는 표시이지,
+ * 지금 세션의 호출자 소속을 보여주는 게 아니다. 프론트는 아직 `mgr-01`(정비, D108 시드) 로만
+ * 로그인하므로 `GET /api/whoami` 를 여기서 부르면 "재무부 화면인데 정비 소속"이라는 혼란스러운
+ * 대조가 생긴다 — 실제 재무 계정 세션 전환은 이 화면의 스코프 밖(별도 로그인/라우팅 작업)이다.
+ * `department` 는 **권한 판정에 관여하지 않는다** — 이 배지가 없어도 승인 게이트는 그대로다.
  */
 export default function ManagerExpenditurePage() {
   return (
@@ -22,6 +28,13 @@ export default function ManagerExpenditurePage() {
           <span style={sx("font:600 13px 'Pretendard';color:var(--ink)")}>MaintQ</span>
           <Divider />
           <span style={sx("font:700 12.5px 'Pretendard';color:var(--ink2)")}>지출 성격 분류</span>
+          <span
+            style={sx(
+              "border:1px solid var(--line2);border-radius:14px;padding:3px 10px;font:11px 'Pretendard';color:var(--ink2);background:var(--raise)"
+            )}
+          >
+            재무부 소관
+          </span>
           <Spacer />
           <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>
             무저장 판정 화면 — 아무것도 기록하지 않습니다 (D71)

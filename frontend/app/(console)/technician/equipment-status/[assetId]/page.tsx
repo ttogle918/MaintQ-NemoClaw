@@ -96,6 +96,12 @@ export default function EquipmentStatusDetailPage({
             >
               ← 목록
             </Link>
+            <Link
+              href={`/manager/deadlines?asset_id=${encodeURIComponent(assetId)}`}
+              style={sx("font:12px 'Pretendard';color:var(--blue-tx);text-decoration:none")}
+            >
+              기한 확인 →
+            </Link>
             <span style={sx("font:700 14px 'Pretendard';color:var(--ink)")}>{asset.name}</span>
             <Mono size={11.5}>{asset.asset_id}</Mono>
             {status.status === "ok" && <Mono size={11.5}>{status.model}</Mono>}

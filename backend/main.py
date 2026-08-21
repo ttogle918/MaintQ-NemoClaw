@@ -30,6 +30,7 @@ from backend.routers import (
     maint_value,
     po,
     repairs,
+    session,
 )
 
 # .env 로드는 앱 진입점인 **여기 한 곳**에서만 한다 (D56).
@@ -111,6 +112,7 @@ app.include_router(repairs.router)
 app.include_router(inventory.router)
 app.include_router(hotspot_status.router)
 app.include_router(asset_monitoring.router)
+app.include_router(session.router)
 
 
 @app.get("/health")

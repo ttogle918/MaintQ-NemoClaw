@@ -15,7 +15,8 @@
   `actions_manual_id` 의 NULL 여부와 행 수만 본다 — `causes`·`actions` 등 승인 게이트
   대상 **내용**(조치문 문장)은 여전히 건드리지 않는다. MQ-919(2026-08-17) 가 승인 3건
   (iG5A `RERR`·`ETB`, S100 `FANW`)을 정본에 병합했으므로 이 검사는 "전건 null" 이 아니라
-  "그 3건만 채워지고 나머지 62건은 null" 을 확인한다.
+  "그 3건만 채워지고 나머지 67건은 null" 을 확인한다(Sprint 15 MQ-1507 IE5 5건 병합 후
+  65→70건 — 그중 IE5 5건도 actions_manual_id 는 채워지지 않아 null 축에 합류한다).
 
 실행:  uv run python spikes/lookup_contract.py
 """
@@ -285,9 +286,9 @@ def real_db_actions_source_check(real_db: Path) -> None:
     check(
         "⑭ D100 실 DB — actions_source(actions_manual_id) 실측 대조 "
         "(정본 병합 MQ-919 완료 — 승인 3건만 채워짐)",
-        filled_keys == expected_filled and null_count == 62 and total > 0,
+        filled_keys == expected_filled and null_count == 67 and total > 0,
         f"[양성] 채워짐={sorted(filled_keys)}(기대 {sorted(expected_filled)}) · "
-        f"[음성] null={null_count}건(기대 62) · rows={total}(기대 65)",
+        f"[음성] null={null_count}건(기대 67) · rows={total}(기대 70)",
     )
 
 

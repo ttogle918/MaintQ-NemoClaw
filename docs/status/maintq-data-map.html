@@ -216,16 +216,16 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>2026-08-18 DB 실측치</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
+      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-08-18, Sprint 13에서 무변경)</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-18</b></div>
+    <div class="asof">기준 시점<b>2026-08-19</b></div>
   </header>
 
   <div class="stats">
     <div class="stat g">
       <div class="n">14</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 18종(코어 7 + 확장 11) · 회귀 840건</div>
+      <div class="s">MCP 도구 18종(코어 7 + 확장 11) · 회귀 976건</div>
     </div>
     <div class="stat w">
       <div class="n">0</div>
@@ -233,14 +233,14 @@
       <div class="s">Sprint 11 이 P36(F5·F6 감시 계층, D102)까지 닫음. 다음은 백로그 P39(화면 직접 초안 생성)뿐</div>
     </div>
     <div class="stat a">
-      <div class="n">8</div>
+      <div class="n">9</div>
       <div class="l">실제 데이터</div>
-      <div class="s">매뉴얼 4 · 공공데이터 3 · <b>법령 원문 8조문 ★</b></div>
+      <div class="s">매뉴얼 4 · 공공데이터 3 · 법령 원문 8조문 · <b>Elice 재판독 34p ★</b></div>
     </div>
     <div class="stat">
-      <div class="n">15</div>
+      <div class="n">16</div>
       <div class="l">생성한 데이터</div>
-      <div class="s">DB 24테이블 · 시드 35건 검증</div>
+      <div class="s">DB 24테이블 · 시드 35건 검증 · <b>actions 결측 3자 대조 ★</b></div>
     </div>
   </div>
 
@@ -270,6 +270,18 @@
     <code>detect_law_revision</code>(S17)만 이번에도 v2 제외 그대로입니다.
   </div>
 
+  <div class="note" style="margin:-18px 0 34px;border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-08-19 — Sprint 13이 이 페이지에서 가장 중요한 상태 변화를 냈습니다: <code>actions</code> 결측 34건이 "모른다"에서 "24건은 매뉴얼에 원래 없는 것으로 확정"으로 바뀌었습니다.</b>
+    새 결정 3건 — <code>D103</code>(외부 응답 원본을 <code>data/raw/external/&lt;source&gt;/</code>에 git 추적 파일로 보관, 요청 파라미터는 allowlist로 저장 자체 차단) ·
+    <code>D104</code>(LLM 응답 캐시, 기본 꺼짐 · 캐시 히트는 D55 재생으로 표식해 지표 분모 제외) ·
+    <code>D105</code>(Elice DocVision을 <b>독립 2차 판독기</b>로 도입, <b>정답지로 취급하지 않음</b>).<br>
+    3자 대조 엔진(<code>data/verify_actions_absence.py</code>)이 34페이지(1,530원) 실판독으로 저장소 안에서 서로 충돌하던 세 진단을 판가름했습니다:
+    <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0 · INCONCLUSIVE 0</code>.
+    <code>_pending_review</code>(MQ-911)의 "매뉴얼에 원래 없음"이 24건에서 맞았고, <code>extract_triage</code>의 "S100 25건은 재추출로 회수"와
+    백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 회수는 <code>iG5A NTC</code> 1건뿐(D99 재승인 대기)입니다.
+    ⛔ 회수 건수는 목표가 아니었습니다 — <b>부재가 사실로 확정되는 것도 유효한 산출</b>입니다(절대규칙 3 위반 방지).
+  </div>
+
   <div class="legend">
     <h2>데이터 3분류 — 이 문서 전체에서 같은 색을 씁니다</h2>
     <p class="sub">"실제"와 "생성"을 구분하는 이유는 <b>신뢰도가 다르기 때문</b>입니다. 실제 데이터에 근거한 판정은 인용할 수 있지만, 목업에 근거한 수치는 반드시 추정치임을 고지해야 합니다(D65).</p>
@@ -293,7 +305,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 840건 · 30스위트</span>
+      <span class="count">M1~M4 · 회귀 976건 · 32스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -516,7 +528,7 @@
 
       <div class="card">
         <div class="card-head">
-          <div><span class="fno">기능 13 · Sprint 9 · S19</span><h3>수리 증빙 서명</h3></div>
+          <div><span class="fno">기능 13 · Sprint 9 · S29</span><h3>수리 증빙 서명</h3></div>
           <span class="chip">완료</span>
         </div>
         <p class="desc"><code>create_repair_record</code>(D98) — 부품·시리얼·작업자·<code>work_type</code>을 묶어 서명. append-only. <b>나중에 팔 때 증명하려면 그때 서류가 있어야 합니다.</b> 쓰기 도구 + <code>/api/repairs/{id}/submit·sign·reject</code> 전이까지 Sprint 9 가 완성했습니다(Sprint 7·8 에서 두 번 이월된 뒤 착수).</p>
@@ -572,7 +584,7 @@
             <td class="mono">error_codes.json</td>
             <td class="num">65건</td>
             <td>매뉴얼 표 추출<span class="sub">브라우저 실측 대조 완료</span></td>
-            <td>정의 룩업의 결정론적 소스 (D1)</td>
+            <td>정의 룩업의 결정론적 소스 (D1)<span class="sub">⚠ <code>actions</code> 34건 결측 — <b>2026-08-19 3자 대조로 24건 <code>CONFIRMED_ABSENT</code> 확정</b>(매뉴얼에 원래 없음), <code>DISAGREE</code> 6 · <code>STILL_AMBIGUOUS</code> 3 · <code>RECOVERABLE</code> 1(<code>iG5A NTC</code>, D99 재승인 대기). 정본은 아직 미변경</span></td>
             <td>1</td>
           </tr>
           <tr>
@@ -588,6 +600,13 @@
             <td><a href="https://open.law.go.kr">국가법령정보 API</a><span class="sub">법제처 · <code>lawService.do</code></span></td>
             <td><b>계층 1 = 사실.</b> 처분 판정이 인용하는 조문의 유일한 근거<span class="sub">⚠ <code>조문내용</code>은 <b>제목</b>이라 <code>항·호·목</code>을 평탄화해야 본문이 된다 — <code>KR-STTC-24</code>가 14자 → 3,574자</span></td>
             <td>7, 8, 9</td>
+          </tr>
+          <tr>
+            <td class="mono"><b>Elice DocVision 재판독 원본 ★신규</b><span class="sub">iG5A·S100 트러블슈팅 표, <code>actions</code> 결측 대상</span></td>
+            <td class="num">34페이지<br>1,530원</td>
+            <td><a href="https://api.elice.io">Elice</a><span class="sub">유료 OCR/표 구조화 · <code>data/external/elice_docvision.py</code></span></td>
+            <td><b>독립 2차 판독기 — 정답지가 아니다(D105)</b>. 3자 대조(<code>_pending_review</code>·<code>extract_triage</code>·판독)의 불일치를 해소하는 것이 목적. 원본은 D103 규약으로 <code>data/raw/external/elice/</code>에 git 추적 보관</td>
+            <td>1</td>
           </tr>
           <tr>
             <td class="mono">중진공 자산거래중개장터 매물정보</td>
@@ -623,14 +642,15 @@
     <div class="note">
       <b>법령 원문 8조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
       <b>126조가 채운 것은 "주기"입니다.</b> 93조는 <i>안전검사를 받아야 한다</i>까지만 말하고 <b>몇 년마다인지는 시행규칙에 있습니다</b> — 컨베이어는 <b>설치 후 3년 이내 최초, 이후 2년마다</b>. 이 값 없이 <code>SAFETY-INSPECTION</code> 룰이 기한을 말하면 그건 근거 없는 해석입니다. 그래서 룰의 <code>law_refs</code>가 2건이 되고 <code>rule_version</code>이 올라갔습니다.<br>
-      마지막 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인을 거쳐 2026-08-13 수집 완료</b>됐습니다 — 계층 1 은 <b>8/8 FETCHED</b> 입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b>
+      마지막 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인을 거쳐 2026-08-13 수집 완료</b>됐습니다 — 계층 1 은 <b>8/8 FETCHED</b> 입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b><br>
+      <b>Elice 재판독 34페이지가 새로 "실제 데이터"에 들어왔지만, "정답지"로 격상되지는 않습니다(D105).</b> InsuQ 실측 오탈자(<code>용어풀이</code>→<code>용어풀0</code>)가 자동 병합을 반증하므로, Elice 응답은 <code>_pending_review</code>·<code>extract_triage</code>와 <b>나란히 대조되는 3번째 진단</b>일 뿐입니다. 판독 결과 <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0</code> — <code>error_codes.json</code> 정본은 <b>아직 한 글자도 바뀌지 않았습니다</b>. 회수 후보(<code>iG5A NTC</code>) 1건이 D99 게이트를 통과해야 실제로 반영됩니다.
     </div>
   </section>
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">15종 · DB 24테이블 실측 · 2026-08-18</span></div>
-    <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> 규모는 2026-08-18 <code>data/maintq.db</code> 조회 결과입니다.</p>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">16종 · DB 24테이블 실측(08-18, 무변경) · 갱신 2026-08-19</span></div>
+    <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> DB 규모는 2026-08-18 <code>data/maintq.db</code> 조회 결과입니다(Sprint 13은 DB에 쓰지 않아 그대로입니다).</p>
     <div class="twrap">
       <table>
         <thead><tr><th>데이터</th><th class="num">실측 규모</th><th>만든 방식</th><th>왜 목업인가</th><th>쓰는 기능</th></tr></thead>
@@ -645,6 +665,7 @@
           <tr><td class="mono"><b>part_lifecycle_mock ★신규</b></td><td class="num">27행<br>9자산 × 부품 3종</td><td><code>seed.py</code><span class="sub">상대 오프셋(<code>--today</code> 기준)</span></td><td>실 텔레메트리·정비 이력 없음 — <b>사용자가 명시적으로 선택한 목업</b>(D65 고지 필수). 설비 하이라이트 대시보드의 🟠(곧 점검) 판정 유일 출처</td><td>신규 UI(하이라이트)</td></tr>
           <tr><td class="mono">po_drafts · users</td><td class="num">5 · 3</td><td><code>seed.py</code></td><td>발주·계정은 데모용</td><td>3</td></tr>
           <tr><td class="mono"><b>related_parts.seed.json ★승인</b></td><td class="num">8건<span class="sub">위임 08-05 → <b>승인 08-12</b></span></td><td>위임 판정 → 사람 승인<span class="sub">매뉴얼 조치문 근거</span></td><td><b>근거는 실제 매뉴얼이고 매핑 판단은 위임 후 사람이 확인했습니다.</b> 부품 특정 정확률의 뿌리(D12) — <b>게이트 해제, 실적 인용 가능</b>. ⛔ 그래도 배지는 <b>생성 데이터</b>입니다 — 검수 통과와 외부 원천은 다른 축</td><td>2</td></tr>
+          <tr><td class="mono"><b>actions 결측 3자 대조 판독 ★신규</b></td><td class="num">34건 판정<span class="sub">24 CONFIRMED_ABSENT · 6 DISAGREE · 3 STILL_AMBIGUOUS · 1 RECOVERABLE</span></td><td><code>data/verify_actions_absence.py</code><span class="sub">Sprint 13 · Elice 응답(실제 데이터) + 파서 소스 대조</span></td><td>판정 로직·앵커 축은 우리가 짠 코드다 — <b>입력(Elice 응답)은 실제지만 판정 결과는 우리 분석</b>. 정본 <code>error_codes.json</code>은 이 결과만으로 자동 변경되지 않는다(D99 게이트, 회수 1건은 사람 승인 대기)</td><td>1</td></tr>
           <tr><td class="mono">data/rules/rules/*.json → <code>rules</code></td><td class="num">5종<span class="sub">BLOCKING 2 · PRECONDITION 3</span></td><td>직접 작성<span class="sub">엔진 + pytest 46</span></td><td><b>의도적으로 우리 것이다</b> — 계층 2는 "해석"이라 틀릴 수 있고, 그래서 계층 1(사실)과 물리적으로 분리했다(D60)</td><td>7, 8</td></tr>
           <tr><td class="mono">eval/testset.json</td><td class="num">20문항</td><td>초안 생성 → 사람 검수<span class="sub">S1 12·S2 3·S3 3·S4 2</span></td><td>평가 기준은 우리가 정의. ⛔ 수정 금지 — 고치면 회차 간 비교가 깨진다</td><td>6</td></tr>
           <tr><td class="mono">traces</td><td class="num">런타임 · 시드 0</td><td>에이전트 루프가 발행<span class="sub">＋<code>tool_payload</code> 원본 보존</span></td><td>실행할 때 생성됨. <b>평가 5지표의 판정 소스가 전부 이 테이블</b></td><td>6</td></tr>
@@ -819,7 +840,7 @@
       <div class="step">
         <div class="sn">완료</div>
         <h4>A2A 신원 계층 · 수리 증빙 서명</h4>
-        <p><code>--repeat 3</code> 5세트 완료. Sprint 8 은 <b>A2A 신원 계층</b>(<code>partner_links</code>·자격증명 env 층·<code>request_chain_id</code>)을 깔았고, Sprint 9 는 세 번째 쓰기 도구 <code>create_repair_record</code>(S19·D98)를 완성했습니다. <code>flags</code>는 아직 0행 그대로입니다.</p>
+        <p><code>--repeat 3</code> 5세트 완료. Sprint 8 은 <b>A2A 신원 계층</b>(<code>partner_links</code>·자격증명 env 층·<code>request_chain_id</code>)을 깔았고, Sprint 9 는 세 번째 쓰기 도구 <code>create_repair_record</code>(S29·D98)를 완성했습니다. <code>flags</code>는 아직 0행 그대로입니다.</p>
       </div>
       <div class="step">
         <div class="sn">완료</div>
@@ -857,7 +878,7 @@
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-18 · DB 실측</span>
+    <span>기준 2026-08-19 · DB 실측 08-18(무변경)</span>
     <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/raw/INDEX.md</code></span>
   </footer>
 

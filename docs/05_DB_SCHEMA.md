@@ -59,7 +59,10 @@ equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 🟠(�
 
 ## 1. error_codes — 에러코드 마스터 ★매뉴얼에서 구조화 추출
 
+> **정본은 `data/extracted/error_codes.json`**(`data/extract_error_codes.py` 산출, D60·D33 승인 게이트).
 > `lookup_error_code`의 원천. M1에서 매뉴얼 PDF 표 → 이 테이블로 추출하는 게 최대 작업.
+> 🔴 승격 절차는 [`data/extracted/README.md`](../data/extracted/README.md) (**D106**) — 이 절은
+> **④(drift 자가검증)의 유일한 선례**다(`seed.py` 검사 ㉚). 반대로 §17 은 ④가 없다.
 
 ```sql
 CREATE TABLE error_codes (
@@ -100,12 +103,14 @@ CREATE TABLE users (
   user_id       TEXT PRIMARY KEY,      -- 'tech-01' — X-User 헤더 값. ASCII (D36)
   email         TEXT UNIQUE,           -- 회사 이메일. 향후 IdP 매칭 키 (D52)
   display_name  TEXT NOT NULL,         -- '김OO' — 화면 표시용. 헤더·DB엔 안 들어간다
-  role          TEXT NOT NULL,         -- 'technician' | 'manager'
+  role          TEXT NOT NULL,         -- 권한. 'technician' | 'manager'
+  department    TEXT,                  -- 소속. **권한이 아니다** (D108). nullable = 미배정
   auth_provider TEXT NOT NULL DEFAULT 'local',  -- 'local' | 'google'
   external_id   TEXT,                  -- IdP의 sub/oid. 연동 전 NULL
   active        BOOLEAN NOT NULL DEFAULT 1,     -- 퇴사·휴직 시 0
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   CHECK (role IN ('technician','manager')),
+  CHECK (department IS NULL OR department IN ('maintenance','finance')),
   CHECK (auth_provider IN ('local','google')),
   CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
 );
@@ -116,6 +121,12 @@ CREATE TABLE users (
 **`role`은 회사가 사전 부여한다 (D52).** Google 로그인은 "누구인지"만 확인하고 권한을 정하지 않는다. OAuth가 권한을 결정하면 D4(진단자/승인자 분리)가 무의미해진다.
 
 **개인 소셜 로그인은 넣지 않는다 (D52).** `auth_provider`가 `local`·`google` 2종뿐인 이유다. `google`은 **회사 Google Workspace**이며, `hd`(hosted domain) 클레임 + 이 테이블의 사전 등록 두 겹으로 개인 Gmail을 막는다. 실제 인증 플로우 구현은 백로그 **P21**.
+
+**`department`(소속)는 `role`(권한)과 직교다 (D108, P41 ③).** 재무부 담당자(`mgr-02`)도 `role`
+은 그대로 `manager` 다 — 승인 권한은 `role` 하나로만 결정되고 `department` 는 어떤 판정 함수도
+참조하지 않는다. `role` 과 달리 헤더로 받지 않는다 — **서버가 이 컬럼을 `user_id` 로 조회해
+주입**한다(`backend/deps.py:_department_of`, `GET /api/whoami`). 클라이언트가 `X-Dept` 같은
+헤더로 자기 부서를 자칭할 길이 구조적으로 없다.
 
 ## 2. equipment — 설비 마스터
 
@@ -674,6 +685,9 @@ CREATE TABLE repair_records (
 ## 17. residual_curve — 잔가율 격자 (D65·D74)
 
 > 정본은 `data/extracted/residual_curve.json`(`data/build_residual_curve.py` 산출).
+> 🔴 **파생 결과를 새로 테이블로 올리려면 먼저 [`data/extracted/README.md`](../data/extracted/README.md) 를 읽을 것**
+> — 승격 게이트 조건과 4단계 절차가 거기 있다 (**D106**). ⚠ 이 절(`residual_curve`)은 **4단계 중 ④(파일↔DB
+> drift 자가검증)가 없다** — 베낄 때 ④는 `error_codes` 검사 ㉚ 을 보고 채운다.
 
 ```sql
 CREATE TABLE residual_curve (
@@ -1111,7 +1125,7 @@ CREATE TABLE risk_profile (
 | # | 검사 | 근거 |
 |---|---|---|
 | ①~⑦ | 시드 케이스 맵 7종 | 위 표 |
-| ⑧ | `error_codes` 적재 (`--with-error-codes` 시 65건, 기본 0건) | 사람 승인 게이트 |
+| ⑧ | `error_codes` 적재 (`--with-error-codes` 시 70건 — iG5A/S100 65건 + Sprint 15 IE5 5건 병합, 기본 0건) | 사람 승인 게이트 |
 | ⑨~⑪ | `users` 3행 · 미등록 user_id FK 거부 · `display_name` DB 조회 | D41 |
 | ⑫ | `assets` 9행 · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`) | D68 |
 | ⑬ | `law_refs` 사본 == `data/rules/laws/*.json` **파일 목록** (하드코딩 금지) | D60 |
@@ -1131,12 +1145,13 @@ CREATE TABLE risk_profile (
 | ㉗ | `repair_records` **상태 불변식**(D98) — `state='signed' ⇔ signed_at·record_hash·verified_by 전부 non-null` 을 **양방향**(iff)으로 검사, 어휘 밖 상태 0건 + 미서명 정확히 1건(`RPR-2403`) | D98 |
 | ㉘ | `error_codes` **출처 컬럼 짝 불변식**(D100) — `actions_manual_id`·`actions_page` 짝 불일치 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D100 |
 | ㉙ | `repair_records.record_hash` **재계산 대조**(D84 태도) — `data/repair_hash.compute_record_hash()` 로 서명 11행을 다시 계산해 저장 해시와 전건 일치하는지 확인 | D84·D98 |
-| ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL 62건은 기대치 | MQ-919 |
+| ㉚ | `error_codes.actions` **병합 검증**(MQ-919) — 채워진 3건이 후보값과 내용 대조로 일치, NULL **67건**(Sprint 15 IE5 5건 병합으로 62→67)은 기대치 | MQ-919 |
 | ㉛ | `part_lifecycle_mock` **27행**(9자산 × 부품 3종) · **모델-부품 정합**(`equipment.model` 이 `iG5A` 면 `part_no` 에 `IG5`, `S100` 이면 `S100` 포함, 불일치 0건) | Sprint 10 브레인스토밍 D |
 | ㉜ | `deadlines` **CHECK 프로브**(음성) — 잘못된 `type` 값 INSERT 를 **실제로 시도**해 `IntegrityError` 로 거부되는지 확인, 정상 상태는 0행 유지(양성) | D10·`11 §10-2` |
 | ㉝ | `incidents` **2행** · FK 정합(자산 고아 0건) · `type` enum 밖 0건 | D68·`11 §10-2` |
 | ㉞ | `ownership_checks` 행수 == `verify_ownership(AST-L3-LIFT)` **실측 항목 수**(하드코딩 아닌 그 자리에서 재호출한 값과 대조) · either-or CHECK 2종 음성 검사(`VERIFIED`+`limit_note`, `UNVERIFIED`+`evidence_ref` 각각 INSERT 시도 → 거부 확인) | S18·D68 |
 | ㉟ | `risk_profile` **4행** · `building_id` 집합이 `SELECT DISTINCT building_id FROM assets` 와 **동적으로 일치** · 점수식 재계산이 시드 표와 일치(`BLD-C` 의 의도적 불일치 포함) | D102·`11 §10-2` |
+| ㊱ | `error_codes` **IE5 5건 병합 검증**(Sprint 15 MQ-1507) — `model='IE5'` 행 정확히 5건(양성) · `causes`/`actions` 가 빈 배열인 행 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D109 |
 
 > **실측 (2026-08-18)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (35건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.

@@ -145,7 +145,7 @@
 | 목적 | 문서 |
 |---|---|
 | 무엇을 만드는가 (목록) | **이 문서** |
-| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D101) |
+| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D110) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
 | 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P32) |
@@ -185,7 +185,7 @@
 **Sprint 8 결과** — A2A 신원 계층(`partner_links` 테이블·시드 5행·자격증명 env 층·`traces.request_chain_id`).
 D91~D96 이 여기서 나왔고 스키마·시드·env 계층까지 구현됐다. **호출부(나가는 A2A 요청)는 미착수.**
 
-**Sprint 9 잔여** — `create_repair_record`(P25·S19). ⚠ **두 번 미뤄졌다**: Sprint 7 은 처분 서명(F3)에,
+**Sprint 9 잔여** — `create_repair_record`(P25·S29). ⚠ **두 번 미뤄졌다**: Sprint 7 은 처분 서명(F3)에,
 Sprint 8 은 A2A 신원에 범위를 썼다. 기능이 취소된 것이 아니라 **범위 확정에서 계속 밀린 것**이고,
 계약 자리(`kind: "repair"`)는 두 스프린트 내내 비어 있는 채로 유지됐다.
 

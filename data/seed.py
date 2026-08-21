@@ -81,12 +81,15 @@ CREATE TABLE users (
   user_id       TEXT PRIMARY KEY,         -- 'tech-01' — 헤더로 오가는 ASCII ID (D36)
   email         TEXT UNIQUE,              -- 회사 이메일. 향후 IdP 매칭 키 (D52)
   display_name  TEXT NOT NULL,            -- '김OO' — 화면 표시용
-  role          TEXT NOT NULL,            -- 회사가 사전 부여. OAuth 가 정하지 않는다 (D52)
+  role          TEXT NOT NULL,            -- 권한. 회사가 사전 부여. OAuth 가 정하지 않는다 (D52)
+  department    TEXT,                     -- 소속. **권한이 아니다** — require() 는 안 본다 (D108)
+                                           -- NULL 허용 = 미배정. 헤더로 받지 않고 이 컬럼에서만 주입
   auth_provider TEXT NOT NULL DEFAULT 'local',
   external_id   TEXT,                     -- IdP 의 sub/oid. 연동 전 NULL
   active        BOOLEAN NOT NULL DEFAULT 1,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   CHECK (role IN ('technician','manager')),
+  CHECK (department IS NULL OR department IN ('maintenance','finance')),
   CHECK (auth_provider IN ('local','google')),
   CHECK (user_id = lower(user_id) AND user_id NOT GLOB '*[^a-z0-9-]*')
 );
@@ -496,10 +499,12 @@ CREATE TABLE risk_profile (
 # (user_id, email, display_name, role, auth_provider) — D41·D52
 # auth_provider 는 전부 'local' : 회사 IdP 연동(google)은 백로그 P21 이고, 개인 소셜은 넣지 않는다.
 # 이메일은 회사 도메인 형식 예시 (.example 은 RFC 2606 예약 도메인 — 실제로 발송되지 않는다)
+# department: 소속. role(권한) 과 직교 — P41 ③ (D108). 재무부 담당자도 role 은 그대로 'manager' 다.
 USERS = [
-    ("tech-01", "kim@maintq.example", "김OO", "technician", "local"),
-    ("tech-02", "lee@maintq.example", "이OO", "technician", "local"),
-    ("mgr-01", "park@maintq.example", "박OO", "manager", "local"),
+    ("tech-01", "kim@maintq.example", "김OO", "technician", "maintenance", "local"),
+    ("tech-02", "lee@maintq.example", "이OO", "technician", "maintenance", "local"),
+    ("mgr-01", "park@maintq.example", "박OO", "manager", "maintenance", "local"),
+    ("mgr-02", "choi@maintq.example", "최OO", "manager", "finance", "local"),
 ]
 
 SUPPLIERS = [
@@ -1280,7 +1285,8 @@ def seed_users(con: sqlite3.Connection) -> None:
     FK 로 이 테이블을 참조한다 (D41). `PRAGMA foreign_keys=ON` 상태라 순서가 틀리면 즉시 실패한다.
     """
     con.executemany(
-        "INSERT INTO users (user_id, email, display_name, role, auth_provider) VALUES (?,?,?,?,?)",
+        "INSERT INTO users (user_id, email, display_name, role, department, auth_provider)"
+        " VALUES (?,?,?,?,?,?)",
         USERS,
     )
 
@@ -2146,7 +2152,7 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
       조용히 깨진다(어느 값이 어느 컬럼에 들어갔는지 SQLite 가 검증해 주지 않는다).
       `actions_manual_id`·`actions_page` (D100) 는 JSON 에 키가 있으면 채우고 없으면
       `None` — MQ-919 가 승인 3건(iG5A RERR·ETB, S100 FANW)만 정본에 채웠으므로 그 3건만
-      값이 있고 나머지 62건은 `None` 이 정상이다.
+      값이 있고 나머지 67건은 `None` 이 정상이다(Sprint 15 가 IE5 5건을 더해 62→67, 검사 ㉚).
     """
     doc = json.loads(ERROR_CODES_JSON.read_text(encoding="utf-8"))
     overlay: dict[tuple[str, str], list[str]] = {}
@@ -2319,16 +2325,28 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     )
 
     # ── D41 스키마 보강 4건 회귀
-    users = con.execute("SELECT user_id, display_name, role FROM users ORDER BY user_id").fetchall()
+    users = con.execute(
+        "SELECT user_id, display_name, role, department FROM users ORDER BY user_id"
+    ).fetchall()
     check(
-        "⑨ users 3행 적재 (D41)",
+        "⑨ users 4행 적재 (D41·D108)",
         users
         == [
-            ("mgr-01", "박OO", "manager"),
-            ("tech-01", "김OO", "technician"),
-            ("tech-02", "이OO", "technician"),
+            ("mgr-01", "박OO", "manager", "maintenance"),
+            ("mgr-02", "최OO", "manager", "finance"),
+            ("tech-01", "김OO", "technician", "maintenance"),
+            ("tech-02", "이OO", "technician", "maintenance"),
         ],
         f"{len(users)}행 {[u[0] for u in users]}",
+    )
+    # department 는 role 과 직교다 — 재무부(mgr-02)도 role 은 여전히 'manager' (D108)
+    dept_role_check = con.execute(
+        "SELECT count(*) FROM users WHERE department='finance' AND role != 'manager'"
+    ).fetchone()[0]
+    check(
+        "⑨-b department 는 role 을 바꾸지 않는다 (D108)",
+        dept_role_check == 0,
+        f"finance 소속인데 role≠manager 인 행 {dept_role_check}건",
     )
 
     # 실재하지 않는 user_id 로는 발주가 만들어지지 않는다 (D41 FK).
@@ -2825,7 +2843,7 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         ec_mismatch == 0 and ((ec_total > 0) if with_codes else True),
         f"[음성] 짝 불일치={ec_mismatch}건 · [양성] error_codes 총 {ec_total}행"
         + (
-            " (게이트: --with-error-codes 적재, 기대 65)"
+            " (게이트: --with-error-codes 적재, 기대 70)"
             if with_codes
             else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"
         ),
@@ -2924,11 +2942,11 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     check(
         "㉚ error_codes.actions 병합 검증 (MQ-919)",
         (
-            (merged_keys == expected_merged and null_count == 62 and content_ok)
+            (merged_keys == expected_merged and null_count == 67 and content_ok)
             if with_codes
             else (len(merged_rows) == 0)
         ),
-        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 62)"
+        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 67)"
         f" · [내용대조] {content_detail}"
         + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
@@ -3065,6 +3083,23 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"행수={len(rp_rows)}(기대 4) · building_id={sorted(rp_bld)} vs assets={sorted(assets_bld)}"
         f" · 재계산 불일치={recompute_mismatch}"
         f" · BLD-C stored=LOW/computed=HIGH 가 의도된 형태(데모)",
+    )
+
+    # ㊱ error_codes IE5 5건 병합 검증 (Sprint 15 MQ-1507). data/merge_ie5_codes.py 가
+    #    IE5 트립 코드 5건을 정본 error_codes.json 에 병합했다(65→70). 여기서는 model='IE5'
+    #    행이 정확히 5건이고(양성 축) 그중 causes/actions 가 빈 배열인 행이 없는지(음성 축)
+    #    실측한다. `--with-error-codes` 없이 실행하면 0행이 정상 — 이때는 FAIL 이 아니라
+    #    통과시킨다(㉘·㉚ 와 같은 태도).
+    ie5_rows = q("SELECT count(*) FROM error_codes WHERE model='IE5'")[0]
+    ie5_empty = q(
+        "SELECT count(*) FROM error_codes WHERE model='IE5'"
+        " AND (json_array_length(causes)=0 OR json_array_length(actions)=0)"
+    )[0]
+    check(
+        "㊱ error_codes IE5 5건 병합 검증 (Sprint 15 MQ-1507)",
+        (ie5_rows == 5 and ie5_empty == 0) if with_codes else (ie5_rows == 0),
+        f"IE5 행수={ie5_rows}(기대 5) · causes/actions 빈 값={ie5_empty}건"
+        + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
     return results
 

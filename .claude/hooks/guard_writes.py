@@ -17,11 +17,19 @@ PROTECTED_FILES = ("eval/testset.json", "eval\\testset.json")
 # 페이지 오프셋 등 메타데이터를 기록한다(D26). raw 보호에서 제외.
 # INDEX.md도 같은 성격 — 원본이 아니라 "어느 디렉터리에 무엇이 있나"를 적는 문서다.
 # ⛔ 예외는 **파일명 정확 일치**로만 준다. 원본(PDF·CSV·wav)은 그대로 차단된다.
+# data/raw/external/README.md 는 D103(외부 응답 원본 보관)이 만든 예외 구역의 설명 문서다 —
+# 원본이 아니라 "이 디렉터리가 무엇이고 왜 유일하게 git 추적되는가"를 사람이 관리하는 문서라
+# manifest.json·INDEX.md 와 같은 성격이다.
+# ⛔ **캐시 JSON(data/raw/external/<source>/*.json)은 계속 차단한다.** D103 규약상 그 파일들은
+#    append-only 원본이고 `data/external/store.py` 만 쓴다. store.py 는 파이썬 os.replace 로
+#    기입하므로 이 훅(PreToolUse: Write/Edit)을 타지 않는다 — 차단해도 파이프라인은 막히지
+#    않고 사람·에이전트의 손편집만 막힌다. 그게 의도다.
 ALLOWED_IN_PROTECTED = (
     "data/raw/manifest.json",
     "data\\raw\\manifest.json",
     "data/raw/index.md",
     "data\\raw\\index.md",
+    "data/raw/external/readme.md",
 )
 
 try:

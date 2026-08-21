@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D102**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D110**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
@@ -31,8 +31,18 @@
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
-4. **model 파라미터는 enum('iG5A','S100') 강제** (D6, D13)
+4. **model 파라미터는 enum('iG5A','S100','IE5') 강제** (D6, D13, D109 — IE5 는 정의 조회 경로만.
+   `equipment.model` CHECK 는 여전히 2종, 안전 문구·RAG 청킹은 IE5 미확장)
 5. **`data/raw/`는 읽기 전용** — 매뉴얼 원본 수정 금지, git에도 올리지 않음 (.gitignore 확인)
+   - 🔴 **예외가 셋 있다 (D103, Sprint 13)**:
+     ㉠ **git 추적 예외** — `data/raw/external/<source>/*.json`(외부 API 응답 원본) +
+     `data/raw/external/README.md` 는 추적한다. 매뉴얼 PDF·배포 CSV·캐시 중간 산물(임시 PDF 조각)은
+     여전히 제외(`.gitignore` 의 `!data/raw/external/` negation 이 그 경계를 고정)
+     ㉡ **쓰기 예외** — `data/raw/external/README.md` **1건만** `.claude/hooks/guard_writes.py` 가
+     쓰기를 허용한다. 그 외 `data/raw/` 하위는 여전히 훅이 차단
+     ㉢ **캐시 JSON 은 사람·에이전트 손편집 금지** — `data/raw/external/<source>/*.json` 은
+     `data/external/store.py` **한 곳만** 경유해 기입한다(D103 ⓔ). 직접 수정은 append-only ·
+     내용 주소 멱등(D60) 규약을 깬다
 6. **미지 에러코드에 유사 코드 추측 금지** — not_found면 S4 흐름 (환각률 0% 목표)
 
 ## 기술 스택·컨벤션
@@ -67,10 +77,14 @@
   검사 ⑤(반복 고장)가 위양성 FAIL 한다.
   📌 이 두 함정으로 **에이전트가 두 번(MQ-708·MQ-713a) DB 를 망가뜨렸다.** 재시드 후에는
   `SELECT count(*) FROM error_codes` 가 **65** 인지 확인한다.
-- `data/rules/test_rules.py` — 룰 카탈로그 (근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78))
-  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest data/rules/test_rules.py -q`**
+- `data/rules/test_rules.py` · `backend/agent/test_llm_cache.py` · `data/external/test_elice_docvision.py`
+  — 룰 카탈로그(근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78)) + **LLM 응답 카세트**
+  (D104 — 키·값 직렬화·`CachingClient`·`stats_line()`) + **Elice 지출 가드**(D105 — 캐시 우선·
+  네트워크 전 예외·가격 상수)
+  ⚠ 실행 커맨드(**3파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
+  backend/agent/test_llm_cache.py data/external/test_elice_docvision.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **30종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **32종** (`ls spikes/*.py` 와 일치해야 한다):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
@@ -81,7 +95,9 @@
   disposal_sign_contract · s10_smoke · ui_honesty_contract ·
   a2a_identity_contract ·
   repair_flow_contract ·
-  **deadline_risk_contract**
+  deadline_risk_contract ·
+  **external_store_contract** ·
+  **ie5_extract_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -94,25 +110,77 @@
 > **detail 에는 결론이 아니라 두 축의 실측값을 찍는다** — `"쓰기 경로 없음"` 같은 하드코딩 문구는
 > FAIL 일 때도 그대로 인쇄돼 표를 읽는 사람이 정반대로 이해한다.
 > 실제 사례: Sprint 8 에서 `⑪-b` 판정식이 **blob 조립 방식에 따라** 살고 죽는 것이 드러났다
-> (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트 2건도 같은 결함이다 — **P30**.
+> (`spikes/a2a_identity_contract.py` 상단 주석). 기존 스위트에 남아 있던 같은 결함 2건(**P30**)은
+> **2026-08-19 해소됐다** — `agent_loop_contract ⑯ A7` 은 앵커 3종 + 스캐너 생존을 판정에 넣고
+> 하드코딩 detail 을 실측값으로 바꿨고, `ui_honesty_contract` 의 C1~C8(대상 `lib/*.ts` 4개가
+> **import 0개인 것이 정상**이라 앵커를 못 만든다)은 **오라클 메타검사 1건**을 스파이크 안에 세웠다.
+> 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
+> **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-18)** — spikes **30스위트 / 840건** · seed **35건**(㉖ `mfr_part_no` D97 ·
-㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 · ㉚ `error_codes.actions` 병합 검증 MQ-919 ·
-㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11 F5·F6 4테이블 `deadlines`/`incidents`/
-`ownership_checks`/`risk_profile`) · pytest **46건** ·
-프론트 라우트 **16개**(`npx next build` — Sprint 10 MQ-1001 이 `/manager/expenditure`·
-`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개
-증가). spikes 스위트별 건수:
+**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 978건** · seed **37건**(불변 아님 —
+DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
+㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
+F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
+`error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
+(`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
+`data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
+프론트 라우트 **18개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 **17개**다. 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이 다르다**. 17로 '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라 재실행 불필요**, Sprint 10
+MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가
+`/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade`
+2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
-`agent_loop_contract 35` · `api_contract 28` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25` · `citation_render 18` · `db_concurrency 13` · `deadline_risk_contract 18` ·
+`agent_loop_contract 35` · `api_contract 31` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`bundle_integrity 25` · `citation_render 19` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
-`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `law_fetch_contract 28` ·
+`disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
+`ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
-`prompt_rules 23` · `rag_contract 12` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
+`prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 222` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 253` · `write_tool_contract 30`
 
+> 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
+> **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**
+> 로 적고 헤드라인이 **919** 를 적는다. 전수 실측(31스위트 합)이 **919** 로 나와 헤드라인·표가
+> 맞고 **이 문단의 `44`·`916` 이 틀렸다**. MQ-1205 의 `prompt_rules` 23→24 정정과 같은 유형이다.
+> **872→919**: Sprint 13 이 신설 스위트 `external_store_contract`(D103·D105 왕복 검증)를 더한 것이
+> 전부다(872+47=919) — 기존 30스위트는 Stage 1~3 을 거치는 동안 건수가 **하나도 바뀌지 않았다**
+> (`law_fetch_contract` 는 `fetch_laws.py` 에 저장 소급 호출이 붙었지만 28건 그대로 — MQ-1305 가
+> `_store_payload` 를 함수 내부 지연 import 로 격리해 스파이크 최상단 `sys.path` 제약을 건드리지
+> 않았기 때문이다). pytest **70→83**: `data/external/test_elice_docvision.py` 신설 13건(D105
+> 지출 가드) 그대로.
+
+> **919→969**: Sprint 14 Stage 1 이 신설 스위트 `ie5_extract_contract`(D107 · 괘선 없는 표
+> 추출 왕복 검증)를 더한 것이 전부다(919+50=969) — 2026-08-20 전수 재실행에서 **기존 31스위트는
+> 건수가 하나도 바뀌지 않았고 FAIL 0 · 소켓 고갈 재시도 0회**였다. 이 스위트는 `data/raw/` 의 IE5
+> PDF 가 `.gitignore` 대상이라 **기하 픽스처만으로 돈다** — PDF 가 있으면 대조 축 3건이 더 붙고,
+> 없으면 **`SKIPPED 3` 을 건수와 함께 인쇄**하고 통과한다(PASS 47 + SKIPPED 3, 종료코드 0).
+>
+> **969→972**: P41 ③(부서 분리, D108)이 `spikes/api_contract.py` 에 department 신뢰 경계
+> 검사 3건(헤더 스푸핑 무시·`GET /api/whoami` 왕복·미등록 사용자 처리)을 더했다
+> (969+3=972). `seed.py` 자가검증도 ⑨-b(department 가 role 을 안 바꾸는지) 신설로
+> 35→**36건**이 됐다 — 이건 spikes 969/972 건과 **별도 카운트**다.
+>
+> **972→976**: IE5 검수 이월 항목(§8·§9, TODO_직접할일.md Sprint 14절) 반영이
+> `ie5_extract_contract` 에 4건을 더했다(50→**54**, 972+4=976) — A⑯(`page.lines` 세로선
+> 0개 = D107 전제 회귀 고정) · C⑪(`code_pages_exact`/`code_pages_case_folded` 분리) ·
+> C⑫(`IOL`↔`IOLt` 명칭 충돌 상호참조) · D④(`_warnings` 실패 경로 liveness). 나머지
+> 31스위트는 무변경(FAIL 0 · 소켓 고갈 재시도 0회, 32스위트 전수 재실행). seed **36건**·
+> pytest **83건** 그대로. PDF 없을 때는 `ie5` 가 PASS 51 + **SKIPPED 3**(종료코드 0).
+>
+> **976→977**: Sprint 15(P11, D109)가 model enum 을 3종(iG5A·S100·IE5)으로 확장하고 IE5 5건을
+> 정본에 병합했다. spikes 변화는 `citation_render`(18→19, IE5 왕복 검증 신규) **하나뿐**이고
+> 나머지 31스위트는 건수 무변화(976+1=977). seed **36→37건**(신규 검사 ㊱, IE5 5건 병합 검증).
+> `error_codes` **65→70건**. pytest 83건·프론트 18라우트·MCP 도구 18종·DB 24테이블 전부 무변경.
+>
+> **977→978**: D110(같은 날, 같은 세션)이 D109 ⓑ("RAG 는 별도 스프린트 대상")를 재조사로
+> 뒤집었다 — 실측 결과 막힌 지점은 `data/chunk_manual.py` 의 하드코딩 2종 assert 하나뿐이었고
+> IE5 PDF 는 코드 변경 없이 194청크로 정상 처리됐다(총 1,229청크). spikes 변화는
+> `rag_contract`(12→13, IE5 실 인덱스 검색 신규 검사) **하나뿐**(977+1=978). seed·pytest·
+> `error_codes`·프론트·도구·DB 전부 무변경. D109 ⓐ(안전 문구 미확장)·ⓒ(equipment CHECK 2종)는
+> 그대로 유지 — 안전 게이트(`needs_safety_block`)가 텍스트 내용 기반이라 데이터 출처와 무관하게
+> 동작함을 `backend/agent/loop.py:360-382` 직접 확인 후 결정했다.
+>
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
 > 12→14개가 되며 컴포넌트당 L2 검사 6건씩 자연 추가된 것(2×6=12) — 파일 1개가 아니라 두
@@ -133,6 +201,29 @@
 > 않으므로 별도 태스크로 추가(1×6=6). 30+6=36, 186+36=222 — 산술과 실측이 일치한다. 이 확장
 > 과정에서 `RepairDetail.tsx`의 실제 D87 위반 1건(`HashVerified`가 `--ok-tx` 색 토큰 직접 사용)이
 > 드러나 `--blue-tx` 로 교체해 같은 커밋(`213b62d`)에서 해소했다 — 스위트는 **PASS 222/222**.
+> **222→252**: Sprint 12 가 세 갈래로 늘렸다. MQ-1202(Stage 1)가 `lib/deadlines.ts`(2함수)·
+> `lib/riskGrade.ts`(1함수)를 신설해 L1 13→15(+2)건, 이 두 파일이 L1 전제(React·`@/` 별칭 미사용)를
+> 지켜야 하므로 제약 게이트도 파일당 2건씩 늘어 4→8(+4)건이 됐다. MQ-1201·1203·1204(Stage 1·3)가
+> `components/asset/DeadlinesPanel.tsx`·`RiskGradeGrid.tsx`(asset 글롭) + `app/(console)/manager/
+> deadlines/page.tsx`·`manager/risk-grade/page.tsx`(app 글롭) 4파일을 신설해 기존 글롭에 자동
+> 편입, L2 32→36파일(+4×6=24건)이 됐다. 뮤턴트 8종·메타 4건은 무변경. 2+4+24=30, 222+30=252 —
+> 산술과 실측(`uv run python spikes/ui_honesty_contract.py` 출력 "통과 — 계약 232건 + 제약 8 +
+> 뮤턴트 8 + 메타 4" = 252)이 일치한다 — 스위트는 **PASS 252/252**(신규 D87 위반 없음).
+> **252→253**: P30 해소(2026-08-19)가 **메타 4→5** 로 1건 더했다 — `IMPORT_SPEC` 오라클.
+> C1~C8 은 전부 부재 검사인데 대상 `frontend/lib/*.ts` 4개는 **import 문이 0개인 것이 정상**이라
+> 파일 안에 걸 앵커가 없다. 그래서 알려진 픽스처(from·부수효과·require·동적 import 4문법)를
+> `module_specifiers()` 에 넣어 **추출기가 살아 있음**을 단언하는 오라클을 스파이크 안에 뒀다
+> (L2 뮤턴트 메타검사와 같은 방식). 계약 232 + 제약 8 + 뮤턴트 8 + **메타 5** = 253 —
+> 스위트는 **PASS 253/253**.
+> ⚠ **부수 정정(MQ-1205)**: 같은 전수 재실행에서 `prompt_rules` 실측이 **24건**으로 확인됐다 — 직전
+> 기록(23)과 어긋난다. `git log -- spikes/prompt_rules.py` 로 대조하면 Sprint 11 Stage 5(`390e7a9`)
+> 이후 이 파일은 무변경이라 **코드가 아니라 기록이 낡았던 것**(전사 표기 정리 때 옮겨 적은 값이
+> 틀렸을 가능성) — 24로 정정. 총계 870 이 아니라 **871** 인 이유가 이 +1 이다(252 델타 30 과는
+> 무관, 두 정정이 겹쳐 870→871 이 아니라 840→871 로 보인다: 기존 840 자체가 이미 23으로 잰
+> 합계였으므로 24 반영 시 841, 여기에 ui_honesty +30 을 더해 871).
+> **871→872**: P30 이 `ui_honesty_contract` 에 오라클 1건을 더한 것(252→253)이 전부다.
+> 나머지 29스위트는 전건 무변경 — 2026-08-19 전수 재실행에서 스위트별 건수가 위 표와
+> 하나도 어긋나지 않았고 **FAIL 0 · 소켓 고갈 재시도 0회**였다.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).

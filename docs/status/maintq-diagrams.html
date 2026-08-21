@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-18</b></div>
+    <div class="asof">기준 시점<b>2026-08-19</b></div>
   </header>
 
   <nav class="toc">
@@ -197,6 +197,12 @@
     <b>MCP 프로세스를 거치지 않고 <code>core</code> 프로파일에서도 동작</b>한다(D73). <b>화면 신설은
     이번 스프린트 범위 밖</b>이다 — 프론트 라우트는 16개 그대로. <code>detect_law_revision</code>(S17)은
     이번에도 v2 제외 그대로다. 아래 개별 그림·표는 이 값으로 갱신했다.
+    <br>⚠ <b>2026-08-19 갱신 — Sprint 13은 새 다이어그램을 만들지 않는다.</b> 범위가 <b>사용자 흐름이 아니라
+    데이터 신뢰성</b>이었기 때문이다 — 새 REST 엔드포인트·프론트 라우트·MCP 도구·DB 테이블이 <b>0건</b>이다
+    (도구 <b>18종</b>·테이블 <b>24개</b>·라우트 <b>16개</b> 전부 그대로). 대신 백엔드 모듈 3종이 신설됐다 —
+    외부 응답 원본 보관(<code>data/external/store.py</code>, D103) · LLM 응답 캐시(<code>backend/agent/llm_cache.py</code>,
+    D104) · <code>actions</code> 결측 3자 대조(<code>data/verify_actions_absence.py</code>) + Elice 2차 판독기
+    (<code>data/external/elice_docvision.py</code>, D105). 아래 "그림이 참조한 실제 코드" 표에 반영했다.
   </div>
 
   <!-- ================= ① 유스케이스 ================= -->
@@ -234,7 +240,7 @@ flowchart LR
     end
     subgraph S8["구현 완료 · Sprint 9"]
       direction TB
-      x4["수리 증빙 서명<br/>S19 · 완료 · 3번째 쓰기 도구"]
+      x4["수리 증빙 서명<br/>S29 · 완료 · 3번째 쓰기 도구"]
     end
     subgraph S11["구현 완료 · Sprint 11 · F5~F6"]
       direction TB
@@ -283,7 +289,7 @@ flowchart LR
   class u8,x2 blocked;
 </pre>
       </div>
-      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. <b>S19(수리 증빙)도 Sprint 9에서 완료됐습니다</b> — 통합 큐가 미리 잡아 둔 <code>kind: "repair"</code> 자리에 <b>계약 변경 없이</b> 들어왔습니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). <b>Sprint 11이 F5·F6 중 절반(<code>y1</code>·<code>y5</code> — 조회 도구 2종)을 "구현 완료"로 옮겼습니다</b>(D102) — 둘 다 읽기 전용이라 새 점선(<code>y5 -.-> x1</code>)만 추가되고 쓰기 경로는 그대로입니다. <b>나머지(<code>y2</code>·<code>y3</code> — 사고 이력 <i>기록</i>·실사 확인 <i>보존</i>)는 여전히 "후속"입니다</b> — 저장할 테이블(<code>incidents</code>·<code>ownership_checks</code>)은 Sprint 11이 신설했지만, 절대 규칙 1(쓰기 도구 3종 고정)에 따라 <b>기록하는 경로 자체가 아직 없습니다</b> — 지금 채워진 값은 전부 시드입니다. <code>y4</code>(법령 개정 감지·S17)는 Sprint 11의 편입 대상에서도 제외된 채 그대로입니다.</figcaption>
+      <figcaption><b>정비사는 자기가 올린 것을 스스로 확정할 수 없습니다 — 발주도, 처분도.</b> 점선 둘이 그것이고, 실제로 <code>backend/deps.py</code>의 <code>require()</code>가 <code>403</code>을 돌려줍니다(D18). <b>Sprint 6~7에서 F1~F4가 "예정"에서 "구현 완료"로 옮겨갔습니다</b> — 처분 판정(S9) · 서명(S10) · 실사(S18) · 통합 큐. <b>S29(수리 증빙)도 Sprint 9에서 완료됐습니다</b> — 통합 큐가 미리 잡아 둔 <code>kind: "repair"</code> 자리에 <b>계약 변경 없이</b> 들어왔습니다. 새 점선 하나가 중요합니다 — <b>처분 판정이 <code>CONDITIONAL</code>·<code>CLEAR</code>일 때만 서명이 가능</b>하고, 이 제약은 프롬프트가 아니라 <b>DDL CHECK</b>로 걸려 있습니다(그림 ⑧). <b>Sprint 11이 F5·F6 중 절반(<code>y1</code>·<code>y5</code> — 조회 도구 2종)을 "구현 완료"로 옮겼습니다</b>(D102) — 둘 다 읽기 전용이라 새 점선(<code>y5 -.-> x1</code>)만 추가되고 쓰기 경로는 그대로입니다. <b>나머지(<code>y2</code>·<code>y3</code> — 사고 이력 <i>기록</i>·실사 확인 <i>보존</i>)는 여전히 "후속"입니다</b> — 저장할 테이블(<code>incidents</code>·<code>ownership_checks</code>)은 Sprint 11이 신설했지만, 절대 규칙 1(쓰기 도구 3종 고정)에 따라 <b>기록하는 경로 자체가 아직 없습니다</b> — 지금 채워진 값은 전부 시드입니다. <code>y4</code>(법령 개정 감지·S17)는 Sprint 11의 편입 대상에서도 제외된 채 그대로입니다.</figcaption>
     </figure>
   </section>
 
@@ -895,15 +901,18 @@ flowchart LR
           <tr><td><b>실사 판정</b></td><td class="mono">data/ownership.py — 9카테고리 · 38항목. MCP 도구는 위임 래퍼(D73)</td></tr>
           <tr><td><b>기한 추적 · 위험등급 (Sprint 11, D102)</b></td><td class="mono">data/deadlines.py(track_deadlines 산출) · data/risk_grade.py(risk_grade 산출) · mcp_server/tools/track_deadlines.py·assess_risk_grade.py(§17·§18) · backend/routers/asset_monitoring.py + services/asset_monitoring.py(REST, MCP 미경유)</td></tr>
           <tr><td><b>튜닝 루프 · 흔들림 계측</b></td><td class="mono">eval/run_eval.py — <code>--repeat N</code> · <code>flip_analysis()</code> · <code>item_outcomes()</code> · 회차별 <code>.rN.traces.jsonl</code>·<code>.rN.server.log</code></td></tr>
+          <tr><td><b>외부 응답 원본 보관 · 3자 대조 (Sprint 13, D103·D105)</b></td><td class="mono">data/external/store.py(봉투·메타 allowlist) · data/external/elice_docvision.py(2차 판독기, 정답지 아님) · data/verify_actions_absence.py(<code>CONFIRMED_ABSENT</code>/<code>DISAGREE</code>/<code>STILL_AMBIGUOUS</code>/<code>RECOVERABLE</code> 판정) · <code>data/raw/external/&lt;source&gt;/</code>(git 추적, 요청 파라미터 저장 불가)</td></tr>
+          <tr><td><b>LLM 응답 캐시 (Sprint 13, D104)</b></td><td class="mono">backend/agent/llm_cache.py(옵트인 · <code>MAINTQ_LLM_CACHE=on</code>) · <code>loop.py</code> D55 재생 표식 · eval/run_eval.py <code>--replay</code> + 기본 모드 강제 차단 · 캐시는 <code>data/cache/llm/</code>(git 미추적)</td></tr>
           <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>30스위트 / 840건</b> — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>32스위트 / 976건</b> — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>deadline_risk_contract</code>(Sprint 11 신설 — 기한·위험등급 계약) ·
+      <code>external_store_contract</code>(Sprint 13 신설 — 봉투·allowlist·요청 파라미터 저장 불가 검증) ·
       <code>ui_honesty_contract</code>(확인 안 된 항목을 확인된 것처럼 보이지 않는가).
       도구에 UPDATE를 추가하는 코드는 리뷰 이전에 회귀에서 먼저 잡힙니다.
     </div>
@@ -911,7 +920,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-18</span>
+    <span>기준 2026-08-19</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 

@@ -28,7 +28,7 @@ import json
 
 from ..db import read_only
 
-MODELS = ("iG5A", "S100")
+MODELS = ("iG5A", "S100", "IE5")
 
 DESCRIPTION = (
     "인버터/PLC 에러코드의 공식 정의·원인·조치를 조회한다. 에러코드가 명확할 때 가장 먼저 "
@@ -50,7 +50,7 @@ def lookup_error_code(model: str, code: str) -> dict:
         return {
             "status": "error",
             "reason": "invalid_model",
-            "message": f"model은 iG5A|S100 이어야 합니다: {model!r}",
+            "message": f"model은 {'|'.join(MODELS)} 이어야 합니다: {model!r}",
         }
 
     # D25 — 내부 canonical 은 대문자. 사용자 입력 표기는 혼재('OHt'·'oht'·'OHT')

@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-VALID_MODELS = ("iG5A", "S100")
+VALID_MODELS = ("iG5A", "S100", "IE5")
 
 
 def search(
@@ -34,7 +34,7 @@ def search(
         return {
             "status": "error",
             "reason": "invalid_model",
-            "message": f"model은 iG5A|S100 이어야 합니다: {model!r}",
+            "message": f"model은 {' | '.join(VALID_MODELS)} 이어야 합니다: {model!r}",
         }
 
     sql = [

@@ -46,7 +46,7 @@ DESCRIPTION = (
     "함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다."
 )
 
-VALID_MODELS = ("iG5A", "S100")
+VALID_MODELS = ("iG5A", "S100", "IE5")
 WORK_TYPES = ("PLANNED", "UNPLANNED")
 
 NEXT_STEP = "이 기록은 확정이 아니다. 제출 후 팀장이 서명해야 증빙이 된다."

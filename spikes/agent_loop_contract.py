@@ -623,11 +623,32 @@ async def run_all(db: Path) -> None:
     )
 
     # ── ⑯ A7 — 루프가 error_history 에 쓰지 않는다
+    #
+    # ⚠ 이건 **부재 검사**다. `"X" not in src` 는 원리적으로 *"사실이 참"* 과
+    # *"스캐너가 눈이 멀었다"* 를 구분하지 못한다 — 경로가 바뀌어 빈 문자열을 읽거나
+    # 파일이 사라져도 조용히 통과한다. 그래서 양성 축 2개를 판정에 함께 넣는다 (P30):
+    #   ① 앵커 — loop.py 에 실재해야 하는 표지가 잡히는가 (= 올바른 파일을 실제로 읽었는가)
+    #   ② 스캐너 생존 — 같은 판정식을 위반 문자열에 걸면 실제로 발화하는가
+    # detail 에는 결론이 아니라 **두 축의 실측값**을 찍는다. 하드코딩 문구를 쓰면
+    # FAIL 일 때도 그대로 인쇄돼 표를 읽는 사람이 정반대로 이해한다.
     src = (ROOT / "backend" / "agent" / "loop.py").read_text(encoding="utf-8")
+
+    def writes_error_history(text: str) -> bool:
+        return "INSERT INTO error_history" in text or "/errors" in text
+
+    anchors = [
+        a
+        for a in ("async def run_turn(", "from backend.db import connect", "TraceWriter")
+        if a in src
+    ]
+    # 음성 대조군 — 위반 코드를 넣으면 판정식이 반드시 발화해야 한다
+    mutant = src + chr(10) + 'cur.execute("INSERT INTO error_history (code) VALUES (?)")'
+    scanner_alive = writes_error_history(mutant)
     check(
-        "⑯ A7 루프가 error_history 에 쓰지 않음",
-        "INSERT INTO error_history" not in src and "/errors" not in src,
-        "쓰기 경로 없음",
+        "⑯ A7 ★ 루프가 error_history 에 쓰지 않음 (★ 양성: 앵커 실재 + 스캐너 생존)",
+        not writes_error_history(src) and len(anchors) == 3 and scanner_alive,
+        f"위반 적발 0건 · loop.py {len(src)}자 · 앵커 {len(anchors)}/3 {anchors} · "
+        f"스캐너 생존 {scanner_alive}",
     )
 
 

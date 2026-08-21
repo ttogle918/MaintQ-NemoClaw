@@ -40,6 +40,19 @@
       "license_note": "동일.",
       "print_page_offset": 16,
       "page_note": "물리 페이지 = 인쇄 페이지 + 16 (예: 물리 p.310 = 인쇄 p.294). 인용은 물리 기준 (D26)"
+    },
+    {
+      "id": "ie5-standard",
+      "model": "IE5",
+      "role": "primary",
+      "file": "IE5_User Manual(Standard)_Kor_V1.0_200526.pdf",
+      "version": "V1.0 2020-05-26 (파일명 기준)",
+      "source_url": "LS ELECTRIC 솔루션스퀘어 IE5 자료실 (정확한 다운로드 URL 미확인 — 파일명 기준 추정 출처)",
+      "sha256": "d777626148b4cfcc73650133fda787598931450b712b6d722006dc77f0bec0ba",
+      "downloaded_at": "2026-08-07",
+      "license_note": "동일. 저작권 LS ELECTRIC. 비상업적 학습·포트폴리오 목적. 원본 재배포 금지(git 제외).",
+      "print_page_offset": 0,
+      "page_note": "물리 = 인쇄 (오프셋 없음, ig5a-manual과 동일 규약). 2026-08-21 IE5 자체를 실측 확인(물리 p.20→'2-1', p.50→'5-11', p.100→'10-13', p.125→'13-4') — iG5A 표준판과 동일한 장(章)-상대 쪽번호 표기이고, 선형 인쇄 페이지로 환산되는 축이 없어 offset=0이 맞는 규약이다(추측이 아니라 실측 확인, D9)."
     }
   ],
   "update_policy": "매뉴얼 개정은 연 단위 이벤트. 자동 다운로드 워처는 백로그 P13. 신규 버전 반영 절차: 새 PDF를 raw/에 추가 → manifest에 항목 추가(구버전 유지) → 추출 파이프라인 재실행 → error_codes.json diff 확인 → testset 영향 검토."

@@ -58,7 +58,7 @@
 ```json
 // input
 {
-  "model": "iG5A | S100",     // enum, required
+  "model": "iG5A | S100 | IE5",     // enum, required (D109)
   "code": "OHt"                // required — 대소문자 무관 매칭 (D25: 내부는 대문자 canonical)
 }
 // output
@@ -84,7 +84,7 @@
 
 ```json
 // input
-{ "model": "iG5A | S100", "query": "OCt 출력측 지락 점검 절차", "top_k": 3 }
+{ "model": "iG5A | S100 | IE5", "query": "OCt 출력측 지락 점검 절차", "top_k": 3 }
 // output
 {
   "status": "ok",
@@ -122,7 +122,7 @@
 
 ```json
 // input (part_no·part_name 중 최소 1개 + model optional 필터 — D28)
-{ "model": "iG5A | S100", "part_no": "FAN-IG5-01", "part_name": "냉각팬" }
+{ "model": "iG5A | S100 | IE5", "part_no": "FAN-IG5-01", "part_name": "냉각팬" }
 // model 지정 시 parts.compatible_models에 해당 기종이 없는 부품은 결과에서 제외 (D28)
 // part_no로 조회할 때는 part_no가 유일키이므로 model 생략 가능 (S1 경로)
 // output
@@ -326,7 +326,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 | `verdict`·4버킷·`citations` | **정본 파일** `data/rules/{laws,rules}/*.json` (`engine.check_disposal_blockers()` 가 직접 읽는다) | 계층 1 은 파일이 정본이다 (D60) |
 | `evidence_completeness`·룰 카탈로그 적재 게이트 | **DB 사본** (`engine.load_laws_from_db(con)`) | 적재 여부 확인과 `fetch_status` 조회 용도 |
 
-파일과 DB 를 섞어 **판정을 조립하지 않는다.** 두 사본이 어긋나면 `data/seed.py` 자가검증 ⑬⑭ 가 먼저 잡는다.
+파일과 DB 를 섞어 **판정을 조립하지 않는다.** 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. ⚠ **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조.
 `LAW_TEXT_PENDING` 판정은 **판정에 실제로 쓰인 룰 카탈로그 전체의 법령 참조**를 본다 — 출력에 드러난 인용만 세면
 전 룰이 `CLEAR` 인 자산에서 인용이 0건이 되어 `"COMPLETE"` 가 나오는데, 그건 조문을 수집했다는 뜻이 아니라
 아무것도 발화하지 않았다는 뜻이다.
@@ -888,7 +888,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 ---
 
-## 16. create_repair_record — 수리 증빙 초안 생성 (S19) ⚠️ 세 번째 쓰기 도구 (D98)
+## 16. create_repair_record — 수리 증빙 초안 생성 (S29) ⚠️ 세 번째 쓰기 도구 (D98)
 
 **description (코드 정본 = `create_repair_record.py:DESCRIPTION`):**
 > "수리 작업의 증빙 '초안'을 생성한다. 확정이 아니다. 수리가 끝난 뒤 무엇을 어떻게 고쳤는지(작업유형·수리범위·비용·교체 부품)를 기록할 때 호출할 것. 이 초안은 팀장이 서명해야 정식 증빙이 되며, 서명 전에는 get_maintenance_metrics 의 보전지표에 들어가지 않는다. 교체한 부품 품번을 정확히 넣을 것 — 등록되지 않은 품번은 거부된다(unknown_part). 지출의 자본적/수익적 분류(expenditure_class)는 시스템이 자동 산출한다 — 파라미터로 받지 않으며 네가 추측하거나 지어내지 말 것. 에러코드로부터 시작된 수리이면 model·error_code 를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다."
@@ -931,7 +931,7 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 2. `parts[*].part_no` 를 `parts` 테이블에서 전부 조회한다. 하나라도 없으면 `error`/`unknown_part`(+`missing[]`) — LLM 이 지어낸 품번이 정비 이력에 남을 경로를 막는다(D33 이 에러코드에 건 방어를 부품에도 건다).
 3. `part_class` 산출: 조회한 부품 중 **하나라도 `CRITICAL` 이면 `CRITICAL`**, 전부 `CONSUMABLE` 이면 `CONSUMABLE`, 값이 없는 부품이 섞이면 **`NULL`**(0·임의값으로 메우지 않는다) — 그 사유는 `expenditure_reason` 에 실린다.
 4. `expenditure_class` 산출: `data/maint_value.expenditure(con, part_class=…, repair_scope=…, amount=cost)`. **`HOLD` 는 실패가 아니라 판정**이므로 그대로 저장한다(DDL CHECK 가 허용). `part_class` 가 NULL 이면 지출 분류도 **NULL**이고, `expenditure()` 자체가 `status != "ok"` 를 돌려주면 **그대로 전파**하고 INSERT 하지 않는다(§13 이 하위 도구 실패를 삼키지 않는 것과 같은 태도).
-5. `(model, error_code)` 는 짝이거나 둘 다 NULL. `model` 은 enum(`iG5A`|`S100`) 강제(D6·D13). `error_code` 는 대문자 canonical로 저장하되 **사전 조회를 하지 않는다** — `create_po_draft` 와 달리 실재 검증은 INSERT 시점의 FK(`(model, error_code) REFERENCES error_codes(model, code)`)에 맡기고, 위반은 `status:"error", reason:"integrity"` 로 그대로 드러난다.
+5. `(model, error_code)` 는 짝이거나 둘 다 NULL. `model` 은 enum(`iG5A`|`S100`|`IE5`) 강제(D6·D13·D109). `error_code` 는 대문자 canonical로 저장하되 **사전 조회를 하지 않는다** — `create_po_draft` 와 달리 실재 검증은 INSERT 시점의 FK(`(model, error_code) REFERENCES error_codes(model, code)`)에 맡기고, 위반은 `status:"error", reason:"integrity"` 로 그대로 드러난다.
 6. `db.repair_writer()` 로 **INSERT 만**. `state='draft'`, `performed_by`/`verified_by`/`signed_at`/`record_hash`/`requested_by`/`session_id` 는 **NULL 리터럴**로 박는다(파라미터로 받지 않는다).
 7. `repair_id` 채번: `SELECT max(...)` 로 `RPR-` 접두 4자리 숫자의 최대 + 1. 동시성 방어는 새로 만들지 않는다(단일 사용자 데모 전제, P19 그대로).
 8. `server.py` 등록은 `if TOOLS_PROFILE == "full":` 블록 안에만.
@@ -942,7 +942,7 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 |---|---|---|
 | `error` | `invalid_input` | `equipment_id` 빈 문자열 / `work_type`·`repair_scope` enum 밖 / `cost` ≤0·해석 불가 / `downtime_hours` 음수·해석 불가 / `parts` 가 빈 배열이거나 항목에 `part_no` 없음 / `note` 가 문자열이 아님 |
 | `error` | `model_code_pair` | `model`·`error_code` 가 한쪽만 있음 (D33) |
-| `error` | `invalid_model` | `model` 이 `iG5A`\|`S100` 밖 (D6·D13) |
+| `error` | `invalid_model` | `model` 이 `iG5A`\|`S100`\|`IE5` 밖 (D6·D13·D109) |
 | `not_found` | `unknown_equipment` | 등록되지 않은 설비 |
 | `not_found` | `unknown_part` | `parts[*].part_no` 중 `parts` 테이블에 없는 것이 있음. `missing[]` 로 이름을 댄다 |
 | `error` | `integrity` | FK((model,error_code))·CHECK·TEMP TRIGGER(D10) 위반. 매뉴얼에 없는 `error_code` 로 부르면 여기서 걸린다(사전 조회 없음) |
@@ -1146,7 +1146,7 @@ D69·D88(프로파일)
 | **S9** 처분 차단 (확장) | (사전 경보) **track_deadlines**(§17, 법정 기한 임박 확인, Sprint 11) → **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
 | **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(§18, 건물 위험등급, Sprint 11) |
-| **S19** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
+| **S29** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
 
 ## 다음 단계
 목업 DB 스키마 — 이 도구들이 읽을 테이블: `05_DB_SCHEMA.md` 참조

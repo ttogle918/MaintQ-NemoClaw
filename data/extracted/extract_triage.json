@@ -1,23 +1,23 @@
 {
   "summary": {
-    "generated_at": "2026-08-14",
+    "generated_at": "2026-08-19",
     "input": {
       "path": "data/extracted/error_codes.json",
-      "sha256": "2033f896c621ed7e27555e4631a7791873f3367e51cc870c0d00bfd72a4a981d",
-      "generated_at": "2026-08-05",
-      "_status": "승인 완료 (2026-07-28) — ② 4건 이미지 재확인 + ③ 2건 결정 반영. data/analysis/ig5a_code_mapping.md 참조"
+      "sha256": "1fd95338c4e38e3ca590f45da1b50250d7668133196d9f58d15901bc7ce32751",
+      "generated_at": "2026-08-17",
+      "_status": "승인 완료 (2026-07-28) — ② 4건 이미지 재확인 + ③ 2건 결정 반영. data/analysis/ig5a_code_mapping.md 참조 · actions 3건 병합 (2026-08-17, MQ-919, TODO_직접할일.md 승인 완료)"
     },
     "entries": {
       "total": 65,
       "by_model": {
         "iG5A": {
           "total": 24,
-          "missing_actions": 11,
+          "missing_actions": 9,
           "missing_causes": 0
         },
         "S100": {
           "total": 41,
-          "missing_actions": 26,
+          "missing_actions": 25,
           "missing_causes": 0
         }
       },
@@ -40,7 +40,10 @@
       "_unparsed": 0,
       "_pending_review": 0
     },
-    "expected_diffs": [],
+    "expected_diffs": [
+      "S100.missing_actions: 기대 26 / 실측 25",
+      "iG5A.missing_actions: 기대 11 / 실측 9"
+    ],
     "pages": {
       "scanned": 7,
       "by_label": {
@@ -73,6 +76,7 @@
       "collapse_drop": 0.35
     },
     "warnings": [
+      "INPUT_DRIFT — 브리핑 실측과 다릅니다. 입력이 이미 바뀐 것이므로 아래 표의 **실측값**을 기준으로 읽으세요: S100.missing_actions: 기대 26 / 실측 25 · iG5A.missing_actions: 기대 11 / 실측 9",
       "ANCHOR_CONFLICT — 조치문 추출에 성공한 코드가 있는데 코드 토큰이 0인 페이지: ig5a-manual p.202(SOURCE_MISSING), ig5a-manual p.204(RE_OCR_CANDIDATE). 이 페이지들에서 토큰 축은 눈이 멀었다(추출은 코드 토큰이 아니라 한글 명칭으로 조인한다). 그중 SOURCE_MISSING 라벨이 붙은 ig5a-manual p.202(SOURCE_MISSING) 은 근거가 없는 라벨이므로 '소스를 바꿔야 풀린다'로 읽지 마세요."
     ]
   },
@@ -98,14 +102,14 @@
       "page": 203,
       "label": "CELL_SPLIT",
       "codes_total": 11,
-      "codes_missing_actions": 8,
+      "codes_missing_actions": 6,
       "code_tokens_found": 4,
       "signals": {
-        "field_missing": 0.727,
+        "field_missing": 0.545,
         "length_outlier": 0.074,
         "table_collapse": 0.032
       },
-      "note": "codes 11 / with_actions 3 / missing 8 / code_tokens 4=EST,NTC (키패드표기 포함 4) / cells 27 / rows 16",
+      "note": "codes 11 / with_actions 5 / missing 6 / code_tokens 4=EST,NTC (키패드표기 포함 4) / cells 27 / rows 16",
       "scanned": true,
       "anchor_conflict": false
     },
@@ -178,14 +182,14 @@
       "page": 419,
       "label": "CELL_SPLIT",
       "codes_total": 10,
-      "codes_missing_actions": 8,
+      "codes_missing_actions": 7,
       "code_tokens_found": 3,
       "signals": {
-        "field_missing": 0.8,
+        "field_missing": 0.7,
         "length_outlier": 0.0,
         "table_collapse": 0.238
       },
-      "note": "codes 10 / with_actions 2 / missing 8 / code_tokens 3=FAN,IOL,PID (키패드표기 포함 16) / cells 23 / rows 23",
+      "note": "codes 10 / with_actions 3 / missing 7 / code_tokens 3=FAN,IOL,PID (키패드표기 포함 16) / cells 23 / rows 23",
       "scanned": true,
       "anchor_conflict": false
     }
@@ -234,20 +238,18 @@
       28,
       29
     ],
-    "missing_codes_probed": 11,
+    "missing_codes_probed": 9,
     "name_hits": [
       "COL",
       "COM",
       "EEP",
       "ERR",
-      "ETB",
       "FLTL",
       "HWT",
       "NTC",
-      "OLT",
-      "RERR"
+      "OLT"
     ],
-    "n_name_hits": 10,
+    "n_name_hits": 8,
     "name_misses": [
       "EST"
     ],

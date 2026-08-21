@@ -84,7 +84,16 @@ def run() -> None:
     )
 
     # ── ④ payload 의 page 는 항상 물리 원본 (D26) — 인용률 판정 기준
-    cases = [("iG5A", 4), ("iG5A", 202), ("S100", 2), ("S100", 16), ("S100", 17), ("S100", 416)]
+    #     IE5 표준판(role=primary, offset=0, D109)도 iG5A 표준본과 같은 축으로 돈다.
+    cases = [
+        ("iG5A", 4),
+        ("iG5A", 202),
+        ("S100", 2),
+        ("S100", 16),
+        ("S100", 17),
+        ("S100", 416),
+        ("IE5", 125),
+    ]
     got = {(m, p): data_of(sse.citation_for(m, p))["page"] for m, p in cases}
     check(
         "④ payload page 는 항상 PDF 물리 원본 (D26)",
@@ -216,10 +225,11 @@ def run() -> None:
     )
 
     # ── ⑫ 캐시: 같은 경로는 1회만 읽고 동일 객체를 돌려준다
+    # manuals 4건 = iG5A 표준본·트러블슈팅 + S100 표준본 + IE5 표준본(Sprint 15 MQ-1503, D109)
     first = manifest.load_manifest()
     check(
         "⑫ load_manifest 1회 캐시",
-        manifest.load_manifest() is first and len(first["manuals"]) == 3,
+        manifest.load_manifest() is first and len(first["manuals"]) == 4,
         f"동일 객체, manuals={len(first['manuals'])}건",
     )
 
@@ -277,6 +287,17 @@ def run() -> None:
         "⑯ D49 경계 (manual_id 경로): tsg p.1→1 / s100 p.16→16 · p.17→1",
         edge == {("ig5a-troubleshooting", 1): 1, ("s100-manual", 16): 16, ("s100-manual", 17): 1},
         f"{ {f'{i} p.{p}': v for (i, p), v in edge.items()} }",
+    )
+
+    # ── ⑯-b IE5 표준판 왕복 — offset=0 규약(D109) — 물리와 인쇄가 항상 같아야 한다
+    #     manifest.json 의 ie5-standard 는 role=primary 이므로 model 키('IE5') 축으로 조회된다
+    #     (ig5a-manual·s100-manual 과 같은 축, ig5a-troubleshooting 같은 manual_id 전용 축이 아니다).
+    ie5_offset = manifest.print_page_offset("IE5")
+    ie5_pages = {p: manifest.to_print_page("IE5", p) for p in (1, 20, 125, 126)}
+    check(
+        "⑯-b IE5 p.1/20/125/126 → 동일(offset=0, D109)",
+        ie5_offset == 0 and ie5_pages == {1: 1, 20: 20, 125: 125, 126: 126},
+        f"offset={ie5_offset} 환산={ie5_pages}",
     )
 
     # ── ⑰ 미등록 manual_id → 예외 없이 offset 0 폴백 + 1회 경고 (기존 폴백 태도와 동일)
