@@ -29,6 +29,9 @@
      커넥션도 분리한다(`db.draft_writer()` / `db.decision_writer()` / `db.repair_writer()`) —
      섞으면 TEMP TRIGGER 잠금이 사라진다
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
+   - 🔵 **화면 직접 생성(`POST /api/po`)은 이 규칙(D10) 대상이 아니다** (D111) — MCP 도구가 아니라
+     백엔드 쓰기라 처음부터 UPDATE 권한이 있다. 산출 로직은 `data/po_draft.py` 공유 계층에서
+     `create_po_draft`(MCP)와 동일하게 검증된다
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
 4. **model 파라미터는 enum('iG5A','S100','IE5') 강제** (D6, D13, D109 — IE5 는 정의 조회 경로만.
@@ -117,7 +120,7 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 978건** · seed **37건**(불변 아님 —
+**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 988건** · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
@@ -129,7 +132,7 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 `/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade`
 2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
-`agent_loop_contract 35` · `api_contract 31` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`agent_loop_contract 35` · `api_contract 41` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 19` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
@@ -180,6 +183,14 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > `error_codes`·프론트·도구·DB 전부 무변경. D109 ⓐ(안전 문구 미확장)·ⓒ(equipment CHECK 2종)는
 > 그대로 유지 — 안전 게이트(`needs_safety_block`)가 텍스트 내용 기반이라 데이터 출처와 무관하게
 > 동작함을 `backend/agent/loop.py:360-382` 직접 확인 후 결정했다.
+>
+> **978→988**: D111(P39 축소판 — 화면이 발주 초안을 직접 생성·수정)이 `api_contract`에
+> 10건을 더했다(31→41, 978+10=988) — 견적 사전 조회·화면 생성 권한 403·MOQ 미달 422·
+> draft 수정·전이 409·404. 나머지 31스위트는 무변경. `write_tool_contract`(`create_po_draft`
+> 리팩터 대상, 30건)도 리팩터 전후 동일 건수로 재확인됨 — 산출 로직을 `data/po_draft.py`로
+> 옮겼지만 출력 dict는 한 글자도 안 바뀌었다. seed·pytest·`error_codes`·MCP 도구 18종·DB
+> 24테이블 전부 무변경. 프론트 라우트는 아직 무변경(백엔드만 완료 시점 — `/technician/po/*`
+> 2라우트는 프론트 태스크 완료 후 갱신).
 >
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이

@@ -248,6 +248,13 @@ GET  /api/po/{po_id}                 # 상세: reason(한 줄 요약) + evidence
                                      #   둘 다 유효할 때만 응답 조립 시점에 계산해 붙는다(저장 안 함).
                                      #   model 미확정(에러코드 승인 전 등)이면 필드가 아예 없다 — 화면은
                                      #   그때 "PDF p." 로 정직하게 병기한다(W-6 표시측, Stage 1)
+GET  /api/po/quotes/{part_no}        # 부품 견적 사전 조회 (technician) — 화면이 발주 초안을
+                                     #   만들기 전 공급사를 고르는 용도(D111). 견적 없으면 빈 배열(404 아님, D62)
+POST /api/po                         # 화면 직접 생성 (technician만, D111 — P39 축소판, 발주서만).
+                                     #   응답은 GET /api/po/{po_id} 와 같은 상세 셰이프. 검증 실패는
+                                     #   404(no_quote)·422(invalid_input 등) — create_po_draft(MCP)와 동일 규칙
+PATCH /api/po/{po_id}                # draft 상태에서만 수정 (technician만, 요청자 본인 아니어도 가능, D111).
+                                     #   draft 아니면 409
 POST /api/po/{po_id}/submit          # draft → pending   (technician만)
 POST /api/po/{po_id}/approve         # pending → approved (manager만)
 POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason} — 필수, D38)
