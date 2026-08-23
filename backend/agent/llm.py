@@ -294,7 +294,155 @@ class GeminiClient:
         return gen()
 
 
-PROVIDERS = ("gemini", "anthropic")
+# ────────────────────────────────────────────── Elice (D115)
+#
+# InsuQ 자매 프로젝트(ai-engine/insuq_ai/generation/llm.py)의 elice provider를
+# 이식했다 — "모델 교체가 아니라 경로 교체"다. Elice ML API(mlapi.run)가 같은
+# gemini 계열 모델을 OpenAI 호환 게이트웨이로 재판매한다. GEMINI_API_KEY/
+# GOOGLE_API_KEY가 둘 다 무효해 실 LLM 검증이 막혔을 때 우회 경로로 추가했다.
+
+
+def elice_tools(tools: list[dict]) -> list[dict]:
+    """MCP 도구 목록(`{name, description, input_schema}`)을 OpenAI tool-calling
+    스키마로 변환한다. Gemini와 달리 스키마를 축약하지 않는다 — OpenAI 호환
+    레이어는 JSON Schema 를 그대로 받는다(InsuQ ai-engine 실측 확인)."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t.get("description", ""),
+                "parameters": t.get("input_schema") or {"type": "object", "properties": {}},
+            },
+        }
+        for t in tools
+    ]
+
+
+def elice_messages(messages: list[dict]) -> list[dict]:
+    """루프 이력 → OpenAI `messages`.
+
+    ⚠️ **네이티브 `tool` 역할(assistant `tool_calls` + `tool` 페어)을 쓰지 않는다.**
+    처음엔 합성 assistant(`tool_calls`)로 id를 짝지어 봤는데, Elice가 재판매하는
+    Gemini는 이전 턴에 실제 tool_calls가 있었다면 그 원본의 `thought_signature`
+    확장 필드(구글 전용, `extra_content.google`)를 요구한다 — 루프가 assistant
+    `tool_use` 블록 자체를 이력에 남기지 않아(D76, `anthropic_messages`와 같은
+    사정) 합성 tool_calls로는 이 요구를 못 채운다(실측: `400 Function call is
+    missing a thought_signature`). `anthropic_messages`와 같은 이유로 같은
+    해법을 쓴다 — 구조는 보존하되 JSON 텍스트로 user 메시지에 담는다.
+    """
+    out: list[dict] = []
+    for m in messages:
+        if m.get("role") == "tool":
+            body = json.dumps(m.get("content"), ensure_ascii=False, sort_keys=True)
+            out.append(
+                {"role": "user", "content": f"[도구 결과 {m.get('name', '')}]\n{body}"}
+            )
+        else:
+            out.append({"role": m["role"], "content": str(m.get("content", ""))})
+    return out
+
+
+def elice_chunk_delta(chunk: object) -> tuple[str | None, list[dict], str | None]:
+    """스트림 chunk 하나 → (텍스트 델타, tool_call 조각 목록, finish_reason).
+
+    duck-typing만 쓴다 — SDK 없이 가짜 chunk로 검증 가능해야 한다(gemini_chunk_deltas
+    와 같은 이유). OpenAI 호환 스트리밍은 tool_call 의 `arguments`가 여러 청크에
+    걸쳐 조각으로 온다 — 조각 자체는 여기서 그대로 반환하고, 누적은
+    `elice_finalize_tool_calls`가 한다(단일 chunk 처리와 누적 상태를 분리해
+    둘 다 순수 함수로 테스트 가능하게 한다).
+    """
+    choices = getattr(chunk, "choices", None) or []
+    if not choices:
+        return None, [], None
+    choice = choices[0]
+    finish = getattr(choice, "finish_reason", None)
+    delta = getattr(choice, "delta", None)
+    text = getattr(delta, "content", None) if delta is not None else None
+    frags: list[dict] = []
+    for tc in (getattr(delta, "tool_calls", None) or []) if delta is not None else []:
+        fn = getattr(tc, "function", None)
+        frags.append(
+            {
+                "index": getattr(tc, "index", 0),
+                "id": getattr(tc, "id", None),
+                "name": getattr(fn, "name", None) if fn is not None else None,
+                "arguments": getattr(fn, "arguments", None) if fn is not None else None,
+            }
+        )
+    return text, frags, finish
+
+
+def elice_finalize_tool_calls(acc: dict[int, dict]) -> list[ToolUse]:
+    """누적된 tool_call 조각(index → {id, name, args}) → `ToolUse` 목록, index 오름차순.
+
+    `args` JSON 파싱 실패는 예외를 던지지 않고 빈 dict로 대체한다 — 도구 호출
+    자체는 진행시키고, 인자 누락은 이후 도구단(D9)이 흡수한다."""
+    out: list[ToolUse] = []
+    for idx in sorted(acc):
+        data = acc[idx]
+        try:
+            parsed = json.loads(data["args"]) if data["args"] else {}
+        except json.JSONDecodeError:
+            parsed = {}
+        out.append(ToolUse(id=data["id"] or f"call_{idx}", name=data["name"] or "", input=parsed))
+    return out
+
+
+class EliceClient:
+    """Elice 게이트웨이(mlapi.run) 경유 호출 — OpenAI 호환 스트리밍 (D115)."""
+
+    def __init__(self, model: str, api_key: str, base_url: str, max_tokens: int = 2048) -> None:
+        from openai import AsyncOpenAI  # noqa: PLC0415 — 선택적 의존성
+
+        url = base_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url = f"{url}/v1"
+        self._client = AsyncOpenAI(base_url=url, api_key=api_key)
+        self._model = model
+        self._max_tokens = max_tokens
+
+    def stream(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[LlmDelta]:
+        client, model, max_tokens = self._client, self._model, self._max_tokens
+        payload_messages = [{"role": "system", "content": system}, *elice_messages(messages)]
+        kwargs: dict = {
+            "model": model,
+            "messages": payload_messages,
+            "stream": True,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            kwargs["tools"] = elice_tools(tools)
+
+        async def gen() -> AsyncIterator[LlmDelta]:
+            acc: dict[int, dict] = {}
+            finish: str | None = None
+            stream = await client.chat.completions.create(**kwargs)
+            async for chunk in stream:
+                text, frags, chunk_finish = elice_chunk_delta(chunk)
+                if chunk_finish:
+                    finish = chunk_finish
+                if text:
+                    yield ("text", text)
+                for frag in frags:
+                    idx = frag["index"]
+                    cur = acc.setdefault(idx, {"id": frag["id"] or f"call_{idx}", "name": "", "args": ""})
+                    if frag["id"]:
+                        cur["id"] = frag["id"]
+                    if frag["name"]:
+                        cur["name"] = frag["name"]
+                    if frag["arguments"]:
+                        cur["args"] += frag["arguments"]
+            for tool_use in elice_finalize_tool_calls(acc):
+                yield ("tool_use", tool_use)
+            yield ("end", finish or "end_turn")
+
+        return gen()
+
+
+PROVIDERS = ("gemini", "anthropic", "elice")
 
 
 def get_client() -> LlmClient:
@@ -314,6 +462,7 @@ def get_client() -> LlmClient:
         )
 
     model = os.environ.get("MAINTQ_LLM_MODEL", "").strip()
+    base_url = ""
     if provider == "gemini":
         # SDK 관례상 두 이름이 통용된다 — GEMINI_API_KEY 를 우선하고 GOOGLE_API_KEY 도 인정
         api_key = (
@@ -321,22 +470,30 @@ def get_client() -> LlmClient:
             or os.environ.get("GOOGLE_API_KEY", "").strip()
         )
         key_label = "GEMINI_API_KEY(또는 GOOGLE_API_KEY)"
+    elif provider == "elice":
+        api_key = os.environ.get("ELICE_API_KEY", "").strip()
+        key_label = "ELICE_API_KEY"
+        base_url = os.environ.get("ELICE_LLM_URL", "").strip()
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         key_label = "ANTHROPIC_API_KEY"
 
-    missing = [n for n, v in ((key_label, api_key), ("MAINTQ_LLM_MODEL", model)) if not v]
+    required = [(key_label, api_key), ("MAINTQ_LLM_MODEL", model)]
+    if provider == "elice":
+        required.append(("ELICE_LLM_URL", base_url))
+    missing = [n for n, v in required if not v]
     if missing:
         raise RuntimeError(
             f"환경변수(또는 .env)에 {' · '.join(missing)} 이(가) 없습니다 "
             f"(provider={provider}). 테스트용 스크립트 응답으로 자동 대체하지 않습니다 "
             "(D40) — 가짜 응답을 진짜로 착각하는 사고를 막기 위해서입니다."
         )
-    inner = (
-        GeminiClient(model=model, api_key=api_key)
-        if provider == "gemini"
-        else AnthropicClient(model=model, api_key=api_key)
-    )
+    if provider == "gemini":
+        inner = GeminiClient(model=model, api_key=api_key)
+    elif provider == "elice":
+        inner = EliceClient(model=model, api_key=api_key, base_url=base_url)
+    else:
+        inner = AnthropicClient(model=model, api_key=api_key)
     # 카세트는 **명시적 옵트인**이다 (D104). 켜지 않으면 위 클라이언트가 그대로 나간다.
     from backend.agent.llm_cache import CachingClient, cache_enabled  # noqa: PLC0415
 

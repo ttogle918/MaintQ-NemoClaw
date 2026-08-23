@@ -10,6 +10,7 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.28.1",
     # M1 데이터 파이프라인 (SP1 EDA·extract_error_codes.py에서 사용)
+    "openai>=3.3.1",
     "pdfplumber>=0.11",
     # 단일 페이지 PDF 분할 (data/external/elice_docvision.py, D105). pdfplumber 의
     # 전이 의존성으로 이미 설치돼 있었으나 직접 선언으로 승격 — pdfplumber 가 의존성을

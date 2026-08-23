@@ -26,8 +26,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.agent.llm import (  # noqa: E402
+    EliceClient,
     GeminiClient,
     ToolUse,
+    elice_chunk_delta,
+    elice_finalize_tool_calls,
+    elice_messages,
+    elice_tools,
     gemini_chunk_deltas,
     gemini_contents,
     gemini_declarations,
@@ -52,6 +57,8 @@ _ENV_KEYS = (
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
     "ANTHROPIC_API_KEY",
+    "ELICE_API_KEY",
+    "ELICE_LLM_URL",
     "MAINTQ_LLM_CACHE",
 )
 
@@ -275,6 +282,114 @@ def run() -> None:
         src_ok and behave_ok,
         f"src={src_ok}, os유지·빈곳채움={behave_ok}",
     )
+
+    # ── D115 — Elice 게이트웨이 (InsuQ ai-engine/insuq_ai/generation/llm.py 이식)
+
+    # ── ⑮ elice_tools — OpenAI tool-calling 스키마 변환, input_schema 그대로 실림
+    etools = elice_tools(
+        [{"name": "lookup_error_code", "description": "코드 조회", "input_schema": {"type": "object", "properties": {"code": {"type": "string"}}}}]
+    )
+    check(
+        "⑮ elice_tools — type:function 래핑, name·description·parameters 보존",
+        etools == [{
+            "type": "function",
+            "function": {
+                "name": "lookup_error_code",
+                "description": "코드 조회",
+                "parameters": {"type": "object", "properties": {"code": {"type": "string"}}},
+            },
+        }],
+        str(etools),
+    )
+
+    # ── ⑯ elice_messages — user/assistant 그대로, tool 은 JSON 텍스트로 평탄화한 user 메시지
+    # (네이티브 tool_calls 페어를 합성하면 Gemini가 이전 턴 thought_signature 를 요구해
+    # 400 이 난다 — 실측 확인, anthropic_messages 와 같은 이유로 같은 해법을 쓴다)
+    emsgs = elice_messages(
+        [
+            {"role": "user", "content": "OHt 에러"},
+            {"role": "assistant", "content": "확인 중"},
+            {"role": "tool", "name": "lookup_error_code", "content": {"cause": "과열"}},
+        ]
+    )
+    ok16 = (
+        [m["role"] for m in emsgs] == ["user", "assistant", "user"]
+        and "lookup_error_code" in emsgs[2]["content"]
+        and "과열" in emsgs[2]["content"]
+    )
+    check("⑯ elice_messages — tool 결과를 JSON 텍스트로 평탄화한 user 메시지로 (thought_signature 회피)", ok16, f"roles={[m['role'] for m in emsgs]}")
+
+    # ── ⑰ elice_chunk_delta — 본문 텍스트 델타 정규화 (SDK 없이 가짜 chunk)
+    chunk_text = NS(choices=[NS(delta=NS(content="안녕", tool_calls=None), finish_reason=None)])
+    text17, frags17, finish17 = elice_chunk_delta(chunk_text)
+    check("⑰ elice_chunk_delta — 텍스트 델타 정규화", text17 == "안녕" and frags17 == [] and finish17 is None, f"{text17!r},{frags17},{finish17}")
+
+    # ── ⑱ elice_chunk_delta — tool_call 조각(index·id·function.name/arguments) 추출
+    tc_frag = NS(index=0, id="call_abc", function=NS(name="lookup_error_code", arguments='{"model":'))
+    chunk_tc = NS(choices=[NS(delta=NS(content=None, tool_calls=[tc_frag]), finish_reason=None)])
+    text18, frags18, finish18 = elice_chunk_delta(chunk_tc)
+    check(
+        "⑱ elice_chunk_delta — tool_call 조각 추출(부분 arguments 포함)",
+        text18 is None and frags18 == [{"index": 0, "id": "call_abc", "name": "lookup_error_code", "arguments": '{"model":'}],
+        f"{frags18}",
+    )
+
+    # ── ⑲ elice_chunk_delta — finish_reason 은 마지막 청크에만 실린다
+    chunk_end = NS(choices=[NS(delta=NS(content=None, tool_calls=None), finish_reason="tool_calls")])
+    _, _, finish19 = elice_chunk_delta(chunk_end)
+    check("⑲ elice_chunk_delta — finish_reason 정규화", finish19 == "tool_calls", str(finish19))
+
+    # ── ⑳ elice_finalize_tool_calls — 여러 청크에 걸쳐 쪼개진 arguments 를 index 순서로 합친다
+    acc: dict[int, dict] = {}
+    for frag in (
+        {"index": 1, "id": "call_2", "name": "search_insurance_clause", "arguments": None},
+        {"index": 0, "id": "call_1", "name": "lookup_error_code", "arguments": '{"model":'},
+        {"index": 0, "id": None, "name": None, "arguments": '"iG5A"}'},
+        {"index": 1, "id": None, "name": None, "arguments": '{"question":"q"}'},
+    ):
+        idx = frag["index"]
+        cur = acc.setdefault(idx, {"id": frag["id"] or f"call_{idx}", "name": "", "args": ""})
+        if frag["id"]:
+            cur["id"] = frag["id"]
+        if frag["name"]:
+            cur["name"] = frag["name"]
+        if frag["arguments"]:
+            cur["args"] += frag["arguments"]
+    finalized = elice_finalize_tool_calls(acc)
+    check(
+        "⑳ elice_finalize_tool_calls — index 오름차순, 조각난 JSON arguments 병합·파싱",
+        finalized == [
+            ToolUse(id="call_1", name="lookup_error_code", input={"model": "iG5A"}),
+            ToolUse(id="call_2", name="search_insurance_clause", input={"question": "q"}),
+        ],
+        str(finalized),
+    )
+
+    # ── ㉑ provider=elice — 키 없으면 ELICE_API_KEY 안내
+    with env(MAINTQ_LLM_PROVIDER="elice", MAINTQ_LLM_MODEL="gemini-3.5-flash-lite"):
+        try:
+            get_client()
+            check("㉑ elice — 키 없으면 실패", False, "예외 없음")
+        except RuntimeError as e:
+            check("㉑ elice — 키 없으면 실패 (ELICE_API_KEY 안내)", "ELICE_API_KEY" in str(e), str(e)[:80])
+
+    # ── ㉒ provider=elice — 키는 있지만 ELICE_LLM_URL 없으면 실패(base_url 없이 게이트웨이 특정 불가)
+    with env(MAINTQ_LLM_PROVIDER="elice", MAINTQ_LLM_MODEL="gemini-3.5-flash-lite", ELICE_API_KEY="k"):
+        try:
+            get_client()
+            check("㉒ elice — ELICE_LLM_URL 없으면 실패", False, "예외 없음")
+        except RuntimeError as e:
+            check("㉒ elice — ELICE_LLM_URL 없으면 실패", "ELICE_LLM_URL" in str(e), str(e)[:80])
+
+    # ── ㉓ provider=elice — 키·URL 다 있으면 EliceClient (네트워크 호출 없음)
+    with env(
+        MAINTQ_LLM_PROVIDER="elice",
+        MAINTQ_LLM_MODEL="gemini-3.5-flash-lite",
+        ELICE_API_KEY="k",
+        ELICE_LLM_URL="https://mlapi.run/fake-deploy-id",
+    ):
+        c23 = get_client()
+    check("㉓ elice — 키·URL 모두 있으면 EliceClient", isinstance(c23, EliceClient), type(c23).__name__)
 
 
 def main() -> None:
