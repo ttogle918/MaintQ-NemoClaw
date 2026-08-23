@@ -929,3 +929,25 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
 **eval-runner 종합**: seed 37 · `sp2_mcp_roundtrip` 20 · `write_tool_contract` 30 · `api_contract` 41 · `sp3_sse_events` 22 · `ruff check` clean. 새 회귀 0건. `tools_profile_contract` 1건 실패는 **예상된 것**(18→20종 카운트 하드코딩, Stage 4/MQ-1611 소관) — 확인 완료, 새 버그 아님.
 
 **reviewer 게이트**: PASS(블로커 없음). 비블로커 노트 2건 — ① `GET /api/a2a/history`에 역할 게이트 없음(기존 두 엔드포인트 관례를 따름, 감사 이력을 무인증 노출한다는 점은 다음 스프린트에서 검토할 만함) ② `mcp_server/server.py:158` 섹션 배너 주석이 "확장 11종"으로 남음(Stage 4에서 함께 정리 예정, 실제 등록 로직엔 무영향).
+
+---
+
+### Stage 2 완료 (2026-08-23)
+**커밋**: `d77992f` — `[M4] feat: Sprint 16 Stage 2 — 에이전트 배선 + 프론트 데이터 계층`
+
+#### MQ-1604 — 에이전트 루프·프롬프트 배선
+- `backend/agent/loop.py`(`_A2A_CHAIN_TOOLS` + chain_id 추출) · `backend/agent/mcp_client.py`(요약 분기 2개) · `backend/agent/prompts.py`(`EXT_RULES`·`_EXT_RULE_TOOLS` 6→8)
+- `_pages_from`/`_parts_from`에 분기 미추가 확인(D26·D32) — reviewer가 직접 코드 대조로 재확인
+- 회귀: pytest 83/83 · `trace_persist` 17/17 · `sp3_sse_events` 22/22(바이트 무변화 확인)
+
+#### MQ-1605 — 프론트 API 계층
+- `frontend/lib/a2a.ts`(신규, `skillView`·`a2aStatusTone`) · `frontend/lib/api.ts`(`getA2aHistory()`)
+- 회귀: `tsc --noEmit` clean, L1 단독 컴파일 확인(React·`@/` 미사용)
+
+#### MQ-1606 — 프론트 채팅 타입·리듀서
+- `frontend/lib/types.ts`(`ChatItem` 유니온) · `frontend/lib/chatStream.ts`(`onToolResult()` 분기)
+- 순수 리듀서 유지 확인(fetch 없음) · 단위 확인: `tool_result` 이벤트 → `a2a_result` 아이템 변환 실측 PASS
+
+**eval-runner 종합**: seed 37 · `sp2_mcp_roundtrip` 20 · `write_tool_contract` 30 · `api_contract` 41 · `sp3_sse_events` 22 · `trace_persist` 17 · `a2a_identity_contract` 19 · `mcp_client_contract` 15 · pytest 83 · `ruff check` clean · `tsc --noEmit`/`next build` clean(라우트 21개 — Stage 2 무관, 이미 병합된 D111/P40 반영치임을 git log로 확인). 새 회귀 0건. `prompt_rules` ⑰·⑲(`EXT_RULES==6` 하드코딩)가 이번에 새로 실패 시작 — **예상된 것**(Stage 4/MQ-1611 소관).
+
+**reviewer 게이트**: PASS(블로커 없음). 비블로커 노트 3건(구현자 보고 그대로 확인) — ① `mcp_client.py`의 "확장 11종" 주석 미갱신 ② `prompts.py` 헤더의 "len(EXT_RULES)==6" 서술 미갱신 ③ `api.ts`의 `endpoints` 상수에 `/api/a2a/history` 미등재(단, `endpoints` 자체가 프로젝트 전체에서 소비자 0건이라 기존 컨벤션과 일치 — 사실상 결함 아님). 셋 다 Stage 4로 미뤄도 무방.
