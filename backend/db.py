@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def connect(db_path: Path | None = None) -> Iterator[psycopg.Connection]:
+def connect(db_path: Path | str | None = None) -> Iterator[psycopg.Connection]:
     """Postgres 연결 컨텍스트 매니저.
 
     기존 SQLite 인터페이스를 유지하되, 드라이버만 교체.

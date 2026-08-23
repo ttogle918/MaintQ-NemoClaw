@@ -87,6 +87,19 @@
   ⚠ 실행 커맨드(**3파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
   backend/agent/test_llm_cache.py data/external/test_elice_docvision.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
+- `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
+  `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
+  `backend/services/test_po_a2a_dispatch.py` — **8파일 86건**, A2A 아웃바운드(FinAllQ 출금·
+  InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약. 커밋 `5895c2e`
+  가 신설했지만 이 문서엔 반영이 안 돼 있다가 Sprint 16 4차 체크포인트에서 발견·정리(공식
+  목록 편입 시 위 3파일과 합쳐 "4파일군 169건"이 된다).
+  ⚠ 실행 커맨드(**pytest-asyncio 추가 필요**): **`uv run --with pytest --with pytest-asyncio
+  python -m pytest backend/a2a/test_auth_header.py backend/a2a/test_client.py
+  backend/a2a/test_credentials.py backend/a2a/test_payloads.py backend/a2a/test_trace.py
+  backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
+  backend/services/test_po_a2a_dispatch.py -q`** (`--with pytest-asyncio` 없이 돌리면
+  `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
+  로 실패한다 — Postgres 와 무관한 별개 함정)
 - `spikes/` — **33종**(`ls spikes/*.py` 는 37개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
   `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
@@ -122,13 +135,16 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 후 재실행 — 아래 문단 참고)** —
-spikes **33스위트 / 1,051건**(32스위트 1,026건 실측 + `bundle_integrity` 25건은 이번 세션 미실행,
-직전 기록값 이월). **32→33**: Sprint 16 Stage 4(MQ-1613, 다른 세션이 이 세션 착수 전 이미
+**실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
+spikes **33스위트 / 1,052건**(전 33스위트 실제 Postgres 위에서 실측, `bundle_integrity` 포함).
+**32→33**: Sprint 16 Stage 4(MQ-1613, 다른 세션이 이 세션 착수 전 이미
 커밋·push)가 `a2a_partner_tools_contract.py`(22건)를 신설했는데 이 문서 목록에 반영이 안 돼
 있었다 — `ls spikes/*.py` 실측으로 뒤늦게 발견해 여기서 정정한다. (`ls spikes/*.py` 는 37개를
-반환한다 — 나머지 4개는 이 32+1종 공식 목록 밖으로, `docs/sprints/sprint-16-wip.md` "스코프 밖
-발견" 참고 · 아직 이 문서가 공식 스위트로 인정하지 않는다) · seed **37건**(불변 아님 —
+반환한다 — 나머지 4개 중 2개(`test_elice_stream.py` 는 gitignore 대상 미추적 파일 · 
+`demo_recommendation_1_and_2.py` 는 PASS/FAIL 단언 없는 시연 스크립트)는 의도적으로 공식
+목록 밖이고, 나머지 2개(`a2a_outbound_contract.py`·`a2a_e2e_integration_spike.py`)는 진짜
+계약 스파이크이지만 아직 공식 33종에 편입할지 결정 전이다 — 포팅은 완료됨,
+`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
@@ -146,7 +162,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
 `agent_loop_contract 35` · `api_contract 41` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25`(SQLite 전용 미포팅 — 아래 Sprint 16 문단 참고) ·
+`bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
@@ -263,9 +279,41 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > 포트 5434)를 띄우고 마이그레이션을 실제로 완성했다: `data/dbcompat.py`(sqlite3 호환 계층)·
 > `data/pg_isolation.py`(스파이크별 격리 스키마) 신설, `backend/db.py`·`mcp_server/db.py` 의
 > `read_only()` 물리적 강제 재구현, `disposal.py`(read_only 미전환으로 `disposal_api_contract`
-> 의 이전 "26/26" 이 스테일 SQLite 파일을 읽은 가짜 통과였음을 발견·수정) 등. **31/32 스파이크를
-> 실 Postgres 위에서 재검증**(`bundle_integrity` 는 픽스처 DB 변형 7종이 전부 `sqlite3.connect()`
-> 직결이라 포팅 규모가 다른 스파이크보다 훨씬 커 사용자 승인으로 이번 세션 skip — 아래 참고).
+> 의 이전 "26/26" 이 스테일 SQLite 파일을 읽은 가짜 통과였음을 발견·수정) 등. **33/33 스파이크
+> 전부 실 Postgres 위에서 재검증 완료**(`bundle_integrity` 는 픽스처 DB 변형 7종이 전부
+> `sqlite3.connect()` 직결이라 포팅 규모가 커 3차 체크포인트에서는 사용자 승인으로 skip했으나,
+> 이어받은 세션(4차 체크포인트)이 완료했다 — 아래 참고).
+>
+> **1,051→1,052 (4차 체크포인트, 이어받은 세션)**: `bundle_integrity.py` 를 `data/pg_isolation.py`·
+> `data/dbcompat.py` 기존 인프라로 포팅 완료 — 픽스처 7종을 격리 Postgres 스키마로 교체하고
+> `sqlite3.connect()` 직결을 걷어냈다. 검사 건수는 **25→26**(원본 25건 + 신설 "격리 스키마
+> 잔존 확인" 1건, 1,026+26=1,052). 로직이 바뀐 검사는 ⑫(자산 DELETE → `asset_disappeared`)
+> 단 1건뿐 — SQLite 는 `foreign_keys` 기본 OFF 라 자산 행을 그냥 지울 수 있었지만 Postgres 는
+> `equipment.asset_id → assets.asset_id` FK 를 강제해 `DELETE` 전에 `equipment.asset_id` 를
+> NULL 로 비워야 했다(검사 의미는 동일). 나머지 24건은 기계적 포팅. 포팅 착수 전 사전 오염
+> 사고를 하나 발견·정리했다 — 미포팅 `a2a_e2e_integration_spike.py` 가 과거 실행에서
+> `db_path` 를 `Path` 객체로 넘겨 `backend/db.py::connect()` 의 `isinstance(db_path, str)`
+> 분기를 벗어나 조용히 공유 `public` 에 썼다(`po_drafts.PO-0117` 이 `approved` 로 남고
+> `traces` 에 `session_id='S1'` 잔여 2행). `data/seed.py --with-error-codes` 재시드로 정리
+> (37/37, `error_codes` 70행, `PO-0117` `pending` 복구 확인). 같은 방식으로
+> `a2a_outbound_contract.py`(4건)·`a2a_e2e_integration_spike.py`(2건)도 함께 포팅했다 — 이
+> 둘은 아직 공식 33종 밖이라 위 헤드라인 1,052건에는 포함하지 않았다(포함하면 1,058). 세
+> 파일 전부 격리 스키마 잔존 0개·`error_codes` 70행·ruff clean 확인. **부수 발견 및 같은
+> 세션에서 즉시 수정**: 커밋 `5895c2e`("A2A 코드 테스트 75건 추가")가 만든 pytest 8파일
+> (`backend/a2a/test_*.py` 5개 + `backend/routers/test_a2a.py`·`test_po_a2a_trigger.py`·
+> `backend/services/test_po_a2a_dispatch.py`)이 CLAUDE.md 공식 pytest 목록(3파일·83건)에
+> 전혀 반영이 안 돼 있었고, 첫 실측 결과 86건 중 46건 FAIL 이었다. 사용자 승인으로 같은
+> 세션에서 바로 원인을 고쳤다 — 근본 원인은 `backend/a2a/payloads.py`·`backend/a2a/trace.py`
+> 의 `connect(Path(db_path) if db_path else None)` 패턴(DSN 문자열을 `Path()` 로 감싸면
+> `isinstance(db_path, str)` 검사를 벗어나 조용히 실 DB로 샌다, 위 오염 사고와 동일 계열)과
+> `backend/conftest.py` 의 `db_path`/`seed_po`/`link_finallq` 픽스처가 여전히 SQLite 파일을
+> 만들던 것(격리가 애초에 안 됐다) 두 가지였다. `Path()` 래핑 제거 + 픽스처를
+> `data/pg_isolation.create_isolated_schema()` 기반으로 교체 + 파일 내부 `_traces()` 헬퍼
+> 3곳 · `MAINTQ_DB` env var 세팅 2곳(Postgres 가 안 읽는 SQLite 시절 변수, `s10_smoke.py` 와
+> 같은 함정)을 같은 패턴으로 정리 — **86/86 PASS**. 별개로 `test_client.py` 등 async
+> 테스트가 `pytest-asyncio` 미설치로 떨어지고 있던 것도 발견(Postgres 무관, 실행 커맨드에
+> `--with pytest-asyncio` 필요). 공식 목록에 이 8파일을 반영해 pytest 총 **83→169건**
+> (3파일군 + 4파일군, 위 "회귀 스위트" 절에 반영 완료).
 >
 > 건수 변화 3가지, 이번 마이그레이션과 무관한 것까지 섞여 있어 구분해 적는다:
 > - **`db_concurrency` 13→7** (이번 세션 원인). WAL·busy_timeout·`journal_mode` 는 SQLite
@@ -276,11 +324,20 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > - **`llm_provider_contract` 14→23** (이번 마이그레이션과 무관 — 표 갱신 누락이었을 뿐).
 >   D115(Elice LLM provider 추가, `docs/10_DECISIONS.md` 에 이미 등재)가 검사 9건(⑮~㉓)을
 >   더한 것이 원인 — 코드·스파이크는 이미 커밋돼 있었고 이 표만 반영이 안 돼 있었다.
-> - **`ui_honesty_contract` 271→291** (이번 마이그레이션과 무관 — 원인 미확정). `git log --
->   frontend/`로 대조하면 `7ff38b2`(Sprint 16 Stage 3, A2A 응답 표시 4종 — 다른 세션이 이
->   세션 착수 전 이미 push)가 유력한 후보이나, 정확히 어느 파일이 L2 글롭에 새로 편입돼
->   +20 이 됐는지는 이번 세션에서 실측 유도까지는 하지 않았다 — 다음 세션이 `git log --
->   stat 7ff38b2 -- frontend/` 로 정확한 산술을 재구성해 이 문단을 갱신할 것.
+> - **`ui_honesty_contract` 271→291** (이번 마이그레이션과 무관 — 다음 세션이 원인을 확정했다).
+>   `git show 7ff38b2 --stat -- frontend/`(Sprint 16 Stage 3, A2A 응답 표시 4종 — 다른 세션이
+>   이 세션 착수 전 이미 push)로 대조한 결과, **원인은 이미 `spikes/ui_honesty_contract.py`
+>   자신의 주석(MQ-1611)에 다 적혀 있었다** — CLAUDE.md 로 옮겨 적는 것만 빠졌던 것이다.
+>   +20 은 계약 +18 · 게이트 +2 두 갈래: **계약(L2) +18** = L2 스캔 파일 39→42(+3) × 6항목 —
+>   `components/asset/LoanAssessmentHistory.tsx`·`app/(console)/manager/a2a/page.tsx`(기존
+>   글롭에 자동 편입) + `components/queue/WithdrawalStatusPanel.tsx`(`Decision*.tsx` 접두어
+>   불일치로 `L2_EXTRA` 에 수동 등재, `RepairDetail.tsx` 선례와 같은 방식). `components/chat/
+>   A2aResultCard.tsx` 는 `components/chat/*.tsx` 글롭 자체가 없어 편입 안 됨(의도적 사각지대,
+>   다른 chat 컴포넌트와 동일). **게이트 +2** = Stage 3 신설 `frontend/lib/a2a.ts`(skillView·
+>   a2aStatusTone, D87)가 제약 게이트 C9·C10(MQ-1605)으로 새로 등재됨(`ownership.ts`·
+>   `maintValue.ts`·`deadlines.ts`·`riskGrade.ts` 4파일 8건 → 5파일 10건). 뮤턴트 8종·메타 5건은
+>   무변경. 18+2=20, 271+20=291 — 실행 결과("신규 계약 검사 268건(L1 15·L2 252·D64 1) + 제약
+>   게이트 10 + 뮤턴트 8 + 메타 5 = 291")와 산술이 정확히 일치, PASS 291/291(신규 D87 위반 없음).
 >
 > 그 외 **29스위트는 건수 무변화** — SQLite 커넥션을 Postgres 로 바꿔도 계약 자체(검사 개수·
 > 의미)는 그대로였다는 뜻이다. 이 과정에서 실제 버그 2건을 발견·수정했다(스파이크가 아니라

@@ -10,35 +10,35 @@ InsuQ 어댑터로의 실제 HTTP 호출을 대체한다.
 from __future__ import annotations
 
 import json
-import sqlite3
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from data import dbcompat
+
 import backend.routers.a2a as a2a_router_module
 from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError
 
 
 @pytest.fixture()
-def client(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> TestClient:
-    monkeypatch.setenv("MAINTQ_DB", str(db_path))
+def client(monkeypatch: pytest.MonkeyPatch, db_path: str) -> TestClient:
+    monkeypatch.setattr("backend.db.DB_PATH", db_path)
     app = FastAPI()
     app.include_router(a2a_router_module.router)
     return TestClient(app)
 
 
-def _traces(db_path: Path) -> list[sqlite3.Row]:
-    con = sqlite3.connect(db_path)
-    con.row_factory = sqlite3.Row
-    rows = con.execute("SELECT * FROM traces ORDER BY seq").fetchall()
-    con.close()
-    return rows
+def _traces(db_path: str) -> list:
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        return con.execute("SELECT * FROM traces ORDER BY seq").fetchall()
+    finally:
+        con.close()
 
 
-def test_success_returns_adapter_response(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_success_returns_adapter_response(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     captured: dict = {}
 
     async def _fake_call_skill(**kwargs: Any) -> dict:
@@ -127,7 +127,7 @@ def test_base_url_reads_env_override(monkeypatch: pytest.MonkeyPatch, client: Te
     assert captured["base_url"] == "https://insuq.example.com"
 
 
-def test_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     async def _fake_call_skill(**kwargs: Any):
         raise A2ATimeoutError("timed out")
 
@@ -140,7 +140,7 @@ def test_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient
     assert result_payload["status"] == "timeout"
 
 
-def test_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     async def _fake_call_skill(**kwargs: Any):
         raise A2AUpstreamUnavailableError("adapter down", status_code=502)
 
@@ -153,7 +153,7 @@ def test_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, clien
     assert result_payload["status"] == "unavailable"
 
 
-def test_generic_client_error_uses_its_own_status_code(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_generic_client_error_uses_its_own_status_code(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     async def _fake_call_skill(**kwargs: Any):
         raise A2AClientError("schema invalid", status_code=400, detail="bad request")
 
@@ -190,7 +190,7 @@ _LOAN_BODY = {"loan_amount": 50000000, "purpose": "설비 증설 자금", "colla
 
 
 def test_assess_loan_success_returns_adapter_response(
-    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str
 ):
     captured: dict = {}
 
@@ -279,7 +279,7 @@ def test_assess_loan_base_url_reads_env_override(monkeypatch: pytest.MonkeyPatch
     assert captured["base_url"] == "https://finallq.example.com"
 
 
-def test_assess_loan_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_assess_loan_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     async def _fake_call_skill(**kwargs: Any):
         raise A2ATimeoutError("timed out")
 
@@ -292,7 +292,7 @@ def test_assess_loan_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client
     assert result_payload["status"] == "timeout"
 
 
-def test_assess_loan_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+def test_assess_loan_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
     async def _fake_call_skill(**kwargs: Any):
         raise A2AUpstreamUnavailableError("adapter down", status_code=502)
 
@@ -306,7 +306,7 @@ def test_assess_loan_upstream_unavailable_maps_to_502(monkeypatch: pytest.Monkey
 
 
 def test_assess_loan_generic_client_error_uses_its_own_status_code(
-    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str
 ):
     async def _fake_call_skill(**kwargs: Any):
         raise A2AClientError("schema invalid", status_code=400, detail="bad request")

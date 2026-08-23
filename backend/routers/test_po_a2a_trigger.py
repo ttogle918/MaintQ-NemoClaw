@@ -9,7 +9,6 @@ request-withdrawal 을 보내는 경로**만 다룬다 — 특히 두 가지 계
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -21,8 +20,8 @@ import backend.routers.po as po_router_module
 
 
 @pytest.fixture()
-def client(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> TestClient:
-    monkeypatch.setenv("MAINTQ_DB", str(db_path))
+def client(monkeypatch: pytest.MonkeyPatch, db_path: str) -> TestClient:
+    monkeypatch.setattr("backend.db.DB_PATH", db_path)
     app = FastAPI()
     app.include_router(po_router_module.router)
     return TestClient(app)
@@ -33,7 +32,7 @@ TECHNICIAN = {"X-Role": "technician", "X-User": "tech-01"}
 
 
 def test_manager_approve_triggers_a2a_dispatch(
-    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path, link_finallq, seed_po
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str, link_finallq, seed_po
 ):
     link_finallq(external_ref="CMP-MAINTQ-001")
     seed_po(po_id="PO-001", state="pending", unit_price=10000, qty=3)
@@ -79,7 +78,7 @@ def test_technician_cannot_approve_and_a2a_is_never_called(
 
 
 def test_a2a_failure_does_not_undo_approval(
-    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path, link_finallq, seed_po
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str, link_finallq, seed_po
 ):
     link_finallq()
     seed_po(po_id="PO-001", state="pending")

@@ -8,23 +8,23 @@ traces 테이블에 tool_call/tool_result 쌍이 session_id·seq·request_chain_
 from __future__ import annotations
 
 import json
-import sqlite3
-from pathlib import Path
+
+from data import dbcompat
 
 from backend.a2a.trace import record_a2a_trace
 
 
-def _rows(db_path: Path, session_id: str) -> list[sqlite3.Row]:
-    con = sqlite3.connect(db_path)
-    con.row_factory = sqlite3.Row
-    rows = con.execute(
-        "SELECT * FROM traces WHERE session_id = ? ORDER BY seq", (session_id,)
-    ).fetchall()
-    con.close()
-    return rows
+def _rows(db_path: str, session_id: str) -> list:
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        return con.execute(
+            "SELECT * FROM traces WHERE session_id = ? ORDER BY seq", (session_id,)
+        ).fetchall()
+    finally:
+        con.close()
 
 
-def test_records_tool_call_and_tool_result_pair(db_path: Path):
+def test_records_tool_call_and_tool_result_pair(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="request-withdrawal",
@@ -41,7 +41,7 @@ def test_records_tool_call_and_tool_result_pair(db_path: Path):
     assert all(r["request_chain_id"] == "CHAIN-001" for r in rows)
 
 
-def test_tool_call_payload_contains_request_input(db_path: Path):
+def test_tool_call_payload_contains_request_input(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="lookup-clause",
@@ -56,7 +56,7 @@ def test_tool_call_payload_contains_request_input(db_path: Path):
     assert payload["input"] == {"question": "화재 특약 보장 범위는?"}
 
 
-def test_tool_result_records_status_in_summary(db_path: Path):
+def test_tool_result_records_status_in_summary(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="request-withdrawal",
@@ -72,7 +72,7 @@ def test_tool_result_records_status_in_summary(db_path: Path):
     assert "timeout" in payload["summary"]
 
 
-def test_response_payload_none_leaves_tool_payload_null(db_path: Path):
+def test_response_payload_none_leaves_tool_payload_null(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="request-withdrawal",
@@ -86,7 +86,7 @@ def test_response_payload_none_leaves_tool_payload_null(db_path: Path):
     assert result_row["tool_payload"] is None
 
 
-def test_response_payload_stored_as_raw_json_in_tool_payload(db_path: Path):
+def test_response_payload_stored_as_raw_json_in_tool_payload(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="request-withdrawal",
@@ -99,7 +99,7 @@ def test_response_payload_stored_as_raw_json_in_tool_payload(db_path: Path):
     assert json.loads(result_row["tool_payload"]) == {"status": "completed", "req_id": "3"}
 
 
-def test_seq_increments_across_multiple_calls_in_same_session(db_path: Path):
+def test_seq_increments_across_multiple_calls_in_same_session(db_path: str):
     record_a2a_trace(
         session_id="sess-01",
         skill_id="lookup-clause",
@@ -120,7 +120,7 @@ def test_seq_increments_across_multiple_calls_in_same_session(db_path: Path):
     assert [r["seq"] for r in rows] == [1, 2, 3, 4]
 
 
-def test_missing_session_id_falls_back_to_chain_suffix(db_path: Path):
+def test_missing_session_id_falls_back_to_chain_suffix(db_path: str):
     record_a2a_trace(
         session_id="",
         skill_id="lookup-clause",
@@ -133,7 +133,7 @@ def test_missing_session_id_falls_back_to_chain_suffix(db_path: Path):
     assert len(rows) == 2
 
 
-def test_never_embeds_authorization_header_in_payload(db_path: Path):
+def test_never_embeds_authorization_header_in_payload(db_path: str):
     """호출부가 실수로 헤더를 payload 에 섞어 넘겨도, 이 함수 자체는 별도 필드를 추가하지
     않는다는 계약 확인 — payload 는 호출부가 넘긴 request_payload 를 그대로 담는다."""
     request_payload = {"amount": 1000}  # Authorization은 client.py가 헤더로만 보내고 payload엔 안 넣는다

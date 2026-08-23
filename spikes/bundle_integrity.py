@@ -19,8 +19,11 @@
     ⓒ 주입 대신 `load_laws()` 재호출 → ⑨ FAIL
     ⓓ 자산 재읽기 제거      → ⑪ FAIL
 
-★ **실 DB 는 읽기만 한다.** 픽스처는 전부 임시 폴더의 사본이고(WAL 사이드카 포함),
-  마지막 검사가 실 DB 의 mtime·size 불변을 직접 확인한다.
+★ **실 DB 는 읽기만 한다.** Postgres 에서 "실 DB"는 격리 스키마 override 가 없는
+  `public` 스키마다(`mcp_db.DB_PATH` 기본값 `None`). 픽스처는 전부
+  `data/pg_isolation.py::create_isolated_schema()` 로 만든 별도 스키마의 사본이고,
+  마지막 검사가 그 스키마들이 전부 정리됐는지 · `public.decisions` 행 수가 그대로인지
+  직접 확인한다(D10, Sprint 16 MQ-1614 Postgres 이식).
 
 실행:  uv run python spikes/bundle_integrity.py
 """
@@ -28,14 +31,9 @@
 from __future__ import annotations
 
 import copy
-import json
-import os
 import re
-import shutil
-import sqlite3
 import subprocess
 import sys
-import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +43,7 @@ sys.path.insert(0, str(ROOT))
 
 import mcp_server.db as mcp_db  # noqa: E402
 import mcp_server.tools.build_evidence_bundle as bundle_mod  # noqa: E402
+from data import dbcompat, pg_isolation  # noqa: E402
 from data.rules import engine  # noqa: E402
 
 # ⚠ 이 스파이크는 두 도구를 **대조**하려고 둘 다 import 한다. 대조 대상인
@@ -58,7 +57,6 @@ from mcp_server.tools.build_evidence_bundle import (  # noqa: E402
 )
 from mcp_server.tools.check_disposal_blockers import check_disposal_blockers  # noqa: E402
 
-REAL_DB = mcp_db.DB_PATH
 BUNDLE_SRC = Path(bundle_mod.__file__)
 
 # 처분일을 고정한다 — 오늘 날짜를 쓰면 `months_since_acquisition` 이 매일 달라져
@@ -68,6 +66,9 @@ PROBE_DATE = "2026-09-01"
 MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚"
 
 results: list[tuple[str, bool, str]] = []
+
+# 이 실행이 만든 격리 스키마 이름 전부(정리 대상이자 마지막 잔존 검사의 대조 목록).
+_created_schemas: list[str] = []
 
 
 def check(name: str, ok: bool, detail: str) -> None:
@@ -89,22 +90,19 @@ def eb(res: dict) -> dict:
     return res.get("evidence_bundle") or {}
 
 
-# ── 픽스처 ────────────────────────────────────────────────────────────────────
+# ── 픽스처 (격리 스키마) ───────────────────────────────────────────────────────
 
 
-def copy_db(src: Path, dst: Path) -> Path:
-    """DB 사본. WAL 사이드카가 있으면 함께 가져온다 — 안 옮기면 사본이 원본보다 낡는다."""
-    shutil.copy2(src, dst)
-    for suffix in ("-wal", "-shm"):
-        side = src.with_name(src.name + suffix)
-        if side.exists():
-            shutil.copy2(side, dst.with_name(dst.name + suffix))
-    return dst
+def new_schema(label: str, clone_data: bool = True) -> str:
+    """새 격리 스키마를 만들고 DSN 을 돌려준다. 스키마 이름은 정리 대상으로 추적한다."""
+    schema, dsn = pg_isolation.create_isolated_schema(label=label, clone_data=clone_data)
+    _created_schemas.append(schema)
+    return dsn
 
 
-def write(db: Path, statements: list[tuple[str, tuple]]) -> list[int]:
-    """픽스처 DB 에만 쓴다. `foreign_keys` 는 기본 OFF 라 자산 DELETE 도 가능하다."""
-    con = sqlite3.connect(db)
+def write(dsn: str, statements: list[tuple[str, tuple]]) -> list[int]:
+    """픽스처 스키마에만 쓴다."""
+    con = dbcompat.connect_dsn(dsn)
     try:
         counts = [con.execute(sql, args).rowcount for sql, args in statements]
         con.commit()
@@ -113,11 +111,11 @@ def write(db: Path, statements: list[tuple[str, tuple]]) -> list[int]:
         con.close()
 
 
-def all_fetched(dst: Path) -> Path:
-    """인용 조문이 **전부** 채워진 사본. 해시 안정성은 여기서만 검증할 수 있다 —
-    실 DB 는 미수집 1건(`KR-CITA-ENF-31`)의 상태에 따라 검사가 켜졌다 꺼졌다 한다."""
-    copy_db(REAL_DB, dst)
-    con = sqlite3.connect(dst)
+def all_fetched(label: str) -> str:
+    """인용 조문이 **전부** 채워진 격리 스키마. 해시 안정성은 여기서만 검증할 수 있다 —
+    실 DB(public) 는 미수집 1건(`KR-CITA-ENF-31`)의 상태에 따라 검사가 켜졌다 꺼졌다 한다."""
+    dsn = new_schema(label, clone_data=True)
+    con = dbcompat.connect_dsn(dsn)
     try:
         for (rid,) in con.execute("SELECT law_ref_id FROM law_refs").fetchall():
             text = f"[합성 픽스처] {rid} 조문 원문"
@@ -129,17 +127,17 @@ def all_fetched(dst: Path) -> Path:
         con.commit()
     finally:
         con.close()
-    return dst
+    return dsn
 
 
-def all_pending(dst: Path) -> Path:
-    """조문 원문이 **하나도** 없는 사본 — `law_text_unavailable` 경로가 살아 있는지 본다."""
-    copy_db(REAL_DB, dst)
+def all_pending(label: str) -> str:
+    """조문 원문이 **하나도** 없는 격리 스키마 — `law_text_unavailable` 경로가 살아 있는지 본다."""
+    dsn = new_schema(label, clone_data=True)
     write(
-        dst,
+        dsn,
         [("UPDATE law_refs SET text=NULL, text_hash=NULL, fetch_status='PENDING'", ())],
     )
-    return dst
+    return dsn
 
 
 # 계약 근거만 있고 법령 참조가 **없는** 합성 룰. `contract_refs` 를 일부러 역순으로 넣어
@@ -152,10 +150,10 @@ CONTRACT_ONLY_RULE = (
     "PRECONDITION",
     "CONTRACT",
     "[]",
-    json.dumps(["Z약관", "A약관"], ensure_ascii=False),
+    '["Z약관", "A약관"]',
     "합성 픽스처 — 계약 근거만으로 발화하는 룰",
-    json.dumps(["disposal_mode"]),
-    json.dumps({"all_of": [{"field": "disposal_mode", "op": "eq", "value": "SALE"}]}),
+    '["disposal_mode"]',
+    '{"all_of": [{"field": "disposal_mode", "op": "eq", "value": "SALE"}]}',
     None,
     "합성 픽스처 메시지",
     "[]",
@@ -164,15 +162,15 @@ CONTRACT_ONLY_RULE = (
 )
 
 
-def contract_only(dst: Path) -> Path:
-    """조문은 **전부 미수집**, 룰은 **계약 근거만** 있는 사본.
+def contract_only(label: str) -> str:
+    """조문은 **전부 미수집**, 룰은 **계약 근거만** 있는 격리 스키마.
 
     이 조합에서 번들이 성공해야 "계약 근거는 `law_text_unavailable` 검사 대상이 아니다"가
     증명된다 — 조문이 하나도 없는데도 계약 근거만으로 서명 재료가 나오는가.
     """
-    all_pending(dst)
+    dsn = all_pending(label)
     write(
-        dst,
+        dsn,
         [
             ("DELETE FROM rules", ()),
             (
@@ -184,23 +182,18 @@ def contract_only(dst: Path) -> Path:
             ),
         ],
     )
-    return dst
+    return dsn
 
 
 @contextmanager
-def use_db(path: Path):
-    """도구가 볼 DB 를 사본으로 바꾼다. `MAINTQ_DB` 도 함께 심어 자식 프로세스에 상속시킨다."""
-    saved_path, saved_env = mcp_db.DB_PATH, os.environ.get("MAINTQ_DB")
-    mcp_db.DB_PATH = path
-    os.environ["MAINTQ_DB"] = str(path)
+def use_db(dsn: str):
+    """도구가 볼 DB 를 격리 스키마로 바꾼다 (`mcp_server/db.py::_target_url()` 의 override 자리)."""
+    saved = mcp_db.DB_PATH
+    mcp_db.DB_PATH = dsn
     try:
         yield
     finally:
-        mcp_db.DB_PATH = saved_path
-        if saved_env is None:
-            os.environ.pop("MAINTQ_DB", None)
-        else:
-            os.environ["MAINTQ_DB"] = saved_env
+        mcp_db.DB_PATH = saved
 
 
 @contextmanager
@@ -222,8 +215,9 @@ def patched_engine(hook):
         engine.check_disposal_blockers = original
 
 
-def decisions_count(db: Path) -> int:
-    con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+def decisions_count(dsn: str | None = None) -> int:
+    """`dsn` 없으면 실 DB(`public`, override 없는 기본 타겟)를 본다."""
+    con = dbcompat.connect_dsn(dsn or pg_isolation.BASE_DATABASE_URL)
     try:
         return con.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
     finally:
@@ -242,6 +236,22 @@ def fullwidth(text: str) -> str:
     return "".join(chr(ord(c) + 0xFEE0) if "!" <= c <= "~" else c for c in text)
 
 
+def remaining_schemas() -> list[str]:
+    """`_created_schemas` 중 아직 Postgres 에 남아 있는 것 (정리 검증용)."""
+    if not _created_schemas:
+        return []
+    con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+    try:
+        placeholders = ",".join(["?"] * len(_created_schemas))
+        rows = con.execute(
+            f"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ({placeholders})",  # noqa: S608
+            tuple(_created_schemas),
+        ).fetchall()
+        return [r[0] for r in rows]
+    finally:
+        con.close()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -252,16 +262,14 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    if not REAL_DB.exists():
-        raise SystemExit(f"목업 DB 가 없습니다: {REAL_DB} — data/seed.py 를 먼저 실행하세요")
-    before_stat = (REAL_DB.stat().st_mtime_ns, REAL_DB.stat().st_size)
-    decisions_before = decisions_count(REAL_DB)
+    if not pg_isolation.BASE_DATABASE_URL:
+        raise SystemExit("DATABASE_URL 미설정 — Postgres 타겟에서만 동작합니다")
+    decisions_before = decisions_count()
 
-    with tempfile.TemporaryDirectory() as td:
-        tmp = Path(td)
-        fetched = all_fetched(tmp / "fetched.db")
-        pending = all_pending(tmp / "pending.db")
-        contracts_db = contract_only(tmp / "contract_only.db")
+    try:
+        fetched = all_fetched("bundle_fetched")
+        pending = all_pending("bundle_pending")
+        contracts_dsn = contract_only("bundle_contract_only")
 
         # ── ①② 멱등 · `built_at` 은 해시 밖 ────────────────────────────────
         with use_db(fetched):
@@ -303,7 +311,7 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         )
 
         # ── ③ W6 — 룰 본문 1글자 변경(같은 rule_version) → rule_hash 변경 ────
-        drifted = all_fetched(tmp / "rule_drift.db")
+        drifted = all_fetched("bundle_rule_drift")
         changed = write(
             drifted,
             [
@@ -336,9 +344,8 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
 
         # ── ④ 룰 **메타** 변경은 rule_hash 를 흔들지 않는다 ──────────────────
         #    (동시에 "이 해시 함수가 상수가 아님"도 확인한다 — 안 그러면 ④ 는 공허하다)
-        con = sqlite3.connect(f"file:{fetched.as_posix()}?mode=ro", uri=True)
+        con = dbcompat.connect_dsn(fetched)
         try:
-            con.row_factory = sqlite3.Row
             laws_fx = engine.load_laws_from_db(con)
             rules_fx = engine.load_rules_from_db(con, laws_fx)
         finally:
@@ -390,7 +397,7 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
 
         # ── ⑦ 계약 근거는 `law_text_unavailable` 을 유발하지 않는다 ──────────
         #    조문이 **하나도** 수집되지 않은 DB + 계약 근거만 있는 룰 → 그래도 성공해야 한다.
-        with use_db(contracts_db):
+        with use_db(contracts_dsn):
             conly = call(asset_id="AST-L3-LIFT", disposal_date=PROBE_DATE)
         conly_refs = [c.get("contract_ref") for c in eb(conly).get("contracts") or []]
         check(
@@ -454,14 +461,14 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         )
 
         # ── ⑪ N2 — 판정 직후 자산 UPDATE → asset_modified ─────────────────────
-        modified_db = all_fetched(tmp / "asset_modified.db")
+        modified_dsn = all_fetched("bundle_asset_modified")
         touched: list[int] = []
 
         def update_hook(original, facts, at, laws, rules):
             out = original(facts, at, laws=laws, rules=rules)
             touched.append(
                 write(
-                    modified_db,
+                    modified_dsn,
                     [
                         (
                             "UPDATE assets SET lien_creditor = ? WHERE asset_id = ?",
@@ -472,7 +479,7 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
             )
             return out
 
-        with use_db(modified_db), patched_engine(update_hook):
+        with use_db(modified_dsn), patched_engine(update_hook):
             mod_res = call(asset_id="AST-L3-CONV", disposal_date=PROBE_DATE)
         check(
             "N2 — 판정 직후 자산 행 UPDATE → error/asset_modified (스냅샷을 조용히 서명하지 않는다)",
@@ -483,17 +490,26 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         )
 
         # ── ⑫ 판정 직후 자산 DELETE → asset_disappeared ──────────────────────
-        gone_db = all_fetched(tmp / "asset_gone.db")
+        #    Postgres 는 FK 를 기본으로 강제한다(SQLite 시절 원본 주석 "foreign_keys 는
+        #    기본 OFF 라 자산 DELETE 도 가능하다"가 더 이상 성립하지 않는다) — `equipment.
+        #    asset_id` 가 이 자산을 참조하므로 먼저 그 참조를 끊어야 DELETE 가 통과한다.
+        #    `removed` 는 여전히 **DELETE 문 하나의** rowcount 만 기록한다(검사 의미 불변).
+        gone_dsn = all_fetched("bundle_asset_gone")
         removed: list[int] = []
 
         def delete_hook(original, facts, at, laws, rules):
             out = original(facts, at, laws=laws, rules=rules)
-            removed.append(
-                write(gone_db, [("DELETE FROM assets WHERE asset_id = ?", ("AST-L3-CONV",))])[0]
+            counts = write(
+                gone_dsn,
+                [
+                    ("UPDATE equipment SET asset_id = NULL WHERE asset_id = ?", ("AST-L3-CONV",)),
+                    ("DELETE FROM assets WHERE asset_id = ?", ("AST-L3-CONV",)),
+                ],
             )
+            removed.append(counts[-1])
             return out
 
-        with use_db(gone_db), patched_engine(delete_hook):
+        with use_db(gone_dsn), patched_engine(delete_hook):
             gone_res = call(asset_id="AST-L3-CONV", disposal_date=PROBE_DATE)
         check(
             "N2 — 판정 직후 자산 행 DELETE → error/asset_disappeared",
@@ -515,11 +531,10 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         )
 
         # ── ⑭ D10 — 여기까지 번들을 십수 번 만들었지만 `decisions` 는 한 행도 늘지 않았다 ─
-        #    (마지막 검사가 실 DB 의 mtime·size·행수를 한 번 더 확인한다)
         check(
             "D10 — decisions 행 수 불변 (이 도구에는 쓰기 커넥션이 없다)",
-            decisions_before == decisions_count(REAL_DB),
-            f"{decisions_before} → {decisions_count(REAL_DB)}행",
+            decisions_before == decisions_count(),
+            f"{decisions_before} → {decisions_count()}행",
         )
 
         # ── ⑮ evaluated[] 는 ID 목록일 뿐 — text_hash 를 요구하지 않는다 ──────
@@ -532,9 +547,9 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
             f"키집합={[sorted(k) for k in eval_keys]}",
         )
 
-        # ── ⑯ 실 DB — 미수집 1건이 있어도 그것을 인용하지 않는 자산은 성공한다 ─
-        real_spdl = call(asset_id="AST-L2-SPDL", disposal_date=PROBE_DATE)
-        con = sqlite3.connect(f"file:{REAL_DB.as_posix()}?mode=ro", uri=True)
+        # ── ⑯ 실 DB(public) — 미수집 1건이 있어도 그것을 인용하지 않는 자산은 성공한다 ─
+        real_spdl = call(asset_id="AST-L2-SPDL", disposal_date=PROBE_DATE)  # override 없음 = public
+        con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
         try:
             cita = con.execute(
                 "SELECT fetch_status FROM law_refs WHERE law_ref_id='KR-CITA-ENF-31'"
@@ -542,8 +557,8 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
         finally:
             con.close()
         # 실 DB 의 수집 상태가 바뀌어도 이 검사가 의미를 잃지 않도록, 그 조문을 강제로
-        # 미수집으로 되돌린 사본에서도 같은 결과를 요구한다.
-        forced = copy_db(REAL_DB, tmp / "cita_pending.db")
+        # 미수집으로 되돌린 격리 스키마(사본)에서도 같은 결과를 요구한다.
+        forced = new_schema("bundle_cita_pending", clone_data=True)
         write(
             forced,
             [
@@ -594,6 +609,12 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
             f"동일 객체={same_object} · facts 키 {len(eb(captured).get('facts') or {})}개",
         )
 
+    finally:
+        # Postgres 스키마는 SQLite 임시 파일과 달리 명시적으로 지워야 한다
+        # (`tempfile.TemporaryDirectory()` 가 자동으로 해 주던 정리를 여기서 대신한다).
+        for schema in list(_created_schemas):
+            pg_isolation.drop_isolated_schema(schema)
+
     # ── ⑲ DoD ⑰ — 판정 **도구**를 import 하지 않는다 (W5 회귀 차단) ───────────
     src = BUNDLE_SRC.read_text(encoding="utf-8")
     import_lines = [
@@ -623,6 +644,7 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
     )
 
     # ── ⑳ 두 도구의 실패 어휘 대조 (자산 해석 로직을 복제했으므로 감시가 필요하다) ─
+    #    override 가 없으므로 아래는 전부 실 DB(public) 를 직접 본다 — 둘 다 읽기 전용이다.
     shared_cases = (
         {"asset_id": "AST-NOPE"},
         {"equipment_id": "EQ-NOPE"},
@@ -749,10 +771,12 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
     #   dataclass 동치로 본다. 로더 둘이 같은 dataclass 를 만들므로 필드가 늘어도 자동으로 덮인다.
     file_laws = engine.load_laws()
     file_rules = engine.load_rules(file_laws)
-    with sqlite3.connect(f"file:{REAL_DB.as_posix()}?mode=ro", uri=True) as _con:
-        _con.row_factory = sqlite3.Row
+    _con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+    try:
         db_laws = engine.load_laws_from_db(_con)
         db_rules = engine.load_rules_from_db(_con, db_laws)
+    finally:
+        _con.close()
     law_gap = sorted(k for k in set(file_laws) | set(db_laws) if file_laws.get(k) != db_laws.get(k))
     rule_gap = sorted(
         k for k in set(file_rules) | set(db_rules) if file_rules.get(k) != db_rules.get(k)
@@ -765,12 +789,21 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
     )
 
     # ── ㉑ D10 — 실행 전체를 통틀어 실 DB 에 아무것도 쓰지 않았다 ─────────────
-    after_stat = (REAL_DB.stat().st_mtime_ns, REAL_DB.stat().st_size)
-    decisions_after = decisions_count(REAL_DB)
+    decisions_after = decisions_count()
     check(
-        "실 DB 불변 (mtime·size·decisions 행수) — 픽스처는 전부 임시 사본이었다 (D10)",
-        before_stat == after_stat and decisions_before == decisions_after,
-        f"{REAL_DB.name} size={after_stat[1]} · decisions {decisions_before}→{decisions_after}행",
+        "실 DB(public) decisions 행수 불변 — 픽스처는 전부 격리 스키마 사본이었다 (D10)",
+        decisions_before == decisions_after,
+        f"decisions {decisions_before}→{decisions_after}행",
+    )
+
+    # ── 격리 스키마 잔존 확인 (Sprint 16 MQ-1614 이식분 — 이 실행이 만든 스키마 전부 정리됐는가)
+    #    "0개 남음" 만 보면 스캐너가 눈이 먼 경우와 구분이 안 된다(CLAUDE.md 부재 검사 규칙) —
+    #    이 실행이 실제로 스키마를 **만들었다**(양성 축)는 사실도 함께 단언한다.
+    leftover = remaining_schemas()
+    check(
+        "격리 스키마 잔존 확인 — 이 실행이 만든 스키마 전부 drop_isolated_schema 로 정리됨",
+        bool(_created_schemas) and not leftover,
+        f"생성 {len(_created_schemas)}개 · 잔존 {leftover or '없음'}",
     )
 
     width = max(len(name) for name, _, _ in results)

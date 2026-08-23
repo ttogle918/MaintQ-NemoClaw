@@ -8,6 +8,17 @@
   4. build_lookup_clause_payload() — InsuQ lookup-clause 스키마 필드 정합성
   5. call_skill() — 헤더(X-Request-Chain-Id, Authorization) 주입, chain_id mismatch 방어,
                     200/202 파싱, 502/504 및 4xx 에러 분류
+
+Postgres 이식 (Sprint 16 MQ-1614 뒤처리): ②③ 은 `partner_links` 를 읽으므로 격리가
+필요하다 — `data/pg_isolation.py` 로 새 스키마를 만들고(빈 스키마, `clone_data=False`:
+이 두 검사는 최소한의 통제된 행만 필요해 실 시드를 복제할 이유가 없다) `backend.db.DB_PATH`
+를 그 DSN 으로 override 한다. **`db_path` 파라미터를 명시적으로 넘기지 않는다** —
+`backend/a2a/payloads.py::get_finallq_company_id` 는 `Path(db_path) if db_path else None`
+로 인자를 감싸는데, DSN 문자열을 그대로 넘기면 `Path("postgresql://...")` 가 되어
+`backend/db.py::connect()` 의 `isinstance(db_path, str)` 분기를 벗어나 격리가 깨진다
+(payloads.py 는 SQLite 시절 그대로인 `backend/a2a/test_payloads.py`용 실 파일 경로를 위해
+그 래핑이 필요해 건드리지 않는다). 대신 `bdb.DB_PATH` 전역 override 하나로 `connect(None)`
+경로가 일관되게 격리 스키마를 보게 한다(`spikes/db_concurrency.py::run_pg` 와 같은 패턴).
 """
 
 from __future__ import annotations
@@ -15,9 +26,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
-import sqlite3
 import sys
-import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,6 +39,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 
 import httpx  # noqa: E402
 
+import backend.db as bdb  # noqa: E402
 from backend.a2a.auth_header import build_auth_header  # noqa: E402
 from backend.a2a.client import (  # noqa: E402
     A2AClientError,
@@ -40,27 +51,25 @@ from backend.a2a.payloads import (  # noqa: E402
     build_request_withdrawal_payload,
     get_finallq_company_id,
 )
+from data import dbcompat, pg_isolation  # noqa: E402
 
 
-SCHEMA_SEED = """
-CREATE TABLE partner_links (
-    partner TEXT NOT NULL,
-    subject_type TEXT NOT NULL,
-    subject_ref TEXT NOT NULL DEFAULT '',
-    link_state TEXT,
-    external_ref TEXT,
-    linked_at DATETIME,
-    PRIMARY KEY (partner, subject_type, subject_ref),
-    CHECK (link_state IS NULL OR link_state IN ('NOT_LINKED', 'LINKED')),
-    CHECK (external_ref IS NULL OR link_state IS 'LINKED')
-);
+@contextmanager
+def isolated_backend_db(label: str):
+    """새 격리 스키마를 만들고 `backend.db.DB_PATH` 를 그 DSN 으로 override 한다.
 
-INSERT INTO partner_links (partner, subject_type, subject_ref, link_state, external_ref, linked_at)
-VALUES
-    ('finallq', 'company', '', 'LINKED', 'CMP-MAINTQ-001', '2026-08-13T09:00:00'),
-    ('finallq', 'building', 'BLD-A', 'LINKED', 'ACC-BLD-A', '2026-08-13T09:00:00'),
-    ('finallq', 'building', 'BLD-D', 'NOT_LINKED', NULL, NULL);
-"""
+    빈 스키마(`clone_data=False`)로 시작한다 — 이 스파이크의 검사는 `partner_links` 에
+    스스로 심는 통제된 소수 행만 필요해 실 시드를 복제할 이유가 없다(원본 SQLite 픽스처도
+    최소 스키마 하나만 즉석으로 만들었다).
+    """
+    schema, dsn = pg_isolation.create_isolated_schema(label=label, clone_data=False)
+    saved = bdb.DB_PATH
+    bdb.DB_PATH = dsn
+    try:
+        yield dsn
+    finally:
+        bdb.DB_PATH = saved
+        pg_isolation.drop_isolated_schema(schema)
 
 
 def test_auth_header():
@@ -91,38 +100,50 @@ def test_auth_header():
 
 
 def test_partner_links_lookup():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
-        db_path = Path(tf.name)
-    try:
-        con = sqlite3.connect(db_path)
-        con.executescript(SCHEMA_SEED)
-        con.close()
+    with isolated_backend_db("a2a_outbound_links"):
+        con = dbcompat.connect_dsn(bdb.DB_PATH)
+        try:
+            con.execute(
+                "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state,"
+                " external_ref, linked_at) VALUES ('finallq', 'company', '', 'LINKED',"
+                " 'CMP-MAINTQ-001', '2026-08-13T09:00:00')"
+            )
+            con.commit()
+        finally:
+            con.close()
 
-        # 정상 LINKED 조회
-        comp_id = get_finallq_company_id(db_path)
+        # 정상 LINKED 조회 (db_path 를 넘기지 않는다 — bdb.DB_PATH override 를 탄다)
+        comp_id = get_finallq_company_id()
         assert comp_id == "CMP-MAINTQ-001", f"Expected CMP-MAINTQ-001, got {comp_id}"
 
         # NOT_LINKED인 경우
-        con = sqlite3.connect(db_path)
-        con.execute("UPDATE partner_links SET link_state = 'NOT_LINKED', external_ref = NULL WHERE partner='finallq' AND subject_type='company'")
-        con.commit()
-        con.close()
+        con = dbcompat.connect_dsn(bdb.DB_PATH)
+        try:
+            con.execute(
+                "UPDATE partner_links SET link_state = 'NOT_LINKED', external_ref = NULL"
+                " WHERE partner='finallq' AND subject_type='company'"
+            )
+            con.commit()
+        finally:
+            con.close()
 
-        comp_id = get_finallq_company_id(db_path)
+        comp_id = get_finallq_company_id()
         assert comp_id is None, f"Expected None for NOT_LINKED, got {comp_id}"
-    finally:
-        if db_path.exists():
-            db_path.unlink()
     print("  PASS  ② get_finallq_company_id() — partner_links 테이블에서 LINKED 일 때만 external_ref 조회")
 
 
 def test_payload_assembly():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
-        db_path = Path(tf.name)
-    try:
-        con = sqlite3.connect(db_path)
-        con.executescript(SCHEMA_SEED)
-        con.close()
+    with isolated_backend_db("a2a_outbound_payload"):
+        con = dbcompat.connect_dsn(bdb.DB_PATH)
+        try:
+            con.execute(
+                "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state,"
+                " external_ref, linked_at) VALUES ('finallq', 'company', '', 'LINKED',"
+                " 'CMP-MAINTQ-001', '2026-08-13T09:00:00')"
+            )
+            con.commit()
+        finally:
+            con.close()
 
         po = {
             "po_id": "PO-2026-001",
@@ -138,8 +159,8 @@ def test_payload_assembly():
             "bank_code": "088",
         }
 
-        # 1. request-withdrawal
-        p1 = build_request_withdrawal_payload(po, supplier_row, "REQ-CHAIN-001", db_path)
+        # 1. request-withdrawal (db_path 를 넘기지 않는다 — bdb.DB_PATH override 를 탄다)
+        p1 = build_request_withdrawal_payload(po, supplier_row, "REQ-CHAIN-001")
         assert p1["requester"]["finallq_company_id"] == "CMP-MAINTQ-001"
         assert p1["request_chain_id"] == "REQ-CHAIN-001"
         assert p1["amount"] == 100000
@@ -150,13 +171,10 @@ def test_payload_assembly():
         assert p1["to_bank_code"] == "088"
 
         # 2. lookup-clause
-        p2 = build_lookup_clause_payload("모터 과열 시 면책 조항이 어떻게 되나요?", "REQ-CHAIN-002", db_path)
+        p2 = build_lookup_clause_payload("모터 과열 시 면책 조항이 어떻게 되나요?", "REQ-CHAIN-002")
         assert p2["requester"]["finallq_company_id"] == "CMP-MAINTQ-001"
         assert p2["request_chain_id"] == "REQ-CHAIN-002"
         assert p2["question"] == "모터 과열 시 면책 조항이 어떻게 되나요?"
-    finally:
-        if db_path.exists():
-            db_path.unlink()
     print("  PASS  ③ build_*_payload() — S5 출금 및 lookup-clause 페이로드 조립 정합성")
 
 

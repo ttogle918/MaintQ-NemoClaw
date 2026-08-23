@@ -8,26 +8,26 @@ FinAllQ A2A 어댑터로의 실제 HTTP 호출은 `backend.a2a.client.call_skill
 
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
 from typing import Any
 
 import pytest
+
+from data import dbcompat
 
 import backend.a2a.client as a2a_client
 from backend.services.po import dispatch_a2a_withdrawal_request
 
 
-def _traces(db_path: Path) -> list[sqlite3.Row]:
-    con = sqlite3.connect(db_path)
-    con.row_factory = sqlite3.Row
-    rows = con.execute("SELECT * FROM traces ORDER BY seq").fetchall()
-    con.close()
-    return rows
+def _traces(db_path: str) -> list:
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        return con.execute("SELECT * FROM traces ORDER BY seq").fetchall()
+    finally:
+        con.close()
 
 
 @pytest.mark.asyncio
-async def test_skips_when_base_url_not_configured(monkeypatch: pytest.MonkeyPatch, db_path: Path, link_finallq, seed_po):
+async def test_skips_when_base_url_not_configured(monkeypatch: pytest.MonkeyPatch, db_path: str, link_finallq, seed_po):
     link_finallq()
     seed_po(state="approved")
     monkeypatch.delenv("MAINTQ_A2A_FINALLQ_BASE_URL", raising=False)
@@ -49,7 +49,7 @@ async def test_skips_when_base_url_not_configured(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_skips_when_finallq_company_not_linked(monkeypatch: pytest.MonkeyPatch, db_path: Path, seed_po):
+async def test_skips_when_finallq_company_not_linked(monkeypatch: pytest.MonkeyPatch, db_path: str, seed_po):
     seed_po(state="approved")  # partner_links에 아무 행도 없다 = not linked
 
     called = False
@@ -68,7 +68,7 @@ async def test_skips_when_finallq_company_not_linked(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_skips_when_po_not_found(monkeypatch: pytest.MonkeyPatch, db_path: Path, link_finallq):
+async def test_skips_when_po_not_found(monkeypatch: pytest.MonkeyPatch, db_path: str, link_finallq):
     link_finallq()
 
     called = False
@@ -88,7 +88,7 @@ async def test_skips_when_po_not_found(monkeypatch: pytest.MonkeyPatch, db_path:
 
 @pytest.mark.asyncio
 async def test_happy_path_calls_skill_with_assembled_payload_and_records_trace(
-    monkeypatch: pytest.MonkeyPatch, db_path: Path, link_finallq, seed_po
+    monkeypatch: pytest.MonkeyPatch, db_path: str, link_finallq, seed_po
 ):
     link_finallq(external_ref="CMP-MAINTQ-001")
     seed_po(po_id="PO-001", unit_price=20000, qty=2, session_id="sess-42", state="approved")
@@ -123,7 +123,7 @@ async def test_happy_path_calls_skill_with_assembled_payload_and_records_trace(
 
 @pytest.mark.asyncio
 async def test_call_skill_failure_is_recorded_as_error_trace_and_reraised(
-    monkeypatch: pytest.MonkeyPatch, db_path: Path, link_finallq, seed_po
+    monkeypatch: pytest.MonkeyPatch, db_path: str, link_finallq, seed_po
 ):
     link_finallq()
     seed_po(po_id="PO-001", session_id="sess-42", state="approved")

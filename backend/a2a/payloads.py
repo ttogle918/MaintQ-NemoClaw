@@ -20,7 +20,7 @@ def get_finallq_company_id(db_path: Path | str | None = None) -> str | None:
     회사 결은 subject_ref=''(D96)로 고정돼 있다.
     link_state != 'LINKED'면 None을 반환한다.
     """
-    with connect(Path(db_path) if db_path else None) as con:
+    with connect(db_path) as con:
         r = con.execute(
             "SELECT external_ref, link_state FROM partner_links"
             " WHERE partner = 'finallq' AND subject_type = 'company' AND subject_ref = ''"
@@ -43,7 +43,7 @@ def build_request_withdrawal_payload(
         account_number = supplier_row.get("account_number", "")
         bank_code = supplier_row.get("bank_code")
     elif po.get("supplier_id"):
-        with connect(Path(db_path) if db_path else None) as con:
+        with connect(db_path) as con:
             s_row = con.execute(
                 "SELECT account_number, bank_code FROM suppliers WHERE supplier_id = ?",
                 (po["supplier_id"],),

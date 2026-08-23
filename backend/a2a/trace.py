@@ -59,7 +59,7 @@ def record_a2a_trace(
         json.dumps(response_payload, ensure_ascii=False) if response_payload is not None else None
     )
 
-    with connect(Path(db_path) if db_path else None) as con:
+    with connect(db_path) as con:
         # Get next seq
         r = con.execute("SELECT COALESCE(MAX(seq), 0) FROM traces WHERE session_id = ?", (session_id,)).fetchone()
         next_seq = (r[0] if r else 0) + 1
