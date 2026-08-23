@@ -16,7 +16,19 @@ data-analysis/data/processed/
 
 # 환경·시크릿
 .env
+# Next.js 로컬 오버라이드 — 개인별 파일이라 커밋 대상이 아니다.
+# `.env` 단독 패턴은 `.env.local` 을 안 잡는다(정확히 이 이름일 때만 매치) — 실제로
+# frontend/.env.local 이 이 gap 때문에 untracked 로 남아 있던 게 발견됐다(2026-08-23).
+.env.local
+.env.*.local
 .venv/
+
+# spikes/test_elice_stream.py — Elice mlapi.run 인증용 JWT 가 평문으로 박혀 있다
+# (2026-08-23 발견, 만료 2026-08-31 — 커밋 시점 기준 아직 유효한 살아있는 키).
+# CLAUDE.md 에 이미 같은 종류의 평문 유출 사고(2026-08-13, git 히스토리 재작성)가
+# 기록돼 있다 — 재발 방지 차원에서 이 파일 자체를 추적 제외한다. 키를 폐기·재발급하고
+# .env 로 옮긴 뒤 파일을 다시 추가하려면 이 줄부터 지운다.
+spikes/test_elice_stream.py
 
 # Python
 __pycache__/
