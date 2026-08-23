@@ -18,9 +18,10 @@ import { sx } from "@/lib/sx";
  * `CriticalityDrawer` 와 완전히 같은 오버레이 패턴 — `RepairValuePanel` 의 "재고 보기"
  * 칩을 눌렀을 때 옆에서 펼쳐진다. 라우트를 옮기지 않고 `open`/`onClose` 로만 제어된다.
  *
- * ⛔ 발주는 이 컴포넌트가 직접 만들지 않는다 — "발주하러 가기" 는 기존 채팅 prefill
- *   경로(`/technician?prefill=...`)로 이동만 한다. `create_po_draft` 호출은 여전히
- *   에이전트가 채팅에서 한다(P39 완성 전까지의 의도적 설계 — docs/07_BACKLOG.md P39).
+ * "발주하러 가기"는 `/technician/po/new`(화면 직접 생성, D111)로 이동한다 — 이 컴포넌트가
+ *   직접 발주 초안을 만들지는 않는다(재고 조회 드로어의 책임 밖). 채팅 경로
+ *   (`create_po_draft`)는 부가 기능으로 계속 남아 있다 — 에이전트가 대화 중 알아서
+ *   만들 수도 있지만, 이 버튼은 그 경로를 타지 않는다.
  */
 export function InventoryDrawer({
   open,
@@ -75,10 +76,12 @@ export function InventoryDrawer({
   // 계약이 어긋났다는 사실 그대로 알린다 (D9 의 정신을 렌더링 층에서도 지킨다)
   const malformed = data?.status === "ok" && !item;
 
-  const prefillText = `${equipmentId ?? "해당 설비"}의 ${partNo} 재고 부족, 발주해줘`;
-  const prefillHref =
-    `/technician?prefill=${encodeURIComponent(prefillText)}` +
-    (equipmentId ? `&equipment=${encodeURIComponent(equipmentId)}` : "");
+  // 부품은 화면에서 검색부터 다시 고른다(D31 "사람이 확인 후" 정신) — 쿼리로는
+  // equipment 컨텍스트만 참고용으로 넘긴다. part_no 를 자동 프리필하지 않는 이유는
+  // PoForm 의 partNo 프리필을 지원하기로 결정하면 그때 이 값을 읽으면 된다(YAGNI로
+  // 지금은 만들지 않음 — /technician/po/new/page.tsx 주석 참고).
+  const poHref =
+    `/technician/po/new` + (equipmentId ? `?equipment=${encodeURIComponent(equipmentId)}` : "");
 
   return (
     <>
@@ -184,7 +187,7 @@ export function InventoryDrawer({
 
               {item.qty <= item.safety_stock && (
                 <Link
-                  href={prefillHref}
+                  href={poHref}
                   style={sx(
                     "display:inline-flex;align-items:center;justify-content:center;gap:6px;" +
                       "border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:8px;" +
