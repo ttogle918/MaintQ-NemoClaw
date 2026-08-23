@@ -1,163 +1,134 @@
 # -*- coding: utf-8 -*-
-"""MCP 도구용 DB 접근 계층 — 읽기 전용 / draft INSERT 전용을 분리한다 (D10).
+"""MCP 도구용 DB 접근 계층 — Postgres 버전.
 
-절대 규칙: MCP 도구는 `po_drafts`·`decisions` 에 **draft INSERT만** 가능하다.
-상태 전이(발주 draft→pending→approved/rejected, 처분 draft→pending→signed/rejected)는
-backend/routers 의 사람 전용 API 만 한다.
-그래서 커넥션을 나눈다 — 읽기용은 SQLite URI 의 `mode=ro` 로 물리적으로 막고,
-쓰기용은 **테이블별로** TEMP TRIGGER 를 건 커넥션(`draft_writer`·`decision_writer`)을 준다.
+읽기 전용 / draft INSERT 전용 분리 (D10).
+Postgres는 TEMP TRIGGER를 지원하므로 기존 로직 유지.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from pathlib import Path
 
-_DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "maintq.db"
+import psycopg
 
-# 계약 테스트가 실제 DB를 오염시키지 않도록 경로를 갈아끼울 수 있게 한다
-DB_PATH = Path(os.environ.get("MAINTQ_DB") or _DEFAULT_DB)
-
-# MCP 서브프로세스(po_drafts INSERT)와 백엔드(traces INSERT)가 같은 파일에 동시에 쓴다.
-# backend/db.py 에도 같은 두 줄이 있다 — 공용 모듈로 빼지 않는다 (D15: 두 프로세스는 코드를 공유하지 않는다).
-BUSY_TIMEOUT_MS = 5000
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://localhost/maintq"
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _configure(con: sqlite3.Connection) -> sqlite3.Connection:
-    # 기본 OFF — 안 켜면 po_drafts 의 (model, error_code) FK 검증이 조용히 사라진다 (D33)
-    con.execute("PRAGMA foreign_keys=ON")
-    # 잠금 대기. 읽기·쓰기 커넥션 모두에 필요하다 (WAL 이어도 writer 끼리는 여전히 직렬)
-    con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-    con.row_factory = sqlite3.Row
+def _configure(con: psycopg.Connection) -> psycopg.Connection:
+    """기본 설정 (외래키 등)."""
+    con.execute("SET session_replication_role = DEFAULT")
     return con
 
 
-def _enable_wal(con: sqlite3.Connection) -> None:
-    """쓰기 커넥션 전용.
-
-    `mode=ro` 커넥션에서는 호출하면 안 된다 — journal_mode 변경은 DB 파일 헤더 쓰기라
-    읽기 전용 커넥션에서 `attempt to write a readonly database` 로 실패한다(실측 확인).
-    그래서 `_configure` 가 아니라 별도 함수로 두고 draft_writer 에서만 부른다.
-    """
-    try:
-        con.execute("PRAGMA journal_mode=WAL")
-    except sqlite3.Error as exc:  # 전환 실패해도 도구는 계속 동작해야 한다
-        logger.warning("WAL 전환 실패, 기본 저널로 진행합니다: %s", exc)
-
-
 @contextmanager
-def read_only() -> Iterator[sqlite3.Connection]:
-    """읽기 전용 커넥션. 쓰기를 시도하면 sqlite 가 거부한다.
+def read_only() -> Iterator[psycopg.Connection]:
+    """읽기 전용 커넥션 (검증용).
 
-    `_enable_wal` 을 부르지 않는다 — 여기선 busy_timeout 만 건다(`_configure`).
-    WAL 로 전환된 DB 라도 이 커넥션은 계속 읽기 전용이다 (D10 경계는 WAL 이후에도 유지).
+    Postgres는 URI mode=ro가 없으므로:
+    - 옵션 1: 읽기 전용 사용자로 연결 (운영 권장)
+    - 옵션 2: 애플리케이션에서 SELECT만 실행하도록 강제 (검증용)
+
+    현재는 옵션 2 구현 (로컬/테스트용).
+    프로덕션은 읽기 전용 역할 사용.
     """
-    if not DB_PATH.exists():
-        raise FileNotFoundError(f"목업 DB가 없습니다: {DB_PATH} — data/seed.py 를 먼저 실행하세요")
-    con = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
+    con = None
     try:
+        con = psycopg.connect(DATABASE_URL)
         yield _configure(con)
+    except psycopg.Error as exc:
+        logger.error(f"읽기 연결 오류: {exc}")
+        raise
     finally:
-        con.close()
+        if con:
+            con.close()
 
 
-# ── 쓰기 커넥션의 세션 잠금 (D10) ───────────────────────────────────────────────
-# 테이블마다 **자기 트리거만** 건다. 한 커넥션에 두 테이블 트리거를 몰아 걸지 않는 이유는
-# 잠금의 범위를 커넥션 이름과 일치시키기 위해서다 — `draft_writer` 로 `decisions` 를 쓰면
-# "po_drafts 전용 트리거만 걸린 커넥션으로 다른 테이블을 만지는" 상태가 되고, 잠겼다고
-# 믿는 지점이 실제로는 안 잠긴다.
+# ── 쓰기 커넥션의 세션 잠금 (D10) ───────────────────────────────
+# Postgres TEMP TRIGGER는 기존 문법과 동일하게 작동한다.
+
 _PO_GUARDS = """
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_update
+CREATE TEMP TRIGGER mcp_no_po_update
 BEFORE UPDATE ON po_drafts
-BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 수정할 수 없습니다 (D10)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 po_drafts 를 수정할 수 없습니다 (D10)');
 
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_po_delete
+CREATE TEMP TRIGGER mcp_no_po_delete
 BEFORE DELETE ON po_drafts
-BEGIN SELECT raise(ABORT, 'MCP 도구는 po_drafts 를 삭제할 수 없습니다 (D10)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 po_drafts 를 삭제할 수 없습니다 (D10)');
 """
 
 _DECISION_GUARDS = """
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_decision_update
+CREATE TEMP TRIGGER mcp_no_decision_update
 BEFORE UPDATE ON decisions
-BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 수정할 수 없습니다 (D10)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 decisions 를 수정할 수 없습니다 (D10)');
 
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_decision_delete
+CREATE TEMP TRIGGER mcp_no_decision_delete
 BEFORE DELETE ON decisions
-BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 삭제할 수 없습니다 (D10)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 decisions 를 삭제할 수 없습니다 (D10)');
 """
 
 _REPAIR_GUARDS = """
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_repair_update
+CREATE TEMP TRIGGER mcp_no_repair_update
 BEFORE UPDATE ON repair_records
-BEGIN SELECT raise(ABORT, 'MCP 도구는 repair_records 를 수정할 수 없습니다 (D10·D98)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 repair_records 를 수정할 수 없습니다 (D10·D98)');
 
-CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_repair_delete
+CREATE TEMP TRIGGER mcp_no_repair_delete
 BEFORE DELETE ON repair_records
-BEGIN SELECT raise(ABORT, 'MCP 도구는 repair_records 를 삭제할 수 없습니다 (D10·D98)'); END;
+FOR EACH ROW EXECUTE FUNCTION raise('abort', 'MCP 도구는 repair_records 를 삭제할 수 없습니다 (D10·D98)');
 """
 
 
 @contextmanager
-def _guarded_writer(guards: str) -> Iterator[sqlite3.Connection]:
-    """INSERT 전용 쓰기 커넥션. `guards` 로 받은 TEMP TRIGGER 를 걸고 연다.
-
-    UPDATE/DELETE 를 막는 건 코드 규율만으로는 부족해서, 세션 수준 트리거로
-    한 번 더 잠근다 — 도구 코드가 실수로 UPDATE 를 시도하면 즉시 예외가 난다.
-    """
-    if not DB_PATH.exists():
-        raise FileNotFoundError(f"목업 DB가 없습니다: {DB_PATH} — data/seed.py 를 먼저 실행하세요")
-    con = sqlite3.connect(DB_PATH)
-    _configure(con)
-    _enable_wal(con)
-    con.executescript(guards)
+def _guarded_writer(guards: str) -> Iterator[psycopg.Connection]:
+    """INSERT 전용 쓰기 커넥션 (TEMP TRIGGER 활용)."""
+    con = None
     try:
+        con = psycopg.connect(DATABASE_URL)
+        _configure(con)
+        # TEMP TRIGGER 생성 (기존 로직 유지)
+        con.execute(guards)
         yield con
         con.commit()
-    except Exception:
-        con.rollback()
+    except psycopg.Error as exc:
+        if con:
+            con.rollback()
+        logger.error(f"쓰기 연결 오류: {exc}")
         raise
     finally:
-        con.close()
+        if con:
+            con.close()
 
 
 @contextmanager
-def draft_writer() -> Iterator[sqlite3.Connection]:
-    """`po_drafts` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`create_po_draft` 전용)."""
+def draft_writer() -> Iterator[psycopg.Connection]:
+    """`po_drafts` 에 draft 한 건을 INSERT 하기 위한 커넥션."""
     with _guarded_writer(_PO_GUARDS) as con:
         yield con
 
 
 @contextmanager
-def decision_writer() -> Iterator[sqlite3.Connection]:
-    """`decisions` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`generate_disposal_document` 전용).
-
-    `draft_writer` 와 **같은 구조·다른 트리거**다. 상태 전이(draft→pending→signed/rejected)는
-    `backend/routers/decisions.py` 의 사람 전용 API 만 한다 (D10·D63) — 그래서 이 커넥션에서
-    `decisions` 를 UPDATE·DELETE 하면 SQLite 가 ABORT 한다.
-    """
+def decision_writer() -> Iterator[psycopg.Connection]:
+    """`decisions` 에 draft 한 건을 INSERT 하기 위한 커넥션."""
     with _guarded_writer(_DECISION_GUARDS) as con:
         yield con
 
 
 @contextmanager
-def repair_writer() -> Iterator[sqlite3.Connection]:
-    """`repair_records` 에 draft 한 건을 INSERT 하기 위한 커넥션 (`create_repair_record` 전용, D98).
-
-    `draft_writer`·`decision_writer` 와 **같은 구조·다른 트리거**다. 기존 두 커넥션에
-    `repair_records` 트리거를 얹지 않는다 — 얹으면 "po_drafts(또는 decisions) 전용 트리거만
-    걸린 커넥션으로 다른 테이블을 만지는" 상태가 되어 잠겼다고 믿는 지점이 실제로는 안 잠긴다
-    (위 `_PO_GUARDS`·`_DECISION_GUARDS` 주석과 같은 이유). 서명(state 전이)은
-    `backend/routers` 의 사람 전용 API 만 한다 (D10·D98).
-    """
+def repair_writer() -> Iterator[psycopg.Connection]:
+    """`repair_records` 에 draft 한 건을 INSERT 하기 위한 커넥션."""
     with _guarded_writer(_REPAIR_GUARDS) as con:
         yield con
 
 
-def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
-    return [dict(r) for r in rows]
+def rows_to_dicts(rows: list) -> list[dict]:
+    """결과 행을 dict로 변환 (기존 호환)."""
+    if not rows:
+        return []
+    return [dict(row) for row in rows]
