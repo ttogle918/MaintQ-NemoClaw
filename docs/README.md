@@ -8,7 +8,7 @@
 | [01_OVERVIEW](01_OVERVIEW.md) | 문제정의·As-Is/CMMS 포지셔닝·페르소나·KPI·기능·OoS·리스크·마일스톤(M1~M4) | 프로젝트 전체 그림이 필요할 때, 발표 준비 |
 | [02_SCENARIOS](02_SCENARIOS.md) | S1(순차)·S2(분기)·S3(이력+가드레일)·S4(실패 처리) + 도구 시퀀스 + **확장 시퀀스(S1+·S9·S10·S18·S29, S17 은 v2 제외)** | 기능 구현 전 "이게 어느 시나리오에 복무하나" 확인 |
 | [03_WIREFRAME](03_WIREFRAME.html) | 화면 A(진단 콘솔)·A-2(S3 변형)·B(승인 큐) + 주석 10개. **구조 참조 — 실제 화면은 frontend/ 구현이 기준** | UI 작업 전, 디자인 검수 |
-| [04_MCP_TOOLS](04_MCP_TOOLS.md) | **코어 7종(읽기 6+쓰기 1) + 확장 11종(§8~§18, 읽기 9+쓰기 2)** 입출력 계약, 프로파일 게이트(D69), 설계 원칙 6개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
+| [04_MCP_TOOLS](04_MCP_TOOLS.md) | **코어 7종(읽기 6+쓰기 1) + 확장 13종(§8~§20, 읽기 11+쓰기 2)** 입출력 계약, 프로파일 게이트(D69), 설계 원칙 6개 | 도구 구현·수정 시 (계약 임의 변경 금지) |
 | [05_DB_SCHEMA](05_DB_SCHEMA.md) | 테이블 **23절(CREATE TABLE 24개)** + 시드 케이스 맵 7종 | DB·시드 작업 시 |
 | [06_REPO_API](06_REPO_API.md) | 모노레포 구조, REST/SSE 규격(이벤트 4종), **`/api/assets` 4종 + D71 HTTP 매핑**, **`/api/decisions`(§2.6)·`/api/approvals`(§2.7)**, 상태 전이, testset 스키마 | 폴더·엔드포인트 만들 때, M1 첫날 |
 | [07_BACKLOG](07_BACKLOG.md) | v2 기능 P1~P21 + **확장 범위 P22~P27(진행 표시 — P24·P25 Sprint 7·9 완료)** + **P28~P36 인프라·데이터 품질** + **P40·P41 UI·결재 워크플로우** + 아이디어 주차장 + 경계 메모 | "이것도 넣을까?" 싶을 때 (답: 백로그로) |
@@ -39,6 +39,12 @@ Sprint 12 가 시나리오 번호 정정(S29, P33)과 `track_deadlines`/`assess_
 D105 로 Elice DocVision 도입)을 5스테이지로 완결했다** — 대조 엔진은 캐시 0건에서도 전건
 `INCONCLUSIVE` 로 완주하도록 설계해 사람 승인이 스프린트를 막지 않게 했고, 승인 후 실판독까지
 같은 세션에서 이어졌다.
+**Sprint 16 이 D112 재개분의 응답 표시·통합을 닫았다** — request-withdrawal·lookup-clause·
+assess-loan 3종의 A2A 발신은 이미 있었지만 응답을 사람이 볼 방법이 코드에 없던 구멍을,
+SSE `tool_result.a2a_chain_id`(D113)·`GET /api/a2a/history`(D114)·신규 MCP 도구 2종
+(`search_insurance_clause`·`assess_equipment_loan`, `04_MCP_TOOLS §19·§20`)과 화면 4종(채팅
+A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이력 패널·통합 `/manager/a2a` 이력 페이지)으로
+메웠다.
 ⛔ master 미병합 — 머지는 사람이 요청할 때만.**
 
 **2026-08-14 (스프린트 아님 · 데이터 조사)** — `data/part-catalog` 브랜치에서 **P32(부품 품번) 종결**.
@@ -64,7 +70,7 @@ D105 로 Elice DocVision 도입)을 5스테이지로 완결했다** — 대조 �
 | 축 | 상태 |
 |---|---|
 | 코어 도구 7종 · 백엔드 · 에이전트 루프 · trace · UI · 평가 하네스 | ✅ 동작 |
-| **확장 도구 11종** (`check_disposal_blockers` · `verify_ownership` · `classify_part_criticality` · `get_maintenance_metrics` · `classify_expenditure` · `assess_repair_value` · `build_evidence_bundle` · `generate_disposal_document` · `create_repair_record` · **`track_deadlines`** · **`assess_risk_grade`**) | ✅ 구현 — 계약은 `04 §8~§18`. **노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만**(기본 `core`, D69·D88) |
+| **확장 도구 13종** (`check_disposal_blockers` · `verify_ownership` · `classify_part_criticality` · `get_maintenance_metrics` · `classify_expenditure` · `assess_repair_value` · `build_evidence_bundle` · `generate_disposal_document` · `create_repair_record` · `track_deadlines` · `assess_risk_grade` · **`search_insurance_clause`** · **`assess_equipment_loan`**) | ✅ 구현 — 계약은 `04 §8~§20`. **노출은 `MAINTQ_TOOLS_PROFILE=full` 에서만**(기본 `core`, D69·D88). §19·§20 은 Sprint 16 신설(D112) — 대상이 자산이 아니라 A2A 외부 파트너(InsuQ·FinAllQ) 응답 |
 | **쓰기 도구** | **3종** — `create_po_draft`(`po_drafts`) · `generate_disposal_document`(`decisions`) · `create_repair_record`(`repair_records`). 셋 다 **draft INSERT 만**, UPDATE 권한 없음 (D10·D81·D98) |
 | DB | 코어 11 + 확장 7 + A2A 1 + UI 목업 1 + F5·F6 4 = **테이블 24개**(실측 `data/seed.py`). `decisions` 에 컬럼 5개 + **CHECK 2종** 추가(MQ-707) · **`partner_links` 신설**(Sprint 8, D91·D96) · `traces.request_chain_id` 컬럼 신설(D94-ⓐ, **전 행 NULL 이 정상**) · **`part_lifecycle_mock` 신설**(Sprint 10, §19 — 설비 하이라이트 대시보드용 부품 생애주기 경고 목업) · **`deadlines`·`incidents`·`ownership_checks`·`risk_profile` 신설**(Sprint 11, §20~§23, F5·F6, D102) |
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |

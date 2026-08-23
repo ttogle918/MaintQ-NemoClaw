@@ -155,7 +155,7 @@ P14 는 *"docker-compose (backend + mcp-server **2서비스**)"* 로 적혀 있�
 | `MAINTQ_CHUNKS` | — | 기본값이 이미지 내 경로라 보통 불필요 |
 | `MAINTQ_CORS_ORIGINS` | ✅ | **프론트 배포 도메인**을 반드시 등재 |
 | `MAINTQ_MCP_AUTOSTART` | ✅ | `1` 유지 (stdio spawn) |
-| `MAINTQ_TOOLS_PROFILE` | — | **기본 `core`**. 확장 11종을 켜려면 `full` (D69·D88 — **평가는 `core` 에서만 인정**) |
+| `MAINTQ_TOOLS_PROFILE` | — | **기본 `core`**. 확장 13종을 켜려면 `full` (D69·D88 — **평가는 `core` 에서만 인정**) |
 | `NEXT_PUBLIC_API_BASE` | ✅ | 프론트 빌드타임 주입 — **백엔드 공개 URL** |
 | `LAW_API_OC` · `DATA_GO_KR_SERVICE_KEY` · `IROS_API_KEY_*` · `ELICE_*` | — | **런타임 미호출** (수집 스크립트 전용). 배포 컨테이너에 넣을 필요 없다 |
 

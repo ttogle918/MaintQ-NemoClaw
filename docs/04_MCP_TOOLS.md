@@ -1,16 +1,20 @@
 # MCP 도구 스키마 v0.3
-설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 11종(읽기 9 + 쓰기 2) = 총 18종**
+설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 13종(읽기 11 + 쓰기 2) = 총 20종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
-- 확장 11종은 자산 생애주기(처분·취득·자산가치·수리 증빙·기한/위험 감시) 담당이며 대상이 **인버터가 아니라 호스트 설비(`assets`)** 다
-  (**D68**) — 단 `create_repair_record`(§16)는 예외로 `equipment_id`(인버터) 를 직접 받는다 (D68 ⓑ, 수리는
-  인버터 단위).
+- 확장 도구 §8~§18(11종)은 자산 생애주기(처분·취득·자산가치·수리 증빙·기한/위험 감시) 담당이며 대상이
+  **인버터가 아니라 호스트 설비(`assets`)** 다 (**D68**) — 단 `create_repair_record`(§16)는 예외로
+  `equipment_id`(인버터) 를 직접 받는다 (D68 ⓑ, 수리는 인버터 단위).
 - ⚠ **쓰기 도구는 이제 3종이다** — `create_po_draft`(§7) · **`generate_disposal_document`(§15, Sprint 7 신설)** ·
   **`create_repair_record`(§16, Sprint 9 신설, D98)**. 셋 다 draft INSERT 만 하며 UPDATE 권한이 없다
   (D10·D81·D98). 확장 도구에 쓰기가 하나도 없다는 이 문서의 옛 서술은 **거짓이 됐고 아래에서 정정했다**
   (실측: `mcp_server/server.py`).
 - **`track_deadlines`(§17)·`assess_risk_grade`(§18)는 Sprint 11 신설 읽기 전용 도구다**(D102) — 기한·사고·
   위험 감시 계층의 사전 경보/실사 보존 확장이며, 어느 것도 쓰지 않는다.
+- **`search_insurance_clause`(§19)·`assess_equipment_loan`(§20)는 Sprint 16 신설 읽기 전용 도구다**(D112) —
+  자산 생애주기가 아니라 **A2A 외부 파트너**(InsuQ·FinAllQ) 응답 중계다. `mcp_server` → `backend` REST
+  왕복이라는 앞의 11종과 다른 구조를 쓰며(§8~§18 처럼 `data/` 를 직접 import 하지 않는다, D15 유지),
+  대상도 `asset_id`/`equipment_id` 가 아니라 자유 질의(`question`)·대출 조건이다.
 
 ### 프로파일 게이트 (D69)
 
@@ -19,13 +23,14 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 11 = 18종 (§1~§18) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 13 = 20종 (§1~§20) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
 
 > **실측** — `mcp_server/server.py` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
-> **11개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
+> **13개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
 > `get_maintenance_metrics`·`classify_expenditure`·`assess_repair_value`·`build_evidence_bundle`·
 > `generate_disposal_document`·**`create_repair_record`**(Sprint 9, D98)·**`track_deadlines`**·
-> **`assess_risk_grade`**(Sprint 11, D102). `spikes/tools_profile_contract.py` 가 양방향으로 잠근다.
+> **`assess_risk_grade`**(Sprint 11, D102)·**`search_insurance_clause`**·**`assess_equipment_loan`**
+> (Sprint 16, D112). `spikes/tools_profile_contract.py` 가 양방향으로 잠근다.
 
 - **기본이 `core` 인 이유**: `eval/run_eval.py` 가 부모 env 를 상속해 MCP 서버를 띄우므로(D56), 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — "수정 효과 vs 도구 증가 효과"가 영원히 분리되지 않는다.
 - **enum 밖 값은 폴백하지 않고 죽는다.** 조용히 `core` 로 떨어지면 "어느 프로파일로 돌았는지 모르는 실행 결과"가 남는다.
@@ -37,7 +42,7 @@
 ## 공통 설계 원칙
 
 1. **description이 오케스트레이션의 절반이다.** 각 도구 설명에 "언제 사용 / 언제 사용 금지"를 명시한다. LLM의 도구 선택 품질은 스키마 설명 품질에 비례한다.
-   → 확장 11종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
+   → 확장 13종의 `DESCRIPTION` 은 **각 도구 파일의 `DESCRIPTION` 상수가 정본**이다. 이 문서는 그것을 인용할 뿐 두 벌로 관리하지 않는다.
 2. **실패도 구조화된 결과로 반환한다.** 예외를 던지지 않고 `status` 필드로 반환해 에이전트가 분기(S2, S4)할 수 있게 한다. `status: "ok" | "not_found" | "empty" | "error"`
 3. **읽기/쓰기 도구를 분리한다.** 쓰기 도구는 **3종**(`create_po_draft` §7 · `generate_disposal_document` §15 · `create_repair_record` §16)이며 **셋 다 draft INSERT 만** 한다. 확정은 승인 큐(사람)에서만.
    - `build_evidence_bundle`(§14)은 **여전히 아무것도 쓰지 않는다** — 읽기 전용 커넥션만 갖는다(`build_evidence_bundle.py:320` `with read_only()`). 그러나 §15·§16 은 각각 `decisions`·`repair_records` 에 `state='draft'` 한 행을 INSERT 한다 (D81·D98).
@@ -45,7 +50,7 @@
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
    ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(5종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`·`assess_risk_grade`(§18, `building_id`/`asset_id` 짝, Sprint 11)).
-6. **확장 11종은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다).
+6. **확장 도구 §8~§18(11종)은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다). ⚠ **§19·§20(신규 A2A 도구 2종, D112)은 이 규약 밖이다** — 외부 파트너(InsuQ·FinAllQ) 응답을 그대로 중계하는 구조라 `disclaimer`·`not_considered` 필드가 없다. 대신 확답을 못 받으면 `status:"error"` + `reason` 으로 "모른다"를 표현한다(D112).
 
 ---
 
@@ -235,7 +240,7 @@
 
 ---
 
-# 확장 11종 (프로파일 `full` 에서만 등록 — D69)
+# 확장 도구 §8~§18 (11종, 프로파일 `full` 에서만 등록 — D69)
 
 > **대상이 다르다.** §1~§7 은 인버터(`equipment_id`)를 본다. §8~§14 는 인버터가 구동하는
 > **호스트 설비(`asset_id`)** 를 본다 (**D68**). `equipment_id` 로 불러도 되지만 그건
@@ -244,6 +249,9 @@
 > ⚠ **§16(`create_repair_record`)은 예외다** — 대상이 `asset_id` 가 아니라 **`equipment_id`(인버터)
 > 그 자체**다. 수리는 인버터 단위로 남는다 (D68 ⓑ) — `assets` 로 해석·집계하는 건 `get_maintenance_metrics`
 > 소관이다.
+> ⚠ **§19·§20(신규 2종, Sprint 16, D112)은 이 절 밖이다** — 대상이 자산/설비가 아니라 A2A 외부
+> 파트너 응답이라 아래 "공통 규약 4가지"·"대상이 다르다" 서술이 적용되지 않는다. 각 절 서두에서
+> 별도로 명시한다.
 
 **공통 규약 4가지 (§8~§14, 원칙적으로 §16 도 D9·D80 은 그대로 따른다)**
 
@@ -1080,11 +1088,147 @@ D69·D88(프로파일)
 
 ---
 
-## 확장 11종 reason 색인 (한눈에)
+## 19. search_insurance_clause — InsuQ 약관 보장 여부 조회 (신규, D112)
+
+**description (코드 정본 = `search_insurance_clause.py:DESCRIPTION`):**
+> "화재보험 등 보험 약관의 보장 여부를 InsuQ(외부 보험 파트너)에 문의한다. 정비사가 설비 고장·손해의
+> 보험 보장 여부를 명시적으로 물을 때만 호출할 것. MaintQ 매뉴얼 근거가 아니라 외부 파트너의 응답이므로
+> 결과를 그대로 전달하고 추측을 덧붙이지 말 것. 실패 시 확답을 못 얻었다는 사실을 정직하게 알릴 것."
+
+⚠ **§8~§18 과 구조가 다르다.** 이 도구는 `data/`(엔진·룰 카탈로그)를 직접 읽지 않는다 — `mcp_server`
+프로세스에서 **backend REST**(`POST /api/a2a/lookup-clause`)를 `httpx` 로 동기 호출하고 그 응답을
+그대로 전달할 뿐이다. mcp_server 는 여전히 `backend.a2a`·A2A 자격증명을 모른다(D15·D93 유지) — 이
+도구가 아는 것은 `MAINTQ_BACKEND_BASE_URL`(`.env.example`, MQ-1603) 하나뿐이다. 대상도
+`asset_id`/`equipment_id` 가 아니라 자유 질의(`question`)다.
+
+```json
+// input
+{ "question": "화재로 인한 인버터 손해가 보험으로 보장되나요?" }   // required — 공백이면 거부 (D80)
+// output (성공 — InsuQ skill_status == "completed")
+{
+  "status": "ok",
+  "skill_status": "completed",     // InsuQ 프로토콜 자체의 어휘(completed|input-required|rejected) 보존
+  "verdict": "...",                // InsuQ 응답 그대로 — 이 문서가 값을 규정하지 않는다
+  "answer": "...",
+  "evidence": ["..."],
+  "request_chain_id": "CHAIN-CLAUSE-xxxxxxxx"   // SSE tool_result.a2a_chain_id 로 이어진다 (D113)
+  // ...(백엔드 응답의 나머지 키를 그대로 보존 — D76 구조 보존 정신)
+}
+```
+
+### 핵심 로직
+
+1. 입력 검증 — `question` 이 빈 문자열/공백이면 `question_required`(D80: 인자 누락 자체는 MCP 스키마가
+   앞단에서 막지만, 공백 문자열은 코드가 막는다).
+2. `base_url = os.environ.get("MAINTQ_BACKEND_BASE_URL") or "http://localhost:8000"` 로 백엔드 REST 를
+   호출한다 — **`MAINTQ_A2A_` 접두어를 쓰지 않는다**, 그 접두어는 `backend/a2a/` 자격증명 전용이다(D93).
+3. `resp.status_code == 200` 이고 `data.get("status") == "completed"` 일 때만 성공(`status:"ok"`)으로
+   매핑한다. InsuQ 가 `input-required`·`rejected` 를 돌려주면(확답 아님) `status:"error", reason:"no_answer"`
+   — 확답을 안 줬는데 `ok` 로 위장하면 절대 규칙 6("미지에 유사 코드 추측 금지")과 같은 종류의 환각이 된다.
+4. 백엔드가 `502`/`503`/`504` 를 반환 → `upstream_unavailable`(InsuQ A2A 어댑터 자체에 응답을 못 받음).
+   그 외 `httpx.HTTPError`(백엔드 프로세스 자체에 못 닿음) → `backend_unreachable`. 둘을 구분하는 이유는
+   재시도 대상이 다르기 때문이다 — 전자는 파트너 문제, 후자는 MaintQ 배포 문제다.
+
+### 엣지 케이스
+
+- `MAINTQ_BACKEND_BASE_URL` 미설정 → `http://localhost:8000` 폴백(백엔드·MCP 서브프로세스 로컬
+  co-location 전제, `MAINTQ_MCP_AUTOSTART` 기본 동작과 같은 가정).
+- InsuQ 로컬 어댑터가 미기동이면 백엔드 `POST /api/a2a/lookup-clause` 자체가 502/504 를 낸다 — 이
+  경로는 **정상 실패**다(현재 로컬·배포 어디서도 200 을 못 본 것이 실측, `status.html`).
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `question_required` | `question` 이 비어 있거나 공백 |
+| `error` | `timeout` | `httpx.TimeoutException`(12.0초) |
+| `error` | `backend_unreachable` | 백엔드 프로세스 자체에 연결 실패(연결 거부 등) — A2A 파트너가 아니라 MaintQ 백엔드에 못 닿은 경우 |
+| `error` | `upstream_unavailable` | 백엔드가 502/503/504 반환 — InsuQ A2A 어댑터에 응답을 못 받음 |
+| `error` | `no_answer` | InsuQ `skill_status` 가 `input-required`/`rejected` — 확답 아님 |
+| `error` | `unexpected_status` | InsuQ `skill_status` 가 `completed`/`input-required`/`rejected` 밖의 값 |
+| `error` | `invalid_response` | 백엔드 응답 본문이 JSON 파싱 불가 |
+| `error` | `a2a_error` | 그 외 HTTP 상태코드. `message` 는 응답 `detail` 또는 본문 앞 200자 |
+
+**지켜야 할 결정**: D15·D93(mcp_server 는 `backend.a2a`·`MAINTQ_A2A_*` 를 참조하지 않는다 —
+`MAINTQ_BACKEND_BASE_URL` 이라는 다른 이름의 env 를 쓴다) · D9(status 반환) · D80(필수 파라미터
+기본값 없음) · D69·D88(`full` 프로파일 전용 — `core` 에 넣으면 `eval/run_eval.py` 의
+`tools > CORE_TOOL_COUNT(=7)` 게이트가 깨진다) · D113(SSE `a2a_chain_id`) · D114(`GET /api/a2a/history` 로 원문 조회)
+
+---
+
+## 20. assess_equipment_loan — FinAllQ 설비 담보 대출 사전판정 (확장 S8 — A2A_Q 2026-08-14 스냅샷 번호,
+2026-08-23 사용자 지도 기준으로는 S4, D112)
+
+**description (코드 정본 = `assess_equipment_loan.py:DESCRIPTION`):**
+> "설비를 담보로 한 대출 사전판정을 FinAllQ(외부 금융 파트너, 내부적으로 InsuQ 2차 조회 포함)에
+> 문의한다. 사용자가 설비 담보 대출을 명시적으로 물을 때만 호출할 것. 현재 파트너 쪽 연동이 아직
+> 준비되지 않아 실패 응답이 정상적으로 나올 수 있다 — 실패를 오류로 취급하지 말고 결과를 있는 그대로
+> 전달할 것."
+
+⚠ **§19 와 같은 구조다** — `mcp_server` → backend REST(`POST /api/a2a/assess-loan`) 왕복이며
+`data/`(엔진·룰 카탈로그)를 직접 읽지 않는다(D15·D93). 대상도 자산이 아니라 대출 조건(금액·목적·담보
+건물 ID)이다.
+
+```json
+// input — 셋 다 필수(기본값 없음, D80)
+{
+  "loan_amount": 50000000,           // > 0, bool 은 숫자로 취급하지 않는다
+  "purpose": "설비 교체 자금",
+  "collateral_building_id": "BLD-C"
+}
+// output (성공 — FinAllQ skill_status == "completed")
+{
+  "status": "ok",
+  "skill_status": "completed",
+  "verdict": "...",                  // FinAllQ 응답 그대로
+  "request_chain_id": "CHAIN-LOAN-xxxxxxxx"
+  // ...(백엔드 응답의 나머지 키를 그대로 보존)
+}
+```
+
+### 핵심 로직
+
+§19 와 **동일 패턴**이며 차이는 URL(`/api/a2a/assess-loan`)·입력 파라미터·payload 키뿐이다.
+
+1. 입력 검증 — `loan_amount` 가 숫자가 아니거나(`bool` 포함) `<= 0` / `purpose` 공백 /
+   `collateral_building_id` 공백 → `invalid_input`(D80).
+2. §19 와 같은 `MAINTQ_BACKEND_BASE_URL` 을 쓴다(같은 env, 다른 경로).
+3. `skill_status == "completed"` 만 성공. 그 외(`input-required`·`rejected`) → `no_answer`, 그 밖 값 →
+   `unexpected_status`.
+4. 백엔드가 502/503/504 반환 → `upstream_unavailable`.
+
+### 엣지 케이스
+
+- **502/504 가 정상 경로다** — FinAllQ 는 내부적으로 InsuQ 2차 조회를 거치는데, 이 2차홉이 아직
+  준비되지 않아 실측(로컬·배포 어디서나, `status.html`)상 `assess-loan` 은 거의 항상
+  `upstream_unavailable` 로 끝난다. 버그가 아니라 현재 연동 상태다 — `DESCRIPTION` 이 에이전트에게
+  이 사실을 미리 알려 실패를 오류로 취급하지 않게 한다.
+- `loan_amount` 가 `bool`(`True`/`False`)이면 `invalid_input` — `isinstance(x, bool)` 을 먼저 걸러
+  `True`(=1)가 유효한 금액으로 통과하는 것을 막는다.
+
+**status / reason**
+
+| status | reason | 언제 |
+|---|---|---|
+| `error` | `invalid_input` | `loan_amount` ≤0·숫자 아님(`bool` 포함) / `purpose` 공백 / `collateral_building_id` 공백 |
+| `error` | `timeout` | `httpx.TimeoutException`(12.0초) |
+| `error` | `backend_unreachable` | 백엔드 프로세스 자체에 연결 실패 |
+| `error` | `upstream_unavailable` | 백엔드가 502/503/504 반환 — **현재 실측상 이 경로가 정상값이다** |
+| `error` | `no_answer` | FinAllQ `skill_status` 가 `input-required`/`rejected` |
+| `error` | `unexpected_status` | FinAllQ `skill_status` 가 3값 밖 |
+| `error` | `invalid_response` | 백엔드 응답 본문이 JSON 파싱 불가 |
+| `error` | `a2a_error` | 그 외 HTTP 상태코드 |
+
+**지켜야 할 결정**: D15·D93(§19 와 동일) · D9(status 반환) · D80(필수 파라미터 기본값 없음) ·
+D69·D88(`full` 전용) · D113·D114(§19 와 동일)
+
+---
+
+## 확장 도구 reason 색인 (한눈에)
 
 | reason | 나오는 도구 | 성격 |
 |---|---|---|
-| `invalid_input` | 8·9·11·12·13·14·**16** (→15 전파) | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
+| `invalid_input` | 8·9·11·12·13·14·**16**·**20** (→15 전파) | 호출 값이 잘못됨 (누락은 MCP 스키마가 앞단에서 막는다 — D80) |
 | `unknown_asset` | 8·9·11·12·13·14 (→15 전파) | `not_found` |
 | `unknown_equipment` | 8·9·11·13·14·**16** (→15 전파) | `not_found` |
 | `no_host_asset` | 8·9·11·13·14 (→15 전파) | `not_found` — 호스트 자산 미지정. **"문제 없음"이 아니다** (§16 은 `asset_id` 를 안 보므로 이 reason 이 없다) |
@@ -1104,6 +1248,20 @@ D69·D88(프로파일)
 | `db_missing` | 9·14·15·**16** | DB 파일 없음. ⚠ 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
 | `db_error` | 8·9·10·11·12·13·14·15·**16** | DB 예외 |
 | `internal_error` | **8**·9·10·12·13·14·15·**16** | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9). **MQ-712 에서 8 이 `engine_error` → `internal_error` 로 통일됐다** |
+
+**§19·§20 전용 reason (D112)** — 8~18 의 전파 사슬 밖이다. 둘 다 §7·§16 처럼 사전 조회가 없고, `data/`
+가 아니라 backend REST 응답 자체에서 실패를 판정한다.
+
+| reason | 나오는 도구 | 성격 |
+|---|---|---|
+| `question_required` | **19(독립)** | `question` 공백. §20 에는 없다(그 대신 `invalid_input`) |
+| `timeout` | **19·20** | `httpx.TimeoutException`(12.0초) |
+| `backend_unreachable` | **19·20** | MaintQ 백엔드 프로세스 자체에 연결 실패 — A2A 파트너 실패와 구분 |
+| `upstream_unavailable` | **19·20** | 백엔드가 502/503/504 반환. §20 은 이 값이 **실측상 정상 경로**(2차홉 미비) |
+| `no_answer` | **19·20** | 파트너 `skill_status` 가 `input-required`/`rejected` — 확답 아님 |
+| `unexpected_status` | **19·20** | 파트너 `skill_status` 가 3값 밖 |
+| `invalid_response` | **19·20** | 백엔드 응답 본문 JSON 파싱 불가 |
+| `a2a_error` | **19·20** | 그 외 HTTP 상태코드 |
 
 > **코어 7종의 reason** (참고): `invalid_model` · `code_required` · `catalog_not_loaded` · `malformed_row` ·
 > `query_required` · `index_not_built` · `search_failed` · `invalid_line_id` · `invalid_days` ·
@@ -1138,6 +1296,7 @@ D69·D88(프로파일)
 | 20 | `generate_disposal_document` 스키마에 `override` 키를 두지 않는다 | 스키마에 키가 없으면 LLM 이 BLOCKING 을 뚫는 사유를 지어내 호출하는 경로가 **구조적으로** 막힌다 — D23(신원)·D31(단가)을 뺀 것과 같은 이유. 예외 적용은 서명 API 가 `X-User` 와 함께 받는다 (D81) |
 | 21 | 엔진 예외 어휘를 `internal_error` 로 통일 (MQ-712) | `except Exception` 그물은 엔진 예외만 잡지 않는다 — `engine_error` 라 부르면 원인을 단정한 거짓 라벨이 되고, 같은 실패가 §8·§14 에서 다른 이름을 가졌다. `engine_error` 는 **엔진 계약 위반을 실제로 확인한 자리**에만 남는다 |
 | 22 | 세 번째 쓰기 도구 `create_repair_record`(§16)는 `repair_records` **전용** `repair_writer()` 커넥션을 갖는다 (D98, MQ-906) | `draft_writer()`·`decision_writer()` 를 재사용하면 다른 테이블 전용 트리거가 걸린 커넥션으로 `repair_records` 를 만지는 셈이라 잠금이 없는 채로 쓰는 것이 된다. `part_class`·`expenditure_class` 도 파라미터가 아니다 — 회계 판정을 LLM 이 지어낼 경로를 막는다(D31·D81 과 같은 이유). API 계약(`kind:"repair"`)은 D85 가 이미 예약해 둔 값이라 바뀌는 게 없다 |
+| 23 | `tool_result` SSE 이벤트에 선택 필드 `a2a_chain_id` 추가(D113) + `GET /api/a2a/history` 신설(D114, Sprint 16) | §19·§20 은 InsuQ/FinAllQ 응답을 실시간 스트림엔 상관관계 키만 흘리고 원문은 별도 조회 API 에서 연다 — `block` 4번째 타입·`summary` 문자열 욱여넣기·SSE 이벤트 5번째 타입은 전부 D14·D22·D26·D32 위반이라 기각했다. 전문은 `10_DECISIONS.md` D113·D114 참조 |
 
 ## 도구 ↔ 시나리오 매핑
 
@@ -1152,6 +1311,8 @@ D69·D88(프로파일)
 | **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(§18, 건물 위험등급, Sprint 11) |
 | **S29** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
+| 신규 InsuQ 상담 | **search_insurance_clause**(§19, 사용자 명시 질의 시에만, D112) → InsuQ 응답을 그대로 전달 → 후속 조회는 `GET /api/a2a/history`(D114) |
+| S8/S4 FinAllQ 담보대출 | **assess_equipment_loan**(§20, 사용자 명시 질의 시에만, 현재 실패가 정상, D112 — A2A_Q 2026-08-14 스냅샷 번호로는 S8, 2026-08-23 사용자 지도 기준으로는 S4) → 후속 조회는 `GET /api/a2a/history`(D114) |
 
 ## 다음 단계
 목업 DB 스키마 — 이 도구들이 읽을 테이블: `05_DB_SCHEMA.md` 참조

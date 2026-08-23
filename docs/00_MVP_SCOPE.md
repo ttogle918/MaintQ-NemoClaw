@@ -92,7 +92,9 @@
 ## 인프라 · 구조 (필수)
 
 - **MCP 서버 ↔ 백엔드 프로세스 분리** — 목업 DB를 실제 ERP로 교체 시 MCP 서버만 교체 (**D15**). `data/`(매뉴얼·시드·룰 카탈로그)는 두 프로세스가 공유해도 되는 **데이터 계층**이다 (**D73**)
-- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 11종**(읽기 9 + **쓰기 2**, `§8~§18`, 프로파일 게이트 **D69**)
+- **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 13종**(`§8~§20`,
+  읽기 11 + **쓰기 2** — 신규 2종(`search_insurance_clause`·`assess_equipment_loan`, §19·§20, Sprint 16,
+  D112)도 읽기 전용, 프로파일 게이트 **D69**)
   - ⚠ **쓰기 도구는 3종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
     `create_repair_record`(§16, Sprint 9 신설, D98). 셋 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81·D98)
 - **SQLite 목업 DB** (**23절·실제 테이블 24개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +

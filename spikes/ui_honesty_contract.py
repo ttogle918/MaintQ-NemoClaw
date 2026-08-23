@@ -73,6 +73,7 @@ OWNERSHIP_TS = FRONTEND / "lib" / "ownership.ts"
 MAINT_VALUE_TS = FRONTEND / "lib" / "maintValue.ts"
 DEADLINES_TS = FRONTEND / "lib" / "deadlines.ts"
 RISK_GRADE_TS = FRONTEND / "lib" / "riskGrade.ts"
+A2A_TS = FRONTEND / "lib" / "a2a.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
@@ -93,7 +94,11 @@ MUTANT_DIR = FRONTEND / ".ui_honesty_mutant"
 #   를 잡지 못한다. 이 토큰들은 판정색으로도 쓰이고 다른 곳에서 순수 UI 톤으로도 쓰여
 #   전면 금지가 아직 구현돼 있지 않다 — 이번 수정 범위 밖(후속 과제로 이월).
 L2_GLOBS = ("components/asset/*.tsx", "components/queue/Decision*.tsx", "app/(console)/**/*.tsx")
-L2_EXTRA = ("components/queue/SignBar.tsx", "components/queue/RepairDetail.tsx")
+L2_EXTRA = (
+    "components/queue/SignBar.tsx",
+    "components/queue/RepairDetail.tsx",
+    "components/queue/WithdrawalStatusPanel.tsx",
+)
 # 스캔 대상 하한. 줄면 파일이 빠진 것이다 (L1 건수 검사와 같은 취지)
 # MQ-1003(Sprint 10) — `RepairDetail.tsx` 를 L2_EXTRA 에 추가하고, MQ-1001(같은 스프린트)이 만든
 # `EvidenceBundlePanel.tsx`·`ExpenditureForm.tsx`(asset) + `evidence`·`expenditure` 라우트
@@ -104,7 +109,20 @@ L2_EXTRA = ("components/queue/SignBar.tsx", "components/queue/RepairDetail.tsx")
 # `app/(console)/manager/deadlines/page.tsx`·`manager/risk-grade/page.tsx`(app 글롭). 실측
 # 32 → 36(+4파일, 파일당 6건이므로 L2 항목수는 192 → 216). 예상치(36)와 실측이 정확히 일치했다
 # — `uv run python spikes/ui_honesty_contract.py` 출력의 "스캔 파일 36개"·"L2 216" 을 그대로 옮김.
-L2_FILES_FLOOR = 36
+# MQ-1611(Sprint 16) — Stage 3(MQ-1607~1610)가 신설한 파일 중 `components/asset/
+# LoanAssessmentHistory.tsx`·`app/(console)/manager/a2a/page.tsx` 는 기존 글롭에 자동 편입,
+# `components/queue/WithdrawalStatusPanel.tsx` 는 `Decision*.tsx` 접두어 불일치로 위에서
+# `L2_EXTRA` 에 수동 등재했다. `components/chat/A2aResultCard.tsx` 는 `L2_GLOBS` 에
+# `components/chat/*.tsx` 자체가 없어 편입 안 됨(다른 chat 컴포넌트와 동일).
+# ⚠ sprint-16.md 계획서는 36 → 39(+3)로 추정했으나, **실측은 36 → 42(+6)** 다. Sprint 16 몫은
+# 정확히 +3(`LoanAssessmentHistory.tsx`·`manager/a2a/page.tsx`·`WithdrawalStatusPanel.tsx`) —
+# 나머지 +3(`components/asset/PoForm.tsx` + `app/(console)/technician/po/new/page.tsx` +
+# `technician/po/[poId]/page.tsx`)는 Sprint 16 과 무관한 D111(발주 화면 직접 생성/수정,
+# 커밋 `925184d`(PoForm.tsx)·`0bc342e`(technician/po/new)·`a5fa567`(technician/po/[poId])
+# 가 이미 글롭에 편입시켜 놓은 것을 그동안 아무도
+# `L2_FILES_FLOOR` 에 반영하지 않아 생긴 누적 차이다 — Sprint 16 이 만든 회귀가 아니다.
+# 이 값은 실제 실행 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다 — 암산 아님.
+L2_FILES_FLOOR = 42
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
@@ -498,6 +516,7 @@ def run() -> None:
     constraint_gate("C3", "C4", "maintValue.ts", MAINT_VALUE_TS, " (MQ-917)")
     constraint_gate("C5", "C6", "deadlines.ts", DEADLINES_TS, " (MQ-1202)")
     constraint_gate("C7", "C8", "riskGrade.ts", RISK_GRADE_TS, " (MQ-1202)")
+    constraint_gate("C9", "C10", "a2a.ts", A2A_TS, " (MQ-1605)")
 
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
@@ -706,6 +725,7 @@ def main() -> None:
         MAINT_VALUE_TS,
         DEADLINES_TS,
         RISK_GRADE_TS,
+        A2A_TS,
         CHECK_TS,
         MATRIX_TSX,
         DISPOSAL_TSX,

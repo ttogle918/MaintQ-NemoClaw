@@ -168,7 +168,7 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 그리고 확장 범위 쪽 경계 (D67):
 
-- 진단·발주는 기존 6종 / **처분·취득**은 확장 6종 (P22~P27). 도구로는 **코어 7종 / 확장 11종**이며 노출은 `MAINTQ_TOOLS_PROFILE` 이 가른다 (D69). 확장 8번째는 `generate_disposal_document`(Sprint 7 신설, **두 번째 쓰기 도구**), 9번째는 `create_repair_record`(Sprint 9 신설, **세 번째 쓰기 도구**, D98), 10번째는 `track_deadlines`(Sprint 11 신설, F5, D102), 11번째는 `assess_risk_grade`(Sprint 11 신설, F6, D102)
+- 진단·발주는 기존 6종 / **처분·취득**은 확장 6종 (P22~P27). 도구로는 **코어 7종 / 확장 13종**이며 노출은 `MAINTQ_TOOLS_PROFILE` 이 가른다 (D69). 확장 8번째는 `generate_disposal_document`(Sprint 7 신설, **두 번째 쓰기 도구**), 9번째는 `create_repair_record`(Sprint 9 신설, **세 번째 쓰기 도구**, D98), 10번째는 `track_deadlines`(Sprint 11 신설, F5, D102), 11번째는 `assess_risk_grade`(Sprint 11 신설, F6, D102)
 - 매뉴얼 **근거 페이지** 인용은 기존 / **법령 조문** 인용은 확장
 - 반복 고장 감지는 기존 / 그걸 **자산가치 감점 신호로 재사용**하는 건 확장 (P26)
 - 팀장 승인 큐는 기존 / 그 큐에 **처분서·수리 증빙을 같이 올리는 것**은 확장 (P24·P25)

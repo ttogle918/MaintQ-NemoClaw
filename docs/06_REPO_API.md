@@ -2,6 +2,8 @@
 
 > ⚠️ 이 문서는 이 레포의 **내부** API만 다룬다. FinAllQ·InsuQ와의 A2A 연동은
 > `docs/A2A_CONTRACTS.md`를 보라 — 아직 M1(계약 계층) 초안 단계.
+> 단, `/api/a2a/*` 는 이 레포 **내부** REST 표면(라우터 `backend/routers/a2a.py`)이다 — 외부
+> 스킬 스키마 자체는 여전히 `A2A_CONTRACTS.md`/A2A_Q 레포가 정본이다.
 
 ## 0. 전체 아키텍처
 
@@ -74,7 +76,7 @@ MaintQ/
 │   │   ├── create_po_draft.py            ┘ ← 쓰기 도구 ①/3 — po_drafts draft INSERT (D10)
 │   │   ├── check_disposal_blockers.py    ┐
 │   │   ├── verify_ownership.py           │
-│   │   ├── classify_part_criticality.py  │ 확장 11종 (`full` 에서만 등록 — D69)
+│   │   ├── classify_part_criticality.py  │ 확장 13종 (`full` 에서만 등록 — D69)
 │   │   ├── get_maintenance_metrics.py    │ 대상은 asset_id (D68)
 │   │   ├── classify_expenditure.py       │
 │   │   ├── assess_repair_value.py        │
@@ -191,7 +193,11 @@ POST /api/chat
   → SSE 스트림, 이벤트 4종 (D14·D22):          #   미선택 시 에이전트가 모델 확인 질문 (S1 1단계)
      event: token       { text }                 # LLM 응답 토큰
      event: tool_call   { tool, input, ts }      # trace 패널용 (호출 시점)
-     event: tool_result { tool, status, summary, elapsed, pages?, parts? }  # trace 패널용 (완료)
+     event: tool_result { tool, status, summary, elapsed, pages?, parts?, a2a_chain_id? }  # trace 패널용 (완료)
+                        # a2a_chain_id = search_insurance_clause·assess_equipment_loan(§04 §19·§20)
+                        #   결과에서만 채워지는 선택 필드 (D113, Sprint 16). 나머지 도구는 이 키 자체가
+                        #   없다(D30 — payload 바이트 무변화). 채팅 화면은 이 값으로 GET /api/a2a/history
+                        #   (§2.9, D114)를 찾아가 InsuQ/FinAllQ 응답 원문을 연다.
                         # pages = 이 결과가 근거로 삼을 수 있는 **PDF 물리 페이지 목록** (D54).
                         #   실 루프는 항상 싣는다(근거 없는 도구·실패 결과는 빈 리스트) —
                         #   인용률 strict 판정(아래 §지표)의 근거 소스. 재생·구 trace 는 키 없음.
@@ -558,6 +564,39 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
    ⓓ **DDL CHECK 2종** — 서명 3필드 완비 · 차단 verdict 는 override=1 필수
       → 코드 버그·콘솔 SQL·마이그레이션으로도 뚫을 수 없다 (`05 §14`)
 ```
+
+### 2.9 A2A 크로스도메인 호출 (`backend/routers/a2a.py`, Sprint 16, D112~D114)
+
+```
+POST /api/a2a/lookup-clause          # InsuQ lookup-clause 스킬 중계 (기존 — Sprint 16 이전 미문서화분 소급 기재)
+  body: { question, session_id?, request_chain_id? }
+  → InsuQ 응답 그대로(+ request_chain_id 강제 주입, MQ-1602) — 200
+  → 504(timeout) · 502(unavailable) · exc.status_code(그 외 A2AClientError, detail 본문)
+
+POST /api/a2a/assess-loan            # FinAllQ assess-loan 스킬 중계 (기존 — Sprint 16 이전 미문서화분 소급 기재, S8)
+  body: { loan_amount, purpose, collateral_building_id, session_id?, request_chain_id? }
+  → FinAllQ 응답 그대로(+ request_chain_id 강제 주입) — 200
+  → 504(timeout) · 502(unavailable) · exc.status_code(그 외)
+
+GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
+  query: skill? · po_id? · building_id? · chain_id? · limit?(기본 50)
+  → { count, items: [{ request_chain_id, skill, session_id, status, request, response, ts }] }
+  #   status 는 record_a2a_trace 가 기록한 값(ok|timeout|unavailable|error) — tool_result 행이
+  #   아직 없으면 null. response 는 tool_result.tool_payload 원문, 파싱 실패 시 {"_parse_error": true}.
+  #   정렬 ts desc, limit 은 필터링 후 적용
+```
+
+- **`request_chain_id` 강제 주입 (MQ-1602)**: 두 POST 엔드포인트는 성공 분기에서 `record_a2a_trace` 호출
+  **직전** `res["request_chain_id"] = chain_id` 를 실행한다 — 파트너가 응답에 이 값을 echo 하지 않아도
+  MCP 도구(§04 §19·§20)가 항상 상관관계 키를 받게 한다.
+- **역할 게이트가 없다** — 셋 다 `require()` 를 호출하지 않는다(기존 두 POST 엔드포인트의 기존 관례를
+  `GET /history` 가 그대로 따름). 감사 이력을 무인증 노출한다는 점은 리뷰 노트로 남아 있다(Sprint 16
+  Stage 1 reviewer 게이트, 비블로커).
+- **`GET /api/chat/{session_id}/trace`(§2.1, D76-2 ⓑ)와 다르다** — 그 경로는 `tool_payload` 를
+  의도적으로 비운다. `GET /api/a2a/history` 는 `tool LIKE 'a2a:%'` 로 대상을 좁힌 대신 그 원문을 연다
+  (D114) — 일반 대화 trace 전체를 노출하지는 않는다.
+- **`GET /api/chat` SSE `tool_result` 의 `a2a_chain_id`(D113, §2.1 참조)** 로 채팅 화면이 이 엔드포인트를
+  찾아가는 상관관계 키를 받는다 — 실시간 스트림엔 키만 흐르고, 구조화된 원문은 이 GET 이 연다.
 
 ---
 

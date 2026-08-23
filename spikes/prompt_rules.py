@@ -251,12 +251,12 @@ def run() -> None:
         else f"env {_ENV_AT_IMPORT!r} 를 스파이크 진입 시 제거함(검사 대상 아님)"
     )
     check(
-        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 6개 고정 (D69·D102)",
+        "⑰ env 미설정 상태에서 RULES 11개 · EXT_RULES 8개 고정 (D69·D102·D112)",
         len(RULES) == 11
-        and len(EXT_RULES) == 6
+        and len(EXT_RULES) == 8
         and os.environ.get("MAINTQ_TOOLS_PROFILE") is None
         and len(CORE_TOOLS) == 7
-        and len(EXT_TOOLS) == 11,
+        and len(EXT_TOOLS) == 13,
         f"RULES={len(RULES)} EXT_RULES={len(EXT_RULES)} "
         f"CORE={len(CORE_TOOLS)} EXT={len(EXT_TOOLS)} · {env_note}",
     )
@@ -271,20 +271,21 @@ def run() -> None:
         f"규칙 누출={ext_rule_leak or '없음'} · 도구명 누출={ext_tool_leak or '없음'}",
     )
 
-    # ── ⑲ 확장 18종 등록 → EXT 규칙 6개 + 각 근거 D 태그
+    # ── ⑲ 확장 20종 등록 → EXT 규칙 8개 + 각 근거 D 태그
     all_tools = [*CORE_TOOLS, *EXT_TOOLS]
     full_prompt = build_system_prompt("iG5A", tool_names=all_tools)
     ext_missing = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] not in full_prompt]
     # 규칙 12=D59·D62·D79 / 13=D65 / 14=D2·S3 / 15=D81·D63·D10 / 16=D101·D102 / 17=D101·D102
+    # 18=신규(D112) / 19=S8·D112
     ext_tags = ("D59", "D62", "D79", "D65", "D2", "S3", "D81", "D63", "D101", "D102")
     tag_missing = [t for t in ext_tags if t not in full_prompt]
-    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15, 16, 17))
+    numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15, 16, 17, 18, 19))
     check(
-        "⑲ tool_names=전체18 → EXT 규칙 6개 + D 태그 전건 · 규칙 번호 12~17",
+        "⑲ tool_names=전체20 → EXT 규칙 8개 + D 태그 전건 · 규칙 번호 12~19",
         not ext_missing
         and not tag_missing
         and numbered
-        and "사용 가능한 도구 (18종)" in full_prompt
+        and "사용 가능한 도구 (20종)" in full_prompt
         and all(t in full_prompt for t in EXT_TOOLS),
         f"규칙 누락={ext_missing or '없음'} · 태그 누락={tag_missing or '없음'} · 번호={numbered}",
     )
@@ -314,14 +315,26 @@ def run() -> None:
 
     # ── ㉑ 부분 등록 — 번호는 위치로 고정된다(규칙 14 만 붙어도 "14.")
     partial = build_system_prompt("iG5A", tool_names=[*CORE_TOOLS, "assess_repair_value"])
-    present = {n: f"\n{n}. " in partial for n in (12, 13, 14, 15, 16, 17)}
+    present = {n: f"\n{n}. " in partial for n in (12, 13, 14, 15, 16, 17, 18, 19)}
     check(
         "㉑ 확장 도구 일부만 등록 → 해당 규칙만 · 번호 밀림 없음",
-        present == {12: False, 13: True, 14: True, 15: False, 16: False, 17: False}
+        present
+        == {
+            12: False,
+            13: True,
+            14: True,
+            15: False,
+            16: False,
+            17: False,
+            18: False,
+            19: False,
+        }
         and "check_disposal_blockers" not in partial
         and "generate_disposal_document" not in partial
         and "track_deadlines" not in partial
         and "assess_risk_grade" not in partial
+        and "search_insurance_clause" not in partial
+        and "assess_equipment_loan" not in partial
         and "규칙 (13개" in partial,
         f"규칙 존재={present} · 헤더 13개={'규칙 (13개' in partial}",
     )
