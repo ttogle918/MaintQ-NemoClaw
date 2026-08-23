@@ -9,7 +9,7 @@ import { Divider, Logo } from "@/components/ui/Chip";
 import { Mono } from "@/components/ui/Mono";
 import { StateBadge } from "@/components/ui/Badge";
 import { ApiError, extractDetail, getPo, submitPo, updatePo, type ApiPo } from "@/lib/api";
-import { isDraftState } from "@/lib/queueState";
+import { isDraftState, stateView } from "@/lib/queueState";
 import { sx } from "@/lib/sx";
 
 /**
@@ -143,10 +143,10 @@ function ReadOnlyCard({ po }: { po: ApiPo }) {
         {(po.unit_price * po.qty).toLocaleString()}원
       </span>
       <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>사유 — {po.reason}</span>
+      {/* 이 카드는 draft 가 아닐 때만 렌더된다(부모의 isDraftState 분기) — 상태 문구는
+          state 리터럴을 직접 비교하지 않고 stateView() 맵 한 곳에서만 가져온다 (D87) */}
       <span style={sx("font:11.5px 'Pretendard';color:var(--dim2)")}>
-        {po.state === "draft"
-          ? "제출 전"
-          : `${po.state === "pending" ? "승인 대기 중" : po.state === "approved" ? "승인됨" : "반려됨"} — draft 상태가 아니므로 이 화면에서 더 이상 수정할 수 없습니다`}
+        {stateView("po", po.state).text} — draft 상태가 아니므로 이 화면에서 더 이상 수정할 수 없습니다
       </span>
     </section>
   );
