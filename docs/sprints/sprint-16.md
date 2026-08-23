@@ -908,3 +908,24 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
 **하지 않는 것(D112 경계)**: 인바운드 A2A 웹훅/콜백 수신, assess-loan→request-withdrawal 자동 체이닝, InsuQ `notify-asset-change` 신설, 실 FinAllQ/InsuQ 코어와의 E2E 성공 경로 검증.
 
 실행: `/stage 1`
+
+---
+
+### Stage 1 완료 (2026-08-23)
+**커밋**: `3a6c558` — `[M4] feat: Sprint 16 Stage 1 — A2A history 읽기 경로 + MCP 도구 2종 신설`
+
+#### MQ-1601 — SSE `a2a_chain_id` + D113·D114
+- `docs/10_DECISIONS.md`(D113·D114 등재) · `backend/sse.py` · `backend/agent/trace.py`
+- 회귀: pytest 83(공식 baseline) · `trace_persist` 17/17 · `sp3_sse_events` 22/22 — D30(바이트 무변화) 확인
+
+#### MQ-1602 — `GET /api/a2a/history` 신설
+- `backend/services/a2a_history.py`(신규) · `backend/routers/a2a.py` · `backend/services/test_a2a_history.py`(신규, 11건) · `backend/routers/test_a2a.py`(chain_id assertion 반영)
+- 회귀: `a2a_identity_contract` 19/19(D76-2 `read_trace` 무변화 확인) · 신규 pytest 포함 98건 통과
+
+#### MQ-1603 — MCP 도구 2종 신설
+- `mcp_server/tools/search_insurance_clause.py`·`assess_equipment_loan.py`(+ 테스트 29건) · `mcp_server/server.py`(full 전용 등록) · `.env.example`
+- 회귀: `mcp_client_contract` 15/15 · `sp2_mcp_roundtrip` 20/20 · `a2a_identity_contract` ⑮ 0건(D15·D93 위반 없음)
+
+**eval-runner 종합**: seed 37 · `sp2_mcp_roundtrip` 20 · `write_tool_contract` 30 · `api_contract` 41 · `sp3_sse_events` 22 · `ruff check` clean. 새 회귀 0건. `tools_profile_contract` 1건 실패는 **예상된 것**(18→20종 카운트 하드코딩, Stage 4/MQ-1611 소관) — 확인 완료, 새 버그 아님.
+
+**reviewer 게이트**: PASS(블로커 없음). 비블로커 노트 2건 — ① `GET /api/a2a/history`에 역할 게이트 없음(기존 두 엔드포인트 관례를 따름, 감사 이력을 무인증 노출한다는 점은 다음 스프린트에서 검토할 만함) ② `mcp_server/server.py:158` 섹션 배너 주석이 "확장 11종"으로 남음(Stage 4에서 함께 정리 예정, 실제 등록 로직엔 무영향).
