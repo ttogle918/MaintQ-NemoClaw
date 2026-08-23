@@ -180,9 +180,9 @@
     </div>
     <div class="tier t-none">
       <h3>손도 안 댐</h3>
-      <p class="sub">코드 자체가 없음</p>
+      <p class="sub">코드 자체가 없음 — 2026-08-24 기준 이 티어는 비었다</p>
       <ul>
-        <li><b>A2A 외부 응답 표시 뷰</b> — frontend 전체를 grep해도 A2A/InsuQ/FinAllQ 관련 코드 0건. 응답은 <code class="inline">traces</code> 테이블과 콘솔 데모 출력에만 남고 화면에 렌더되지 않음</li>
+        <li><s><b>A2A 외부 응답 표시 뷰</b> — frontend 전체를 grep해도 A2A/InsuQ/FinAllQ 관련 코드 0건. 응답은 <code class="inline">traces</code> 테이블과 콘솔 데모 출력에만 남고 화면에 렌더되지 않음</s> — <b>정정(2026-08-24)</b>: Sprint 16 Stage 3(D114)가 이 갭을 이미 메웠다. <code class="inline">/manager/a2a</code> 통합 이력 화면(<code class="inline">A2aHistoryScreen.tsx</code>) · <code class="inline">WithdrawalStatusPanel.tsx</code>(발주 상세 인라인) · <code class="inline">LoanAssessmentHistory.tsx</code>(자산 상세 인라인) · <code class="inline">A2aResultCard.tsx</code>(채팅 내 응답 카드) 4종이 request-withdrawal·lookup-clause·assess-loan 3개 스킬 응답을 전부 렌더한다. 아래 새 부록 섹션 참고</li>
       </ul>
     </div>
   </div>
@@ -302,24 +302,32 @@
           </tr>
           <tr>
             <td class="feat">외부 응답 표시 뷰</td>
-            <td><span class="chip none">없음</span></td>
-            <td class="note">frontend 전체 grep(a2a/A2A/InsuQ/FinAllQ/lookup-clause 등) 결과 실질적 매치 0건. 응답은 <code class="inline">traces</code> 테이블과 스크립트 데모 콘솔 출력에만 남고, 이를 렌더링하는 화면·컴포넌트가 전혀 없음. 이 항목은 이번 갱신에서도 변화 없음 — 여전히 가장 먼 지점.</td>
-            <td class="evi">코드 없음 — <code>frontend/app</code>·<code>components</code> 전수 확인</td>
+            <td><span class="chip done">정정(08-24)·구현됨</span></td>
+            <td class="note"><s>frontend 전체 grep 결과 실질적 매치 0건 ... 이 항목은 이번 갱신에서도 변화 없음 — 여전히 가장 먼 지점.</s> <b>정정(2026-08-24)</b>: 이 판정은 이 감사 시점(2026-08-23) 기준으로도 이미 낡아 있었다 — Sprint 16 Stage 3(D114, 커밋 <code class="inline">7ff38b2</code>)이 <code class="inline">/manager/a2a</code> 통합 이력 화면 + 발주/자산 상세 인라인 패널 + 채팅 결과 카드 4종으로 request-withdrawal·lookup-clause·assess-loan 응답을 전부 렌더하고 있었다. 아래 새 부록 섹션 참고.</td>
+            <td class="evi"><code>frontend/components/screens/A2aHistoryScreen.tsx</code><code>frontend/components/queue/WithdrawalStatusPanel.tsx</code><code>frontend/components/asset/LoanAssessmentHistory.tsx</code><code>frontend/components/chat/A2aResultCard.tsx</code></td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div class="callout" style="border-left-color:var(--crit);background:var(--crit-soft)">
-      <b>S8 assess-loan은 로컬·배포 상관없이 지금 성공 경로(200)를 볼 수 없습니다 — MaintQ 밖의 블로커.</b>
-      A2A_Q 레포 <code class="inline">adapters/finallq_a2a/insuq_client.py</code>에 오늘 날짜로 명시돼 있습니다: assess-loan의 2차 홉인
-      <code class="inline">verify-collateral-insurance</code>를 <b>InsuQ가 아직 구현하지 않았음</b>(501 반환) — FinAllQ 어댑터가 이를 502로 변환해 MaintQ까지 그대로 전파됩니다.
-      InsuQ 어댑터를 로컬에 띄워도, MaintQ를 배포에 올려도 이 스킬 자체가 상대편에 없어서 결과는 같습니다.
-      InsuQ 팀이 해당 엔드포인트를 만들 때까지는 <b>MaintQ·FinAllQ 어댑터 양쪽 다 이미 할 수 있는 걸 다 한 상태</b>입니다.
+    <div class="callout" style="border-left-color:var(--good);background:var(--good-soft)">
+      <b>정정(2026-08-24) — 위 크리티컬 경고는 더 이상 사실이 아니다.</b> S8 assess-loan은 이제
+      실제로 성공 경로(200)를 낸다. FinAllQ가 assess-loan 구현을 공식 A2A_Q 계약대로 재작성하고
+      InsuQ 2차 홉(<code class="inline">verify-collateral-insurance</code>)도 연결한 뒤, MaintQ의
+      실 백엔드(<code class="inline">POST /api/a2a/assess-loan</code>)를 통해 재검증했다:
+      <code class="inline">{"status":"completed","decision":"approved","collateral_check":{"coverage_amount":300000000.0,"sufficient":true},...}</code>.
+      MaintQ 쪽 payload는 원래부터 공식 계약을 따르고 있어 코드 변경이 필요 없었다. 아래 새
+      부록 섹션 참고.
     </div>
-    <div class="callout">
-      <b>종합 A2A 준비도 ≈ 50%.</b> 배관(70%)·요청 빌더(85%) 모두 진전됐지만, 반대편에서 응답을 "보여주는" 화면은 여전히 0%입니다 — 요청은 3개 스킬(S5·lookup-clause·S8) 다 나가는데, 돌아온 응답을 사람이 확인할 방법이 코드 안에 없다는 병목은 그대로입니다.
-      전체 E2E 실 왕복 검증은 아직 <b>"할 수 없음"</b>(S8, InsuQ 미구현)과 <b>"안 해봄"</b>(S5·lookup-clause, 각 실제 코어 백엔드·AI 엔진 필요)이 섞여 있습니다.
+    <div class="callout" style="border-left-color:var(--good);background:var(--good-soft)">
+      <b>정정(2026-08-24) — "종합 A2A 준비도 ≈ 50%"도 더 이상 정확하지 않다.</b> S5(request-withdrawal)도
+      같은 시점에 실 종단간 성공을 확인했다(원인이었던 <code class="inline">error_code: null</code>
+      직렬화 버그를 찾아 고침). 응답 표시 화면도 위에서 정정했듯 이미 존재한다. 아직 남은 진짜
+      갭: (a) lookup-clause는 여전히 자격증명 미설정으로 차단(사람 몫), (b) request-withdrawal의
+      "재무 최종 승인" 이후 콜백/폴링 경로는 여전히 없음(2단 결재 중 1단만 확인됨), (c) assess-loan
+      성공과 request-withdrawal을 자동으로 잇는 코드는 없음(설계상 원래 별개 시나리오).
+      전체 E2E 실 왕복은 이제 <b>S5·S8 둘 다 확인됨</b> — 남은 미검증은 lookup-clause뿐(자격증명
+      대기).
     </div>
   </section>
 
@@ -344,9 +352,9 @@
           </tr>
           <tr>
             <td class="feat">S4 · 담보 대출<br><span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(멀티홉, MaintQ 문서상 S8/assess-loan에 대응)</span></td>
-            <td><span class="chip partial">~40%</span></td>
-            <td class="note">MaintQ→FinAllQ 심사 요청 발신(<code class="inline">assess-loan</code>, 오늘 구현) · FinAllQ↔InsuQ 내부 조정은 MaintQ 책임 밖이라 원래 안 만드는 게 맞음</td>
-            <td class="note"><b>"최종 승인 → 출금 실행"으로 자동으로 잇는 코드가 전혀 없음</b> — <code class="inline">assess_loan</code>·<code class="inline">request_withdrawal</code> 사이에 grep으로 찾아지는 연결고리 0건. 이 대출이 <b>MaintQ의 어떤 엔티티(PO? 자산? 새 개체?)에 귀속되는지 설계 자체가 없음</b>. 게다가 InsuQ의 2차 홉(<code class="inline">verify-collateral-insurance</code>) 자체가 아직 미구현(크로스팀 블로커, 위 8번 섹션 참고)</td>
+            <td><span class="chip done">정정(08-24)·~85%</span></td>
+            <td class="note">MaintQ→FinAllQ 심사 요청 발신(<code class="inline">assess-loan</code>) · <s>FinAllQ↔InsuQ 내부 조정은 MaintQ 책임 밖이라 원래 안 만드는 게 맞음</s> <b>정정(08-24)</b>: FinAllQ가 InsuQ 2차 홉을 실제로 연결해 <code class="inline">decision:"approved"</code>·실 <code class="inline">collateral_check</code> 값까지 나오는 성공 응답을 MaintQ 실 백엔드로 확인함 · 응답 표시도 <code class="inline">LoanAssessmentHistory.tsx</code>·<code class="inline">/manager/a2a</code>로 이미 있음</td>
+            <td class="note"><b>"최종 승인 → 출금 실행"으로 자동으로 잇는 코드가 전혀 없음</b> — <code class="inline">assess_loan</code>·<code class="inline">request_withdrawal</code> 사이에 grep으로 찾아지는 연결고리 0건(이 부분은 여전히 사실 — 별개 시나리오라 설계상 원래 안 이어져 있음). 이 대출이 MaintQ의 어떤 엔티티에 귀속되는지 설계도 여전히 없음. <s>InsuQ의 2차 홉 자체가 아직 미구현</s> — 이건 해소됨(위 정정 참고)</td>
           </tr>
           <tr>
             <td class="feat">S5 · 처분 및 보험 통지</td>
@@ -439,8 +447,91 @@
     </div>
   </section>
 
+  <section>
+    <div class="sec-head"><h2>부록 · 2026-08-24 후속 세션 — A2A 3종 실 E2E 성공 확인 + 문서 템플릿 렌더(D118)</h2><span class="count">위 판정표(2026-08-23)와 A2A 크로스팀 섹션의 여러 항목을 정정한다</span></div>
+    <div class="note-strip">
+      이 부록은 두 축을 다룬다 — <b>① A2A 아웃바운드 스킬의 실 종단간(E2E) 성공을 처음으로
+      확인</b>(위 판정표·크로스팀 섹션의 여러 "블로커"·"~50%" 서술을 무효화한다)과
+      <b>② 사람 승인 문서 템플릿 4종(<code class="inline">data/templates/</code>)의 스코프 결정과
+      그중 2종의 구현</b>. 상세 근거는 <code class="inline">docs/10_DECISIONS.md</code> D118,
+      <code class="inline">docs/sessions/2026-08-24.md</code>·<code class="inline">2026-08-24_finallq_conversion.md</code> 참고.
+    </div>
+    <div class="datatable-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:26%" class="feat"><span class="chip done">✅</span> request-withdrawal(S5) 실 E2E 성공</td>
+            <td class="note">진짜 버그를 찾아 고쳤다 — <code class="inline">backend/a2a/payloads.py</code>가
+            <code class="inline">po.get("error_code", "")</code>를 썼는데, 딕셔너리 키가 있고 값이
+            <code class="inline">None</code>이면 <code class="inline">.get</code>의 default가 적용되지
+            않아 <code class="inline">null</code>이 그대로 나갔다 — A2A_Q 계약·FinAllQ 구현 둘 다
+            <code class="inline">error_code</code>를 널 불가 문자열로 요구해 400
+            (<code class="inline">schema_validation_failed</code>)이 났다.
+            <code class="inline">po.get("error_code") or ""</code>로 수정(<code class="inline">approved_by</code>도
+            같은 함정이라 함께 고침). PO-0118(신규 발주, 화면 직접 생성이라
+            <code class="inline">error_code</code>가 원래 NULL인 케이스)로 재현·재검증: 승인 →
+            자동 dispatch → FinAllQ <code class="inline">status: ok</code>, 실 응답
+            <code class="inline">{"status":"input-required","req_id":"2655","pending_action":"finance-approval"}</code>.
+            커밋 <code class="inline">dcf538b</code>.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip done">✅</span> assess-loan(S8) 실 E2E 성공</td>
+            <td class="note">이전엔 두 겹 블로커(MaintQ/FinAllQ 계약 불일치 + InsuQ 2차 홉
+            미구현)였다. MaintQ는 자체 payload를 공식 A2A_Q 계약(<code class="inline">loan_amount</code>/<code class="inline">purpose</code>/<code class="inline">collateral_building_id</code>)대로
+            유지하기로 하고 FinAllQ의 잠정 스키마를 쫓지 않기로 결정했는데, FinAllQ 세션이 그 방향에
+            맞춰 자기 쪽 구현을 재작성하고 InsuQ 2차 홉도 연결한 뒤 MaintQ의 실 백엔드
+            (<code class="inline">POST /api/a2a/assess-loan</code>)로 재검증해 결과를 공유했다:
+            <code class="inline">{"status":"completed","decision":"approved","collateral_check":{"coverage_amount":300000000.0,"sufficient":true},"request_chain_id":"CHAIN-LOAN-1184e693"}</code>.
+            MaintQ 쪽 코드 변경은 없었다 — 원래부터 계약을 지키고 있었기 때문.</td>
+          </tr>
+          <tr>
+            <td class="feat">lookup-clause — 여전히 차단(변화 없음)</td>
+            <td class="note">서비스 자격증명 미설정으로 정상적으로 차단됨을 재확인 — 코드 결함이
+            아니라 사람이 해야 할 프로비저닝(<code class="inline">TODO_직접할일.md</code>).</td>
+          </tr>
+          <tr>
+            <td class="feat">FinAllQ가 추가 5개 스킬 구현·공유 — MaintQ 쪽은 미착수(의도적)</td>
+            <td class="note">advise-hedge(S6)·advise-financing(S16)·request-settlement(S12)·assess-used-equipment-loan(S13)·advise-replacement-financing(S15,
+            2차 홉 전용)의 요청/응답 계약을 FinAllQ 세션이 크로스세션 메시지로 선제 공유했고 자기
+            쪽(인바운드)은 curl로 검증까지 마쳤다고 밝혔다. 이번 시연 범위가 S5·S8 두 시나리오로
+            이미 확정돼 있어 <b>MaintQ 쪽 아웃바운드 트리거는 시연 이후로 미뤘다</b> —
+            <code class="inline">docs/07_BACKLOG.md</code> P34에 대기열로 기록.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip done">D118</span> 사람 승인 문서 템플릿 4종 스코프 결정 + 2종 구현</td>
+            <td class="note"><code class="inline">data/templates/</code>의 4개 docx 플레이스홀더를
+            실측 추출해 확인: 01(설비이상진단보고서)·02(정비부품발주요청서)·03(자금집행요청서)는
+            MaintQ DB 데이터만으로 채울 수 있어 MaintQ가 렌더하고, 04(담보대출심사회신서)는 LTV
+            임계치·보험 약관 인용·처리 이력 등 MaintQ가 받지도 않는 필드가 대부분이고 문서 자체가
+            "회신 시스템: FinAllQ"로 못박혀 있어 <b>MaintQ 구현 대상에서 제외</b>(FinAllQ 저장소
+            권고). 이번 세션에 01·02를 구현·배선 완료: <code class="inline">backend/services/po_documents.py</code>(렌더
+            함수, <code class="inline">generate_disposal_document.py</code>와 같은 "저장 안 함·조회
+            시점 렌더" 패턴) · <code class="inline">data/korean_number.py</code>(금액→한글 표기) ·
+            <code class="inline">GET /api/po/{po_id}</code> 응답에 <code class="inline">documents_preview.{po_request,diagnosis}</code>로
+            노출 · 매니저(<code class="inline">PoDetail.tsx</code>)·기술자(<code class="inline">technician/po/[poId]/page.tsx</code>)
+            양쪽에 접힌 미리보기로 삽입. PO-0117(iG5A OHT 진단)·PO-0118 실측으로 금액·재고 판정·대체품·근거자료
+            정확성 검증. 03(자금집행요청서)은 예산/일일한도/FDS/SoD 같은 내부통제 판정 로직이
+            현재 스키마에 전혀 없고, 템플릿상 재무부 승인이라는 3번째 결재 단계도 MaintQ PO 플로우에
+            없어 <b>보류</b> — 착수 전 사용자 확인이 필요하다고 D118에 명시.</td>
+          </tr>
+          <tr>
+            <td class="feat">검증 방식 — 라이브 서버 대신 직접 함수 호출 + 격리 TestClient</td>
+            <td class="note"><code class="inline">backend.main:app</code>의 라이브 HTTP 서버가 이
+            세션 내내 원인 불명의 hang을 반복해서(DB 조회 엔드포인트 전부 무응답, 라우터·MCP·
+            CORS·DNS·포트·프로세스 잔존을 전부 배제했는데도 재현 — 다른 세션의 동시 접근이
+            부분적 설명이었으나 그게 끝난 뒤에도 재현돼 유일한 원인은 아니었음), 01·02 문서 렌더
+            기능 검증은 <code class="inline">get_po()</code> 직접 함수 호출과 격리 Postgres 스키마
+            기반 <code class="inline">TestClient</code>(<code class="inline">spikes/api_contract.py</code>)로
+            대체했다. <code class="inline">ui_honesty_contract</code> 291/291(회귀 없음)·<code class="inline">tsc --noEmit</code>·<code class="inline">next
+            build</code>(21라우트 무변화)는 정상 통과. 근본 원인은 다음 세션 과제로 남는다.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>. <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했습니다 — 아래 새 섹션 참고, 이 최신 push 해시는 그 갱신 이전 값입니다.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>. <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했고, <strong>같은 날 두 번째 후속 세션</strong>이 A2A 3종(S5·S8·lookup-clause) 실 E2E 확정과 문서 템플릿 렌더(D118)를 위 새 부록으로 추가했습니다 — 위 판정표·크로스팀 섹션의 "블로커"·"~50%"류 서술은 그 부록 기준으로 정정된 것으로 읽으십시오. 이 최신 push 해시는 이 갱신들 이전 값입니다.</div>
   </div>
 
 </div>

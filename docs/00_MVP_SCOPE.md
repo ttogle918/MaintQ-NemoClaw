@@ -97,12 +97,15 @@
   D112)도 읽기 전용, 프로파일 게이트 **D69**)
   - ⚠ **쓰기 도구는 3종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
     `create_repair_record`(§16, Sprint 9 신설, D98). 셋 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81·D98)
-- **SQLite 목업 DB** (**23절·실제 테이블 24개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
+- **Postgres DB** (**23절·실제 테이블 24개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
   UI목업 1(`part_lifecycle_mock`, Sprint 10) + F5·F6 4(`deadlines`·`incidents`·`ownership_checks`·
-  `risk_profile`, Sprint 11, D102). 실측: `data/seed.py` 의 `CREATE TABLE` **24개**) + 벡터스토어(매뉴얼) +
-  `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`)
+  `risk_profile`, Sprint 11, D102). 실측: `data/seed.py` 의 `CREATE TABLE` **24개**) + pgvector(매뉴얼
+  임베딩, `manual_chunks`, D117) + `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`).
+  ⚠ **D27이 정한 SQLite는 Sprint 16(D116, 2026-08-23)에서 Postgres로 전환됐다** — 로컬은 Docker
+  Compose(`docker-compose.yml`, pgvector/pgvector:pg15)로 띄운다
 - **UI 2종**: 정비사 진단 콘솔(화면 A) / 팀장 승인 큐(화면 B) (`03_WIREFRAME`)
-- **환경**: uv + venv, Docker는 MVP 제외 (**D27**)
+- **환경**: uv + venv + Docker(로컬 Postgres 컨테이너 필수, D116) — D27의 "Docker는 MVP 제외"는
+  SQLite 시절 전제였고 Postgres 전환으로 무효화됐다
 
 ## 시나리오 (도구 오케스트레이션 4패턴)
 

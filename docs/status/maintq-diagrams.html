@@ -519,18 +519,23 @@ flowchart LR
   sel --> detail["PoDetail · /manager/po/{poId}"]
   detail --> ev["EvidenceCard<br/>reason 한 줄 + evidence"]
   detail --> sup["SupplierCompare<br/>리드타임 · 단가 · MOQ"]
+  detail --> wd["WithdrawalStatusPanel ★<br/>D114 — A2A request-withdrawal 상태 배지"]
+  detail --> doc["DocumentPreview ×2 ★<br/>D118 — 진단보고서·발주요청서 접힌 미리보기"]
   ev --> trace{{"실행 로그 보기"}}
   trace --> tp["/manager/trace/{sessionId}<br/>도구 호출 전체 재생"]
   ev --> bar["DecisionBar"]
   sup --> bar
   bar --> ok{{"승인"}}
   bar --> no{{"반려 + 사유"}}
+  ok -.->|"배경에서 자동 발신 (2026-08-24 실 성공 확인)"| a2a["dispatch_a2a_withdrawal_request<br/>→ FinAllQ request-withdrawal"]
 
   classDef act fill:#E4ECFA,stroke:#1957C2,color:#0F3E90;
+  classDef fresh fill:#E2F3EA,stroke:#1D8A5C,color:#0F3E90;
   class sel,trace,ok,no act;
+  class wd,doc,a2a fresh;
 </pre>
       </div>
-      <figcaption><b>근거가 결정 바로 옆에 있습니다.</b> <code>reason</code>(한 줄 요약, D5)과 <code>evidence</code>(관찰 증상 · 근거 도구 결과 · 비고, D34)가 승인 버튼과 같은 화면에 있고, 더 파고들고 싶으면 실행 로그로 그 세션의 도구 호출 전체를 재생할 수 있습니다(D21).</figcaption>
+      <figcaption><b>근거가 결정 바로 옆에 있습니다.</b> <code>reason</code>(한 줄 요약, D5)과 <code>evidence</code>(관찰 증상 · 근거 도구 결과 · 비고, D34)가 승인 버튼과 같은 화면에 있고, 더 파고들고 싶으면 실행 로그로 그 세션의 도구 호출 전체를 재생할 수 있습니다(D21). ★로 표시한 세 노드는 2026-08-24 세션이 추가한 것입니다 — <code>WithdrawalStatusPanel</code>은 이 화면에서 A2A 응답을 실제로 보여주는 자리(이전 상태 문서가 "표시 뷰 0건"이라 적었던 것은 이미 stale합니다), <code>DocumentPreview</code>는 D118의 설비이상진단보고서·정비부품발주요청서 렌더 미리보기, <code>dispatch_a2a_withdrawal_request</code>는 승인 시 자동 발신되며 이번 세션에 <code>error_code: null</code> 버그를 고친 뒤 로컬 FinAllQ 어댑터 상대로 실 성공(<code>status: ok</code>, <code>input-required</code> 응답)을 확인했습니다.</figcaption>
     </figure>
 
     <figure style="margin-top:26px">
@@ -924,6 +929,8 @@ flowchart LR
           <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
           <tr><td><b>SQLite → Postgres 전환 (Sprint 16, D116)</b></td><td class="mono">backend/db.py · mcp_server/db.py(Postgres 전용, DB_PATH override) · data/dbcompat.py(sqlite3 호환 계층) · data/pg_isolation.py(스파이크 격리 스키마) · scripts/postgres_guards.sql(D10 영구 트리거+세션 GUC, <b><code>SET LOCAL</code></b>)</td></tr>
           <tr><td><b>RAG dense 임베딩 (Sprint 16, D117)</b></td><td class="mono">mcp_server/dense_scorer.py(DenseScorer 구현) · data/external/nvidia_embed.py(NVIDIA API 클라이언트, 캐시 <code>data/cache/embeddings/</code>) · scripts/migrate_vectors.py(코퍼스 색인) · Postgres <code>manual_chunks</code> 테이블(pgvector, scripts/postgres_schema.sql §24)</td></tr>
+          <tr><td><b>A2A 아웃바운드 실 성공 (2026-08-24)</b></td><td class="mono">backend/a2a/payloads.py(<code>error_code</code>·<code>approved_by</code> None→"" 수정) · backend/services/po.py <code>dispatch_a2a_withdrawal_request()</code> · frontend/components/queue/WithdrawalStatusPanel.tsx(D114, 응답 표시)</td></tr>
+          <tr><td><b>문서 렌더 01·02 (D118, 2026-08-24)</b></td><td class="mono">backend/services/po_documents.py(진단보고서·발주요청서 렌더) · data/korean_number.py(한글 금액) · backend/services/po.py <code>get_po()</code>(error_codes·part_alternatives JOIN) · frontend/components/queue/DocumentPreview.tsx</td></tr>
         </tbody>
       </table>
     </div>

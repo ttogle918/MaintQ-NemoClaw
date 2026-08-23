@@ -858,9 +858,14 @@
         <p>DB 자체를 Postgres로 옮겼고(pgvector 확장 포함), 새 테이블 <code>manual_chunks</code>(2,048차원 임베딩)를 더해 RAG 검색이 키워드+dense 하이브리드로 동작합니다. 코퍼스 임베딩은 <code>nvidia/nemotron-3-embed-1b</code>(NVIDIA API)로 계산 — 아래 note 참고, 기존 3분류(실제/생성/앞으로) 어디에도 깔끔히 안 들어맞는 새 데이터 유형입니다.</p>
       </div>
       <div class="step">
+        <div class="sn">완료</div>
+        <h4>A2A 아웃바운드 실 성공 + 문서 렌더 01·02 (2026-08-24, D118)</h4>
+        <p><code>request-withdrawal</code>(S5)·<code>assess-loan</code>(S8)이 로컬 FinAllQ 어댑터 상대로 처음 <b>진짜 성공 응답</b>을 받았습니다 — <code>request-withdrawal</code>은 <code>error_code: null</code>이 그대로 나가던 버그를 고쳤고, <code>assess-loan</code>은 FinAllQ 쪽 계약 재작성 + InsuQ 2차 홉 구현으로 풀렸습니다(MaintQ 쪽 payload는 무변경). 별도로 <code>data/templates/</code> 사람 승인 문서 4종을 실측해 D118로 스코프를 정하고, 01(진단보고서)·02(발주요청서)를 <code>po_drafts</code>·<code>error_codes</code>·<code>part_alternatives</code>(신규 데이터 없이 기존 테이블만 소비) 기반으로 실제 렌더·배선했습니다. 03(자금집행요청서)은 내부통제 판정 데이터가 스키마에 없어 보류, 04(담보대출심사회신서)는 FinAllQ/InsuQ 전용 데이터라 MaintQ 범위에서 제외했습니다.</p>
+      </div>
+      <div class="step">
         <div class="sn">다음</div>
-        <h4>백로그 — 화면 직접 초안 생성</h4>
-        <p>남은 것은 화면에서 발주서·처분서·수리증빙을 직접 만들고 고치는 구조(P39)뿐입니다 — 새 D-결정이 필요한 설계 변경입니다.</p>
+        <h4>백로그 — 자금집행요청서(03) 내부통제 로직 + FinAllQ 추가 5스킬</h4>
+        <p>03은 예산/일일한도/FDS/겸직금지 판정 로직 설계와 재무부 승인 단계 신설 여부 결정부터 필요합니다. FinAllQ가 curl 검증까지 마친 추가 A2A 스킬 5종(advise-hedge 등)의 MaintQ측 아웃바운드 트리거는 <code>07_BACKLOG.md</code> P34에 대기열로 남아 있습니다(이번 시연 우선순위 아님).</p>
       </div>
     </div>
     <div class="note warn" style="margin-top:14px">
