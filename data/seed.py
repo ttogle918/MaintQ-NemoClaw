@@ -177,9 +177,11 @@ CREATE TABLE inventory (
 );
 
 CREATE TABLE suppliers (
-  supplier_id  TEXT PRIMARY KEY,
-  name         TEXT NOT NULL,
-  contact      TEXT
+  supplier_id    TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  contact        TEXT,
+  account_number TEXT,
+  bank_code      TEXT
 );
 
 CREATE TABLE supplier_parts (
@@ -508,11 +510,12 @@ USERS = [
 ]
 
 SUPPLIERS = [
-    ("SUP-A", "에이스산전", "02-555-0101 / sales@acesanjeon.example"),
-    ("SUP-B", "비전파츠", "031-777-0202 / order@visionparts.example"),
-    ("SUP-C", "대한전기자재", "051-333-0303 / cs@daehan-elec.example"),
-    ("SUP-D", "한빛오토메이션", "032-999-0404 / help@hanbit-auto.example"),
+    ("SUP-A", "에이스산전", "02-555-0101 / sales@acesanjeon.example", "110-384-928103", "088"),  # 신한은행
+    ("SUP-B", "비전파츠", "031-777-0202 / order@visionparts.example", "302-8491-0294-11", "011"),  # 농협
+    ("SUP-C", "대한전기자재", "051-333-0303 / cs@daehan-elec.example", "029-21-0849201", "004"),   # 국민은행
+    ("SUP-D", "한빛오토메이션", "032-999-0404 / help@hanbit-auto.example", "1002-941-839201", "020"),  # 우리은행
 ]
+
 
 # (part_no, name, category, compatible_models, discontinued)
 PARTS: list[tuple[str, str, str, list[str], int]] = [
@@ -1303,7 +1306,7 @@ def seed_masters(con: sqlite3.Connection) -> None:
         # 없는 부품에 실품번이 달려 있으면 조용히 버려진다 — 조사 결과가 사라지는 셈이다
         sys.exit(f"[중단] MFR_PART_NO 가 존재하지 않는 part_no 를 가리킨다: {unknown}")
 
-    con.executemany("INSERT INTO suppliers VALUES (?,?,?)", SUPPLIERS)
+    con.executemany("INSERT INTO suppliers VALUES (?,?,?,?,?)", SUPPLIERS)
     con.executemany(
         "INSERT INTO parts VALUES (?,?,?,?,?,?,?)",
         [
