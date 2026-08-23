@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaintQ 기능 구현 감사</title>
+<style>
+  :root {
+    --bg: #F2F4F7; --bg-panel: #FFFFFF; --bg-sunken: #E8EBEF;
+    --ink: #161A21; --ink-dim: #545F6E; --ink-faint: #838EA0;
+    --border: #DBE0E7; --border-soft: #E9ECF1;
+    --accent: #1957C2; --accent-ink: #0F3E90; --accent-soft: #E4ECFA;
+    --good: #1D8A5C; --good-soft: #E2F3EA;
+    --warn: #B4700D; --warn-soft: #FAF0DC;
+    --mock: #A6560F; --mock-soft: #FBEBDC;
+    --crit: #BC3B31; --crit-soft: #FAE6E3;
+    --font-display: -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", Pretendard, Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "D2Coding", Consolas, "Segoe UI Mono", monospace;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F131A; --bg-panel: #161B23; --bg-sunken: #10141B;
+      --ink: #E8ECF2; --ink-dim: #9AA5B4; --ink-faint: #6B7688;
+      --border: #262E3A; --border-soft: #1E2530;
+      --accent: #6AA1FF; --accent-ink: #9DC0FF; --accent-soft: rgba(106,161,255,0.14);
+      --good: #4FC08C; --good-soft: rgba(79,192,140,0.14);
+      --warn: #E0A23F; --warn-soft: rgba(224,162,63,0.14);
+      --mock: #E8985A; --mock-soft: rgba(232,152,90,0.14);
+      --crit: #E3766B; --crit-soft: rgba(227,118,107,0.14);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F131A; --bg-panel: #161B23; --bg-sunken: #10141B;
+    --ink: #E8ECF2; --ink-dim: #9AA5B4; --ink-faint: #6B7688;
+    --border: #262E3A; --border-soft: #1E2530;
+    --accent: #6AA1FF; --accent-ink: #9DC0FF; --accent-soft: rgba(106,161,255,0.14);
+    --good: #4FC08C; --good-soft: rgba(79,192,140,0.14);
+    --warn: #E0A23F; --warn-soft: rgba(224,162,63,0.14);
+    --mock: #E8985A; --mock-soft: rgba(232,152,90,0.14);
+    --crit: #E3766B; --crit-soft: rgba(227,118,107,0.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-display); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header.top {
+    display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: flex-end; justify-content: space-between;
+    padding-bottom: 26px; border-bottom: 1px solid var(--border); margin-bottom: 28px;
+  }
+  .title-block .eyebrow {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 600; margin: 0 0 8px;
+  }
+  .title-block h1 { font-size: clamp(24px, 3.2vw, 32px); margin: 0 0 8px; font-weight: 750; letter-spacing: -0.01em; text-wrap: balance; }
+  .title-block p { margin: 0; color: var(--ink-dim); font-size: 14.5px; max-width: 70ch; }
+  .asof { text-align: right; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  .asof b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+
+  .note-strip {
+    border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 13px 17px;
+    border-radius: 0 9px 9px 0; font-size: 13.5px; color: var(--ink); margin-bottom: 30px;
+  }
+  .note-strip b { font-weight: 680; }
+  .note-strip a { color: var(--accent-ink); }
+
+  /* tri-tier summary */
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 36px; }
+  @media (max-width: 860px) { .tiers { grid-template-columns: 1fr; } }
+  .tier { border-radius: 12px; padding: 18px 20px; border: 1px solid var(--border); background: var(--bg-panel); }
+  .tier::before { content: ""; display: block; width: 34px; height: 4px; border-radius: 4px; margin-bottom: 12px; }
+  .tier.t-done { border-color: color-mix(in srgb, var(--good) 35%, var(--border)); }
+  .tier.t-done::before { background: var(--good); }
+  .tier.t-almost { border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
+  .tier.t-almost::before { background: var(--warn); }
+  .tier.t-none { border-color: color-mix(in srgb, var(--crit) 35%, var(--border)); }
+  .tier.t-none::before { background: var(--crit); }
+  .tier h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 700; }
+  .tier .sub { margin: 0 0 12px; font-size: 12px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .tier ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-dim); }
+  .tier li { margin-bottom: 7px; }
+  .tier li b { color: var(--ink); }
+
+  section { margin-bottom: 40px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sec-head h2 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .sec-head .count { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+
+  .datatable-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 900px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 650; background: var(--bg-sunken); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.group-head td { background: var(--bg-sunken); font-weight: 700; font-size: 12.5px; color: var(--ink-dim); padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.feat { font-weight: 620; width: 22%; }
+  td.note { color: var(--ink-dim); width: 34%; }
+  td.evi { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); width: 26%; }
+  td.evi code { display: block; background: var(--bg-sunken); border: 1px solid var(--border-soft); padding: 2px 6px; border-radius: 5px; margin-bottom: 4px; }
+  td.evi code:last-child { margin-bottom: 0; }
+
+  .chip {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 4px 10px; border-radius: 100px; white-space: nowrap; display: inline-block;
+  }
+  .chip.done { background: var(--good-soft); color: var(--good); }
+  .chip.partial { background: var(--warn-soft); color: var(--warn); }
+  .chip.mock { background: var(--mock-soft); color: var(--mock); }
+  .chip.none { background: var(--crit-soft); color: var(--crit); }
+
+  code.inline {
+    font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-sunken);
+    border: 1px solid var(--border-soft); padding: 1px 5px; border-radius: 5px; color: var(--ink-dim);
+  }
+
+  .callout {
+    border: 1px solid var(--border); border-left: 3px solid var(--warn); background: var(--warn-soft);
+    border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 13.5px; color: var(--ink); margin-top: 16px;
+  }
+  .callout b { font-weight: 700; }
+
+  .footer-strip {
+    display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: center;
+    padding: 18px 22px; border-radius: 10px; background: var(--bg-sunken); border: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-dim); margin-top: 8px;
+  }
+  .footer-strip strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <p class="eyebrow">MaintQ · 구현 상태 감사</p>
+      <h1>8개 핵심 기능, 실제 코드 기준 점검</h1>
+      <p>docs/10_DECISIONS.md·spikes 회귀·seed 데이터를 직접 읽어 판정했습니다. "구현됨"은 실제 로직 + seed/테스트로 동작 확인된 것, "부분구현"은 핵심은 있으나 요청한 범위 일부가 비어 있는 것, "목업만 있음"은 함수 시그니처·TODO뿐인 것입니다.</p>
+    </div>
+    <div class="asof">기준 시점<b>2026-08-23</b> · 최신 갱신<b>2026-08-23</b></div>
+  </header>
+
+  <div class="note-strip">
+    최초 감사는 당시 <code class="inline">po-draft-screen-creation</code> 브랜치의 커밋 안 된 A2A 배관·PO 서비스 변경까지 포함해 점검했습니다.
+    이후 <b>S8(설비 담보 대출 상담) <code class="inline">assess-loan</code> 아웃바운드 트리거를 새로 구현</b>했고,
+    당시 "다른 세션 미커밋 작업"이었던 A2A 클라이언트 배관(<code class="inline">client.py</code>·<code class="inline">auth_header.py</code>·<code class="inline">trace.py</code>)·
+    공급사 계좌 컬럼·A2A 스파이크·Dockerfile을 전부 커밋했습니다(현재 브랜치는 <code class="inline">master</code>). 그 과정에서
+    <code class="inline">spikes/test_elice_stream.py</code>에 <b>평문 JWT API 키</b>가 박혀 있는 것을 발견해 커밋하지 않고
+    <code class="inline">.gitignore</code>에 추가했습니다 — 아래 부록 참고.
+    더 크고 상시 갱신되는 프로젝트 대시보드는 <code class="inline">docs/status/maintq-status.html</code>에 있습니다 — 이 문서는 그것과 별개로, 사용자가 지정한 8개 항목만 좁혀서 다시 확인한 감사 보고서입니다.
+  </div>
+
+  <div class="tiers">
+    <div class="tier t-done">
+      <h3>이미 완성</h3>
+      <p class="sub">6개 대분류 — 회귀·seed로 검증됨</p>
+      <ul>
+        <li><b>에러코드 진단</b> — lookup(exact) × RAG 이원화, 70건 실데이터</li>
+        <li><b>부품→재고→대체품→견적</b> — 4개 도구 전부 DB 연동, 재고 0 시나리오 라이브 검증</li>
+        <li><b>반복 고장 감지</b> — 30일/3회 실 SQL, seed 경계값까지 검증</li>
+        <li><b>안전 경고 자동삽입</b> — 근거 페이지 없이는 발행 자체 거부</li>
+        <li><b>v2 판정/증빙/처분/근거계층</b> — 5개 서브기능 전부 실 로직</li>
+        <li><b>SSE 스트리밍 자체</b> — 4종 이벤트 실발행 + 실시간 타임라인 UI</li>
+      </ul>
+    </div>
+    <div class="tier t-almost">
+      <h3>조금만 더 하면 끝남</h3>
+      <p class="sub">남은 작업이 명확히 좁음</p>
+      <ul>
+        <li><b>화면 직접 PO 초안 생성 UI</b> — 백엔드 도구는 있음, 브랜치 목적인 화면 자체가 아직 없음(직전 커밋은 설계 문서뿐)</li>
+        <li><b>도구 호출 "이유" 필드</b> — SSE에 tool/input만 있고 rationale 없음. 백엔드가 문자열 하나만 추가하면 됨</li>
+        <li><b>A2A 프로토콜/클라이언트</b> — 이제 커밋·테스트 완료(<code class="inline">a2a_identity_contract</code> 19/19). FinAllQ 어댑터 상대 실 HTTP 왕복까지 확인했지만, 인증은 여전히 의도적 스텁이고 InsuQ 쪽은 미검증</li>
+        <li><b>A2A 상담 요청 빌더</b> — request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8)까지 3종</b>이 실데이터 기반으로 동작. 남은 건 실 InsuQ/FinAllQ 서버 연동 확인뿐</li>
+        <li><b>보전지표의 잔가율 곡선</b> — 정률 목업 공식(의도적 고지). 실 감가 데이터가 없다는 한계가 실증돼 있음</li>
+      </ul>
+    </div>
+    <div class="tier t-none">
+      <h3>손도 안 댐</h3>
+      <p class="sub">코드 자체가 없음</p>
+      <ul>
+        <li><b>A2A 외부 응답 표시 뷰</b> — frontend 전체를 grep해도 A2A/InsuQ/FinAllQ 관련 코드 0건. 응답은 <code class="inline">traces</code> 테이블과 콘솔 데모 출력에만 남고 화면에 렌더되지 않음</li>
+      </ul>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>기능별 판정표</h2><span class="count">4개 병렬 조사 · file:line 근거 포함</span></div>
+    <div class="datatable-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:22%">기능</th><th style="width:11%">판정</th><th style="width:34%">한 줄 요약 / 빠진 것</th><th style="width:26%">근거</th></tr>
+        </thead>
+        <tbody>
+          <tr class="group-head"><td colspan="4">1 · 에러코드 진단</td></tr>
+          <tr>
+            <td class="feat">룩업(정의) + RAG(점검절차) 이원화, 근거 인용</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">정의 조회는 (model,code) exact match SQL, 절차는 실 BM25 키워드 스코어러(IDF/TF). error_codes 70건 실데이터, 청크 1,229개.</td>
+            <td class="evi"><code>mcp_server/tools/lookup_error_code.py:59-99</code><code>rag.py:201-239</code><code>data/extracted/error_codes.json</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">2 · 부품 → 재고 → 대체품 → 견적</td></tr>
+          <tr>
+            <td class="feat">재고조회 → 대체품 검색(재고 0 시) → 공급사 견적</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">4개 도구 전부 실 DB 조인. 재고 0 → 대체품 분기는 하드코딩 if가 아니라 프롬프트가 유도하는 도구 오케스트레이션(이 프로젝트의 설계 주제 D1). 라이브 MCP 서버 상대로 <code class="inline">PCB-S100-CTRL</code>(재고0) 시나리오 실검증.</td>
+            <td class="evi"><code>find_alternative_parts.py:14-44</code><code>get_supplier_quotes.py:15-52</code><code>sp2_mcp_roundtrip.py:197-223</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">3 · 발주서(PO) 워크플로우</td></tr>
+          <tr>
+            <td class="feat">초안 생성 → 승인 큐 → 승인/반려, 정비사 403</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note"><code class="inline">create_po_draft</code>는 draft INSERT 전용. 승인/반려는 role 기반 사람 전용 API. 정비사가 approve/reject 시도 시 403, 반대로 팀장이 submit 시도해도 403 — 둘 다 실 TestClient로 검증됨.</td>
+            <td class="evi"><code>routers/po.py:55-87</code><code>services/po.py:26-30,187-209</code><code>spikes/api_contract.py:127-137</code></td>
+          </tr>
+          <tr>
+            <td class="feat">화면에서 직접 PO 초안 생성(현재 브랜치 목표)</td>
+            <td><span class="chip none">없음</span></td>
+            <td class="note">브랜치명·직전 커밋("화면 직접 발주 생성/수정 설계")과 달리 실제 생성 폼 화면은 존재하지 않음. 승인 큐 상세 화면만 있고, 이번 브랜치의 실코드 변경은 A2A 배관(무관 영역)뿐. 직전 커밋은 설계 문서로만 그침.</td>
+            <td class="evi"><code>frontend/app/(console)/manager/po/[poId]/page.tsx</code>(기존 승인뷰뿐)<code>lib/api.ts diff</code>(포트값만 변경)</td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">4 · 반복 고장 감지</td></tr>
+          <tr>
+            <td class="feat">동일 에러 30일 내 3회 → 근본원인 모드</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">임계값 하드코딩(30일/3회) + 실 날짜창 SQL. seed가 경계값(30일 내 2건 vs 3건)까지 검증. 모드 전환 자체는 프롬프트가 <code class="inline">repeated:true</code> 플래그를 보고 유도(도구 오케스트레이션 패턴).</td>
+            <td class="evi"><code>get_error_history.py:12-14,42-116</code><code>data/seed.py:1244-1247</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">5 · 안전 경고 자동삽입</td></tr>
+          <tr>
+            <td class="feat">위험 작업 언급 시 안전 경고 삽입</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">문장 버퍼링 → 위험 키워드 감지 → 근거 페이지 없으면 <b>발행 자체를 거부</b>하는 안티할루시네이션 가드 포함. 알려진 한계: 표면형 키워드 매칭이라 "팬 상태를 점검" 같은 의미 변주는 못 잡음(기존 문서에도 기록된 한계).</td>
+            <td class="evi"><code>backend/agent/loop.py:346-383</code><code>backend/agent/prompts.py:159-174</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">6 · 실행 타임라인 시각화 (SSE)</td></tr>
+          <tr>
+            <td class="feat">SSE 스트리밍(token/tool_call/tool_result/block)</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">실 <code class="inline">StreamingResponse</code>, 4종 이벤트 고정, 순서 불변식(tool_call→tool_result)까지 검증. 프론트도 실 SSE reducer로 라이브 타임라인 렌더 — 재생 모드와 분리돼 있어 라이브를 가장한 목업이 아님.</td>
+            <td class="evi"><code>backend/routers/chat.py:294-298</code><code>backend/sse.py:21-24</code><code>frontend/lib/chatStream.ts</code></td>
+          </tr>
+          <tr>
+            <td class="feat">"도구 호출 이유(rationale)" 필드</td>
+            <td><span class="chip partial">부분구현</span></td>
+            <td class="note"><code class="inline">tool_call</code> 이벤트는 <code class="inline">{tool, input, ts}</code>뿐 — 왜 그 도구를 불렀는지 명시적 문자열이 없음. UI는 도구명+인자에서 암묵적으로만 추론. 프론트 코드에 이 공백이 이미 주석으로 기록돼 있음.</td>
+            <td class="evi"><code>backend/sse.py:42-43</code><code>frontend/lib/trace.ts:30-31</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">7 · v2 기능</td></tr>
+          <tr>
+            <td class="feat">수리/교체/매각 판단</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">상태 전이 + 근거 번들 재계산 + <code class="inline">EvidenceChanged</code>/<code class="inline">OverrideRequired</code> 등 구조화된 409 사유까지 실 로직.</td>
+            <td class="evi"><code>services/decisions.py:727-782</code></td>
+          </tr>
+          <tr>
+            <td class="feat">보전지표(MTBF·예방보전비율 등)</td>
+            <td><span class="chip partial">부분구현</span></td>
+            <td class="note">지표 계산 자체는 실 로직. 다만 구성요소 중 잔가율 곡선은 정률 목업 공식(실 감가 데이터로는 식별 불가함을 의도적으로 실증·고지).</td>
+            <td class="evi"><code>data/deadlines.py:181</code><code>data/risk_grade.py:114</code><code>residual_curve(목업 고지)</code></td>
+          </tr>
+          <tr>
+            <td class="feat">수리 증빙 서명</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">콘텐츠 해시(record_hash) 기반 변조 탐지 + 사람 서명. 읽을 때 재계산해 대조. 단, PKI형 전자서명은 아님 — 범위상 의도적 선택.</td>
+            <td class="evi"><code>backend/services/repairs.py:149-176</code><code>data/repair_hash.py</code></td>
+          </tr>
+          <tr>
+            <td class="feat">처분 조건 검사</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">법령/룰 JSON을 정본으로 하는 실 룰 엔진. 5종 판정(BLOCKED/HOLD/INSUFFICIENT_FACTS/CONDITIONAL/CLEAR) 전부 시드에서 도달 검증.</td>
+            <td class="evi"><code>engine.check_disposal_blockers</code><code>decisions.py:582-622</code></td>
+          </tr>
+          <tr>
+            <td class="feat">근거 3계층(법령/해석/서명)</td>
+            <td><span class="chip done">구현됨</span></td>
+            <td class="note">계층1 법령 원문 해시, 계층2 해석룰 해시, 계층3 사람 서명 — 서명 없는 확정을 DB CHECK로 원천 차단.</td>
+            <td class="evi"><code>decisions.py:228,232</code></td>
+          </tr>
+
+          <tr class="group-head"><td colspan="4">8 · A2A 연결 준비 상태</td></tr>
+          <tr>
+            <td class="feat">프로토콜/클라이언트 배관 (client·auth·trace·router)</td>
+            <td><span class="chip partial">부분구현 · ~70%</span></td>
+            <td class="note">REST 호출·헤더·에러매핑(502/503/504)·trace 저장까지 실동작, 이제 전부 커밋 상태(<code class="inline">a2a_identity_contract</code> 19/19 PASS). FinAllQ 어댑터를 로컬로 띄워 <b>실 HTTP 왕복(502 upstream_unavailable)까지 확인</b>했지만, <code class="inline">auth_header.py</code>는 여전히 문서화된 의도적 스텁이고 InsuQ 어댑터 쪽은 미검증.</td>
+            <td class="evi"><code>backend/a2a/client.py:32-93</code><code>backend/a2a/auth_header.py:19-28</code></td>
+          </tr>
+          <tr>
+            <td class="feat">상담 요청 빌더 (보험/대출 상담 payload)</td>
+            <td><span class="chip partial">부분구현 · ~85%</span></td>
+            <td class="note">request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8, 설비 담보 대출 사전 판정)까지 3종</b>이 실 DB 필드(partner_links, PO 금액, 공급사 계좌) 기반으로 동작하고 라우터에 연결됨. assess-loan은 승인/조건부/거절 사전 판정만 하고 상태 전이를 만들지 않아 승인 게이트 없는 질의형으로 설계.</td>
+            <td class="evi"><code>backend/a2a/payloads.py</code><code>backend/routers/a2a.py</code></td>
+          </tr>
+          <tr>
+            <td class="feat">외부 응답 표시 뷰</td>
+            <td><span class="chip none">없음</span></td>
+            <td class="note">frontend 전체 grep(a2a/A2A/InsuQ/FinAllQ/lookup-clause 등) 결과 실질적 매치 0건. 응답은 <code class="inline">traces</code> 테이블과 스크립트 데모 콘솔 출력에만 남고, 이를 렌더링하는 화면·컴포넌트가 전혀 없음. 이 항목은 이번 갱신에서도 변화 없음 — 여전히 가장 먼 지점.</td>
+            <td class="evi">코드 없음 — <code>frontend/app</code>·<code>components</code> 전수 확인</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <b>종합 A2A 준비도 ≈ 50%.</b> 배관(70%)·요청 빌더(85%) 모두 진전됐지만, 반대편에서 응답을 "보여주는" 화면은 여전히 0%입니다 — 요청은 3개 스킬(S5·lookup-clause·S8) 다 나가는데, 돌아온 응답을 사람이 확인할 방법이 코드 안에 없다는 병목은 그대로입니다.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>부록 · 이번 갱신에서 발견·처리한 것</h2><span class="count">2026-08-23</span></div>
+    <div class="datatable-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:26%" class="feat">S8 assess-loan 트리거 신규 구현</td>
+            <td class="note">TDD로 <code class="inline">build_assess_loan_payload</code> + <code class="inline">POST /api/a2a/assess-loan</code> 추가. 신규 테스트 20건 전부 GREEN, 로컬 A2A_Q FinAllQ 어댑터 상대 실 HTTP 왕복 확인 후 트레이스 테스트 잔재는 정리.</td>
+          </tr>
+          <tr>
+            <td class="feat">다른 세션 미커밋 작업 5건 커밋</td>
+            <td class="note">suppliers 계좌 컬럼 · A2A client/auth_header/trace 구현(선행 커밋된 테스트 75건이 요구하던 프로덕션 코드) · A2A 스파이크 3종(ruff 위반 수정 후 재실행 검증) · Northflank Dockerfile · 이번 .gitignore 수정. 전부 공식 회귀(pytest 83건)와 ruff clean 확인 후 커밋.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip none">보안</span> 평문 JWT 발견</td>
+            <td class="note"><code class="inline">spikes/test_elice_stream.py</code>에 Elice mlapi.run 인증용 JWT가 하드코딩돼 있었음(발견 시점 기준 유효, 만료 2026-08-31). <b>커밋하지 않고</b> <code class="inline">.gitignore</code>에 추가 — CLAUDE.md에 이미 기록된 2026-08-13 평문 유출·히스토리 재작성 사고와 같은 유형이라 재발을 막음. <b>키 폐기/재발급은 사람이 해야 할 일로 남음.</b></td>
+          </tr>
+          <tr>
+            <td class="feat"><code class="inline">.gitignore</code> gap 수정</td>
+            <td class="note"><code class="inline">.env</code> 단독 패턴이 <code class="inline">.env.local</code>을 못 잡던 gap을 발견해 <code class="inline">.env.local</code>·<code class="inline">.env.*.local</code> 패턴 추가(내용 자체는 무해했음 — API 베이스 URL 하나뿐).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="footer-strip">
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 이후 부록에 적은 S8 구현·커밋 정리·보안 발견은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목의 진행 상황을 갱신한 것입니다.</div>
+  </div>
+
+</div>
+</body>
+</html>
