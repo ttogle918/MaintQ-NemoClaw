@@ -1,20 +1,28 @@
 # -*- coding: utf-8 -*-
 """create_po_draft — 발주서 초안 생성 ⚠️ **유일한 쓰기 도구** (docs/04_MCP_TOOLS.md §7).
 
-이 도구가 지키는 경계:
-  D10  state='draft' 로 INSERT만. UPDATE/DELETE 권한 자체가 없다 (db.py 트리거로도 잠금)
-  D23  requested_by·session_id 는 파라미터가 아니다 — 스키마에 없으므로 LLM 이 위조할 수 없다.
-       INSERT 직후 백엔드가 stamp 한다 (D37)
-  D31  unit_price 도 파라미터가 아니다 — supplier_parts 에서 조회한 스냅샷.
-       MOQ 미달 수량은 자동 상향하지 않고 거부한다
-  D33  (model, error_code) 는 둘 다 있거나 둘 다 없거나. 매뉴얼에 없는 코드는 FK 가 거부
-  D34  evidence 로 "어떤 현상을 보고 판단했는지"를 구조화해 남긴다
+**이 파일은 얇은 래퍼다.** 단가 조회·MOQ 검증·에러코드 FK 검증·INSERT는 전부
+`data/po_draft.py`에 있다(P39 축소판, D73·D101 패턴). 화면 쪽 `POST /api/po`
+(`backend/services/po.py`)가 같은 함수를 부른다 — 복제본을 두면 채팅과 화면에서
+같은 입력이 다르게 거부될 수 있다.
+
+이 파일에 남는 것:
+  D10  read_only()로 조회 → draft_writer()로 INSERT. 두 커넥션을 분리해 MCP 프로세스가
+       INSERT 밖의 어떤 것도 못 하게 만든다(트리거는 `mcp_server/db.py`).
+  D23  requested_by·session_id 는 파라미터가 아니다 — 스키마에 없으므로 LLM 이 위조할 수
+       없다. INSERT 시점엔 항상 None(백엔드가 사후 stamp, D37).
+  D80  필수 파라미터에 기본값을 두지 않는다 — 인자 누락은 MCP 스키마가 앞단에서 막는다.
+       urgency만 optional(기본 "normal").
+  스키마 경계 검증(필수값·enum·model/error_code 쌍)은 "산출 로직"이 아니라 이 진입점의
+  몫이라 여기 남는다(`data/po_draft.py`에 옮기지 않는다).
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
+
+from data import po_draft
 
 from ..db import draft_writer, read_only
 
@@ -30,14 +38,6 @@ DESCRIPTION = (
 VALID_MODELS = ("iG5A", "S100", "IE5")
 
 
-def _next_po_id(con: sqlite3.Connection) -> str:
-    row = con.execute(
-        "SELECT po_id FROM po_drafts WHERE po_id LIKE 'PO-%' ORDER BY po_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["po_id"].split("-")[1]) + 1 if row else 1
-    return f"PO-{n:04d}"
-
-
 def create_po_draft(
     part_no: str,
     qty: int,
@@ -48,7 +48,7 @@ def create_po_draft(
     error_code: str | None = None,
     evidence: dict | None = None,
 ) -> dict:
-    # ── 입력 검증 (실패는 전부 status 로, D9)
+    # ── 입력 검증 (실패는 전부 status 로, D9) — 스키마 경계이지 산출 로직이 아니다
     if not part_no or not supplier_id:
         return {
             "status": "error",
@@ -90,66 +90,31 @@ def create_po_draft(
 
     try:
         with read_only() as con:
-            # 단가·MOQ 는 서버가 조회한다 — LLM 이 가격을 지어낼 경로를 없앤다 (D31)
-            quote = con.execute(
-                "SELECT unit_price, moq FROM supplier_parts WHERE supplier_id=? AND part_no=?",
-                (supplier_id, part_no),
-            ).fetchone()
-            if quote is None:
-                return {
-                    "status": "not_found",
-                    "reason": "no_quote",
-                    "message": f"{supplier_id} 는 {part_no} 를 공급하지 않습니다",
-                }
-
-            if code is not None:
-                known = con.execute(
-                    "SELECT 1 FROM error_codes WHERE model=? AND code=?", (model, code)
-                ).fetchone()
-                if known is None:
-                    return {
-                        "status": "error",
-                        "reason": "unknown_error_code",
-                        "message": (
-                            f"{model} 매뉴얼에서 확인되지 않는 코드입니다 ({error_code}). "
-                            "코드 없이 발주하거나 표시부를 재확인하세요."
-                        ),
-                    }
-
-        moq = quote["moq"] or 1
-        if qty < moq:
-            # 자동 상향 금지 — 사람 승인 없이 발주 금액을 키우지 않는다 (D31)
-            return {
-                "status": "error",
-                "reason": "moq_not_met",
-                "message": (
-                    f"{supplier_id} 의 최소 발주 수량은 {moq}개입니다 (요청 {qty}개). "
-                    "수량을 조정하거나 다른 공급사를 선택하세요."
-                ),
-                "moq": moq,
-                "requested_qty": qty,
-            }
-
-        unit_price = quote["unit_price"]
+            result = po_draft.validate_and_price(
+                con,
+                part_no=part_no,
+                qty=qty,
+                supplier_id=supplier_id,
+                model=model,
+                error_code=code,
+            )
+        if result["status"] != "ok":
+            return result
 
         with draft_writer() as con:
-            po_id = _next_po_id(con)
-            con.execute(
-                "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, model, error_code,"
-                " evidence, unit_price, reason, urgency, state)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?, 'draft')",
-                (
-                    po_id,
-                    part_no,
-                    qty,
-                    supplier_id,
-                    model,
-                    code,
-                    json.dumps(evidence, ensure_ascii=False) if evidence else None,
-                    unit_price,
-                    reason.strip(),
-                    urgency,
-                ),
+            po_id = po_draft.next_po_id(con)
+            po_draft.insert_draft(
+                con,
+                po_id=po_id,
+                part_no=part_no,
+                qty=qty,
+                supplier_id=supplier_id,
+                model=model,
+                error_code=code,
+                evidence_json=json.dumps(evidence, ensure_ascii=False) if evidence else None,
+                unit_price=result["unit_price"],
+                reason=reason.strip(),
+                urgency=urgency,
             )
     except sqlite3.IntegrityError as e:
         # FK·CHECK 위반은 계약 위반이므로 그대로 드러낸다 (조용히 넘기지 않는다)
@@ -161,6 +126,6 @@ def create_po_draft(
         "status": "ok",
         "po_id": po_id,
         "state": "draft",
-        "unit_price": unit_price,
-        "total": unit_price * qty,
+        "unit_price": result["unit_price"],
+        "total": result["unit_price"] * qty,
     }
