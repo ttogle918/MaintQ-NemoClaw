@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PoForm } from "@/components/asset/PoForm";
 import { ConsoleFrame, ConsoleHeader, ScreenStack, Spacer } from "@/components/layout/ConsoleFrame";
+import { DocumentPreview } from "@/components/queue/DocumentPreview";
 import { StatusBanner } from "@/components/layout/StatusBanner";
 import { Button } from "@/components/ui/Button";
 import { Divider, Logo } from "@/components/ui/Chip";
@@ -116,7 +117,23 @@ export default function TechnicianPoDetailPage({ params }: { params: { poId: str
               }}
             />
           ) : (
-            <ReadOnlyCard po={po} />
+            <>
+              <ReadOnlyCard po={po} />
+              {po.documents_preview && (
+                <div style={sx("margin-top:14px")}>
+                  <DocumentPreview
+                    title="설비 이상 진단 보고서"
+                    sub="미리보기 — 에러코드 정의·근거를 조회 시점에 렌더한 문안"
+                    text={po.documents_preview.diagnosis}
+                  />
+                  <DocumentPreview
+                    title="정비 · 부품 발주 요청서"
+                    sub="미리보기 — 발주 데이터를 조회 시점에 렌더한 문안"
+                    text={po.documents_preview.po_request}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </ConsoleFrame>

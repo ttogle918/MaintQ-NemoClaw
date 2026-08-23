@@ -195,6 +195,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
                 entry={chosen}
                 evidence={live && detail ? toEvidenceEntries(detail) : EVIDENCE_PO_0117}
                 quotes={live && detail ? toQuotes(detail) : QUOTES_PO_0117}
+                documentsPreview={live && detail ? detail.documents_preview : undefined}
                 onApprove={live ? () => void decide("approve") : undefined}
                 onReject={live ? (reason) => void decide("reject", reason) : undefined}
               />

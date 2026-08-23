@@ -175,7 +175,11 @@ export interface ApiPo {
   created_at: string;
   quotes?: { supplier_id: string; name: string; lead_days: number; unit_price: number; moq: number }[];
   inventory?: { qty: number; safety_stock: number; location: string } | null;
+  alternatives?: { alt_part_no: string; alt_part_name: string; note: string | null }[];
   trace_url?: string | null;
+  /** D118 — 조회 시점 렌더 미리보기(D86). 저장하지 않는다. `diagnosis`는 이 발주가
+   * 에러코드 진단에서 시작하지 않았으면(단종 대체 등) null 이다. */
+  documents_preview?: { po_request: string; diagnosis: string | null } | null;
 }
 
 export interface ApiBasis {

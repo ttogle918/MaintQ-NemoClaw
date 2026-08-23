@@ -5,6 +5,7 @@ import { Mono } from "@/components/ui/Mono";
 import { sx } from "@/lib/sx";
 import type { EvidenceEntry, QueueEntry, SupplierQuote } from "@/lib/types";
 import { DecisionBar } from "./DecisionBar";
+import { DocumentPreview } from "./DocumentPreview";
 import { EvidenceCard } from "./EvidenceCard";
 import { SupplierCompare } from "./SupplierCompare";
 import { WithdrawalStatusPanel } from "./WithdrawalStatusPanel";
@@ -17,12 +18,15 @@ export function PoDetail({
   entry,
   evidence,
   quotes,
+  documentsPreview,
   onApprove,
   onReject,
 }: {
   entry: QueueEntry;
   evidence: EvidenceEntry[];
   quotes: SupplierQuote[];
+  /** D118 — 백엔드가 조회 시점에 렌더한 문서 미리보기. 목업 모드(라이브 아님)에서는 없다 */
+  documentsPreview?: { po_request: string; diagnosis: string | null } | null;
   /** 미지정이면 목업 모드 — 버튼이 아무것도 저장하지 않는다 */
   onApprove?: () => void;
   onReject?: (reason: string) => void;
@@ -46,6 +50,22 @@ export function PoDetail({
       <EvidenceCard entries={evidence} />
       <SupplierCompare quotes={quotes} />
       <WithdrawalStatusPanel poId={entry.id} />
+
+      {documentsPreview && (
+        <>
+          <DocumentPreview
+            title="설비 이상 진단 보고서"
+            sub="미리보기 — 에러코드 정의·근거를 조회 시점에 렌더한 문안"
+            text={documentsPreview.diagnosis}
+          />
+          <DocumentPreview
+            title="정비 · 부품 발주 요청서"
+            sub="미리보기 — 발주 데이터를 조회 시점에 렌더한 문안"
+            text={documentsPreview.po_request}
+          />
+        </>
+      )}
+
       <DecisionBar
         supplierName={recommended?.name ?? ""}
         onApprove={onApprove}
