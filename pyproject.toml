@@ -18,6 +18,11 @@ dependencies = [
     "pypdfium2>=5.9.0",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.51.0",
+    # Postgres
+    "psycopg[binary,pool]>=3.1.0",  # psycopg 3.x with binary & connection pooling
+    "asyncpg>=0.28.0",              # Async Postgres driver (optional)
+    # Vectors (for pgvector)
+    "pgvector>=0.2.1",
 ]
 
 [dependency-groups]
