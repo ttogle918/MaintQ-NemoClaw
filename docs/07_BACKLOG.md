@@ -146,6 +146,16 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 > lookup-clause·assess-loan 3종만, 구 목록 S5·S7·S11~S16 중 나머지 7종은 여전히 보류).
 > P35(차단기 경계)는 `services/po.py:approve()`가 실패를 삼키는 정도로만 부분 달성, 정식 패턴은
 > 아직 없어 계속 열어 둔다.
+>
+> ⚠ **2026-08-24 추가 대기열**: FinAllQ 세션이 크로스세션 메시지로 나머지 5개 스킬(advise-hedge·
+> advise-financing·request-settlement·assess-used-equipment-loan·advise-replacement-financing)의
+> 요청/응답 계약과 curl 검증 결과를 선제 공유해 왔다(`docs/sessions/2026-08-24_finallq_conversion.md`
+> 는 이 메시지를 포함하지 않는다 — 별도 시각의 메시지). 이번 시연 범위가 S5·S8 두 시나리오로
+> 확정돼 있어 **지금은 넘어가고 시연 이후 착수**하기로 FinAllQ 쪽에 회신했다. 착수 시
+> `build_request_withdrawal_payload`·`build_assess_loan_payload`와 같은 패턴
+> (`backend/a2a/payloads.py`) + `routers/a2a.py` 트리거 추가로 대응 가능 — FinAllQ 쪽 스펙은
+> 이미 확보돼 있다. `advise-replacement-financing`은 "InsuQ claim-insurance 이후 2차 홉 전용"
+> 이라 MaintQ 쪽에 그 흐름(InsuQ claim-insurance 호출 지점) 자체가 있는지 먼저 확인할 것.
 
 ---
 
