@@ -61,9 +61,15 @@ def build_request_withdrawal_payload(
         "po_id": po["po_id"],
         "amount": po["unit_price"] * po["qty"],
         "supplier": po.get("supplier_name", po.get("supplier", "")),
-        "approved_by": po.get("decided_by", ""),
+        "approved_by": po.get("decided_by") or "",
         "purpose": po.get("reason", ""),
-        "error_code": po.get("error_code", ""),
+        # A2A_Q 계약(request-withdrawal.json)·FinAllQ 실 구현 둘 다 error_code 를 필수
+        # 문자열로 요구한다(널 불가) — po_drafts.error_code 는 화면에서 직접 만든 발주서라면
+        # NULL 일 수 있다(D111, 진단 없이 만든 PO). `.get(key, default)` 는 키가 아예 없을
+        # 때만 default 를 쓰고 값이 None 이면 그대로 돌려주므로(흔한 함정), 여기서만은
+        # `or` 로 None 도 함께 걸러야 한다 — 실제로 FinAllQ 어댑터가 이 값 때문에
+        # 400(schema_validation_failed)을 낸 것을 실측으로 확인했다.
+        "error_code": po.get("error_code") or "",
         "to_account_number": account_number,
         "to_bank_code": bank_code,
     }
