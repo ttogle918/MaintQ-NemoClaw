@@ -336,9 +336,33 @@ def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
         # 화면 B "실행 로그 전체 보기" 링크 (D21)
         po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
 
-        # D118 — 정비·부품 발주요청서(02) 미리보기. 저장하지 않고 조회 시점에 렌더한다
-        # (D86 과 같은 이유: 문안이 바뀌면 저장본이 조용히 낡는다).
-        po["documents_preview"] = {"po_request": po_documents.render_po_request_document(po)}
+        # 설비이상진단보고서(01, D118) §1·§4 용 — 이미 사람 승인을 거친 error_codes
+        # 정본(D33)에서 severity·causes·actions·manual_page 를 그대로 인용한다.
+        po["error_code_def"] = (
+            dict(ecd)
+            if po.get("model")
+            and po.get("error_code")
+            and (
+                ecd := con.execute(
+                    "SELECT error_name, severity, causes, actions, manual_page"
+                    " FROM error_codes WHERE model = ? AND code = ?",
+                    (po["model"], po["error_code"]),
+                ).fetchone()
+            )
+            else None
+        )
+        if po["error_code_def"]:
+            po["error_code_def"]["causes"] = json.loads(po["error_code_def"]["causes"])
+            po["error_code_def"]["actions"] = json.loads(po["error_code_def"]["actions"])
+
+        # D118 — 발주요청서(02)·진단보고서(01) 미리보기. 저장하지 않고 조회 시점에
+        # 렌더한다(D86 과 같은 이유: 문안이 바뀌면 저장본이 조용히 낡는다).
+        po["documents_preview"] = {
+            "po_request": po_documents.render_po_request_document(po),
+            # 에러코드 진단에서 시작한 발주가 아니면(예: 단종 대체·정기 교체) 진단 보고서
+            # 자체가 성립하지 않는다 — 빈 칸투성이 문서 대신 null 을 준다 (D62).
+            "diagnosis": po_documents.render_diagnosis_document(po) if po["error_code_def"] else None,
+        }
         return po
 
 
