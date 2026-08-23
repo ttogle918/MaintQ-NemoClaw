@@ -189,7 +189,9 @@ def run() -> None:
     )
 
     # ── ⑧ provider 오타 → 실패 (조용히 기본값으로 흘리지 않는다)
-    with env(MAINTQ_LLM_PROVIDER="openai", MAINTQ_LLM_MODEL="x", GEMINI_API_KEY="k"):
+    # ⚠ "openai" 는 더 이상 오타 예시로 못 쓴다 — Elice/실 OpenAI 게이트웨이 진단용으로
+    # PROVIDERS 에 실제로 추가됐다(EliceClient 재사용, base_url="https://api.openai.com").
+    with env(MAINTQ_LLM_PROVIDER="openai_typo", MAINTQ_LLM_MODEL="x", GEMINI_API_KEY="k"):
         try:
             get_client()
             check("⑧ provider 오타 → RuntimeError", False, "예외 없음")

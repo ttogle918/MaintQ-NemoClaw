@@ -389,8 +389,32 @@ def elice_finalize_tool_calls(acc: dict[int, dict]) -> list[ToolUse]:
     return out
 
 
+def _fixup_max_completion_tokens(kwargs: dict, max_tokens: int) -> dict:
+    out = {k: v for k, v in kwargs.items() if k != "max_tokens"}
+    out["max_completion_tokens"] = max_tokens
+    return out
+
+
+def _fixup_reasoning_effort_none(kwargs: dict, _max_tokens: int) -> dict:
+    out = dict(kwargs)
+    out["extra_body"] = {**out.get("extra_body", {}), "reasoning_effort": "none"}
+    return out
+
+
+#: 알려진 모델별 chat/completions 규격 이탈 — (오류 메시지에 전부 포함돼야 하는 부분
+#: 문자열들, 보정 함수) 순서대로 시도한다. 새 모델에서 새 오류가 나오면 여기 한 줄만
+#: 추가하면 된다 — `EliceClient.stream()` 본체는 안 건드린다.
+_ELICE_QUIRK_FIXUPS: list[tuple[tuple[str, ...], object]] = [
+    (("max_tokens", "max_completion_tokens"), _fixup_max_completion_tokens),
+    (("reasoning_effort",), _fixup_reasoning_effort_none),
+]
+
+
 class EliceClient:
-    """Elice 게이트웨이(mlapi.run) 경유 호출 — OpenAI 호환 스트리밍 (D115)."""
+    """OpenAI 호환 스트리밍 클라이언트 — Elice 게이트웨이(mlapi.run, D115) 전용으로
+    만들었지만 규격 자체가 OpenAI 호환이라 `base_url`만 바꾸면 다른 OpenAI 호환
+    제공자(예: 실 OpenAI API — Elice/Gemini 특유의 도구 호출 문제인지 격리 진단할 때)
+    에도 그대로 쓴다. 이름은 최초 용도를 남긴다."""
 
     def __init__(self, model: str, api_key: str, base_url: str, max_tokens: int = 2048) -> None:
         from openai import AsyncOpenAI  # noqa: PLC0415 — 선택적 의존성
@@ -419,22 +443,56 @@ class EliceClient:
         async def gen() -> AsyncIterator[LlmDelta]:
             acc: dict[int, dict] = {}
             finish: str | None = None
-            stream = await client.chat.completions.create(**kwargs)
-            async for chunk in stream:
-                text, frags, chunk_finish = elice_chunk_delta(chunk)
-                if chunk_finish:
-                    finish = chunk_finish
-                if text:
-                    yield ("text", text)
-                for frag in frags:
-                    idx = frag["index"]
-                    cur = acc.setdefault(idx, {"id": frag["id"] or f"call_{idx}", "name": "", "args": ""})
-                    if frag["id"]:
-                        cur["id"] = frag["id"]
-                    if frag["name"]:
-                        cur["name"] = frag["name"]
-                    if frag["arguments"]:
-                        cur["args"] += frag["arguments"]
+            active_kwargs = kwargs
+            yielded_any = False
+            for attempt in range(len(_ELICE_QUIRK_FIXUPS) + 1):
+                try:
+                    stream = await client.chat.completions.create(**active_kwargs)
+                    async for chunk in stream:
+                        text, frags, chunk_finish = elice_chunk_delta(chunk)
+                        if chunk_finish:
+                            finish = chunk_finish
+                        if text:
+                            yielded_any = True
+                            yield ("text", text)
+                        for frag in frags:
+                            idx = frag["index"]
+                            cur = acc.setdefault(
+                                idx, {"id": frag["id"] or f"call_{idx}", "name": "", "args": ""}
+                            )
+                            if frag["id"]:
+                                cur["id"] = frag["id"]
+                            if frag["name"]:
+                                cur["name"] = frag["name"]
+                            if frag["arguments"]:
+                                yielded_any = True
+                                cur["args"] += frag["arguments"]
+                    break
+                except Exception as e:  # noqa: BLE001 — 예외 타입을 특정할 수 없어 메시지로만 판별
+                    # 일부 최신 모델(reasoning 계열, 예: gpt-5.6-luna)은 표준 chat/completions
+                    # 규격과 파라미터가 달라(`max_tokens`→`max_completion_tokens`,
+                    # `reasoning_effort` 필요 등) 모델마다 다르고 목록을 미리 알 방법이 없다.
+                    # Elice 게이트웨이는 상위 제공자 오류를 **원문 그대로**(유효한 JSON이 아닌
+                    # "Upstream error (HTTP N): {원본 JSON}" 텍스트로) 돌려주고, 그것도
+                    # `create()` 호출이 아니라 스트림 본문 순회(`async for`) 도중 나온다(HTTP 200
+                    # 으로 연결을 먼저 연 뒤 본문에 실어 보낸다) — 그래서 정상적인 openai SDK
+                    # 예외 타입으로 잡히지 않는다. `_ELICE_QUIRK_FIXUPS` 에 알려진 오류 메시지
+                    # 패턴별 보정을 순서대로 등록해 두고, 매칭되는 것을 찾으면 그 보정을 적용해
+                    # 재시도한다. **아직 아무 델타도 내보내지 않았을 때만** 재시도한다 — 이미
+                    # 화면에 나간 부분 응답과 재시도 결과가 섞이면 안 된다.
+                    if yielded_any:
+                        raise
+                    fixup = next(
+                        (
+                            f
+                            for needles, f in _ELICE_QUIRK_FIXUPS
+                            if all(n in str(e) for n in needles)
+                        ),
+                        None,
+                    )
+                    if fixup is None:
+                        raise
+                    active_kwargs = fixup(active_kwargs, max_tokens)
             for tool_use in elice_finalize_tool_calls(acc):
                 yield ("tool_use", tool_use)
             yield ("end", finish or "end_turn")
@@ -442,7 +500,7 @@ class EliceClient:
         return gen()
 
 
-PROVIDERS = ("gemini", "anthropic", "elice")
+PROVIDERS = ("gemini", "anthropic", "elice", "openai")
 
 
 def get_client() -> LlmClient:
@@ -474,6 +532,12 @@ def get_client() -> LlmClient:
         api_key = os.environ.get("ELICE_API_KEY", "").strip()
         key_label = "ELICE_API_KEY"
         base_url = os.environ.get("ELICE_LLM_URL", "").strip()
+    elif provider == "openai":
+        # 진단 전용 — Elice/Gemini 특유의 도구 호출 문제(빈 인자 tool_use)인지 격리하려고
+        # 실 OpenAI API 를 직접 붙인다. EliceClient 를 그대로 재사용한다(둘 다 OpenAI 호환).
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        key_label = "OPENAI_API_KEY"
+        base_url = "https://api.openai.com"
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         key_label = "ANTHROPIC_API_KEY"
@@ -490,7 +554,7 @@ def get_client() -> LlmClient:
         )
     if provider == "gemini":
         inner = GeminiClient(model=model, api_key=api_key)
-    elif provider == "elice":
+    elif provider in ("elice", "openai"):
         inner = EliceClient(model=model, api_key=api_key, base_url=base_url)
     else:
         inner = AnthropicClient(model=model, api_key=api_key)
