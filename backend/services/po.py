@@ -21,6 +21,7 @@ from pathlib import Path
 
 from backend import manifest
 from backend.db import connect
+from data import po_draft
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
 ALLOWED_FROM: dict[str, str] = {
@@ -83,6 +84,8 @@ _PO_SELECT = (
 )
 
 
+
+
 def _row_to_po(r: sqlite3.Row) -> dict:
     d = dict(r)
     d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
@@ -111,6 +114,153 @@ def stamp_identity(
             (requested_by, session_id, po_id),
         )
         return cur.rowcount == 1
+
+
+class NotEditableError(Exception):
+    """draft 상태가 아닌 발주 초안을 수정하려는 시도 (`PATCH /api/po/{po_id}`)."""
+
+    def __init__(self, po_id: str, current: str) -> None:
+        self.po_id, self.current = po_id, current
+        super().__init__(
+            f"{po_id} 는 지금 '{current}' 상태라 수정할 수 없습니다 ('draft' 에서만 가능)"
+        )
+
+
+_VALID_MODELS = ("iG5A", "S100", "IE5")
+
+
+def _validate_input(
+    *, part_no: str, qty: int, supplier_id: str, reason: str, urgency: str,
+    model: str | None, error_code: str | None,
+) -> dict | None:
+    """스키마 경계 검증 — `mcp_server/tools/create_po_draft.py`와 의도적으로 같은 체크를
+    반복한다(공유 계층으로 옮기지 않는 이유는 `data/po_draft.py` 모듈 docstring 참고)."""
+    if not part_no or not supplier_id:
+        return {"status": "error", "reason": "invalid_input", "message": "part_no·supplier_id 는 필수입니다"}
+    if not reason or not reason.strip():
+        return {
+            "status": "error", "reason": "reason_required",
+            "message": "reason 은 필수입니다 — 승인자가 판단 근거를 추적할 수 있어야 합니다 (D5)",
+        }
+    if qty < 1:
+        return {"status": "error", "reason": "invalid_input", "message": f"qty 는 1 이상이어야 합니다: {qty}"}
+    if urgency not in ("urgent", "normal"):
+        return {"status": "error", "reason": "invalid_input", "message": f"urgency 는 urgent|normal 이어야 합니다: {urgency!r}"}
+    if (model is None) != (error_code is None):
+        return {"status": "error", "reason": "model_code_pair", "message": "model 과 error_code 는 둘 다 있거나 둘 다 없어야 합니다 (D33)"}
+    if model is not None and model not in _VALID_MODELS:
+        return {
+            "status": "error", "reason": "invalid_model",
+            "message": f"model 은 {' | '.join(_VALID_MODELS)} 이어야 합니다: {model!r}",
+        }
+    return None
+
+
+def quotes_for_part(part_no: str, db_path: Path | None = None) -> list[dict]:
+    """`GET /api/po/quotes/{part_no}` — 발주 초안을 만들기 전 공급사를 고르기 위한 조회.
+    부품·공급사가 없으면 빈 리스트(404 아님 — "없다"는 유효한 조회 결과다, D62)."""
+    with connect(db_path) as con:
+        return po_draft.list_quotes(con, part_no=part_no)
+
+
+def create(
+    *,
+    part_no: str,
+    qty: int,
+    supplier_id: str,
+    reason: str,
+    urgency: str = "normal",
+    model: str | None = None,
+    error_code: str | None = None,
+    evidence: dict | None = None,
+    requested_by: str,
+    db_path: Path | None = None,
+) -> dict:
+    """`POST /api/po` — 화면이 발주 초안을 직접 생성한다(P39 축소판).
+
+    `requested_by`를 생성 즉시 stamp한다 — 채팅 경로(`stamp_identity`)와 달리 2단계가
+    필요 없다. 이 함수를 부르는 요청 자체가 이미 `X-User`를 통과한 신뢰된 백엔드 경로다
+    (D52 태도). 산출 로직은 `data/po_draft.py`에 있다 — MCP 도구(`create_po_draft`)와
+    같은 함수를 쓴다(D73·D101 패턴).
+    """
+    invalid = _validate_input(
+        part_no=part_no, qty=qty, supplier_id=supplier_id, reason=reason,
+        urgency=urgency, model=model, error_code=error_code,
+    )
+    if invalid is not None:
+        return invalid
+
+    code = error_code.upper() if error_code else None
+    try:
+        with connect(db_path) as con:
+            result = po_draft.validate_and_price(
+                con, part_no=part_no, qty=qty, supplier_id=supplier_id, model=model, error_code=code,
+            )
+            if result["status"] != "ok":
+                return result
+
+            po_id = po_draft.next_po_id(con)
+            po_draft.insert_draft(
+                con,
+                po_id=po_id, part_no=part_no, qty=qty, supplier_id=supplier_id,
+                model=model, error_code=code,
+                evidence_json=json.dumps(evidence, ensure_ascii=False) if evidence else None,
+                unit_price=result["unit_price"], reason=reason.strip(), urgency=urgency,
+                requested_by=requested_by,
+            )
+    except sqlite3.IntegrityError as e:
+        return {"status": "error", "reason": "integrity", "message": str(e)}
+
+    return get_po(po_id, db_path) or {}
+
+
+def update(
+    po_id: str,
+    *,
+    part_no: str,
+    qty: int,
+    supplier_id: str,
+    reason: str,
+    urgency: str = "normal",
+    model: str | None = None,
+    error_code: str | None = None,
+    evidence: dict | None = None,
+    db_path: Path | None = None,
+) -> dict:
+    """`PATCH /api/po/{po_id}` — draft 상태에서만 수정. 없으면 KeyError, draft 가
+    아니면 NotEditableError(라우터가 각각 404·409로 매핑). supplier/qty/model/
+    error_code 변경 시 단가·MOQ·에러코드를 재검증해 새 스냅샷을 찍는다(D31 정신 —
+    오래된 단가를 그대로 두지 않는다).
+    """
+    invalid = _validate_input(
+        part_no=part_no, qty=qty, supplier_id=supplier_id, reason=reason,
+        urgency=urgency, model=model, error_code=error_code,
+    )
+    if invalid is not None:
+        return invalid
+
+    code = error_code.upper() if error_code else None
+    with connect(db_path) as con:
+        row = con.execute("SELECT state FROM po_drafts WHERE po_id=?", (po_id,)).fetchone()
+        if row is None:
+            raise KeyError(po_id)
+        if row["state"] != "draft":
+            raise NotEditableError(po_id, row["state"])
+
+        result = po_draft.validate_and_price(
+            con, part_no=part_no, qty=qty, supplier_id=supplier_id, model=model, error_code=code,
+        )
+        if result["status"] != "ok":
+            return result
+
+        po_draft.update_draft(
+            con,
+            po_id=po_id, part_no=part_no, qty=qty, supplier_id=supplier_id,
+            model=model, error_code=code,
+            evidence_json=json.dumps(evidence, ensure_ascii=False) if evidence else None,
+            unit_price=result["unit_price"], reason=reason.strip(), urgency=urgency,
+        )
+    return get_po(po_id, db_path) or {}
 
 
 def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict]:
@@ -158,15 +308,7 @@ def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
         po = _row_to_po(r)
         _attach_print_pages(po)
 
-        po["quotes"] = [
-            dict(q)
-            for q in con.execute(
-                "SELECT sp.supplier_id, s.name, sp.lead_days, sp.unit_price, sp.moq"
-                " FROM supplier_parts sp JOIN suppliers s ON s.supplier_id = sp.supplier_id"
-                " WHERE sp.part_no = ? ORDER BY sp.lead_days",
-                (po["part_no"],),
-            ).fetchall()
-        ]
+        po["quotes"] = po_draft.list_quotes(con, part_no=po["part_no"])
         po["inventory"] = (
             dict(inv)
             if (
@@ -205,3 +347,62 @@ def transition(
                 (target, decided_by, note, po_id),
             )
     return get_po(po_id, db_path) or {}
+
+
+async def dispatch_a2a_withdrawal_request(
+    po_id: str,
+    base_url: str | None = None,
+    db_path: Path | None = None,
+) -> dict | None:
+    """S5: approved 상태의 발주서를 FinAllQ A2A 어댑터(request-withdrawal)로 전송하고 traces에 기록한다."""
+    import os
+    import uuid
+    from backend.a2a.client import call_skill
+    from backend.a2a.payloads import build_request_withdrawal_payload, get_finallq_company_id
+    from backend.a2a.trace import record_a2a_trace
+
+    finallq_url = base_url or os.environ.get("MAINTQ_A2A_FINALLQ_BASE_URL")
+    if not finallq_url:
+        return None
+
+    company_id = get_finallq_company_id(db_path)
+    if not company_id:
+        return None
+
+    po = get_po(po_id, db_path)
+    if not po:
+        return None
+
+    request_chain_id = f"CHAIN-{po_id}-{uuid.uuid4().hex[:8]}"
+    payload = build_request_withdrawal_payload(po, request_chain_id=request_chain_id, db_path=db_path)
+
+    try:
+        res = await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=payload,
+            request_chain_id=request_chain_id,
+            base_url=finallq_url,
+        )
+        record_a2a_trace(
+            session_id=po.get("session_id") or "",
+            skill_id="request-withdrawal",
+            request_payload=payload,
+            response_payload=res,
+            request_chain_id=request_chain_id,
+            status="ok",
+            db_path=db_path,
+        )
+        return res
+    except Exception as exc:
+        record_a2a_trace(
+            session_id=po.get("session_id") or "",
+            skill_id="request-withdrawal",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=request_chain_id,
+            status="error",
+            db_path=db_path,
+        )
+        raise
+
