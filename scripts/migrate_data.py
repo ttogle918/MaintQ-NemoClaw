@@ -22,6 +22,7 @@ TABLES_TO_MIGRATE = [
     "users",
     "parts",
     "suppliers",
+    "supplier_parts",
     "inventory",
     "part_alternatives",
     "assets",
