@@ -874,6 +874,30 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
   - `CLAUDE.md` 의 회귀 절이 이번 스프린트의 정확한 실측치로 갱신됨
   - `git log --oneline -5` 로 이 스프린트의 커밋들이 `[M4]` 접두어(또는 프로젝트가 실제 쓰는 접두어)로 정리돼 있는지 확인 — 커밋 자체는 `/stage` 워크플로우 소관이라 이 태스크는 검증만 한다
 
+### MQ-1614 완료 기록 (2026-08-23)
+
+착수 시점에 이 태스크의 전제(Stage 1~4 결과물 위에서 `ls spikes/*.py` → 전수 실행 → CLAUDE.md
+갱신)가 다른 세션의 SQLite→Postgres 마이그레이션 미완성으로 막혀 있었다 — "코드는 전환됐지만
+접속 가능한 Postgres 가 없는" 상태. 사용자 승인을 받아 로컬 Postgres(Docker)를 띄우고 그
+마이그레이션을 실제로 완성하는 작업으로 범위가 크게 늘었다(D116, `docs/10_DECISIONS.md`).
+
+- **전수 스위트**: 32/33 PASS(재시도 불요, FAIL 0건). `bundle_integrity`(픽스처 DB 변형 7종이
+  전부 `sqlite3.connect()` 직결이라 포팅 규모가 다른 스위트보다 훨씬 커 사용자 승인으로 skip)
+  1건만 미실행 — `docs/sprints/sprint-16-wip.md` 에 다음 세션 진입점 기록.
+- **`CLAUDE.md` 갱신**: 완료 — 실측 기준선 문단(Sprint 16 델타), 스위트별 건수 표
+  (`db_concurrency` 13→7 재설계·`llm_provider_contract` 14→23 D115 반영 누락 정정·
+  `ui_honesty_contract` 271→291 원인 미확정 기록·`a2a_partner_tools_contract` 신규 반영,
+  32→33스위트), D-범위 표기(D1~D110→D1~D116).
+- **seed**: 37/37 PASS(무변경). **pytest**: 83/83 PASS(무변경). **frontend**: `npx next build`
+  성공, 21라우트(무변경 — 이번 스프린트는 프론트에 영향 없음, 앞선 Stage 1~4 가 이미 반영).
+- **`docs/10_DECISIONS.md`**: D116 신설(Postgres 마이그레이션 자체에 대응하는 결정 — D10 가드
+  재구현·`dbcompat`/`pg_isolation` 계층·서브프로세스 `DATABASE_URL` 규칙).
+- **실사고 발견·수정**: `s10_smoke.py`·`sp3_sse_events.py` 가 서브프로세스에 `DATABASE_URL`
+  대신 `MAINTQ_DB`(Postgres 코드가 안 읽는 SQLite 시절 변수)만 넘겨 **공유 `public` 스키마를
+  실제로 오염**시켰다(`decisions`에 `DEC-0001`·`DEC-0002`, `traces`에 72행이 실제로 남는 것을
+  `docker exec ... psql` 로 직접 확인) — 재시드로 정리하고 두 스위트 모두 `pg_isolation` 격리
+  스키마 DSN 을 자식 env 의 `DATABASE_URL` 로 주입하도록 수정, 연속 재실행으로 재발 안 함을 확인.
+
 ---
 
 # 현실성 평가 (tool-builder, 2026-08-23)

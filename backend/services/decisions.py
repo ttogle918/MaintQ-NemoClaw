@@ -564,7 +564,14 @@ def _repair_history(con: sqlite3.Connection, asset_id: str) -> tuple[list[dict],
             "verified_by": r["verified_by"],
         }
         history.append(item)
-        hits = [p for p in parts if p in critical_parts]
+        # parts 원소는 두 형태가 섞여 있다 — 옛 시드 데이터는 순수 문자열
+        # (data/seed.py), 실제 create_repair_record 도구는 {"part_no": "..."} 객체를
+        # 저장한다(mcp_server/tools/create_repair_record.py). Postgres 마이그레이션과
+        # 무관한 기존 버그(문자열만 가정해 `p in critical_parts` 가 dict 에서
+        # unhashable 로 죽는다)를 이번에 처음 실제로 밟아 발견했다 — 두 형태를 모두
+        # 받아들이도록 최소 방어만 추가한다.
+        part_nos = [p if isinstance(p, str) else p.get("part_no") for p in parts]
+        hits = [p for p in part_nos if p in critical_parts]
         if hits:
             # `12 §8` — 핵심부품 갱신 내역은 **가격에 직접 영향**을 주므로 별도 절로 뽑는다.
             renewals.append(

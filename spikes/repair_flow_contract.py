@@ -37,6 +37,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
 sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
+
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
+
 
 # 백엔드 기동 시 MCP 서브프로세스를 띄우지 않는다 — 이 스위트는 REST 5경로만 보고
 # (D73 이 증명하려는 바가 바로 "MCP 없이도 200") `create_repair_record` 는 함수로 직접 부른다.
@@ -62,7 +71,7 @@ def check(name: str, ok: bool, detail: str) -> None:
 
 
 def repair_count(db: Path) -> int:
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         return int(con.execute("SELECT count(*) FROM repair_records").fetchone()[0])
     finally:
@@ -107,7 +116,7 @@ def run_tool_axis(db: Path) -> str:
         )
 
         repair_id = res.get("repair_id")
-        con = sqlite3.connect(db)
+        con = _open(db)
         con.row_factory = sqlite3.Row
         row = con.execute(
             "SELECT * FROM repair_records WHERE repair_id=?", (repair_id,)
@@ -178,7 +187,11 @@ def run_tool_axis(db: Path) -> str:
 
 def run_rest_axis(db: Path) -> None:
     """MQ-908 5경로 — `core` 프로파일(기본값)에서 실제로 200 을 확인 (D73)."""
-    os.environ["MAINTQ_DB"] = str(db)
+    if dbcompat.USE_POSTGRES:
+        import backend.db as backend_db  # noqa: PLC0415
+        backend_db.DB_PATH = db
+    else:
+        os.environ["MAINTQ_DB"] = str(db)
 
     from fastapi.testclient import TestClient  # noqa: PLC0415
 
@@ -240,7 +253,11 @@ def run_rest_axis(db: Path) -> None:
 def run_repair_flow_rest_axis(db: Path) -> None:
     """`/api/repairs/*` REST 왕복 (MQ-909) — draft→submit→sign, self_sign 409, 재서명 409,
     reject 사유 필수, 서명 후 `n_repairs_signed` +1."""
-    os.environ["MAINTQ_DB"] = str(db)
+    if dbcompat.USE_POSTGRES:
+        import backend.db as backend_db  # noqa: PLC0415
+        backend_db.DB_PATH = db
+    else:
+        os.environ["MAINTQ_DB"] = str(db)
 
     import mcp_server.db as mcp_db  # noqa: PLC0415
 
@@ -373,29 +390,52 @@ def main() -> None:
         "수리 증빙 흐름 (MQ-913) — create_repair_record 직접 검증 + MQ-908 5경로(core) "
         "+ MQ-909 REST 왕복(submit→sign→reject)\n"
     )
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+    if dbcompat.USE_POSTGRES:
+        before = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL).execute(
+            "SELECT count(*) FROM repair_records"
+        ).fetchone()[0]
+    else:
+        before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
 
+    schema = None
     with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "repair_flow.db"
-        shutil.copy2(SOURCE_DB, db)
-        for side in ("-wal", "-shm"):
-            src = SOURCE_DB.with_name(SOURCE_DB.name + side)
-            if src.exists():
-                shutil.copy2(src, db.with_name(db.name + side))
+        if dbcompat.USE_POSTGRES:
+            schema, db = pg_isolation.create_isolated_schema("repair_flow")
+        else:
+            db = Path(td) / "repair_flow.db"
+            shutil.copy2(SOURCE_DB, db)
+            for side in ("-wal", "-shm"):
+                src = SOURCE_DB.with_name(SOURCE_DB.name + side)
+                if src.exists():
+                    shutil.copy2(src, db.with_name(db.name + side))
 
-        run_tool_axis(db)
-        run_rest_axis(db)
-        run_repair_flow_rest_axis(db)
+        try:
+            run_tool_axis(db)
+            run_rest_axis(db)
+            run_repair_flow_rest_axis(db)
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
-    after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    check(
-        "실 DB mtime·size 불변 (사본만 썼다는 증거)",
-        before == after,
-        f"{'불변' if before == after else f'{before} → {after}'}",
-    )
+    if dbcompat.USE_POSTGRES:
+        after = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL).execute(
+            "SELECT count(*) FROM repair_records"
+        ).fetchone()[0]
+        check(
+            "실 DB(공유 Postgres) repair_records 행 수 불변 (사본만 썼다는 증거)",
+            before == after,
+            f"{before} → {after}",
+        )
+    else:
+        after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        check(
+            "실 DB mtime·size 불변 (사본만 썼다는 증거)",
+            before == after,
+            f"{'불변' if before == after else f'{before} → {after}'}",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))

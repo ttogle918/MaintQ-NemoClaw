@@ -51,8 +51,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
 
 SOURCE_DB = ROOT / "data" / "maintq.db"
+_ENV_KEY = "DATABASE_URL" if dbcompat.USE_POSTGRES else "MAINTQ_DB"
+_pg_schemas: list[str] = []  # 만든 격리 스키마 — main() 끝에서 한꺼번에 정리
 
 results: list[tuple[str, bool, str]] = []
 
@@ -153,8 +156,23 @@ def copy_db(src: Path, dst: Path) -> Path:
     return dst
 
 
-def make_loaded(td: Path) -> Path:
-    """error_codes 에 정상 코드 1건(iG5A/OHT)을 넣은 사본."""
+def make_loaded(td: Path):
+    """error_codes 에 정상 코드 1건(iG5A/OHT)을 넣은 사본(SQLite)/격리 스키마(Postgres)."""
+    if dbcompat.USE_POSTGRES:
+        schema, dsn = pg_isolation.create_isolated_schema("s4_loaded")
+        _pg_schemas.append(schema)
+        con = dbcompat.connect_dsn(dsn)
+        con.execute(
+            "INSERT OR REPLACE INTO error_codes"
+            " (model, code, display_code, error_name, severity,"
+            "  causes, actions, related_parts, manual_page)"
+            " VALUES ('iG5A','OHT','OHt','인버터 과열','warning',"
+            "         '[\"냉각 불량\"]','[\"냉각팬 점검\"]','[\"FAN-IG5-01\"]',202)"
+        )
+        con.commit()
+        con.close()
+        return dsn
+
     db = copy_db(SOURCE_DB, td / "loaded.db")
     con = sqlite3.connect(db)
     # OR REPLACE — iG5A 매핑 승인(2026-07-28) 후로는 복사한 실 DB 에 이미 (iG5A, OHT) 가
@@ -172,8 +190,15 @@ def make_loaded(td: Path) -> Path:
     return db
 
 
-def make_empty(td: Path) -> Path:
-    """error_codes 0행 사본 — D50 승인 게이트 상태 (⑨)."""
+def make_empty(td: Path):
+    """error_codes 0행 사본(SQLite)/격리 스키마(Postgres) — D50 승인 게이트 상태 (⑨)."""
+    if dbcompat.USE_POSTGRES:
+        # clone_data=False — public 을 복제하면 기존 error_codes 70행이 섞여 들어와
+        # "0행" 전제가 깨진다. 스키마만 갓 적용한 빈 상태가 필요하다.
+        schema, dsn = pg_isolation.create_isolated_schema("s4_empty", clone_data=False)
+        _pg_schemas.append(schema)
+        return dsn
+
     db = copy_db(SOURCE_DB, td / "empty.db")
     con = sqlite3.connect(db)
     # 실 DB 는 이제 65행(iG5A 매핑 승인, 2026-07-28)이지만, 이 테스트는 승인 전 D50
@@ -192,7 +217,7 @@ async def run_all(db_loaded: Path, db_empty: Path) -> None:
     from backend.agent.trace import read_trace
 
     # ── loaded DB (error_codes 적재됨) — 정상 흐름 검사 ①~⑧ ────────────────
-    client = McpClient(env={"MAINTQ_DB": str(db_loaded)})
+    client = McpClient(env={_ENV_KEY: str(db_loaded)})
     started = await client.start()
     if not started:
         check("MCP 서버 기동", False, client.start_error or "start() 실패")
@@ -274,7 +299,7 @@ async def run_all(db_loaded: Path, db_empty: Path) -> None:
         await client.stop()
 
     # ── empty DB (error_codes 0행) — D50 재현 검사 ⑨ ──────────────────────
-    client2 = McpClient(env={"MAINTQ_DB": str(db_empty)})
+    client2 = McpClient(env={_ENV_KEY: str(db_empty)})
     started2 = await client2.start()
     if not started2:
         check("⑨ D50 (empty DB 기동)", False, client2.start_error or "start() 실패")
@@ -304,35 +329,51 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("MQ-311 — S4 관통 스모크 (run_turn in-process · ScriptedClient · 실 MCP)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 없음 — data/seed.py 를 먼저 실행하세요")
 
-    # DB 안전 게이트: 실 DB 는 절대 안 바뀐다 (DoD).
-    before = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
-    print(f"data/maintq.db mtime(before) = {before[0]:.6f}, size={before[1]}\n")
+    # DB 안전 게이트: 실 DB 는 절대 안 바뀐다 (DoD). Postgres 는 파일이 아니라 공유
+    # public 스키마의 error_codes 행수로 같은 걸 본다.
+    if dbcompat.USE_POSTGRES:
+        _c = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        before = _c.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        _c.close()
+        print(f"공유 Postgres error_codes(before) = {before}행\n")
+    else:
+        before = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
+        print(f"data/maintq.db mtime(before) = {before[0]:.6f}, size={before[1]}\n")
 
     # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
     # 정리 실패가 계약 검증 결과를 가리지 않게 한다 (rules_db_load.py 선례)
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         db_loaded = make_loaded(Path(td))
         db_empty = make_empty(Path(td))
-        # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
-        prev = os.environ.get("MAINTQ_DB")
-        os.environ["MAINTQ_DB"] = str(db_loaded)
-        print(f"[격리] MAINTQ_DB(loaded) = {db_loaded}")
-        print(f"[격리] MAINTQ_DB(empty)  = {db_empty}\n")
+        prev = os.environ.get(_ENV_KEY)
+        if not dbcompat.USE_POSTGRES:
+            # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
+            os.environ["MAINTQ_DB"] = str(db_loaded)
+        print(f"[격리] {_ENV_KEY}(loaded) = {db_loaded}")
+        print(f"[격리] {_ENV_KEY}(empty)  = {db_empty}\n")
         try:
             asyncio.run(run_all(db_loaded, db_empty))
         finally:
             if prev is None:
-                os.environ.pop("MAINTQ_DB", None)
+                os.environ.pop(_ENV_KEY, None)
             else:
-                os.environ["MAINTQ_DB"] = prev
+                os.environ[_ENV_KEY] = prev
+            for schema in _pg_schemas:
+                pg_isolation.drop_isolated_schema(schema)
 
-    after = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
-    print(f"\ndata/maintq.db mtime(after)  = {after[0]:.6f}, size={after[1]}")
+    if dbcompat.USE_POSTGRES:
+        _c = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        after = _c.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        _c.close()
+        print(f"\n공유 Postgres error_codes(after) = {after}행")
+    else:
+        after = (SOURCE_DB.stat().st_mtime, SOURCE_DB.stat().st_size)
+        print(f"\ndata/maintq.db mtime(after)  = {after[0]:.6f}, size={after[1]}")
     check(
-        "DB 안전 · data/maintq.db mtime·size 불변",
+        "DB 안전 · 공유 DB 불변" if dbcompat.USE_POSTGRES else "DB 안전 · data/maintq.db mtime·size 불변",
         after == before,
         f"변경={after != before}",
     )

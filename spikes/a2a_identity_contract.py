@@ -45,6 +45,9 @@ from dataclasses import asdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
 REAL_DB = ROOT / "data" / "maintq.db"
 ENV_EXAMPLE = ROOT / ".env.example"
 
@@ -111,7 +114,30 @@ def make_db(td: Path) -> Path:
     return db
 
 
-def table_ddl(db: Path, table: str) -> str:
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if isinstance(db, str) and db.startswith("postgresql://"):
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
+
+
+def table_ddl(db, table: str) -> str:
+    """`run_schema()`(항상 순수 SQLite 사본 — SCHEMA **원문 텍스트**를 검증하는 게
+    목적이라 타겟과 무관하다)와 `run_trace()`(Postgres 타겟이면 격리 스키마) 양쪽에서 쓴다."""
+    if isinstance(db, str) and db.startswith("postgresql://"):
+        con = dbcompat.connect_dsn(db)
+        # Postgres: DDL 원문이 없다 — CHECK 절만 pg_get_constraintdef() 로 재구성해
+        # check_clauses() 가 기대하는 "CHECK (...) 본문 여러 개가 이어진 문자열" 모양으로 합친다.
+        try:
+            cur = con.execute(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+                " WHERE conrelid = %s::regclass AND contype = 'c'",
+                (table,),
+            )
+            defs = [r[0] for r in cur.fetchall()]
+        finally:
+            con.close()
+        return " ".join(f", {d}" for d in defs)
     con = sqlite3.connect(db)
     try:
         row = con.execute(
@@ -122,7 +148,14 @@ def table_ddl(db: Path, table: str) -> str:
     return row[0] if row else ""
 
 
-def table_info(db: Path, table: str) -> dict[str, sqlite3.Row]:
+def table_info(db, table: str) -> dict:
+    if isinstance(db, str) and db.startswith("postgresql://"):
+        con = dbcompat.connect_dsn(db)
+        try:
+            rows = con.execute(f"PRAGMA table_info({table})").fetchall()  # dbcompat 가 대체한다
+        finally:
+            con.close()
+        return {r[1]: {"name": r[1], "type": r[2], "notnull": r[3], "dflt_value": r[4], "pk": r[5]} for r in rows}
     con = sqlite3.connect(db)
     con.row_factory = sqlite3.Row
     try:
@@ -360,7 +393,7 @@ def run_trace(db: Path) -> None:
 
     # ── ⑩ 컬럼 존재 · nullable · 기본 NULL (D94-ⓐ)
     rc = info.get("request_chain_id")
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.execute(
         "INSERT INTO traces (session_id, seq, event_type, payload)"
         " VALUES ('S-A2A-DEFAULT', 1, 'block', '{}')"
@@ -381,7 +414,7 @@ def run_trace(db: Path) -> None:
     ev_call = w.tool_call("lookup_error_code", {"model": "iG5A", "code": "OHt"})
     w.tool_result("lookup_error_code", "ok", "과열 · FAN-IG5-01", 0.4, tool_payload={"status": "ok"})
     w.block("safety", {"title": "SAFETY", "text": "10분 이상 대기"})
-    con = sqlite3.connect(db)
+    con = _open(db)
     rc_rows = con.execute(
         "SELECT event_type, request_chain_id FROM traces WHERE session_id='S-A2A' ORDER BY seq"
     ).fetchall()
@@ -427,7 +460,7 @@ def run_trace(db: Path) -> None:
     et = [c for c in check_clauses(tddl) if "event_type" in c]
     listed = re.findall(r"'([a-z_]+)'", et[0]) if et else []
     ok_a2a, why_a2a = True, ""
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         con.execute(
             "INSERT INTO traces (session_id, seq, event_type, payload)"
@@ -564,13 +597,30 @@ def main() -> None:
     #    진짜 회귀(⑪-b FAIL)가 "다른 프로세스가 파일을 사용 중" 이라는 무관한 메시지로 둔갑하고,
     #    CLAUDE.md 가 경고한 Windows 산발 실패로 오진돼 **재시도만 반복하게 된다.**
     #    임시 디렉터리 하나가 시스템 temp 에 남는 비용 < 실패 원인을 잃는 비용.
+    schema = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        # run_schema() 는 data/seed.py 의 SCHEMA **원문 텍스트**를 검증하는 게 목적이라
+        # 타겟과 무관하게 항상 순수 SQLite 사본을 쓴다.
         db = make_db(Path(td))
         # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
         os.environ["MAINTQ_DB"] = str(db)
         sys.path.insert(0, str(ROOT))
         run_schema(db)
-        run_trace(db)
+
+        # run_trace() 는 TraceWriter → backend.db.connect() 를 실제로 통과한다 —
+        # backend/db.py 의 connect() 는 db_path 가 `postgresql://` 로 시작하지 않으면
+        # (즉 여기서 만든 sqlite Path 를 그대로 넘기면) 전역 DATABASE_URL/DB_PATH 로
+        # 조용히 새어나가 무관한 세션의 실 Postgres 를 오염시킨다. Postgres 타겟일 때는
+        # 격리 스키마 DSN 을 직접 만들어 넘긴다.
+        if dbcompat.USE_POSTGRES:
+            schema, db_trace = pg_isolation.create_isolated_schema("a2a_identity")
+        else:
+            db_trace = db
+        try:
+            run_trace(db_trace)
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
         run_env()
 
     # ── ⑱ 실 DB 불변 (스파이크가 data/maintq.db 를 건드리면 안 된다)

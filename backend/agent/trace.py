@@ -32,6 +32,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+import psycopg
+
 from backend import sse
 from backend.db import connect
 from backend.services.po import iso_utc
@@ -224,8 +226,11 @@ class TraceWriter:
                     attempt,
                     exc,
                 )
-            except sqlite3.Error as exc:
-                # DB 잠금·파일 접근 실패 등. trace 저장 실패로 사용자 스트림이 끊기면 안 된다
+            except (sqlite3.Error, psycopg.Error) as exc:
+                # DB 잠금·파일 접근 실패 등(Postgres 는 접속 자체가 안 될 때 raw
+                # psycopg.Error 가 뜬다 — CompatCursor 를 거치지 않는 연결 단계라
+                # sqlite3 타입으로 매핑되지 않는다). trace 저장 실패로 사용자 스트림이
+                # 끊기면 안 된다
                 self.persist_errors += 1
                 log.warning(
                     "traces INSERT 실패 (session=%s event=%s): %s", self.session_id, event_type, exc

@@ -65,9 +65,19 @@ import mcp_server.tools.verify_ownership as vo_mod  # noqa: E402
 # 처분 프로브(`disposal_date`)는 **시드 컬럼이 아니라 도구 파라미터**다 (`seed.py:696`).
 # 기대 verdict 를 재현하려면 시드가 정한 개월수를 그대로 써야 하므로 값을 베끼지 않고 import 한다 —
 # 여기에 숫자를 하드코딩하면 시드가 바뀔 때 이 회귀가 조용히 어긋난다.
+from data import dbcompat, pg_isolation  # noqa: E402
 from data.rules import engine  # noqa: E402
 from data.seed import DISPOSAL_PROBE_MONTHS, _shift_months  # noqa: E402
-from mcp_server.db import DB_PATH, read_only  # noqa: E402
+from mcp_server.db import read_only  # noqa: E402
+
+SOURCE_DB = ROOT / "data" / "maintq.db"
+
+
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
 from mcp_server.tools.assess_repair_value import assess_repair_value  # noqa: E402
 from mcp_server.tools.build_evidence_bundle import build_evidence_bundle  # noqa: E402
 from mcp_server.tools.check_disposal_blockers import check_disposal_blockers  # noqa: E402
@@ -266,9 +276,14 @@ def main() -> None:
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    if not DB_PATH.exists():
-        raise SystemExit(f"목업 DB 가 없습니다: {DB_PATH} — data/seed.py 를 먼저 실행하세요")
-    before = (DB_PATH.stat().st_mtime_ns, DB_PATH.stat().st_size)
+    if dbcompat.USE_POSTGRES:
+        _c = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        before = _c.execute("SELECT count(*) FROM assets").fetchone()[0]
+        _c.close()
+    else:
+        if not SOURCE_DB.exists():
+            raise SystemExit(f"목업 DB 가 없습니다: {SOURCE_DB} — data/seed.py 를 먼저 실행하세요")
+        before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
 
     with read_only() as con:
         assets = [r[0] for r in con.execute("SELECT asset_id FROM assets ORDER BY asset_id")]
@@ -580,10 +595,14 @@ def main() -> None:
     #   해시 안정성은 **인용 조문이 전부 채워진 DB** 에서만 검증할 수 있다. MQ-701 이 실 DB 를
     #   채운 뒤에도 이 사본을 쓰는 이유: 미수집 조문이 1건이라도 남으면(예: 사람 승인 대기 중인
     #   `KR-CITA-ENF-31`) 이 검사가 수집 상태에 따라 켜졌다 꺼졌다 한다. 원본은 건드리지 않는다.
+    fetched_schema = None
     with tempfile.TemporaryDirectory() as td:
-        fetched_db = Path(td) / "law_fetched.db"
-        shutil.copy2(DB_PATH, fetched_db)
-        con = sqlite3.connect(fetched_db)
+        if dbcompat.USE_POSTGRES:
+            fetched_schema, fetched_db = pg_isolation.create_isolated_schema("law_fetched")
+        else:
+            fetched_db = Path(td) / "law_fetched.db"
+            shutil.copy2(SOURCE_DB, fetched_db)
+        con = _open(fetched_db)
         try:
             for (rid,) in con.execute("SELECT law_ref_id FROM law_refs").fetchall():
                 text = f"[합성 픽스처] {rid} 조문 원문"
@@ -611,6 +630,8 @@ def main() -> None:
             )
         finally:
             mcp_db.DB_PATH = saved_db
+            if fetched_schema:
+                pg_isolation.drop_isolated_schema(fetched_schema)
 
     # ★ 번들 스키마는 MQ-705 에서 3키 → **5키**가 됐다 (D83). 여기서는 계약의 겉면만
     #   확인하고, 무결성 축(rule_hash·주입·N1·N2·뮤턴트 생존)은 `spikes/bundle_integrity.py`
@@ -680,7 +701,7 @@ def main() -> None:
                 )
         return gaps
 
-    mismatch = _mcp_vs_rest(DB_PATH)
+    mismatch = _mcp_vs_rest(pg_isolation.BASE_DATABASE_URL if dbcompat.USE_POSTGRES else SOURCE_DB)
     check(
         "MCP(파일 정본) verdict == REST(DB 사본) verdict — 같은 프로브 6조합 직접 대조",
         not mismatch,
@@ -691,10 +712,14 @@ def main() -> None:
     #   Stage 4 W-a 와 같은 유형(공허한 PASS)을 막는다. DB 룰 **1행만** 어긋나게 한
     #   사본으로 같은 대조를 돌려, 실제로 **불일치가 검출되는지** 확인한다.
     #   ⚠ 여기서 기대하는 것은 "실패"다 — 불일치가 안 잡히면 그게 결함이다.
+    drift_schema = None
     with tempfile.TemporaryDirectory() as td:
-        drifted = Path(td) / "rule_drift.db"
-        shutil.copy2(DB_PATH, drifted)
-        con = sqlite3.connect(drifted)
+        if dbcompat.USE_POSTGRES:
+            drift_schema, drifted = pg_isolation.create_isolated_schema("rule_drift")
+        else:
+            drifted = Path(td) / "rule_drift.db"
+            shutil.copy2(SOURCE_DB, drifted)
+        con = _open(drifted)
         try:
             # `required_facts` 에 원천 없는 필드를 하나 끼운다 — 조문 참조·트리거는 그대로라
             # 로드 게이트(D61·무결성 검사)에 걸리지 않고 **판정만 조용히 바뀐다**(D77 이 다룬
@@ -713,6 +738,8 @@ def main() -> None:
         finally:
             con.close()
         drift_gaps = _mcp_vs_rest(drifted)
+        if drift_schema:
+            pg_isolation.drop_isolated_schema(drift_schema)
 
     check(
         "방어선 생존 — DB 룰 1행을 어긋나게 하면 MCP↔REST 대조가 **실제로 FAIL** 한다",
@@ -779,12 +806,22 @@ def main() -> None:
     )
 
     # ─ ㉟ 실 DB 불변 ─────────────────────────────────────────────────────────
-    after = (DB_PATH.stat().st_mtime_ns, DB_PATH.stat().st_size)
-    check(
-        "실 DB 불변 (mtime·size) — 읽기 전용 커넥션만 (D10)",
-        before == after,
-        f"{DB_PATH.name} size={after[1]}",
-    )
+    if dbcompat.USE_POSTGRES:
+        _c = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        after = _c.execute("SELECT count(*) FROM assets").fetchone()[0]
+        _c.close()
+        check(
+            "실 DB(공유 Postgres) 불변 (assets 행수) — 읽기 전용 커넥션만 (D10)",
+            before == after,
+            f"assets={after}",
+        )
+    else:
+        after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        check(
+            "실 DB 불변 (mtime·size) — 읽기 전용 커넥션만 (D10)",
+            before == after,
+            f"{SOURCE_DB.name} size={after[1]}",
+        )
 
     width = max(len(name) for name, _, _ in results)
     print("─" * (width + 52))

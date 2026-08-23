@@ -28,9 +28,12 @@ from typing import Any
 
 from contextlib import contextmanager
 
+import psycopg
+
 import backend.db as _backend_db  # DB_PATH 를 **호출 시점에** 읽는다 (아래 read_only 주석)
 from backend.db import BUSY_TIMEOUT_MS
 from backend.services.po import iso_utc
+from data import dbcompat  # Postgres 타겟일 때 read_only() 가 경유한다 (Sprint 16 MQ-1614)
 from data.rules import engine  # D73 — 공유 데이터 계층. mcp_server 는 import 하지 않는다
 
 
@@ -51,7 +54,30 @@ def read_only(db_path: Path | None = None):
     ⚠ `DB_PATH` 를 **모듈 로드 시점에 이름으로 바인딩하지 않는다.** `from backend.db import DB_PATH`
       로 받으면 그 시점 값이 고정돼, 회귀가 `backend.db.DB_PATH` 를 갈아끼워도(임시 DB 픽스처)
       이 모듈은 계속 실 DB 를 본다 — 검사가 조용히 엉뚱한 대상을 보게 된다.
+
+    Postgres 타겟(Sprint 16 MQ-1614)에서는 `mode=ro` URI 트릭이 없다 — 대신
+    `mcp_server/db.py:read_only()` 와 같은 방식으로 세션을 read-only 트랜잭션으로
+    고정한다(`default_transaction_read_only=on`, DSN 의 `options` 에 병합).
+    이 분기가 빠져 있던 동안(마이그레이션 미완결 구간) 이 함수는 조용히 SQLite 로
+    폴백돼 `data/maintq.db` 를 계속 읽고 있었다 — Postgres 격리 스키마 픽스처를 전혀
+    보지 못한 채로 "통과"를 내고 있었던 실사고를 회귀로 잡아냈다.
     """
+    if dbcompat.USE_POSTGRES:
+        target = db_path if isinstance(db_path, str) and db_path.startswith("postgresql://") else None
+        if target is None:
+            dbp = _backend_db.DB_PATH
+            target = dbp if isinstance(dbp, str) and dbp.startswith("postgresql://") else _backend_db.DATABASE_URL
+        con = psycopg.connect(
+            dbcompat.add_dsn_option(target, "-c default_transaction_read_only=on"),
+            row_factory=dbcompat.sqlite_row_factory,
+            cursor_factory=dbcompat.CompatCursor,
+        )
+        try:
+            yield con
+        finally:
+            con.close()
+        return
+
     path = db_path or _backend_db.DB_PATH
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")

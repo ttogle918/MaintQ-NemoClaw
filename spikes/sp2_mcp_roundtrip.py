@@ -289,7 +289,14 @@ def check_write_isolation() -> None:
             con.execute("UPDATE inventory SET qty = qty + 1 WHERE part_no='FAN-IG5-01'")
         check("⑭ 읽기 커넥션 쓰기 차단", False, "쓰기가 통과해버렸다")
     except Exception as e:  # noqa: BLE001
-        check("⑭ 읽기 커넥션 쓰기 차단", "readonly" in str(e).lower(), f"{type(e).__name__}")
+        # SQLite 는 "attempt to write a readonly database", Postgres 는
+        # "read-only transaction" — 문구는 다르지만 둘 다 물리적 강제가 막았다는 신호다.
+        msg = str(e).lower()
+        check(
+            "⑭ 읽기 커넥션 쓰기 차단",
+            "readonly" in msg or "read-only" in msg,
+            f"{type(e).__name__}",
+        )
 
     try:
         with draft_writer() as con:

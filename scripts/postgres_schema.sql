@@ -26,7 +26,7 @@ CREATE TABLE error_codes (
 
 -- 사용자 (D41·D52) — X-User 헤더 값의 원천이자 표시명 매핑 소스.
 -- 표시명이 backend/services/po.py 에 하드코딩돼 있던 것을 여기로 옮겼다 (D36→D41).
--- 행을 지우지 않는다: 퇴사자는 active=0. decided_by 가 끊기면 감사 추적(P5)이 무너진다.
+-- 행을 지우지 않는다: 퇴사자는 active = FALSE. decided_by 가 끊기면 감사 추적(P5)이 무너진다.
 CREATE TABLE users (
   user_id       TEXT PRIMARY KEY,         -- 'tech-01' — 헤더로 오가는 ASCII ID (D36)
   email         TEXT UNIQUE,              -- 회사 이메일. 향후 IdP 매칭 키 (D52)
@@ -36,8 +36,8 @@ CREATE TABLE users (
                                            -- NULL 허용 = 미배정. 헤더로 받지 않고 이 컬럼에서만 주입
   auth_provider TEXT NOT NULL DEFAULT 'local',
   external_id   TEXT,                     -- IdP 의 sub/oid. 연동 전 NULL
-  active        BOOLEAN NOT NULL DEFAULT 1,
-  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  active        BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CHECK (role IN ('technician','manager')),
   CHECK (department IS NULL OR department IN ('maintenance','finance')),
   CHECK (auth_provider IN ('local','google')),
@@ -75,7 +75,7 @@ CREATE TABLE assets (
   cumulative_repair_cost INTEGER NOT NULL DEFAULT 0,
   last_overhaul_at       DATE,
   controller_generation  TEXT,
-  parts_eol_flag         BOOLEAN NOT NULL DEFAULT 0,
+  parts_eol_flag         BOOLEAN NOT NULL DEFAULT FALSE,
   CHECK (status IN ('IN_USE','IDLE','DISPOSAL_PENDING','DISPOSED'))
 );
 
@@ -93,10 +93,10 @@ CREATE TABLE error_history (
   id BIGSERIAL PRIMARY KEY,
   equipment_id TEXT NOT NULL REFERENCES equipment,
   code         TEXT NOT NULL,             -- 대문자 canonical (D25)
-  occurred_at  DATETIME NOT NULL,
+  occurred_at  TIMESTAMP NOT NULL,
   action_taken TEXT,
   part_replaced TEXT,
-  resolved     BOOLEAN DEFAULT 1,
+  resolved     BOOLEAN DEFAULT TRUE,
   recorded_by  TEXT REFERENCES users      -- 기록한 정비사 (D41). 시드분은 NULL
 );
 CREATE INDEX idx_history_eq_code ON error_history(equipment_id, code, occurred_at);
@@ -106,7 +106,7 @@ CREATE TABLE parts (
   name         TEXT NOT NULL,
   category     TEXT,
   compatible_models TEXT NOT NULL,        -- JSON array
-  discontinued BOOLEAN DEFAULT 0,
+  discontinued BOOLEAN DEFAULT FALSE,
   part_class   TEXT,                      -- 'CONSUMABLE' | 'CRITICAL' (12 §9). ⚠ 미검수 초안 (D12)
   mfr_part_no  TEXT                       -- 제조사 실품번. NULL = **공개돼 있지 않음** (D97)
 );
@@ -159,7 +159,7 @@ CREATE TABLE po_drafts (
   decided_by   TEXT REFERENCES users,
   decision_note TEXT,                   -- 반려 사유 / 승인 코멘트 (D38)
   session_id   TEXT,
-  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
   CHECK (state IN ('draft','pending','approved','rejected')),
   CHECK (urgency IN ('urgent','normal')),
@@ -192,7 +192,7 @@ CREATE TABLE traces (
   --     D76-2 가 컬럼만 만들고 쓰는 쪽이 없어 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기
   --     위해, ⑪-b 는 "값이 비었다"가 아니라 "누가 쓰는가"를 회귀가 말하게 한다.
   request_chain_id TEXT,
-  ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ts           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
   CHECK (event_type IN ('tool_call','tool_result','block')),
   -- seq 중복이 조용히 통과하면 순서 판정(scenario-smoke)·타임라인·Last-Event-ID(P18)가
@@ -209,7 +209,7 @@ CREATE TABLE law_refs (
   title TEXT NOT NULL, text TEXT,
   fetch_status TEXT NOT NULL,
   effective_from DATE, effective_to DATE,
-  promulgation_no TEXT, source_url TEXT, retrieved_at DATETIME,
+  promulgation_no TEXT, source_url TEXT, retrieved_at TIMESTAMP,
   text_hash TEXT, supersedes TEXT, verification_note TEXT,
   CHECK (fetch_status IN ('PENDING','FETCHED','FAILED'))
 );
@@ -221,13 +221,13 @@ CREATE TABLE rules (
   disposal_type TEXT NOT NULL, source_type TEXT NOT NULL,
   law_refs TEXT NOT NULL, contract_refs TEXT NOT NULL,   -- JSON array
   interpretation TEXT NOT NULL, required_facts TEXT NOT NULL,
-  trigger TEXT NOT NULL, boundary TEXT,
+  "trigger" TEXT NOT NULL, boundary TEXT,
   message TEXT NOT NULL, resolve_options TEXT NOT NULL,
   confidence TEXT NOT NULL, requires_expert_review BOOLEAN NOT NULL,
   PRIMARY KEY (rule_id, rule_version),
   CHECK (disposal_type IN ('BLOCKING','PRECONDITION','AUTO_CLOSE')),
   CHECK (source_type IN ('LAW','CONTRACT')),
-  CHECK ((law_refs::jsonb IS NOT NULL) AND (contract_refs::jsonb IS NOT NULL) AND (trigger::jsonb IS NOT NULL))
+  CHECK ((law_refs::jsonb IS NOT NULL) AND (contract_refs::jsonb IS NOT NULL) AND ("trigger"::jsonb IS NOT NULL))
 );
 
 -- §14 decisions — 계층 3 서명. 쓰기 경로는 Sprint 7 (D10 태도 유지: 도구는 draft INSERT 만)
@@ -245,10 +245,10 @@ CREATE TABLE decisions (
   evidence_bundle TEXT NOT NULL,         -- JSON 5키: {laws[], rules[], evaluated[], contracts[], facts{}} (D83)
   bundle_hash TEXT NOT NULL,
   verdict_at_signing TEXT NOT NULL,
-  override BOOLEAN NOT NULL DEFAULT 0,
+  override BOOLEAN NOT NULL DEFAULT FALSE,
   override_reason TEXT,
   reviewed_by TEXT REFERENCES users,
-  signed_at DATETIME,
+  signed_at TIMESTAMP,
   state TEXT NOT NULL DEFAULT 'draft',
   -- ── Sprint 7 (MQ-707) 보강 컬럼 ────────────────────────────────────────────
   -- 도구(generate_disposal_document)가 채우는 요청 사유. `po_drafts.reason` 과 같은 자리다.
@@ -264,9 +264,9 @@ CREATE TABLE decisions (
   decision_note TEXT,
   -- 통합 승인 큐(D85)가 `created_at DESC` 로 정렬한다. DEFAULT 가 있으므로 MQ-706 의
   -- draft INSERT 계약(컬럼 목록)은 한 글자도 바뀌지 않는다 — `po_drafts` 와 같은 패턴.
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   -- D63 을 스키마로 잠근다 — 사유 없는 override 는 저장 자체가 불가
-  CHECK (override = 0 OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
+  CHECK (override = FALSE OR (override_reason IS NOT NULL AND length(trim(override_reason)) > 0)),
   CHECK ((evidence_bundle::jsonb IS NOT NULL)),
   CHECK (state IN ('draft','pending','signed','rejected')),
   -- ★ "서명 없는 처분 확정 0건" — state='signed' 인데 서명자·서명시각·번들해시가 비면 거부.
@@ -276,11 +276,11 @@ CREATE TABLE decisions (
                                AND reviewed_by IS NOT NULL
                                AND length(trim(bundle_hash)) > 0)),
   -- ★ "BLOCKING 우회 처분 0건" — 차단 판정(BLOCKED·HOLD·INSUFFICIENT_FACTS)에 서명하려면
-  --   override=1 이어야 하고, override=1 이면 위 D63 CHECK 가 사유를 강제한다.
+  --   override = TRUE 이어야 하고, override = TRUE 이면 위 D63 CHECK 가 사유를 강제한다.
   --   두 CHECK 가 맞물려 **"사유 없는 우회 서명"이 스키마 수준에서 표현 불가능**해진다.
   --   ⚠ 여기 열거된 두 값은 `engine.VERDICTS` 의 **비차단** 어휘다. 엔진이 어휘를 늘리면
   --     이 목록이 조용히 낡으므로 `verify()` ㉑ 이 DDL 문자열을 파싱해 엔진과 대조한다.
-  CHECK (state <> 'signed' OR override = 1
+  CHECK (state <> 'signed' OR override = TRUE
          OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))
 );
 
@@ -291,7 +291,7 @@ CREATE TABLE flags (
   rule_id TEXT NOT NULL, rule_version INTEGER NOT NULL,
   disposal_type TEXT NOT NULL,
   state TEXT NOT NULL DEFAULT 'OPEN',
-  raised_at DATETIME NOT NULL, resolved_at DATETIME,
+  raised_at TIMESTAMP NOT NULL, resolved_at TIMESTAMP,
   resolved_by TEXT REFERENCES users, evidence_ref TEXT,
   CHECK (state IN ('OPEN','IN_PROGRESS','RESOLVED','WAIVED'))
 );
@@ -308,11 +308,11 @@ CREATE TABLE repair_records (
   downtime_hours REAL,                   -- MTTR 산식의 유일한 원천
   parts TEXT,                            -- JSON array
   performed_by TEXT REFERENCES users, verified_by TEXT REFERENCES users,
-  signed_at DATETIME, record_hash TEXT,
+  signed_at TIMESTAMP, record_hash TEXT,
   state TEXT NOT NULL DEFAULT 'draft',
   -- ★ Sprint 9 신설 (D98) — 도구는 이 셋을 채우지 않는다. 백엔드가 X-User·세션에서 stamp 한다
   --   (D23·D37). `data/repair_hash.py` 가 `record_hash` 규약의 단일 출처다.
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   requested_by TEXT REFERENCES users,
   session_id TEXT,
   note TEXT,                             -- 반려 사유·서명 메모 (D38 — 반려는 이유가 필수)
@@ -361,12 +361,12 @@ CREATE TABLE partner_links (
   -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
   -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ) — 자격증명 발급이 이 시점에 붙으므로 감사에는
   --    "며칠"이 아니라 "몇 시 몇 분"이 필요하다. **저장은 UTC** (D39, `traces.ts` 와 같은 규약).
-  linked_at    DATETIME,
+  linked_at    TIMESTAMP,
   PRIMARY KEY (partner, subject_type, subject_ref),
   -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
   CHECK (link_state IN ('NOT_LINKED','LINKED')),
   -- ★ null-safe `IS` (D96). `=` 로 쓰면 (link_state NULL, external_ref 있음) 이 조용히 통과한다
-  CHECK (external_ref IS NULL OR link_state IS 'LINKED')
+  CHECK (external_ref IS NULL OR link_state IS NOT DISTINCT FROM 'LINKED')
 );
 
 -- §19 part_lifecycle_mock — 생애주기 경고(D) 목업 (Sprint 10 브레인스토밍).
@@ -391,7 +391,7 @@ CREATE TABLE deadlines (
   type        TEXT NOT NULL,                       -- 'TAX-CREDIT-2Y' | 'SAFETY-INSPECTION'
   due_date    DATE NOT NULL,
   state       TEXT NOT NULL DEFAULT 'OPEN',        -- 'OPEN' | 'DISMISSED' — flags.state 관행 재사용 (컬럼명 'status' 아님, D9)
-  reminder_sent_at DATETIME,
+  reminder_sent_at TIMESTAMP,
   CHECK (type IN ('TAX-CREDIT-2Y','SAFETY-INSPECTION')),
   CHECK (state IN ('OPEN','DISMISSED'))
 );
@@ -403,7 +403,7 @@ CREATE TABLE incidents (
   incident_id BIGSERIAL PRIMARY KEY,
   asset_id    TEXT NOT NULL REFERENCES assets,     -- ★ 물리적 사고는 호스트 자산 단위 (D68)
   type        TEXT NOT NULL,                       -- 'COLLISION' | 'ALIGNMENT_LOSS' | 'FIRE' | 'FLOOD' | 'OTHER'
-  occurred_at DATETIME NOT NULL,
+  occurred_at TIMESTAMP NOT NULL,
   book_value_at_loss INTEGER,                      -- NULL 허용 — 그 시점 장부가를 모를 수 있음 (D62)
   description TEXT,
   recorded_by TEXT REFERENCES users,               -- 시드분은 NULL (error_history 관행)
@@ -423,7 +423,7 @@ CREATE TABLE ownership_checks (
   state        TEXT NOT NULL,                       -- 'VERIFIED' | 'UNVERIFIED'
   evidence_ref TEXT,                                -- VERIFIED 일 때만
   limit_note   TEXT,                                -- UNVERIFIED 일 때만
-  checked_at   DATETIME NOT NULL,
+  checked_at   TIMESTAMP NOT NULL,
   checked_by   TEXT REFERENCES users,
   CHECK (state IN ('VERIFIED','UNVERIFIED')),
   CHECK (evidence_ref IS NULL OR state = 'VERIFIED'),
@@ -440,7 +440,7 @@ CREATE TABLE risk_profile (
   power_capacity TEXT,
   product_type   TEXT,                              -- 자유 서술, 점수화 안 함
   risk_grade     TEXT,                              -- 마지막 저장된 등급. NULL=미산출
-  risk_grade_updated_at DATETIME,
+  risk_grade_updated_at TIMESTAMP,
   CHECK (fire_handling  IS NULL OR fire_handling  IN ('LOW','MEDIUM','HIGH')),
   CHECK (hazmat_volume  IS NULL OR hazmat_volume  IN ('LOW','MEDIUM','HIGH')),
   CHECK (power_capacity IS NULL OR power_capacity IN ('LOW','MEDIUM','HIGH')),

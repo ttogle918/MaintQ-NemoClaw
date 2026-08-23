@@ -46,6 +46,8 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
 SERVER = ROOT / "mcp_server" / "server.py"
 SOURCE_DB = ROOT / "data" / "maintq.db"
 
@@ -60,13 +62,19 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((f"{mark} {name}", ok, detail))
 
 
-def raw_connect(db: Path) -> sqlite3.Connection:
+def raw_connect(db):
     """DDL 테스트·픽스처 조작 전용 — `mcp_server.db` 를 거치지 않는 평범한 rw 커넥션.
 
     `mcp_server.db.read_only()` 는 `mode=ro` 라 쓸 수 없고, `draft_writer()` 류는 특정
     테이블에만 TEMP TRIGGER 를 걸어 다른 테이블 조작에는 맞지 않는다. 이 스위트는 시드
     자산 행을 직접 UPDATE 해 `today` 주입 시나리오의 사실관계를 만든다.
+
+    `db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다.
     """
+    if dbcompat.USE_POSTGRES:
+        con = dbcompat.connect_dsn(db)
+        con.execute("PRAGMA foreign_keys=ON")
+        return con
     con = sqlite3.connect(db)
     con.execute("PRAGMA foreign_keys=ON")
     con.row_factory = sqlite3.Row
@@ -334,7 +342,10 @@ def check_risk_grade(db: Path) -> None:
 async def _list_tool_names(profile: str, db: Path) -> set[str]:
     env = {k: v for k, v in os.environ.items() if v is not None}
     env["MAINTQ_TOOLS_PROFILE"] = profile
-    env["MAINTQ_DB"] = str(db)
+    if dbcompat.USE_POSTGRES:
+        env["DATABASE_URL"] = db
+    else:
+        env["MAINTQ_DB"] = str(db)
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -416,22 +427,38 @@ def main() -> None:
         "deadlines/risk_grade 계약 검증 — DDL 무결성 · track_deadlines 4상태 · "
         "assess_risk_grade · 프로파일 게이트 · REST 매핑 (MQ-1106)\n"
     )
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
+    schema = None
     with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "deadline_risk.db"
-        shutil.copy2(SOURCE_DB, db)
+        if dbcompat.USE_POSTGRES:
+            import backend.db as backend_db  # noqa: PLC0415
+            import mcp_server.db as mcp_db  # noqa: PLC0415
 
-        # backend·mcp_server 둘 다 이 경로를 **import 시점에** 읽는다 — 실 DB 를 건드리지 않는다
-        os.environ["MAINTQ_DB"] = str(db)
+            schema, db = pg_isolation.create_isolated_schema("deadline_risk")
+            # read_only()/backend.db.connect() 는 인자 없이 불려서(check_track_deadlines·
+            # check_rest) 전역을 갈아끼워야 한다 — raw_connect(db) 처럼 명시 인자를 받는
+            # 자리는 이미 db 를 그대로 쓰지만, 그 결과를 read_only() 로 다시 읽는 쪽은
+            # 전역이 격리 스키마를 가리켜야 같은 데이터를 본다.
+            backend_db.DB_PATH = db
+            mcp_db.DB_PATH = db
+        else:
+            db = Path(td) / "deadline_risk.db"
+            shutil.copy2(SOURCE_DB, db)
+            # backend·mcp_server 둘 다 이 경로를 **import 시점에** 읽는다 — 실 DB 를 건드리지 않는다
+            os.environ["MAINTQ_DB"] = str(db)
 
-        check_ddl(db)
-        check_track_deadlines(db)
-        check_risk_grade(db)
-        check_profile_gate(db)
-        check_rest(db)
-        check_liveness_anchor()
+        try:
+            check_ddl(db)
+            check_track_deadlines(db)
+            check_risk_grade(db)
+            check_profile_gate(db)
+            check_rest(db)
+            check_liveness_anchor()
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 40))

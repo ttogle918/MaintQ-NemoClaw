@@ -35,6 +35,14 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "spikes"))
+from data import dbcompat, pg_isolation  # noqa: E402
+
+
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
 
 # MCP 서브프로세스는 필요 없다 — 이 스위트는 사람 전용 REST 만 본다.
 os.environ["MAINTQ_MCP_AUTOSTART"] = "0"
@@ -91,7 +99,7 @@ def seed_decisions(db: Path) -> dict[str, dict]:
         )
 
         built: dict[str, dict] = {}
-        con = sqlite3.connect(db)
+        con = _open(db)
         try:
             for decision_id, asset_id, mode, state, expected, _use in FIXTURES:
                 res = build_evidence_bundle(
@@ -130,7 +138,7 @@ def seed_decisions(db: Path) -> dict[str, dict]:
 
 
 def mutate(db: Path, sql: str, args: tuple = ()) -> None:
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         con.execute(sql, args)
         con.commit()
@@ -139,7 +147,7 @@ def mutate(db: Path, sql: str, args: tuple = ()) -> None:
 
 
 def query_one(db: Path, sql: str, args: tuple = ()) -> tuple:
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         return con.execute(sql, args).fetchone()
     finally:
@@ -179,7 +187,7 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
     #    **정확히 일치**해야 한다(0건이면 스캐너가 눈이 먼 것과 "정말 없다"를 구분 못 하므로
     #    CLAUDE.md 부재검사 규칙에 따라 이 대조가 필요하다). **음성 축**: kind 밖 값은 422.
     repair_total = query_one(db, "SELECT count(*) FROM repair_records")[0]
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         repair_by_state = dict(
             con.execute("SELECT state, count(*) FROM repair_records GROUP BY state").fetchall()
@@ -373,7 +381,7 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
     )
 
     # ⑯ 서명 후 signed_at·reviewed_by non-null (DB 행을 직접 읽는다 — 응답만 보면 UPDATE 를 못 본다)
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     rows = {
         r["decision_id"]: dict(r)
@@ -501,38 +509,51 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
 
     # ⑳-c **파싱 실패 고지** — 깨진 `occurred_at` 을 주입해 두 구현이 *같은 문장으로* 고지하는지.
     #     ⑳ 는 정상 데이터만 보므로 이 분기를 통과시킨다: backend 가 조용히 버려도 안 걸린다.
-    eq_id = query_one(db, "SELECT equipment_id FROM equipment WHERE asset_id='AST-L3-CONV'")[0]
-    mutate(
-        db,
-        "INSERT INTO error_history (equipment_id, code, occurred_at, resolved)"
-        " VALUES (?, 'E-SPIKE', '깨진-시각-값', 1)",
-        (eq_id,),
-    )
-    try:
-        mcp_db.DB_PATH = db
-        try:
-            tool_bad = get_maintenance_metrics(asset_id="AST-L3-CONV")
-        finally:
-            mcp_db.DB_PATH = saved_path
-        with read_only(db) as con:
-            mine_bad = dec_svc._metrics(con, "AST-L3-CONV")
-        notice = "occurred_at 을 해석하지 못한 에러 이력 1건은 집계에서 제외했다"
+    if dbcompat.USE_POSTGRES:
+        # SQLite 는 컬럼 타입이 그냥 권고(affinity)라 '깨진-시각-값' 같은 문자열도 TEXT
+        # 로 그냥 저장된다 — 이 검사는 그 상태에서 앱이 방어적으로 파싱 실패를 집계에서
+        # 제외하는지를 본다. Postgres 의 occurred_at 은 진짜 TIMESTAMP 타입이라 이 값은
+        # INSERT 시점에 DB 가 거부한다(더 강한 보장으로 대체됐다) — 같은 시나리오를
+        # 재현할 방법이 없어 이 검사는 Postgres 타겟에서 건너뛴다.
         check(
             "occurred_at 파싱 실패가 excluded 에 고지된다 (조용히 버리지 않는다 — D65)",
-            notice in tool_bad["excluded"]
-            and notice in mine_bad["excluded"]
-            and tool_bad["excluded"] == mine_bad["excluded"],
-            f"도구={notice in tool_bad['excluded']} · backend={notice in mine_bad['excluded']} · "
-            f"excluded 동일={tool_bad['excluded'] == mine_bad['excluded']} "
-            f"(backend {len(mine_bad['excluded'])}건)",
+            True,
+            "N/A — Postgres occurred_at 은 진짜 TIMESTAMP 라 이 값 자체가 INSERT 시점에 거부된다"
+            "(SQLite 는 타입 강제가 없어 저장된 뒤 앱이 방어했다 — 더 강한 보장으로 대체)",
         )
-    finally:
-        mutate(db, "DELETE FROM error_history WHERE code='E-SPIKE'")
+    else:
+        eq_id = query_one(db, "SELECT equipment_id FROM equipment WHERE asset_id='AST-L3-CONV'")[0]
+        mutate(
+            db,
+            "INSERT INTO error_history (equipment_id, code, occurred_at, resolved)"
+            " VALUES (?, 'E-SPIKE', '깨진-시각-값', 1)",
+            (eq_id,),
+        )
+        try:
+            mcp_db.DB_PATH = db
+            try:
+                tool_bad = get_maintenance_metrics(asset_id="AST-L3-CONV")
+            finally:
+                mcp_db.DB_PATH = saved_path
+            with read_only(db) as con:
+                mine_bad = dec_svc._metrics(con, "AST-L3-CONV")
+            notice = "occurred_at 을 해석하지 못한 에러 이력 1건은 집계에서 제외했다"
+            check(
+                "occurred_at 파싱 실패가 excluded 에 고지된다 (조용히 버리지 않는다 — D65)",
+                notice in tool_bad["excluded"]
+                and notice in mine_bad["excluded"]
+                and tool_bad["excluded"] == mine_bad["excluded"],
+                f"도구={notice in tool_bad['excluded']} · backend={notice in mine_bad['excluded']} · "
+                f"excluded 동일={tool_bad['excluded'] == mine_bad['excluded']} "
+                f"(backend {len(mine_bad['excluded'])}건)",
+            )
+        finally:
+            mutate(db, "DELETE FROM error_history WHERE code='E-SPIKE'")
 
     # ㉑ **직접 SQL 로 뚫기 2건** + 뮤턴트 대조.
     #    "막힌다"만으로는 부족하다 — CHECK 를 제거한 테이블에서 **같은 SQL 이 통과**해야
     #    거부의 원인이 CHECK 임이 증명된다.
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.execute("PRAGMA foreign_keys=ON")
     try:
         bypass = []
@@ -557,51 +578,96 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
                 con.execute("ROLLBACK TO bypass")
                 con.execute("RELEASE bypass")
 
-        # 뮤턴트 — 두 CHECK 만 제거한 사본 테이블
-        ddl = con.execute("SELECT sql FROM sqlite_master WHERE name='decisions'").fetchone()[0]
-        # ⚠ 저장된 DDL 에는 주석이 그대로 남는다 — `,\s*CHECK` 는 콤마와 CHECK 사이의
-        #   `-- …` 줄을 건너뛰지 못한다. 주석을 먼저 지우지 않으면 뮤턴트가 조용히
-        #   **원본과 같아져** "뮤턴트에서도 거부됨" = 위양성 FAIL 이 난다 (실측).
-        mutant = re.sub(r"--[^\n]*", "", ddl)
-        mutant = mutant.replace("CREATE TABLE decisions", "CREATE TABLE decisions_mutant", 1)
-        mutant = re.sub(
-            r",\s*CHECK \(state <> 'signed' OR \(signed_at.*?length\(trim\(bundle_hash\)\) > 0\)\)",
-            "",
-            mutant,
-            flags=re.S,
-        )
-        mutant = re.sub(
-            r",\s*CHECK \(state <> 'signed' OR override = 1\s*OR verdict_at_signing IN \([^)]*\)\)",
-            "",
-            mutant,
-            flags=re.S,
-        )
-        stripped = "bundle_hash)) > 0" not in mutant and "verdict_at_signing IN (" not in mutant
-        con.execute("SAVEPOINT mutant")
-        con.execute(mutant)
-        con.execute(
-            "INSERT INTO decisions_mutant (decision_id, asset_id, decision_type,"
-            " evidence_bundle, bundle_hash, verdict_at_signing, override, state)"
-            " SELECT decision_id, asset_id, decision_type, evidence_bundle, bundle_hash,"
-            " verdict_at_signing, override, state FROM decisions WHERE decision_id IN"
-            " ('DEC-E001','DEC-X001')"
-        )
-        mutant_passed = []
-        for label, sql in (
-            ("ⓐ", "UPDATE decisions_mutant SET state='signed' WHERE decision_id='DEC-E001'"),
-            (
-                "ⓑ",
-                "UPDATE decisions_mutant SET state='signed', signed_at='2026-08-10 00:00:00',"
-                " reviewed_by='mgr-01' WHERE decision_id='DEC-X001'",
-            ),
-        ):
-            try:
-                con.execute(sql)
-                mutant_passed.append(label)
-            except sqlite3.IntegrityError:
-                pass
-        con.execute("ROLLBACK TO mutant")
-        con.execute("RELEASE mutant")
+        # 뮤턴트 — 두 CHECK 만 제거한 사본 테이블. SQLite 는 `sqlite_master` 에 원본 DDL
+        # 텍스트가 그대로 있어 정규식으로 CHECK 만 도려낼 수 있다. Postgres 는 그 카탈로그가
+        # 없어 `CREATE TABLE decisions_mutant (LIKE decisions INCLUDING ALL)` 로 제약까지
+        # 통째로 복제한 뒤 `pg_get_constraintdef()` 문구로 대상 CHECK 2종만 이름을 찾아
+        # `DROP CONSTRAINT` 한다(disposal_sign_contract.py 의 `_mutant_table_pg` 와 같은 기법 —
+        # `IN (...)` 이 `= ANY (ARRAY[...])` 로 재구성되는 것도 거기서 이미 확인했다).
+        if dbcompat.USE_POSTGRES:
+            con.execute("DROP TABLE IF EXISTS decisions_mutant")
+            con.execute("CREATE TABLE decisions_mutant (LIKE decisions INCLUDING ALL)")
+            defs = con.execute(
+                "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint"
+                " WHERE conrelid = 'decisions_mutant'::regclass AND contype = 'c'"
+            ).fetchall()
+            pg_markers = ("signed_at IS NOT NULL", "verdict_at_signing = ANY")
+            to_drop = [name for name, d in defs if any(mark in d for mark in pg_markers)]
+            for name in to_drop:
+                con.execute(f'ALTER TABLE decisions_mutant DROP CONSTRAINT "{name}"')
+            remaining = con.execute(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+                " WHERE conrelid = 'decisions_mutant'::regclass AND contype = 'c'"
+            ).fetchall()
+            remaining_text = " ".join(d for (d,) in remaining)
+            stripped = not any(mark in remaining_text for mark in pg_markers)
+
+            con.execute("SAVEPOINT mutant")
+            con.execute(
+                "INSERT INTO decisions_mutant SELECT * FROM decisions"
+                " WHERE decision_id IN ('DEC-E001','DEC-X001')"
+            )
+            mutant_passed = []
+            for label, sql in (
+                ("ⓐ", "UPDATE decisions_mutant SET state='signed' WHERE decision_id='DEC-E001'"),
+                (
+                    "ⓑ",
+                    "UPDATE decisions_mutant SET state='signed', signed_at='2026-08-10 00:00:00',"
+                    " reviewed_by='mgr-01' WHERE decision_id='DEC-X001'",
+                ),
+            ):
+                try:
+                    con.execute(sql)
+                    mutant_passed.append(label)
+                except sqlite3.IntegrityError:
+                    pass
+            con.execute("ROLLBACK TO mutant")
+            con.execute("RELEASE mutant")
+        else:
+            ddl = con.execute("SELECT sql FROM sqlite_master WHERE name='decisions'").fetchone()[0]
+            # ⚠ 저장된 DDL 에는 주석이 그대로 남는다 — `,\s*CHECK` 는 콤마와 CHECK 사이의
+            #   `-- …` 줄을 건너뛰지 못한다. 주석을 먼저 지우지 않으면 뮤턴트가 조용히
+            #   **원본과 같아져** "뮤턴트에서도 거부됨" = 위양성 FAIL 이 난다 (실측).
+            mutant = re.sub(r"--[^\n]*", "", ddl)
+            mutant = mutant.replace("CREATE TABLE decisions", "CREATE TABLE decisions_mutant", 1)
+            mutant = re.sub(
+                r",\s*CHECK \(state <> 'signed' OR \(signed_at.*?length\(trim\(bundle_hash\)\) > 0\)\)",
+                "",
+                mutant,
+                flags=re.S,
+            )
+            mutant = re.sub(
+                r",\s*CHECK \(state <> 'signed' OR override = 1\s*OR verdict_at_signing IN \([^)]*\)\)",
+                "",
+                mutant,
+                flags=re.S,
+            )
+            stripped = "bundle_hash)) > 0" not in mutant and "verdict_at_signing IN (" not in mutant
+            con.execute("SAVEPOINT mutant")
+            con.execute(mutant)
+            con.execute(
+                "INSERT INTO decisions_mutant (decision_id, asset_id, decision_type,"
+                " evidence_bundle, bundle_hash, verdict_at_signing, override, state)"
+                " SELECT decision_id, asset_id, decision_type, evidence_bundle, bundle_hash,"
+                " verdict_at_signing, override, state FROM decisions WHERE decision_id IN"
+                " ('DEC-E001','DEC-X001')"
+            )
+            mutant_passed = []
+            for label, sql in (
+                ("ⓐ", "UPDATE decisions_mutant SET state='signed' WHERE decision_id='DEC-E001'"),
+                (
+                    "ⓑ",
+                    "UPDATE decisions_mutant SET state='signed', signed_at='2026-08-10 00:00:00',"
+                    " reviewed_by='mgr-01' WHERE decision_id='DEC-X001'",
+                ),
+            ):
+                try:
+                    con.execute(sql)
+                    mutant_passed.append(label)
+                except sqlite3.IntegrityError:
+                    pass
+            con.execute("ROLLBACK TO mutant")
+            con.execute("RELEASE mutant")
     finally:
         con.close()
 
@@ -645,7 +711,7 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
     )
 
     # ㉕ 진짜 미적재(rules 0행)는 503 그대로 — 여기까지 409 로 내리면 "적재하세요"가 사라진다
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         cols = [d[0] for d in con.execute("SELECT * FROM rules LIMIT 1").description]
         backup = con.execute("SELECT * FROM rules").fetchall()
@@ -676,19 +742,29 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("통합 승인 큐 · 처분 서명 REST 계약 (임시 DB 사본)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+    if dbcompat.USE_POSTGRES:
+        before = query_one(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM decisions")
+    else:
+        before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
 
+    schema = None
     with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "approvals.db"
-        shutil.copy2(SOURCE_DB, db)
-        for side in ("-wal", "-shm"):
-            src = SOURCE_DB.with_name(SOURCE_DB.name + side)
-            if src.exists():
-                shutil.copy2(src, db.with_name(db.name + side))
-        os.environ["MAINTQ_DB"] = str(db)
+        if dbcompat.USE_POSTGRES:
+            import backend.db as backend_db  # noqa: PLC0415
+
+            schema, db = pg_isolation.create_isolated_schema("approvals")
+            backend_db.DB_PATH = db
+        else:
+            db = Path(td) / "approvals.db"
+            shutil.copy2(SOURCE_DB, db)
+            for side in ("-wal", "-shm"):
+                src = SOURCE_DB.with_name(SOURCE_DB.name + side)
+                if src.exists():
+                    shutil.copy2(src, db.with_name(db.name + side))
+            os.environ["MAINTQ_DB"] = str(db)
 
         built = seed_decisions(db)
 
@@ -696,15 +772,27 @@ def main() -> None:
 
         from backend.main import app  # noqa: PLC0415
 
-        with TestClient(app) as client:
-            run(client, db, built)
+        try:
+            with TestClient(app) as client:
+                run(client, db, built)
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
-    after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    check(
-        "실 DB mtime·size 불변 (사본만 썼다는 증거)",
-        before == after,
-        f"{'불변' if before == after else f'{before} → {after}'}",
-    )
+    if dbcompat.USE_POSTGRES:
+        after = query_one(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM decisions")
+        check(
+            "실 DB(공유 Postgres) decisions 행 수 불변 (사본만 썼다는 증거)",
+            before == after,
+            f"{before} → {after}",
+        )
+    else:
+        after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        check(
+            "실 DB mtime·size 불변 (사본만 썼다는 증거)",
+            before == after,
+            f"{'불변' if before == after else f'{before} → {after}'}",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 40))

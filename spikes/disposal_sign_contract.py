@@ -61,6 +61,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
 sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
+
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마/공유 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
 
 # 이 스위트는 사람 전용 REST + 도구 함수 직접 호출이다 — stdio 서버를 띄울 이유가 없다.
 # (실 서버·실 MCP 관통은 `spikes/s10_smoke.py` 소관.)
@@ -88,6 +96,9 @@ TRIGGER_MARK = "MCP 도구는 decisions 를"
 CHECK_SIGNED_ELEMENTS = "signed_at IS NOT NULL"
 CHECK_BLOCKING_OVERRIDE = "verdict_at_signing IN"
 CHECK_OVERRIDE_REASON = "override_reason IS NOT NULL"
+# Postgres 는 `pg_get_constraintdef()` 가 `IN (...)` 를 `= ANY (ARRAY[...])` 로 재구성한다 —
+# 원문 그대로인 나머지 두 마커와 달리 이것만 별도 형태가 필요하다.
+CHECK_BLOCKING_OVERRIDE_PG = "verdict_at_signing = ANY"
 
 MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚"
 
@@ -108,8 +119,11 @@ def rows(db: Path, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
     바뀐다** — 이 스위트의 마지막 검사가 바로 그 불변을 단언하므로, 자기 행위로 자기 게이트를
     깨뜨리는 플래키 레드가 된다(reviewer 경고 1). 임시 사본은 쓰기 가능해도 무해하다.
     """
-    uri = db.resolve() == SOURCE_DB.resolve()
-    con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True) if uri else sqlite3.connect(db)
+    if dbcompat.USE_POSTGRES:
+        con = dbcompat.connect_dsn(db)
+    else:
+        uri = db.resolve() == SOURCE_DB.resolve()
+        con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True) if uri else _open(db)
     con.row_factory = sqlite3.Row
     try:
         return con.execute(sql, args).fetchall()
@@ -137,6 +151,33 @@ def probe_sql(con: sqlite3.Connection, sql: str) -> tuple[bool, str]:
     finally:
         con.execute("ROLLBACK TO probe")
         con.execute("RELEASE probe")
+
+
+def _check_marker_hit(msg: str, marker: str, db=None, pg_marker: str | None = None) -> bool:
+    """`msg` 에 CHECK 식별 문구가 있는가.
+
+    SQLite 는 예외 메시지에 CHECK 절 **본문**을 그대로 담는다 — 부분 문자열 대조로 충분하다.
+    Postgres 는 제약식 **이름**만 담는다(예: `violates check constraint "decisions_check2"`) —
+    본문은 `pg_get_constraintdef()` 로 그 이름을 다시 조회해야 나온다. `pg_marker` 는 Postgres 가
+    절을 재구성하며 문구를 바꾸는 경우(`IN (...)` → `= ANY (ARRAY[...])`)를 위한 대체 마커다.
+    """
+    if not dbcompat.USE_POSTGRES:
+        return marker in msg
+    m = re.search(r'violates check constraint "(\w+)"', msg)
+    if not m:
+        return False
+    con = _open(db)
+    try:
+        rows_ = con.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = %s",
+            (m.group(1),),
+        ).fetchall()
+    finally:
+        con.close()
+    if not rows_:
+        return False
+    defn = rows_[0][0]
+    return marker in defn or bool(pg_marker and pg_marker in defn)
 
 
 # ── 전수 매트릭스 ───────────────────────────────────────────────────────────────
@@ -309,7 +350,7 @@ def _db_catalog(db: Path) -> tuple[dict, dict]:
     """
     from data.rules import engine  # noqa: PLC0415
 
-    with sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True) as con:
+    with _open(db) as con:
         con.row_factory = sqlite3.Row
         laws = engine.load_laws_from_db(con)
         return laws, engine.load_rules_from_db(con, laws)
@@ -329,7 +370,7 @@ def _find_verdict_combo(
 
     laws, rules = catalog
     tried = 0
-    with sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True) as con:
+    with _open(db) as con:
         con.row_factory = sqlite3.Row
         for row in con.execute("SELECT * FROM assets ORDER BY asset_id").fetchall():
             if not row["acquired_at"]:
@@ -669,7 +710,7 @@ def run(client, db: Path) -> None:
 
     # 층② 의 **대조군** — 같은 UPDATE 가 트리거 없는 커넥션에서는 성공한다.
     # 이게 없으면 "스키마가 막은 것"과 "트리거가 막은 것"을 구분하지 못한다.
-    plain = sqlite3.connect(db)
+    plain = _open(db)
     try:
         plain_ok, plain_msg = probe_sql(
             plain, f"UPDATE decisions SET state='pending' WHERE decision_id='{probe_id}'"
@@ -768,7 +809,9 @@ def run(client, db: Path) -> None:
     check(
         "**층 독립성** — 층③ 게이트를 죽여도 층④ CHECK 가 BLOCKED 서명을 막는다",
         isinstance(caught, sqlite3.IntegrityError)
-        and CHECK_BLOCKING_OVERRIDE in " ".join(str(caught).split())
+        and _check_marker_hit(
+            " ".join(str(caught).split()), CHECK_BLOCKING_OVERRIDE, db, CHECK_BLOCKING_OVERRIDE_PG
+        )
         and state_after == "pending",
         f"예외={type(caught).__name__ if caught else '없음(뚫림!)'} · "
         f"메시지={' '.join(str(caught).split())[:70] if caught else '-'} · 서명 후 상태={state_after}",
@@ -782,7 +825,7 @@ def run(client, db: Path) -> None:
         check("순서 잠금 프로브 draft 생성", False, "프로브 draft 생성 실패 — 미실행")
         return
     client.post(f"/api/decisions/{order_id}/submit", headers=TECH)
-    con_mut = sqlite3.connect(db)
+    con_mut = _open(db)
     try:
         con_mut.execute(
             "UPDATE assets SET has_lien=1, lien_creditor='스파이크은행', lien_consent_ref=NULL"
@@ -810,44 +853,51 @@ def run(client, db: Path) -> None:
 
     # ── 층 ④ DB CHECK — 직접 SQL 로 뚫기 3건 ────────────────────────────────────
     #    각 CHECK 를 **제약식 문구로 식별**한다. "예외가 났다"만으로는 어느 층이 잡았는지 모른다.
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.execute("PRAGMA foreign_keys=ON")
     try:
         probes = {
             "ⓐ 서명 요소 없이 signed": (
                 f"UPDATE decisions SET state='signed' WHERE decision_id='{probe_id}'",
                 CHECK_SIGNED_ELEMENTS,
+                None,
             ),
             "ⓑ BLOCKED 를 override=0 으로 signed": (
                 "UPDATE decisions SET state='signed', signed_at='2026-08-10 00:00:00',"
                 f" reviewed_by='mgr-01' WHERE decision_id='{probe_id}'",
                 CHECK_BLOCKING_OVERRIDE,
+                CHECK_BLOCKING_OVERRIDE_PG,
             ),
             "ⓒ 사유 없는 override": (
                 f"UPDATE decisions SET override=1, override_reason='  ' WHERE decision_id='{probe_id}'",
                 CHECK_OVERRIDE_REASON,
+                None,
             ),
         }
         outcome = {
-            label: (*probe_sql(con, sql), mark) for label, (sql, mark) in probes.items()
+            label: (*probe_sql(con, sql), mark, pg_mark)
+            for label, (sql, mark, pg_mark) in probes.items()
         }
-        stripped, mutant_passed = _mutant_table(con, probe_id, [sql for sql, _ in probes.values()])
+        stripped, mutant_passed = _mutant_table(con, probe_id, [sql for sql, _, _ in probes.values()])
     finally:
         con.close()
 
     check(
         "층④ 직접 SQL 3건 전부 CHECK 거부 — **어느 CHECK 인지 제약식 문구로 확인**",
-        all(ok and mark in msg for ok, msg, mark in outcome.values()),
+        all(
+            ok and _check_marker_hit(msg, mark, db, pg_mark)
+            for ok, msg, mark, pg_mark in outcome.values()
+        ),
         # ⚠ 문구를 보여 준다 — "거부됐다"만 찍으면 **다른 CHECK 가 대신 잡은 경우**를 못 읽는다
         #   (뮤턴트 ⓑ 실측: 서명 3요소 CHECK 를 지워도 BLOCKING CHECK 가 대신 거부했다)
         " · ".join(
             f"{lbl}: {'거부' if ok else '통과'}/"
             + (
                 "문구일치"
-                if mark in msg
+                if _check_marker_hit(msg, mark, db, pg_mark)
                 else f"문구불일치[{msg.replace('CHECK constraint failed: ', '')[:56]}]"
             )
-            for lbl, (ok, msg, mark) in outcome.items()
+            for lbl, (ok, msg, mark, pg_mark) in outcome.items()
         ),
     )
 
@@ -938,12 +988,13 @@ def _make_probe_draft(db: Path, asset: str, mode: str) -> str | None:
     return res["decision_id"]
 
 
-def _mutant_table(con: sqlite3.Connection, probe_id: str, sqls: list[str]) -> tuple[bool, int]:
-    """CHECK 3종을 벗긴 사본 테이블에서 같은 SQL 이 통과하는지 본다 (`approvals_contract ㉑` 패턴).
+def _mutant_table(con, probe_id: str, sqls: list[str]) -> tuple[bool, int]:
+    """CHECK 3종을 벗긴 사본 테이블에서 같은 SQL 이 통과하는지 본다 (`approvals_contract ㉑` 패턴)."""
+    if dbcompat.USE_POSTGRES:
+        return _mutant_table_pg(con, probe_id, sqls)
 
-    ⚠ 저장된 DDL 에는 주석이 남는다 — 먼저 지우지 않으면 `,\\s*CHECK` 가 주석 줄을 못 건너뛰어
-      뮤턴트가 조용히 **원본과 같아지고** "뮤턴트에서도 거부됨" = 위양성 FAIL 이 난다 (실측 선례).
-    """
+    # ⚠ 저장된 DDL 에는 주석이 남는다 — 먼저 지우지 않으면 `,\s*CHECK` 가 주석 줄을 못 건너뛰어
+    #   뮤턴트가 조용히 **원본과 같아지고** "뮤턴트에서도 거부됨" = 위양성 FAIL 이 난다 (실측 선례).
     ddl = con.execute("SELECT sql FROM sqlite_master WHERE name='decisions'").fetchone()[0]
     mutant = re.sub(r"--[^\n]*", "", ddl)
     mutant = mutant.replace("CREATE TABLE decisions", "CREATE TABLE decisions_mutant", 1)
@@ -979,52 +1030,124 @@ def _mutant_table(con: sqlite3.Connection, probe_id: str, sqls: list[str]) -> tu
     return stripped, passed
 
 
+def _mutant_table_pg(con, probe_id: str, sqls: list[str]) -> tuple[bool, int]:
+    """`decisions` 를 `LIKE ... INCLUDING ALL` 로 복제(제약 포함)한 뒤, 타깃 CHECK 3종만
+    `pg_get_constraintdef()` 문구로 식별해 `ALTER TABLE ... DROP CONSTRAINT` 로 벗긴다.
+
+    SQLite 판처럼 DDL 텍스트를 정규식으로 오려내지 않는 이유: Postgres 는 저장된 DDL 원문이
+    없다(`pg_get_constraintdef()` 가 매번 정규화해 재구성한다 — `IN (...)` 이 `= ANY (ARRAY[...])`
+    로 바뀌는 것도 그 재구성의 결과다). 텍스트 오려내기 대신 이름으로 제약을 지운다.
+    """
+    con.execute("SAVEPOINT mutant")
+    passed = 0
+    try:
+        con.execute("DROP TABLE IF EXISTS decisions_mutant")
+        con.execute("CREATE TABLE decisions_mutant (LIKE decisions INCLUDING ALL)")
+        defs = con.execute(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint"
+            " WHERE conrelid = 'decisions_mutant'::regclass AND contype = 'c'"
+        ).fetchall()
+        markers = (CHECK_SIGNED_ELEMENTS, CHECK_BLOCKING_OVERRIDE_PG, CHECK_OVERRIDE_REASON)
+        to_drop = [name for name, d in defs if any(mark in d for mark in markers)]
+        for name in to_drop:
+            con.execute(f'ALTER TABLE decisions_mutant DROP CONSTRAINT "{name}"')
+        remaining = con.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+            " WHERE conrelid = 'decisions_mutant'::regclass AND contype = 'c'"
+        ).fetchall()
+        remaining_text = " ".join(d for (d,) in remaining)
+        stripped = not any(mark in remaining_text for mark in markers)
+
+        con.execute(
+            "INSERT INTO decisions_mutant SELECT * FROM decisions WHERE decision_id = %s",
+            (probe_id,),
+        )
+        for sql in sqls:
+            try:
+                con.execute(sql.replace("decisions ", "decisions_mutant ", 1))
+                passed += 1
+            except sqlite3.IntegrityError:
+                pass
+    finally:
+        con.execute("ROLLBACK TO mutant")
+        con.execute("RELEASE mutant")
+    return stripped, passed
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("MQ-708 — BLOCKING 우회 0건 · 서명 없는 확정 0건 전수 회귀 (임시 DB 사본)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    before_rows = scalar(SOURCE_DB, "SELECT count(*) FROM decisions")
+    if dbcompat.USE_POSTGRES:
+        before = None
+        before_rows = scalar(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM decisions")
+    else:
+        before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        before_rows = scalar(SOURCE_DB, "SELECT count(*) FROM decisions")
 
     # 임시 폴더 정리 실패는 **경고로 끝난다** — Windows 는 핸들 해제가 비동기라,
     # 정리 실패가 예외로 터지면 이미 끝난 계약 검증 결과를 가린다 (rules_db_load 선례).
+    schema = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-        db = Path(td) / "disposal_sign.db"
-        shutil.copy2(SOURCE_DB, db)
-        for side in ("-wal", "-shm"):
-            src = SOURCE_DB.with_name(SOURCE_DB.name + side)
-            if src.exists():
-                shutil.copy2(src, db.with_name(db.name + side))
-        # backend.db 는 **import 시점**에 이 값을 읽는다 — backend import 전에 심는다
-        os.environ["MAINTQ_DB"] = str(db)
-        print(f"[격리] MAINTQ_DB = {db}")
+        if dbcompat.USE_POSTGRES:
+            import backend.db as backend_db  # noqa: PLC0415
+            import mcp_server.db as mcp_db  # noqa: PLC0415
+
+            schema, db = pg_isolation.create_isolated_schema("disposal_sign")
+            # MCP autostart 가 꺼져 있어(위 os.environ) 도구가 서브프로세스 없이 이
+            # 프로세스 안에서 직접 호출된다 — 두 db 모듈 전역을 둘 다 갈아끼워야 한다.
+            backend_db.DB_PATH = db
+            mcp_db.DB_PATH = db
+            print(f"[격리] Postgres 격리 스키마 DATABASE_URL = {db}")
+        else:
+            db = Path(td) / "disposal_sign.db"
+            shutil.copy2(SOURCE_DB, db)
+            for side in ("-wal", "-shm"):
+                src = SOURCE_DB.with_name(SOURCE_DB.name + side)
+                if src.exists():
+                    shutil.copy2(src, db.with_name(db.name + side))
+            # backend.db 는 **import 시점**에 이 값을 읽는다 — backend import 전에 심는다
+            os.environ["MAINTQ_DB"] = str(db)
+            print(f"[격리] MAINTQ_DB = {db}")
         print(f"[격리] 처분 예정일 고정 = {PROBE_DATE}\n")
 
         from fastapi.testclient import TestClient  # noqa: PLC0415
 
         from backend.main import app  # noqa: PLC0415
 
-        with TestClient(app) as client:
-            # ⛔ 예외가 여기를 뚫으면 **결과표가 통째로 사라진다** — 진단이 가장 필요한 순간에
-            #    아무것도 안 남는다(reviewer 경고 4). FAIL 행으로 접고 표는 끝까지 그린다.
-            try:
-                run(client, db)
-            except Exception as exc:  # noqa: BLE001
-                check("run() 완주", False, f"{type(exc).__name__}: {exc}")
+        try:
+            with TestClient(app) as client:
+                # ⛔ 예외가 여기를 뚫으면 **결과표가 통째로 사라진다** — 진단이 가장 필요한 순간에
+                #    아무것도 안 남는다(reviewer 경고 4). FAIL 행으로 접고 표는 끝까지 그린다.
+                try:
+                    run(client, db)
+                except Exception as exc:  # noqa: BLE001
+                    check("run() 완주", False, f"{type(exc).__name__}: {exc}")
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
-    after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    after_rows = scalar(SOURCE_DB, "SELECT count(*) FROM decisions")
-    check(
-        "실 DB 오염 0 — data/maintq.db mtime·size·decisions 행 수 불변",
-        before == after and before_rows == after_rows,
-        f"mtime·size {'불변' if before == after else f'{before} → {after}'} · "
-        f"decisions {before_rows} → {after_rows}행",
-    )
+    if dbcompat.USE_POSTGRES:
+        after_rows = scalar(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM decisions")
+        check(
+            "실 DB 오염 0 — 공유 Postgres decisions 행 수 불변",
+            before_rows == after_rows,
+            f"decisions {before_rows} → {after_rows}행",
+        )
+    else:
+        after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        after_rows = scalar(SOURCE_DB, "SELECT count(*) FROM decisions")
+        check(
+            "실 DB 오염 0 — data/maintq.db mtime·size·decisions 행 수 불변",
+            before == after and before_rows == after_rows,
+            f"mtime·size {'불변' if before == after else f'{before} → {after}'} · "
+            f"decisions {before_rows} → {after_rows}행",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))

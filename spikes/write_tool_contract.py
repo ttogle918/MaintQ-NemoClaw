@@ -51,6 +51,19 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+ROOT_FOR_IMPORT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_FOR_IMPORT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
+
+def _open(db):
+    """`db` 는 SQLite 타겟이면 사본 경로(Path), Postgres 타겟이면 격리 스키마의
+    (schema, dsn) 튜플이다 — Postgres 는 공유 DB 를 오염시키지 않으려고 스키마 단위로
+    격리한다(data/pg_isolation.py, Sprint 16 MQ-1614)."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db[1])
+    return sqlite3.connect(db)
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 SERVER = ROOT / "mcp_server" / "server.py"
@@ -83,12 +96,17 @@ def payload(result) -> dict:
 DDL_NOTE = ""
 
 
-def prepare_db(tmp: Path) -> Path:
-    """실제 DB 사본 + D33 검증용 error_codes 1건 (+ MQ-707 DDL 대기 보정)."""
+def prepare_db(tmp: Path):
+    """실제 DB 사본(SQLite) / 격리 스키마(Postgres) + D33 검증용 error_codes 1건
+    (+ MQ-707 DDL 대기 보정)."""
     global DDL_NOTE
-    db = tmp / "contract.db"
-    shutil.copy2(SOURCE_DB, db)
-    con = sqlite3.connect(db)
+    if dbcompat.USE_POSTGRES:
+        schema, dsn = pg_isolation.create_isolated_schema("write_tool")
+        db = (schema, dsn)
+    else:
+        db = tmp / "contract.db"
+        shutil.copy2(SOURCE_DB, db)
+    con = _open(db)
     con.execute("PRAGMA foreign_keys=ON")
 
     # ── MQ-707 DDL 대기: `decisions.reason` 이 없으면 **사본에만** 만든다.
@@ -121,7 +139,7 @@ EVIDENCE = {
 
 
 def decision_count(db: Path) -> int:
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         return int(con.execute("SELECT count(*) FROM decisions").fetchone()[0])
     finally:
@@ -129,7 +147,7 @@ def decision_count(db: Path) -> int:
 
 
 def repair_count(db: Path) -> int:
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         return int(con.execute("SELECT count(*) FROM repair_records").fetchone()[0])
     finally:
@@ -138,7 +156,7 @@ def repair_count(db: Path) -> int:
 
 def set_law_fetched(db: Path, law_ref_id: str, fetched: bool, snapshot: tuple | None) -> tuple:
     """조문 원문을 미수집으로 되돌리거나(FALSE) 원상 복구한다(TRUE). 이전 값을 돌려준다."""
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         before = con.execute(
             "SELECT fetch_status, text, text_hash FROM law_refs WHERE law_ref_id=?",
@@ -161,10 +179,15 @@ def set_law_fetched(db: Path, law_ref_id: str, fetched: bool, snapshot: tuple | 
         con.close()
 
 
-async def run(db: Path) -> tuple[str, str, str]:
+async def run(db) -> tuple[str, str, str]:
     # `generate_disposal_document` 는 확장 도구라 **full 프로파일에서만** 등록된다 (D69).
     # 코어 도구(create_po_draft)는 두 프로파일 모두에 있으므로 한 세션으로 2종을 다 본다.
-    env = {**os.environ, "MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full"}
+    if dbcompat.USE_POSTGRES:
+        # 서브프로세스가 os.environ 을 상속하므로, 그대로 두면 공유 DATABASE_URL 을 봐서
+        # 격리 스키마가 아니라 공유 Postgres 에 써버린다 — 격리 스키마 DSN 으로 덮어쓴다.
+        env = {**os.environ, "DATABASE_URL": db[1], "MAINTQ_TOOLS_PROFILE": "full"}
+    else:
+        env = {**os.environ, "MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full"}
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
 
     async with stdio_client(params) as (read, write):
@@ -499,7 +522,7 @@ async def run(db: Path) -> tuple[str, str, str]:
 
 
 def verify_row(db: Path, po_id: str) -> None:
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     r = con.execute("SELECT * FROM po_drafts WHERE po_id=?", (po_id,)).fetchone()
 
@@ -528,11 +551,16 @@ def verify_row(db: Path, po_id: str) -> None:
 
     # ── D37: 백엔드가 신원을 stamp 한다
     sys.path.insert(0, str(ROOT))
+    import backend.db as backend_db  # noqa: PLC0415
     from backend.services.po import display_name, stamp_identity  # noqa: PLC0415
 
+    if dbcompat.USE_POSTGRES:
+        # backend/db.py 도 Postgres 전용이라 db_path 인자를 더 안 본다(DATABASE_URL 전역
+        # 고정) — 공유 DB 대신 이 테스트의 격리 스키마를 상대로 stamp 하도록 바꿔야 한다.
+        backend_db.DATABASE_URL = db[1]
     ok1 = stamp_identity(po_id, "tech-01", "S1", db_path=db)
     ok2 = stamp_identity(po_id, "mgr-01", "S9", db_path=db)  # 재stamp 시도
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     r2 = con.execute("SELECT * FROM po_drafts WHERE po_id=?", (po_id,)).fetchone()
     con.close()
@@ -562,7 +590,7 @@ def verify_decision_rows(db: Path, cond_id: str | None, blocked_id: str | None) 
         compute_bundle_hash,
     )
 
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     r = con.execute("SELECT * FROM decisions WHERE decision_id=?", (cond_id,)).fetchone()
     b = con.execute("SELECT * FROM decisions WHERE decision_id=?", (blocked_id,)).fetchone()
@@ -604,6 +632,11 @@ def verify_decision_rows(db: Path, cond_id: str | None, blocked_id: str | None) 
     #     **트리거 문구**가 있는지까지 본다. 그러지 않으면 "잠갔다"가 아니라 "다른 것이
     #     우연히 막아 줬다"를 통과로 기록하게 된다.
     mcp_db.DB_PATH = db
+    if dbcompat.USE_POSTGRES:
+        # mcp_server/db.py 는 Postgres 전용이라 DB_PATH 를 더 안 본다 — draft_writer 류가
+        # 실제로 읽는 DATABASE_URL 을 격리 스키마 DSN 으로 바꿔야 이 프로브가 공유 DB
+        # 대신 이 테스트가 방금 쓴 격리 스키마를 상대로 UPDATE/DELETE 를 시도한다.
+        mcp_db.DATABASE_URL = db[1]
     trigger_msg = "MCP 도구는 decisions 를"
     for mark, label, sql in (
         ("㉒", "UPDATE", "UPDATE decisions SET state='pending' WHERE decision_id=?"),
@@ -615,7 +648,7 @@ def verify_decision_rows(db: Path, cond_id: str | None, blocked_id: str | None) 
             aborted, detail = False, "ABORT 되지 않았다 (잠금 없음)"
         except sqlite3.IntegrityError as e:
             aborted, detail = trigger_msg in str(e), str(e)
-        con = sqlite3.connect(db)
+        con = _open(db)
         con.row_factory = sqlite3.Row
         still = con.execute(
             "SELECT state FROM decisions WHERE decision_id=?", (cond_id,)
@@ -639,7 +672,7 @@ def verify_repair_row(
 
     import mcp_server.db as mcp_db  # noqa: PLC0415
 
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     r = con.execute("SELECT * FROM repair_records WHERE repair_id=?", (repair_id,)).fetchone()
     con.close()
@@ -670,6 +703,11 @@ def verify_repair_row(
     #     repair_records 트리거가 걸려 있지 않은 커넥션이라, 잠기지 않은 경로를 통과시키고도
     #     "막혔다"고 오판하게 된다. repair_records 전용 커넥션(세 번째 writer)만 쓴다.
     mcp_db.DB_PATH = db
+    if dbcompat.USE_POSTGRES:
+        # mcp_server/db.py 는 Postgres 전용이라 DB_PATH 를 더 안 본다 — draft_writer 류가
+        # 실제로 읽는 DATABASE_URL 을 격리 스키마 DSN 으로 바꿔야 이 프로브가 공유 DB
+        # 대신 이 테스트가 방금 쓴 격리 스키마를 상대로 UPDATE/DELETE 를 시도한다.
+        mcp_db.DATABASE_URL = db[1]
     trigger_msg = "MCP 도구는 repair_records 를"
     for mark, label, sql in (
         ("㉙", "UPDATE", "UPDATE repair_records SET state='pending' WHERE repair_id=?"),
@@ -681,7 +719,7 @@ def verify_repair_row(
             aborted, detail = False, "ABORT 되지 않았다 (잠금 없음)"
         except sqlite3.IntegrityError as e:
             aborted, detail = trigger_msg in str(e), str(e)
-        con = sqlite3.connect(db)
+        con = _open(db)
         con.row_factory = sqlite3.Row
         still = con.execute(
             "SELECT state FROM repair_records WHERE repair_id=?", (repair_id,)
@@ -703,16 +741,23 @@ def main() -> None:
         "쓰기 도구 3종 계약 검증 — create_po_draft · generate_disposal_document · "
         "create_repair_record (임시 DB 사본)\n"
     )
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    with tempfile.TemporaryDirectory() as td:
-        db = prepare_db(Path(td))
-        print(f"[스키마] {DDL_NOTE}\n")
-        po_id, cond_id, blocked_id, repair_id, repair_expenditure_class = asyncio.run(run(db))
-        verify_row(db, po_id)
-        verify_decision_rows(db, cond_id, blocked_id)
-        verify_repair_row(db, repair_id, repair_expenditure_class)
+    db_schema = None
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            db = prepare_db(Path(td))
+            if dbcompat.USE_POSTGRES:
+                db_schema = db[0]
+            print(f"[스키마] {DDL_NOTE}\n")
+            po_id, cond_id, blocked_id, repair_id, repair_expenditure_class = asyncio.run(run(db))
+            verify_row(db, po_id)
+            verify_decision_rows(db, cond_id, blocked_id)
+            verify_repair_row(db, repair_id, repair_expenditure_class)
+    finally:
+        if db_schema:
+            pg_isolation.drop_isolated_schema(db_schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))

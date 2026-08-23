@@ -31,8 +31,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from data import dbcompat, pg_isolation  # noqa: E402
 from mcp_server import db as db_mod  # noqa: E402
 from mcp_server.tools.lookup_error_code import lookup_error_code  # noqa: E402
+
+_pg_schemas: list[str] = []  # 만든 격리 스키마 — main() 끝에서 한꺼번에 정리
 
 # data/seed.py 의 error_codes DDL 과 같은 제약 (D25 대문자 canonical · D33 코드 형식).
 # seed.py 는 MQ-301 이 수정 중이라 import 하지 않고 스키마만 여기서 복제한다.
@@ -122,7 +125,19 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, ok, detail))
 
 
-def make_db(path: Path, rows: list[tuple]) -> Path:
+def make_db(path: Path, rows: list[tuple]):
+    """`rows` 만 든 격리 DB 를 만든다. Postgres 는 격리 스키마(빈 상태로 시작 —
+    clone_data=False, D50 의 '0행' 을 확실히 보장한다), SQLite 는 임시 파일이다."""
+    if dbcompat.USE_POSTGRES:
+        schema, dsn = pg_isolation.create_isolated_schema("lookup", clone_data=False)
+        _pg_schemas.append(schema)
+        if rows:
+            con = dbcompat.connect_dsn(dsn)
+            con.executemany("INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+            con.commit()
+            con.close()
+        return dsn
+
     con = sqlite3.connect(path)
     con.executescript(DDL)
     con.executemany("INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
@@ -139,7 +154,12 @@ def use(path: Path) -> None:
 def run(tmp: Path) -> None:
     loaded = make_db(tmp / "loaded.db", FIXTURE)
     empty = make_db(tmp / "empty.db", [])
-    missing = tmp / "no-such.db"
+    if dbcompat.USE_POSTGRES:
+        # "DB 파일이 없다"의 Postgres 대응 — 도달 불가능한 DSN (짧은 connect_timeout 으로
+        # 확실히·빨리 실패하게 한다. trace_persist.py 의 같은 트릭 참고).
+        missing = "postgresql://postgres:postgres@127.0.0.1:59999/no_such_db?connect_timeout=2"
+    else:
+        missing = tmp / "no-such.db"
 
     # ── ① D6·D13: model enum 강제. 미지원 기종이 조용히 통과하면 안 된다
     use(loaded)
@@ -271,7 +291,10 @@ def real_db_actions_source_check(real_db: Path) -> None:
     채워진 행이 정확히 그 3건인지(양성 축) + 나머지는 여전히 null인지(음성 축)를 함께 본다.
     """
     expected_filled = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW")}
-    con = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
+    if dbcompat.USE_POSTGRES:
+        con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+    else:
+        con = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
     try:
         total = con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
         filled_rows = con.execute(
@@ -302,21 +325,40 @@ def main() -> None:
         "(실 DB 는 ⑭ 한 곳만 읽기 전용으로 구조만 본다)\n"
     )
     real_db = ROOT / "data" / "maintq.db"
-    if not real_db.exists():
+    if not dbcompat.USE_POSTGRES and not real_db.exists():
         raise SystemExit(f"[중단] {real_db} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
-    before = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
+    if dbcompat.USE_POSTGRES:
+        _con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        before = _con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        _con.close()
+    else:
+        before = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
 
-    with tempfile.TemporaryDirectory() as td:
-        run(Path(td))
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            run(Path(td))
 
-    real_db_actions_source_check(real_db)
+        real_db_actions_source_check(real_db)
+    finally:
+        for schema in _pg_schemas:
+            pg_isolation.drop_isolated_schema(schema)
 
-    after = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
-    check(
-        "⑫ 실 DB mtime·size 불변 (⑭ 는 mode=ro 로 열어 SELECT 만 — 쓰기 없음)",
-        before == after,
-        f"{'불변' if before == after else f'{before} → {after}'}",
-    )
+    if dbcompat.USE_POSTGRES:
+        _con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+        after = _con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        _con.close()
+        check(
+            "⑫ 실 DB(공유 Postgres) error_codes 행수 불변 — ⑭ 는 SELECT 만",
+            before == after,
+            f"{'불변' if before == after else f'{before} → {after}'}",
+        )
+    else:
+        after = (real_db.stat().st_mtime_ns, real_db.stat().st_size)
+        check(
+            "⑫ 실 DB mtime·size 불변 (⑭ 는 mode=ro 로 열어 SELECT 만 — 쓰기 없음)",
+            before == after,
+            f"{'불변' if before == after else f'{before} → {after}'}",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))

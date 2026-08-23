@@ -55,6 +55,7 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
 sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
 
 PORT = 8087
 BASE = f"http://127.0.0.1:{PORT}"
@@ -83,18 +84,36 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((f"{mark} {name}", ok, detail))
 
 
-def db_rows(db: Path, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
+def db_rows(db, sql: str, args: tuple = ()) -> list:
     """행 조회. **실 DB(`SOURCE_DB`)는 반드시 읽기 전용 URI 로 연다.**
 
     쓰기 가능 커넥션을 열었다 닫으면 SQLite 가 WAL 체크포인트를 수행해 **본 파일의 mtime·size 가
     바뀐다** — 이 스위트의 마지막 검사가 바로 그 불변을 단언하므로, 자기 행위로 자기 게이트를
     깨뜨리는 플래키 레드가 된다(reviewer 경고 1). 임시 사본은 쓰기 가능해도 무해하다.
+
+    Postgres 타겟(`db` 가 격리 스키마 DSN 문자열)에서는 이 파일 mtime 트릭이 없다 —
+    `dbcompat.connect_dsn()` 으로 그 스키마에 그대로 연결한다.
     """
+    if isinstance(db, str) and db.startswith("postgresql://"):
+        con = dbcompat.connect_dsn(db)
+        try:
+            return con.execute(sql, args).fetchall()
+        finally:
+            con.close()
     uri = db.resolve() == SOURCE_DB.resolve()
     con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True) if uri else sqlite3.connect(db)
     con.row_factory = sqlite3.Row
     try:
         return con.execute(sql, args).fetchall()
+    finally:
+        con.close()
+
+
+def real_decisions_count() -> int:
+    """실 `public.decisions` 행 수 — Postgres 오염 게이트가 이걸로 전후 비교한다."""
+    con = dbcompat.connect()
+    try:
+        return con.execute("SELECT count(*) FROM decisions").fetchall()[0][0]
     finally:
         con.close()
 
@@ -121,7 +140,7 @@ async def wait_ready(timeout: float = 40.0) -> bool:
 
 
 # ── 관통 ────────────────────────────────────────────────────────────────────────
-async def run_all(db: Path) -> None:
+async def run_all(db) -> None:
     from backend.agent.mcp_client import McpClient  # noqa: PLC0415
 
     async with httpx.AsyncClient(base_url=BASE, timeout=30.0) as c:
@@ -140,10 +159,14 @@ async def run_all(db: Path) -> None:
             f"tools_profile={health.get('tools_profile')!r}",
         )
 
-        # ③ 스모크 자신의 MCP stdio 세션 — env 명시 상속(D42)으로 **임시 DB** 를 보게 한다
-        client = McpClient(
-            env={"MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
-        )
+        # ③ 스모크 자신의 MCP stdio 세션 — env 명시 상속(D42)으로 **임시 DB** 를 보게 한다.
+        #    Postgres 타겟이면 `db` 는 격리 스키마 DSN 이고, 자식은 그걸 DATABASE_URL 로
+        #    받아야 본다 (mcp_server/db.py 는 MAINTQ_DB 를 읽지 않는다 — data/pg_isolation.py).
+        if dbcompat.USE_POSTGRES:
+            mcp_env = {"DATABASE_URL": db, "MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
+        else:
+            mcp_env = {"MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
+        client = McpClient(env=mcp_env)
         started = await client.start()
         tools = {t["name"] for t in await client.list_tools()}
         check(
@@ -182,7 +205,7 @@ async def _make_draft(client, asset: str, mode: str, reason: str) -> dict:
     )
 
 
-async def _clear_path(c: httpx.AsyncClient, client, db: Path) -> None:
+async def _clear_path(c: httpx.AsyncClient, client, db) -> None:
     """비차단 경로 — precheck 200 → draft → submit → 큐 → 상세 → 서명 200."""
     pre = await _precheck(c, CLEAR_ASSET, CLEAR_MODE)
     body = pre.json()
@@ -264,7 +287,7 @@ async def _clear_path(c: httpx.AsyncClient, client, db: Path) -> None:
     )
 
 
-async def _blocked_path(c: httpx.AsyncClient, client, db: Path) -> None:
+async def _blocked_path(c: httpx.AsyncClient, client, db) -> None:
     """차단 경로 — precheck 409 → **draft 는 생성된다**(D63) → 서명 409 → override 서명 200."""
     pre = await _precheck(c, BLOCKED_ASSET, BLOCKED_MODE)
     body = pre.json()
@@ -364,31 +387,52 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("MQ-708 — S9→S10 관통 스모크 (실 uvicorn + 실 MCP stdio · full 프로파일)\n")
-    if not SOURCE_DB.exists():
-        raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    before_rows = db_rows(SOURCE_DB, "SELECT count(*) FROM decisions")[0][0]
-    print(f"[실 DB] size={before[1]} · decisions={before_rows}행 (읽기만 한다)")
+    before: tuple[int, int] | None = None
+    if dbcompat.USE_POSTGRES:
+        before_rows = real_decisions_count()
+        print(f"[실 DB] public.decisions={before_rows}행 (읽기만 한다)")
+    else:
+        if not SOURCE_DB.exists():
+            raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+        before = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        before_rows = db_rows(SOURCE_DB, "SELECT count(*) FROM decisions")[0][0]
+        print(f"[실 DB] size={before[1]} · decisions={before_rows}행 (읽기만 한다)")
 
     err_bytes = b""
+    schema = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-        db = Path(td) / "s10.db"
-        shutil.copy2(SOURCE_DB, db)
-        for side in ("-wal", "-shm"):
-            src = SOURCE_DB.with_name(SOURCE_DB.name + side)
-            if src.exists():
-                shutil.copy2(src, db.with_name(db.name + side))
+        if dbcompat.USE_POSTGRES:
+            # `MAINTQ_DB` 는 mcp_server/db.py·backend/db.py 둘 다 읽지 않는다 — 자식이 공유
+            # `public` 스키마를 그대로 열어 쓰는 사고(실제로 한 번 겪었다: DEC-0001/0002 가
+            # 이 스모크가 남긴 흔적으로 public.decisions 에 남아 있었다 — 재시드로 정리)를
+            # 막으려면 격리 스키마 DSN 을 자식의 DATABASE_URL 로 직접 준다
+            # (data/pg_isolation.py, write_tool_contract.py 와 같은 패턴).
+            schema, db = pg_isolation.create_isolated_schema("s10_smoke")
+            env = {
+                **os.environ,
+                "DATABASE_URL": db,
+                "MAINTQ_TOOLS_PROFILE": "full",
+                "MAINTQ_MCP_AUTOSTART": "1",
+            }
+            print(f"[격리] 자식 DATABASE_URL = {db}")
+        else:
+            db = Path(td) / "s10.db"
+            shutil.copy2(SOURCE_DB, db)
+            for side in ("-wal", "-shm"):
+                src = SOURCE_DB.with_name(SOURCE_DB.name + side)
+                if src.exists():
+                    shutil.copy2(src, db.with_name(db.name + side))
 
-        # ⚠ `env={**os.environ, ...}` — 명시 상속이다. env=None 이면 자식이 실 DB 를 연다.
-        env = {
-            **os.environ,
-            "MAINTQ_DB": str(db),
-            "MAINTQ_TOOLS_PROFILE": "full",
-            "MAINTQ_MCP_AUTOSTART": "1",
-        }
-        os.environ["MAINTQ_DB"] = str(db)  # in-process 쪽 안전망 (McpClient 는 명시 전달)
-        print(f"[격리] MAINTQ_DB = {db}")
+            # ⚠ `env={**os.environ, ...}` — 명시 상속이다. env=None 이면 자식이 실 DB 를 연다.
+            env = {
+                **os.environ,
+                "MAINTQ_DB": str(db),
+                "MAINTQ_TOOLS_PROFILE": "full",
+                "MAINTQ_MCP_AUTOSTART": "1",
+            }
+            os.environ["MAINTQ_DB"] = str(db)  # in-process 쪽 안전망 (McpClient 는 명시 전달)
+            print(f"[격리] MAINTQ_DB = {db}")
         print(f"[격리] MAINTQ_TOOLS_PROFILE = full · 포트 {PORT}\n")
 
         proc = subprocess.Popen(
@@ -427,6 +471,8 @@ def main() -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
                 _, err_bytes = proc.communicate()
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
     stderr_text = (err_bytes or b"").decode("utf-8", "replace")
     marks = [m for m in ("cancel scope", "CancelledError", "Traceback") if m in stderr_text]
@@ -436,14 +482,22 @@ def main() -> None:
         f"검출 {marks}" if marks else "깨끗함",
     )
 
-    after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
-    after_rows = db_rows(SOURCE_DB, "SELECT count(*) FROM decisions")[0][0]
-    check(
-        "실 DB 오염 0 — data/maintq.db mtime·size·decisions 행 수 불변",
-        before == after and before_rows == after_rows,
-        f"mtime·size {'불변' if before == after else f'{before} → {after}'} · "
-        f"decisions {before_rows} → {after_rows}행",
-    )
+    if dbcompat.USE_POSTGRES:
+        after_rows = real_decisions_count()
+        check(
+            "실 DB 오염 0 — public.decisions 행 수 불변 (격리 스키마로 격리, mtime·size 는 Postgres 무관)",
+            before_rows == after_rows,
+            f"decisions {before_rows} → {after_rows}행",
+        )
+    else:
+        after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+        after_rows = db_rows(SOURCE_DB, "SELECT count(*) FROM decisions")[0][0]
+        check(
+            "실 DB 오염 0 — data/maintq.db mtime·size·decisions 행 수 불변",
+            before == after and before_rows == after_rows,
+            f"mtime·size {'불변' if before == after else f'{before} → {after}'} · "
+            f"decisions {before_rows} → {after_rows}행",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))

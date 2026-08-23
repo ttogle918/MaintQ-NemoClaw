@@ -20,6 +20,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
 SOURCE_DB = ROOT / "data" / "maintq.db"
 
 results: list[tuple[str, bool, str]] = []
@@ -62,9 +65,9 @@ TRACE_FIXTURE_ROWS = [
 ]
 
 
-def seed_trace_fixture(db: Path) -> None:
+def seed_trace_fixture(db) -> None:
     """traces 5행을 무작위 seq 순서로 직접 INSERT (백엔드 코드를 거치지 않는다)."""
-    con = sqlite3.connect(db)
+    con = dbcompat.connect_dsn(db) if dbcompat.USE_POSTGRES else sqlite3.connect(db)
     try:
         con.executemany(
             "INSERT INTO traces (session_id, seq, event_type, tool, payload, ts)"
@@ -444,23 +447,34 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("REST API 계약 검증 — 상태 전이 = 권한 (임시 DB 사본)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "api.db"
-        shutil.copy2(SOURCE_DB, db)
-        os.environ["MAINTQ_DB"] = str(db)
-        seed_trace_fixture(db)
+    schema = None
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            if dbcompat.USE_POSTGRES:
+                import backend.db as bdb  # noqa: PLC0415
 
-        sys.path.insert(0, str(ROOT))
-        from fastapi.testclient import TestClient  # noqa: PLC0415
+                schema, db = pg_isolation.create_isolated_schema("api_contract")
+                bdb.DB_PATH = db  # TestClient 는 같은 프로세스 안이라 이걸로 충분하다
+            else:
+                db = Path(td) / "api.db"
+                shutil.copy2(SOURCE_DB, db)
+                os.environ["MAINTQ_DB"] = str(db)
+            seed_trace_fixture(db)
 
-        from backend.main import app  # noqa: PLC0415
+            sys.path.insert(0, str(ROOT))
+            from fastapi.testclient import TestClient  # noqa: PLC0415
 
-        with TestClient(app) as client:
-            run(client)
-        run_print_page_checks()
+            from backend.main import app  # noqa: PLC0415
+
+            with TestClient(app) as client:
+                run(client)
+            run_print_page_checks()
+    finally:
+        if schema:
+            pg_isolation.drop_isolated_schema(schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 40))

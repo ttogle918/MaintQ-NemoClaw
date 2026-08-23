@@ -24,6 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
 SOURCE_DB = ROOT / "data" / "maintq.db"
 
 results: list[tuple[str, bool, str]] = []
@@ -31,6 +33,13 @@ results: list[tuple[str, bool, str]] = []
 
 def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, ok, detail))
+
+
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
 
 
 class FakeMcp:
@@ -349,7 +358,7 @@ async def run_all(db: Path) -> None:
     )
 
     # ── ⑪⑫ draft po_card + 신원 stamp
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.execute("PRAGMA foreign_keys=ON")
     con.execute(
         "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, unit_price, reason, state)"
@@ -374,7 +383,7 @@ async def run_all(db: Path) -> None:
         and all(draft[0].get(k) is not None for k in ("part_name", "supplier_name", "lead_days")),
         f"{ {k: draft[0].get(k) for k in ('part_name', 'supplier_name', 'lead_days')} if draft else None }",
     )
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.row_factory = sqlite3.Row
     row = con.execute(
         "SELECT requested_by, session_id FROM po_drafts WHERE po_id='PO-9001'"
@@ -387,7 +396,7 @@ async def run_all(db: Path) -> None:
     )
 
     # ── ⑬ A5 — 모든 tool_call/tool_result/block 이 traces 에 남는다
-    con = sqlite3.connect(db)
+    con = _open(db)
     n = con.execute("SELECT count(*) FROM traces WHERE session_id='T9'").fetchone()[0]
     types = {
         r[0] for r in con.execute("SELECT DISTINCT event_type FROM traces WHERE session_id='T9'")
@@ -556,7 +565,7 @@ async def run_all(db: Path) -> None:
         db=db,
         session="TTP",
     )
-    con = sqlite3.connect(db)
+    con = _open(db)
     tp = con.execute(
         "SELECT event_type, tool_payload FROM traces WHERE session_id='TTP' ORDER BY seq"
     ).fetchall()
@@ -658,14 +667,27 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("에이전트 루프 계약 검증 (ScriptedClient — API 키 불필요)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 없음 — data/seed.py 를 먼저 실행하세요")
 
+    schema = None
     with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "loop.db"
-        shutil.copy2(SOURCE_DB, db)
-        os.environ["MAINTQ_DB"] = str(db)
-        asyncio.run(run_all(db))
+        if dbcompat.USE_POSTGRES:
+            import backend.db as backend_db  # noqa: PLC0415
+
+            schema, db = pg_isolation.create_isolated_schema("agent_loop")
+            # loop.py 는 connect() 를 인자 없이 부른다(equipment_id 로 model 조회) —
+            # TraceWriter 처럼 db_path 를 명시로 못 주므로 전역을 갈아끼워야 한다.
+            backend_db.DB_PATH = db
+        else:
+            db = Path(td) / "loop.db"
+            shutil.copy2(SOURCE_DB, db)
+            os.environ["MAINTQ_DB"] = str(db)
+        try:
+            asyncio.run(run_all(db))
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 44))

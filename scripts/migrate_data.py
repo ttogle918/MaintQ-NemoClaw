@@ -46,6 +46,22 @@ OPTIONAL_TABLES = ["error_codes"]
 EMPTY_TABLES = ["po_drafts", "decisions", "repair_records", "flags", "traces"]
 
 
+def _boolean_columns(pg_con, table_name):
+    """Postgres 쪽 대상 테이블에서 boolean 타입인 컬럼명 집합을 조회한다.
+
+    SQLite 는 BOOLEAN 을 그냥 INTEGER(0/1)로 저장한다. psycopg 파라미터 바인딩은
+    Python int → Postgres boolean 을 암묵 변환하지 않으므로("column is of type
+    boolean but expression is of type smallint"), INSERT 전에 그 컬럼만 명시적으로
+    Python bool 로 캐스팅해야 한다.
+    """
+    cur = pg_con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = %s AND data_type = 'boolean'",
+        (table_name,),
+    )
+    return {row[0] for row in cur.fetchall()}
+
+
 def migrate_table(sqlite_con, pg_con, table_name):
     """SQLite의 한 테이블을 Postgres로 마이그레이션."""
 
@@ -61,6 +77,19 @@ def migrate_table(sqlite_con, pg_con, table_name):
     if not rows:
         print(f"  {table_name}: 0행 (스킵)")
         return
+
+    # 2b. SQLite 의 0/1(int) → Postgres boolean 컬럼용 Python bool 로 변환
+    bool_cols = _boolean_columns(pg_con, table_name)
+    if bool_cols:
+        bool_idx = [i for i, c in enumerate(columns) if c in bool_cols]
+        converted = []
+        for row in rows:
+            row = list(row)
+            for i in bool_idx:
+                if row[i] is not None:
+                    row[i] = bool(row[i])
+            converted.append(tuple(row))
+        rows = converted
 
     # 3. Postgres에 INSERT
     col_names = ", ".join(columns)

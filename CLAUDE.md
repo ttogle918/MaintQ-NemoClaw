@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D110**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D116**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
@@ -87,7 +87,8 @@
   ⚠ 실행 커맨드(**3파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
   backend/agent/test_llm_cache.py data/external/test_elice_docvision.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
-- `spikes/` — **32종** (`ls spikes/*.py` 와 일치해야 한다):
+- `spikes/` — **33종**(`ls spikes/*.py` 는 37개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
+  `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
@@ -99,8 +100,9 @@
   a2a_identity_contract ·
   repair_flow_contract ·
   deadline_risk_contract ·
-  **external_store_contract** ·
-  **ie5_extract_contract**
+  external_store_contract ·
+  ie5_extract_contract ·
+  **a2a_partner_tools_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -120,7 +122,13 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 988건** · seed **37건**(불변 아님 —
+**실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 후 재실행 — 아래 문단 참고)** —
+spikes **33스위트 / 1,051건**(32스위트 1,026건 실측 + `bundle_integrity` 25건은 이번 세션 미실행,
+직전 기록값 이월). **32→33**: Sprint 16 Stage 4(MQ-1613, 다른 세션이 이 세션 착수 전 이미
+커밋·push)가 `a2a_partner_tools_contract.py`(22건)를 신설했는데 이 문서 목록에 반영이 안 돼
+있었다 — `ls spikes/*.py` 실측으로 뒤늦게 발견해 여기서 정정한다. (`ls spikes/*.py` 는 37개를
+반환한다 — 나머지 4개는 이 32+1종 공식 목록 밖으로, `docs/sprints/sprint-16-wip.md` "스코프 밖
+발견" 참고 · 아직 이 문서가 공식 스위트로 인정하지 않는다) · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
@@ -136,16 +144,17 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 격리 확인, 2026-08-21)이 `/v2/manager/po/[poId]` 를 신설했으나 이 문서에는 반영이 안 돼 있었다 —
 D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함께 정정한다. **19→21**: D111이
 `/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21, 이후 불변). spikes 스위트별 건수:
-`a2a_identity_contract 19` ·
+`a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
 `agent_loop_contract 35` · `api_contract 41` · `approvals_contract 26` · `asset_tools_contract 49` ·
-`bundle_integrity 25` · `citation_render 19` · `db_concurrency 13` · `deadline_risk_contract 18` ·
+`bundle_integrity 25`(SQLite 전용 미포팅 — 아래 Sprint 16 문단 참고) ·
+`citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
-`llm_provider_contract 14` · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
+`llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 253` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 291` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**
@@ -247,6 +256,53 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > 3항 연쇄로 상태를 직접 비교하던 실제 D87 위반 1건(L2-18.4·18.5)이 드러나 `stateView("po",
 > po.state)` 호출로 즉시 교체했다 — 같은 커밋에서 해소, 신규 위반이 남지 않았다. 스위트는
 > **PASS 271/271**.
+
+> **Sprint 16 — SQLite→Postgres 마이그레이션 완성 (2026-08-23, MQ-1614).** 다른 세션이 시작한
+> 마이그레이션(스키마 변환·`scripts/postgres_guards.sql`·데이터 이관 스크립트)이 "코드만
+> 전환되고 접속 가능한 Postgres 가 없는" 상태로 남아 있었다 — 이 세션이 로컬 Postgres(Docker,
+> 포트 5434)를 띄우고 마이그레이션을 실제로 완성했다: `data/dbcompat.py`(sqlite3 호환 계층)·
+> `data/pg_isolation.py`(스파이크별 격리 스키마) 신설, `backend/db.py`·`mcp_server/db.py` 의
+> `read_only()` 물리적 강제 재구현, `disposal.py`(read_only 미전환으로 `disposal_api_contract`
+> 의 이전 "26/26" 이 스테일 SQLite 파일을 읽은 가짜 통과였음을 발견·수정) 등. **31/32 스파이크를
+> 실 Postgres 위에서 재검증**(`bundle_integrity` 는 픽스처 DB 변형 7종이 전부 `sqlite3.connect()`
+> 직결이라 포팅 규모가 다른 스파이크보다 훨씬 커 사용자 승인으로 이번 세션 skip — 아래 참고).
+>
+> 건수 변화 3가지, 이번 마이그레이션과 무관한 것까지 섞여 있어 구분해 적는다:
+> - **`db_concurrency` 13→7** (이번 세션 원인). WAL·busy_timeout·`journal_mode` 는 SQLite
+>   전용 개념이라 Postgres 판 `backend/db.py`·`mcp_server/db.py` 에는 그 코드 자체가 없다 —
+>   해당 검사(원본 ①②③⑤⑥⑧⑨)는 이식이 아니라 "대상 없음"으로 명시하고 1건으로 합쳤다. D10
+>   트리거·D15 경계 검사는 그대로 포팅했고, "동시 쓰기가 안 막힌다"는 주장은 MVCC 식으로
+>   재실측(④')했다.
+> - **`llm_provider_contract` 14→23** (이번 마이그레이션과 무관 — 표 갱신 누락이었을 뿐).
+>   D115(Elice LLM provider 추가, `docs/10_DECISIONS.md` 에 이미 등재)가 검사 9건(⑮~㉓)을
+>   더한 것이 원인 — 코드·스파이크는 이미 커밋돼 있었고 이 표만 반영이 안 돼 있었다.
+> - **`ui_honesty_contract` 271→291** (이번 마이그레이션과 무관 — 원인 미확정). `git log --
+>   frontend/`로 대조하면 `7ff38b2`(Sprint 16 Stage 3, A2A 응답 표시 4종 — 다른 세션이 이
+>   세션 착수 전 이미 push)가 유력한 후보이나, 정확히 어느 파일이 L2 글롭에 새로 편입돼
+>   +20 이 됐는지는 이번 세션에서 실측 유도까지는 하지 않았다 — 다음 세션이 `git log --
+>   stat 7ff38b2 -- frontend/` 로 정확한 산술을 재구성해 이 문단을 갱신할 것.
+>
+> 그 외 **29스위트는 건수 무변화** — SQLite 커넥션을 Postgres 로 바꿔도 계약 자체(검사 개수·
+> 의미)는 그대로였다는 뜻이다. 이 과정에서 실제 버그 2건을 발견·수정했다(스파이크가 아니라
+> 마이그레이션 배선 자체의 결함):
+> - `s10_smoke.py`·`sp3_sse_events.py` — 실 uvicorn/MCP stdio 서브프로세스에 `MAINTQ_DB`
+>   (SQLite 시절 변수, Postgres 코드는 안 읽는다)만 넘기고 있어서, 자식이 조용히 **공유
+>   `public` 스키마에 실제로 썼다.** `s10_smoke` 는 최초 무수정 실행에서 `decisions` 테이블에
+>   `DEC-0001`·`DEC-0002` 가 실제로 남는 것을 확인(`docker exec ... psql` 로 직접 봄) —
+>   `data/seed.py --with-error-codes` 재시드로 정리(37/37 재확인). `sp3_sse_events` 는 연속
+>   재실행에서 `traces` 에 72행이 누적돼 두 번째 실행의 seq 연속성 검사(⑭)를 실제로 깨뜨렸다.
+>   두 스파이크 모두 자식 프로세스 env 를 `MAINTQ_DB` 대신 `DATABASE_URL`(격리 스키마 DSN,
+>   `data/pg_isolation.py`)로 바꿔 해소 — **서브프로세스를 띄우는 스파이크는 전부 이 패턴을
+>   따라야 한다**(D10 절대 규칙과 별개로, 격리 자체가 깨지면 회귀가 통째로 무의미해진다).
+> - `disposal_sign_contract`·`approvals_contract` 의 "mutant table" 기법(CHECK 제약을 벗긴
+>   사본 테이블에서 같은 SQL 이 통과하는지 대조)이 Postgres 에 없는 `sqlite_master` 에
+>   의존해 두 스파이크 모두 부분 미구현(N/A) 상태였다 — `CREATE TABLE ... (LIKE decisions
+>   INCLUDING ALL)` + `pg_get_constraintdef()` 이름 조회 기반으로 재구현해 해소(disposal_sign
+>   24/27→26/26, approvals 는 N/A 항목이 정상 대조로 전환).
+>
+> **재발 방지책이 필요하면**: `docs/10_DECISIONS.md` 에 Postgres 마이그레이션 자체를 다루는
+> D-결정이 아직 없다 — 다음 세션이 D10 가드 재구현 방식·`dbcompat` 계층·`pg_isolation` 스키마
+> 전략·"서브프로세스는 `DATABASE_URL` 을 격리 DSN 으로 받아야 한다" 규칙을 D 번호로 등재할 것.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).

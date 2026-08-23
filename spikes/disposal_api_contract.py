@@ -27,6 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
 
 results: list[tuple[str, bool, str]] = []
 
@@ -39,9 +41,17 @@ TECH = {"X-Role": "technician", "X-User": "tech-01"}
 MGR = {"X-Role": "manager", "X-User": "mgr-01"}
 
 
+def _open_shared(db):
+    """precheck() 는 순수 읽기라 — Postgres 타겟에서는 공유 public 스키마를 그대로
+    읽어도 안전하다(⑲ 가 무저장을 확인한다). `db` 는 SQLite 타겟에서만 실제로 쓰인다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+    return sqlite3.connect(db)
+
+
 def row_counts(db: Path) -> dict[str, int]:
     """무저장 증명용 — 판정 경로가 건드릴 수 있는 테이블의 행 수 + assets 지문."""
-    con = sqlite3.connect(db)
+    con = _open_shared(db)
     try:
         counts = {
             t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]  # noqa: S608
@@ -57,12 +67,12 @@ def row_counts(db: Path) -> dict[str, int]:
         con.close()
 
 
-def probe_dates(db: Path) -> dict[str, str]:
+def probe_dates(db) -> dict[str, str]:
     """`acquired_at + DISPOSAL_PROBE_MONTHS` — 시드가 만든 규칙을 그대로 재사용한다."""
     sys.path.insert(0, str(ROOT))
     from data.seed import DISPOSAL_PROBE_MONTHS, _shift_months  # noqa: PLC0415
 
-    con = sqlite3.connect(db)
+    con = _open_shared(db)
     try:
         out = {}
         for asset_id, months in DISPOSAL_PROBE_MONTHS.items():
@@ -259,7 +269,7 @@ def run(client, db: Path, probe: dict[str, str], captured: dict) -> None:
     # ── 두 판정 경로 대조 (DB 사본 vs 파일 정본)
     from data.rules import engine  # noqa: PLC0415
 
-    con = sqlite3.connect(db)
+    con = _open_shared(db)
     con.row_factory = sqlite3.Row
     try:
         mismatch = []
@@ -370,30 +380,44 @@ def main() -> None:
     if not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
+    schema = None
     with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "disposal.db"
-        shutil.copy2(SOURCE_DB, db)
-        empty = Path(td) / "no_rules.db"
-        shutil.copy2(SOURCE_DB, empty)
-        con = sqlite3.connect(empty)
-        con.execute("DELETE FROM rules")
-        con.commit()
-        con.close()
-
-        os.environ["MAINTQ_DB"] = str(db)
+        if dbcompat.USE_POSTGRES:
+            # precheck() 는 순수 읽기라(⑲ 가 확인) 나머지 검사는 공유 public 스키마를
+            # 읽어도 안전하다 — 유일하게 격리가 필요한 건 rules 를 진짜 0행으로 비우는
+            # ㉓ 뿐이다. 그것만 전용 격리 스키마를 만든다.
+            db = SOURCE_DB  # 아래 코드 경로 유지용 — Postgres 에서는 실제로 안 쓰인다
+            schema, empty = pg_isolation.create_isolated_schema("disposal_empty_rules")
+            econ = dbcompat.connect_dsn(empty)
+            econ.execute("DELETE FROM rules")
+            econ.commit()
+            econ.close()
+        else:
+            db = Path(td) / "disposal.db"
+            shutil.copy2(SOURCE_DB, db)
+            empty = Path(td) / "no_rules.db"
+            shutil.copy2(SOURCE_DB, empty)
+            con = sqlite3.connect(empty)
+            con.execute("DELETE FROM rules")
+            con.commit()
+            con.close()
+            os.environ["MAINTQ_DB"] = str(db)
         os.environ["MAINTQ_MCP_AUTOSTART"] = "0"  # 판정은 MCP 와 무관하다 (D73)
 
-        sys.path.insert(0, str(ROOT))
         from fastapi.testclient import TestClient  # noqa: PLC0415
 
         from backend.main import app  # noqa: PLC0415
 
         probe = probe_dates(db)
         captured: dict = {}
-        with TestClient(app) as client:
-            run(client, db, probe, captured)
-            run_catalog_outage(client, empty)
-        run_static_checks(captured)
+        try:
+            with TestClient(app) as client:
+                run(client, db, probe, captured)
+                run_catalog_outage(client, empty)
+            run_static_checks(captured)
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 30))

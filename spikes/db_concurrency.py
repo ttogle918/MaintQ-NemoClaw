@@ -33,6 +33,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DB = ROOT / "data" / "maintq.db"
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
 
 results: list[tuple[str, bool, str]] = []
 
@@ -42,6 +44,14 @@ def check(name: str, ok: bool, detail: str) -> None:
 
 
 # ── 헬퍼 ────────────────────────────────────────────────────────────────────
+
+
+def _pg_scalar(dsn: str, sql: str) -> object:
+    con = dbcompat.connect_dsn(dsn)
+    try:
+        return con.execute(sql).fetchall()[0][0]
+    finally:
+        con.close()
 
 
 def journal_mode(db: Path) -> str:
@@ -300,31 +310,179 @@ def run(db: Path) -> None:
     )
 
 
+def hold_write_lock_pg(bdb, hold_s: float, seq: int, started, errors: list) -> None:
+    """`hold_write_lock` 의 Postgres 판 — `db` 인자가 없다(전역 DATABASE_URL/DB_PATH 를 본다)."""
+    try:
+        with bdb.connect() as con:
+            con.execute(
+                "INSERT INTO traces (session_id, seq, event_type, payload)"
+                " VALUES ('MQ-313', %s, 'tool_call', '{}')",
+                (seq,),
+            )
+            started.set()
+            time.sleep(hold_s)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(exc)
+        started.set()
+
+
+def run_pg(dsn: str) -> None:
+    """Postgres 판 — WAL·busy_timeout 은 SQLite 전용 개념이라 이식 대상이 아니다.
+
+    Postgres 는 MVCC 로 읽기/쓰기를 별도 스냅샷으로 다룬다 — SQLite 의 "파일 전체 쓰기 잠금"
+    문제(MQ-313 이 잡으려던 것) 자체가 구조적으로 없다. `mcp_server/db.py`·`backend/db.py`
+    의 Postgres 버전에는 `_enable_wal`·`journal_mode`·`busy_timeout` PRAGMA 코드가 아예 없다
+    (Sprint 16 MQ-1614 로 전면 교체됨) — 원본 ①②③⑤⑥⑧⑨(WAL 전환·busy_timeout 값·
+    `_enable_wal` 실패 경로)는 검증 대상이 사라진 것이지 이식을 빠뜨린 게 아니다.
+
+    이식하는 것: D10 트리거(⑦·⑩·⑪)·D15 경계(⑫)는 DB 엔진과 무관한 계약이라 그대로 검증한다.
+    "동시 쓰기가 서로를 막지 않는다"(원본 ④)는 주장은 MVCC 식으로 다시 실측한다(④' 로 대체).
+    """
+    import backend.db as bdb  # noqa: PLC0415
+    import mcp_server.db as mdb  # noqa: PLC0415
+
+    if mdb.DB_PATH != dsn:
+        raise SystemExit(f"[중단] mcp_server.db.DB_PATH 가 격리 스키마가 아님: {mdb.DB_PATH}")
+
+    check(
+        "①②③⑤⑥⑧⑨ WAL/busy_timeout — 대상 없음 (Postgres 는 MVCC, 파일 잠금 개념이 없다)",
+        True,
+        "backend/db.py·mcp_server/db.py 의 Postgres 버전에 journal_mode/_enable_wal 코드 자체가 없다",
+    )
+
+    # ── ④' MVCC 대조 — 한 커넥션이 traces 에 쓰기 트랜잭션을 열어 둔 동안, 별도 커넥션의
+    #    po_drafts INSERT 가 **대기 없이** 성공한다 (SQLite 는 파일 잠금 때문에 대기가
+    #    필요했다 — busy_timeout 이 그 대기를 흡수했다. Postgres 는 애초에 대기할 이유가 없다)
+    started, errors = threading.Event(), []
+    hold = 0.6
+    t = threading.Thread(
+        target=hold_write_lock_pg, args=(bdb, hold, 1, started, errors), daemon=True
+    )
+    t.start()
+    started.wait(3)
+    t0 = time.perf_counter()
+    try:
+        with mdb.draft_writer() as con:
+            insert_draft(con, "PO-9001")
+        ok_concurrent, err_msg = True, ""
+    except Exception as exc:  # noqa: BLE001
+        ok_concurrent, err_msg = False, str(exc)
+    waited = time.perf_counter() - t0
+    t.join(5)
+    check(
+        "④' MVCC — traces 쓰기 트랜잭션이 열린 동안 po_drafts INSERT 가 대기 없이 성공",
+        ok_concurrent and not errors and waited < hold * 0.5,
+        f"대기 {waited:.2f}s (다른 트랜잭션 보유 {hold}s){' / ' + err_msg if err_msg else ''}"
+        f"{' / errors=' + str(errors) if errors else ''}",
+    )
+
+    # ── ⑦ D10 회귀: read_only() 는 여전히 쓰기를 거부한다
+    refused = []
+    with mdb.read_only() as con:
+        for sql in (
+            "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, unit_price, reason)"
+            " VALUES ('PO-9999','FAN-IG5-01',1,'SUP-A',1,'x')",
+            "UPDATE po_drafts SET state='approved' WHERE po_id='PO-0117'",
+        ):
+            try:
+                con.execute(sql)
+                refused.append(False)
+            except sqlite3.Error as exc:
+                refused.append("read" in str(exc).lower())
+    check(
+        "⑦ D10 회귀: read_only() 는 쓰기 거부 (물리적 강제 — default_transaction_read_only)",
+        all(refused) and len(refused) == 2,
+        f"INSERT/UPDATE 거부={refused}",
+    )
+
+    # ── ⑩ draft_writer UPDATE 차단 트리거 유지 (D10 — 문구까지 대조)
+    _TRIGGER_MARK = "MCP 도구는 po_drafts 를"
+    with mdb.read_only() as con:
+        before = con.execute("SELECT state FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
+    try:
+        with mdb.draft_writer() as con:
+            con.execute("UPDATE po_drafts SET state='approved' WHERE po_id='PO-0117'")
+        blocked_update, msg_u = False, "UPDATE 가 통과했다"
+    except sqlite3.Error as exc:
+        blocked_update, msg_u = _TRIGGER_MARK in str(exc), str(exc)
+    with mdb.read_only() as con:
+        after = con.execute("SELECT state FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
+    check(
+        "⑩ draft_writer UPDATE 차단 트리거 유지 (D10 · 트리거 문구까지 대조)",
+        blocked_update and before == after,
+        f"{msg_u} / state {before}→{after}",
+    )
+
+    # ── ⑪ draft_writer DELETE 차단 트리거 유지 (D10)
+    try:
+        with mdb.draft_writer() as con:
+            con.execute("DELETE FROM po_drafts WHERE po_id='PO-0117'")
+        blocked_delete, msg_d = False, "DELETE 가 통과했다"
+    except sqlite3.Error as exc:
+        blocked_delete, msg_d = _TRIGGER_MARK in str(exc), str(exc)
+    with mdb.read_only() as con:
+        alive = con.execute("SELECT count(*) FROM po_drafts WHERE po_id='PO-0117'").fetchone()[0]
+    check(
+        "⑪ draft_writer DELETE 차단 트리거 유지 (D10)",
+        blocked_delete and alive == 1,
+        f"{msg_d} / 잔존={alive}",
+    )
+
+    # ── ⑫ D15: 두 모듈이 서로(또는 공용 모듈)를 import 하지 않는다
+    b_imports = module_imports(ROOT / "backend" / "db.py")
+    m_imports = module_imports(ROOT / "mcp_server" / "db.py")
+    check(
+        "⑫ D15: backend/db.py ↔ mcp_server/db.py 코드 비공유",
+        not any(i.startswith("mcp_server") for i in b_imports)
+        and not any(i.startswith("backend") for i in m_imports),
+        f"backend={sorted(b_imports)} / mcp={sorted(m_imports)}",
+    )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
             s.reconfigure(encoding="utf-8", errors="replace")
 
-    print("SQLite 동시성 검증 (MQ-313) — WAL + busy_timeout / 임시 DB 사본\n")
-    if not SOURCE_DB.exists():
-        raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+    print("동시성 검증 (MQ-313) — WAL+busy_timeout(SQLite) / MVCC(Postgres)\n")
 
-    source_stat = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
+    if dbcompat.USE_POSTGRES:
+        import backend.db as bdb  # noqa: PLC0415
+        import mcp_server.db as mdb  # noqa: PLC0415
 
-    with tempfile.TemporaryDirectory() as td:
-        db = Path(td) / "concurrency.db"
-        shutil.copy2(SOURCE_DB, db)
+        before_rows = _pg_scalar(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM po_drafts")
+        schema, dsn = pg_isolation.create_isolated_schema("db_concurrency")
+        bdb.DB_PATH = dsn
+        mdb.DB_PATH = dsn
+        try:
+            run_pg(dsn)
+        finally:
+            pg_isolation.drop_isolated_schema(schema)
+        after_rows = _pg_scalar(pg_isolation.BASE_DATABASE_URL, "SELECT count(*) FROM po_drafts")
+        check(
+            "⑬ 공유 Postgres po_drafts 행 수 불변 (격리 스키마만 썼다는 증거)",
+            before_rows == after_rows,
+            f"{before_rows} → {after_rows}행",
+        )
+    else:
+        if not SOURCE_DB.exists():
+            raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-        # 두 모듈 모두 import 시점에 MAINTQ_DB 를 읽는다 — import 보다 먼저 세팅
-        os.environ["MAINTQ_DB"] = str(db)
-        sys.path.insert(0, str(ROOT))
-        run(db)
+        source_stat = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
 
-    check(
-        "⑬ 원본 data/maintq.db 불변",
-        (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size) == source_stat,
-        f"mtime/size 동일 ({source_stat[1]} bytes)",
-    )
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "concurrency.db"
+            shutil.copy2(SOURCE_DB, db)
+
+            # 두 모듈 모두 import 시점에 MAINTQ_DB 를 읽는다 — import 보다 먼저 세팅
+            os.environ["MAINTQ_DB"] = str(db)
+            run(db)
+
+        check(
+            "⑬ 원본 data/maintq.db 불변",
+            (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size) == source_stat,
+            f"mtime/size 동일 ({source_stat[1]} bytes)",
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 52))

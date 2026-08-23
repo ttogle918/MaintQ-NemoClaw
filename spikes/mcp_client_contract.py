@@ -45,6 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.agent.mcp_client import McpClient, summarize_result  # noqa: E402
+from data import dbcompat, pg_isolation  # noqa: E402
 
 SOURCE_DB = ROOT / "data" / "maintq.db"
 
@@ -76,8 +77,12 @@ def copy_db(src: Path, dst: Path) -> Path:
     return dst
 
 
-def po_count(db: Path) -> int:
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+def po_count(db) -> int:
+    """`db` 는 SQLite 사본 Path 이거나 Postgres DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        con = dbcompat.connect_dsn(db)
+    else:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
         return con.execute("SELECT COUNT(*) FROM po_drafts").fetchone()[0]
     finally:
@@ -248,13 +253,21 @@ def verify_env_isolation(db: Path, before_rows: int, before_mtime: float) -> Non
         po_count(db) == before_rows + 1,
         f"임시 DB {before_rows} → {po_count(db)}",
     )
-    real_rows = po_count(SOURCE_DB)
-    real_mtime = SOURCE_DB.stat().st_mtime
-    check(
-        "⑨-c 실 DB(data/maintq.db) mtime·row count 불변",
-        real_rows == REAL_BEFORE[0] and real_mtime == REAL_BEFORE[1],
-        f"rows {REAL_BEFORE[0]}→{real_rows}, mtime 변경={real_mtime != REAL_BEFORE[1]}",
-    )
+    if dbcompat.USE_POSTGRES:
+        real_rows = po_count(pg_isolation.BASE_DATABASE_URL)
+        check(
+            "⑨-c 실 DB(공유 Postgres) row count 불변",
+            real_rows == REAL_BEFORE[0],
+            f"rows {REAL_BEFORE[0]}→{real_rows}",
+        )
+    else:
+        real_rows = po_count(SOURCE_DB)
+        real_mtime = SOURCE_DB.stat().st_mtime
+        check(
+            "⑨-c 실 DB(data/maintq.db) mtime·row count 불변",
+            real_rows == REAL_BEFORE[0] and real_mtime == REAL_BEFORE[1],
+            f"rows {REAL_BEFORE[0]}→{real_rows}, mtime 변경={real_mtime != REAL_BEFORE[1]}",
+        )
     check(
         "⑬ D15 프로세스 분리 (mcp_server 를 import 하지 않음)",
         "mcp_server" not in sys.modules,
@@ -273,41 +286,60 @@ def main() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
     print("MQ-302 — MCP 클라이언트(lifespan 워커) 계약 (D42·D46·D9·D15)\n")
-    if not SOURCE_DB.exists():
+    if not dbcompat.USE_POSTGRES and not SOURCE_DB.exists():
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
-    REAL_BEFORE = (po_count(SOURCE_DB), SOURCE_DB.stat().st_mtime)
-    print(
-        f"[격리] 실 DB(before) mtime={REAL_BEFORE[1]:.6f} "
-        f"size={SOURCE_DB.stat().st_size} po_drafts={REAL_BEFORE[0]}행"
-    )
+    if dbcompat.USE_POSTGRES:
+        REAL_BEFORE = (po_count(pg_isolation.BASE_DATABASE_URL), 0.0)
+        print(f"[격리] 실 DB(before, 공유 Postgres) po_drafts={REAL_BEFORE[0]}행")
+    else:
+        REAL_BEFORE = (po_count(SOURCE_DB), SOURCE_DB.stat().st_mtime)
+        print(
+            f"[격리] 실 DB(before) mtime={REAL_BEFORE[1]:.6f} "
+            f"size={SOURCE_DB.stat().st_size} po_drafts={REAL_BEFORE[0]}행"
+        )
 
     # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
     # 정리 실패가 계약 검증 결과를 가리지 않게 한다 (rules_db_load.py 선례)
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-        db = copy_db(SOURCE_DB, Path(td) / "client.db")
+        schema = None
+        if dbcompat.USE_POSTGRES:
+            schema, db = pg_isolation.create_isolated_schema("mcp_client")
+        else:
+            db = copy_db(SOURCE_DB, Path(td) / "client.db")
         before_rows = po_count(db)
 
         # os.environ 경유로 준다 — SDK 화이트리스트 우회가 실제로 되는지 보는 게 목적이라
         # 생성자 override 가 아니라 이 경로여야 한다.
-        prev = os.environ.get("MAINTQ_DB")
-        os.environ["MAINTQ_DB"] = str(db)
-        print(f"[격리] MAINTQ_DB = {db}\n")
+        env_key = "DATABASE_URL" if dbcompat.USE_POSTGRES else "MAINTQ_DB"
+        prev = os.environ.get(env_key)
+        os.environ[env_key] = str(db)
+        print(f"[격리] {env_key} = {db}\n")
         try:
             asyncio.run(run_session(db))
             asyncio.run(run_startup_failure())
         finally:
             if prev is None:
-                os.environ.pop("MAINTQ_DB", None)
+                os.environ.pop(env_key, None)
             else:
-                os.environ["MAINTQ_DB"] = prev
+                os.environ[env_key] = prev
 
-        verify_env_isolation(db, before_rows, REAL_BEFORE[1])
+        try:
+            # 검증(po_count(db))이 격리 스키마를 다시 읽어야 하므로, DROP 은 검증이
+            # 끝난 *뒤*에 한다 — 먼저 지우면 search_path 가 public 으로 조용히
+            # 폴백해 "임시 DB" 판독이 실은 공유 DB 를 읽는 거짓 결과가 된다.
+            verify_env_isolation(db, before_rows, REAL_BEFORE[1])
+        finally:
+            if schema:
+                pg_isolation.drop_isolated_schema(schema)
 
-    print(
-        f"\n[격리] 실 DB(after)  mtime={SOURCE_DB.stat().st_mtime:.6f} "
-        f"size={SOURCE_DB.stat().st_size} po_drafts={po_count(SOURCE_DB)}행\n"
-    )
+    if dbcompat.USE_POSTGRES:
+        print(f"\n[격리] 실 DB(after, 공유 Postgres) po_drafts={po_count(pg_isolation.BASE_DATABASE_URL)}행\n")
+    else:
+        print(
+            f"\n[격리] 실 DB(after)  mtime={SOURCE_DB.stat().st_mtime:.6f} "
+            f"size={SOURCE_DB.stat().st_size} po_drafts={po_count(SOURCE_DB)}행\n"
+        )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))

@@ -25,6 +25,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from data import dbcompat, pg_isolation  # noqa: E402
+
 REAL_DB = ROOT / "data" / "maintq.db"
 
 results: list[tuple[str, bool, str]] = []
@@ -34,8 +37,15 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, ok, detail))
 
 
-def rows(db: Path, sql: str, *args) -> list[tuple]:
-    con = sqlite3.connect(db)
+def _open(db):
+    """`db` 는 SQLite 사본 Path 이거나 Postgres 격리 스키마 DSN 문자열이다."""
+    if dbcompat.USE_POSTGRES:
+        return dbcompat.connect_dsn(db)
+    return sqlite3.connect(db)
+
+
+def rows(db, sql: str, *args) -> list[tuple]:
+    con = _open(db)
     try:
         return con.execute(sql, args).fetchall()
     finally:
@@ -50,8 +60,14 @@ def data_line(frame: str) -> str:
     raise AssertionError(f"data 라인이 없는 프레임: {frame!r}")
 
 
-def make_db(td: Path) -> Path:
-    """seed.py 의 실제 DDL 로 빈 DB 를 만든다 (시드 데이터는 필요 없다)."""
+def make_db(td: Path):
+    """스키마만 있는 빈 DB(시드 데이터는 필요 없다) — Postgres 는 격리 스키마 하나,
+    SQLite 는 seed.py 의 실제 DDL 로 임시 파일을 만든다. 반환값은 이후 함수들에
+    그대로 넘기는 `db` 핸들(SQLite=Path, Postgres=DSN 문자열)이다."""
+    if dbcompat.USE_POSTGRES:
+        _schema, dsn = pg_isolation.create_isolated_schema("trace_persist", clone_data=False)
+        return dsn
+
     sys.path.insert(0, str(ROOT / "data"))
     import seed  # noqa: PLC0415
 
@@ -115,7 +131,7 @@ def run(db: Path) -> None:
     )
 
     # ── ⑤ 스키마가 token 을 애초에 못 받는다 (CHECK 3종)
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         con.execute(
             "INSERT INTO traces (session_id, seq, event_type, payload)"
@@ -129,7 +145,7 @@ def run(db: Path) -> None:
         con.close()
 
     # ── ⑥ UNIQUE(session_id, seq) 가 실제로 걸려 있는가 (D41)
-    con = sqlite3.connect(db)
+    con = _open(db)
     try:
         con.execute(
             "INSERT INTO traces (session_id, seq, event_type, payload)"
@@ -144,7 +160,7 @@ def run(db: Path) -> None:
 
     # ── ⑦ seq 충돌을 삼키지 않고 재시도해 이어쓴다
     #     writer 가 쓸 차례인 seq 5 를 외부(다른 프로세스 흉내)가 먼저 차지한 상황
-    con = sqlite3.connect(db)
+    con = _open(db)
     con.execute(
         "INSERT INTO traces (session_id, seq, event_type, tool, payload)"
         " VALUES ('S-TRACE', 5, 'block', NULL, '{\"from\":\"other\"}')"
@@ -162,7 +178,15 @@ def run(db: Path) -> None:
     )
 
     # ── ⑧ 저장 실패해도 이벤트는 정상 반환 (스트림을 끊지 않는다)
-    broken = TraceWriter("S-BROKEN", db_path=db.parent / "no-such-dir" / "x.db")
+    if dbcompat.USE_POSTGRES:
+        # SQLite 는 "존재하지 않는 디렉터리"로 쓰기 실패를 흉내낸다 — Postgres 는
+        # 도달 불가능한 포트로 접속 자체가 실패하게 만든다(같은 의도: 쓰기 실패).
+        # 낮은 포트는 OS 마다 응답 없이 오래 붙잡아(hang) 둘 수 있다 —
+        # connect_timeout 을 짧게 줘서 확실히·빨리 실패하게 한다.
+        broken_target = "postgresql://postgres:postgres@127.0.0.1:59999/no_such_db?connect_timeout=2"
+    else:
+        broken_target = db.parent / "no-such-dir" / "x.db"
+    broken = TraceWriter("S-BROKEN", db_path=broken_target)
     ev_b = broken.tool_call("lookup_error_code", {"model": "S100", "code": "OCT"})
     check(
         "⑧ DB 쓰기 실패 → 이벤트는 정상, persist_errors 증가",
@@ -257,10 +281,14 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as td:
         db = make_db(Path(td))
-        # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
-        os.environ["MAINTQ_DB"] = str(db)
+        if not dbcompat.USE_POSTGRES:
+            os.environ["MAINTQ_DB"] = str(db)
         sys.path.insert(0, str(ROOT))
-        run(db)
+        try:
+            run(db)
+        finally:
+            if dbcompat.USE_POSTGRES:
+                pg_isolation.drop_schema_from_dsn(db)
 
     # ── ⑬ 실 DB 불변 (스파이크가 data/maintq.db 를 건드리면 안 된다)
     after = REAL_DB.stat().st_mtime_ns if REAL_DB.exists() else None

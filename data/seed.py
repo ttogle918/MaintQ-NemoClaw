@@ -36,6 +36,16 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent  # data/
+
+# `python data/seed.py` 로 직접 실행하면 `data/` 가 sys.path[0] 라 `import dbcompat` 이
+# 되지만, `from data.seed import ...` 로 패키지 서브모듈처럼 임포트하는 스파이크들
+# (rules_db_load.py 등)에서는 repo root 만 sys.path 에 있고 `data/` 자체는 없다 —
+# 그런 경우를 위해 repo root 를 먼저 보장한 뒤 패키지 경로로 임포트한다.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(ROOT.parent) not in sys.path:
+    sys.path.insert(0, str(ROOT.parent))
+from data import dbcompat  # noqa: E402
 EXTRACTED = ROOT / "extracted"
 ERROR_CODES_JSON = EXTRACTED / "error_codes.json"
 RELATED_PARTS_JSON = ROOT / "related_parts.seed.json"
@@ -1282,7 +1292,20 @@ PARTNER_LINKS_MOCK: bool = True
 
 
 def create_schema(con: sqlite3.Connection) -> None:
-    con.executescript(SCHEMA)
+    # 전역 dbcompat.USE_POSTGRES(=DATABASE_URL 설정 여부)가 아니라 **이 커넥션 자체의
+    # 타입**으로 분기한다 — rules_db_load.py 같은 스파이크는 Postgres 타겟에서 실행 중일
+    # 때도 `sqlite3.connect()` 로 직접 연 격리 fixture DB(loose/broken 스키마 등, 무결성
+    # 게이트를 sqlite3 로 직접 흔든다)에 이 함수를 그대로 재사용한다 — 전역 플래그로
+    # 분기하면 그 sqlite3.Connection 에 Postgres DDL 을 시도해 즉시 깨진다.
+    if not isinstance(con, sqlite3.Connection):
+        # Postgres 타겟은 raw SCHEMA(SQLite 문법) 대신 convert_ddl.py 가 미리 변환해 둔
+        # scripts/postgres_schema.sql + D10 가드(scripts/postgres_guards.sql)를 적용한다.
+        con.executescript("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+        scripts_dir = ROOT.parent / "scripts"
+        con.executescript((scripts_dir / "postgres_schema.sql").read_text(encoding="utf-8"))
+        con.executescript((scripts_dir / "postgres_guards.sql").read_text(encoding="utf-8"))
+    else:
+        con.executescript(SCHEMA)
 
 
 def seed_users(con: sqlite3.Connection) -> None:
@@ -3140,14 +3163,16 @@ def main() -> None:
     if args.with_error_codes and not can_load:
         sys.exit(f"[중단] --with-error-codes 요청했지만 적재할 수 없습니다: {why}")
 
-    if args.db.exists():
+    if dbcompat.USE_POSTGRES:
+        print(f"[대상] Postgres — {dbcompat.DATABASE_URL}")
+    elif args.db.exists():
         backup = args.db.with_suffix(".db.bak")
         shutil.copy2(args.db, backup)
         args.db.unlink()
         print(f"[백업] 기존 DB → {backup.name}")
 
-    con = sqlite3.connect(args.db)
-    con.execute("PRAGMA foreign_keys=ON")  # 기본 OFF — 안 켜면 D33 FK가 무력화됨
+    con = dbcompat.connect(args.db)
+    con.execute("PRAGMA foreign_keys=ON")  # 기본 OFF — 안 켜면 D33 FK가 무력화됨 (Postgres 는 무시됨)
     try:
         create_schema(con)
         seed_users(con)  # ← po_drafts·error_history 보다 먼저 (FK, D41)
@@ -3171,7 +3196,8 @@ def main() -> None:
         except Exception as exc:  # RuleIntegrityError 포함 — 부분 적재 DB 를 남기지 않는다
             con.rollback()
             con.close()
-            args.db.unlink(missing_ok=True)
+            if not dbcompat.USE_POSTGRES:
+                args.db.unlink(missing_ok=True)
             sys.exit(f"[중단] 룰 카탈로그 적재 실패 — {type(exc).__name__}: {exc}")
         print(f"[근거계층] law_refs {n_laws}행 · rules {n_rules}행 (load_rules 무결성 게이트 통과)")
 
