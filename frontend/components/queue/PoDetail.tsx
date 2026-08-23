@@ -7,6 +7,7 @@ import type { EvidenceEntry, QueueEntry, SupplierQuote } from "@/lib/types";
 import { DecisionBar } from "./DecisionBar";
 import { EvidenceCard } from "./EvidenceCard";
 import { SupplierCompare } from "./SupplierCompare";
+import { WithdrawalStatusPanel } from "./WithdrawalStatusPanel";
 
 /**
  * 발주 상세. **`kind === "po"` 항목에만 렌더한다** — 처분 상세는 Stage 6(`DecisionDetail`).
@@ -44,6 +45,7 @@ export function PoDetail({
 
       <EvidenceCard entries={evidence} />
       <SupplierCompare quotes={quotes} />
+      <WithdrawalStatusPanel poId={entry.id} />
       <DecisionBar
         supplierName={recommended?.name ?? ""}
         onApprove={onApprove}

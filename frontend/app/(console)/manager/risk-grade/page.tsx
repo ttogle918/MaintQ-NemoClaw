@@ -1,3 +1,4 @@
+import { LoanAssessmentHistory } from "@/components/asset/LoanAssessmentHistory";
 import { RiskGradeGrid } from "@/components/asset/RiskGradeGrid";
 import { ConsoleFrame, ConsoleHeader, ScreenStack, Spacer } from "@/components/layout/ConsoleFrame";
 import { Divider, Logo } from "@/components/ui/Chip";
@@ -29,6 +30,9 @@ export default function ManagerRiskGradePage() {
 
         <div style={sx("padding:16px 18px")}>
           <RiskGradeGrid />
+          <div style={sx("margin-top:20px")}>
+            <LoanAssessmentHistory />
+          </div>
         </div>
       </ConsoleFrame>
     </ScreenStack>

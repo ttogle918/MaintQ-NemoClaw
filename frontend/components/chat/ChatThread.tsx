@@ -2,6 +2,7 @@
 
 import { sx } from "@/lib/sx";
 import type { ChatItem } from "@/lib/types";
+import { A2aResultCard } from "./A2aResultCard";
 import { AgentBubble, UserBubble } from "./Bubble";
 import { ErrorLogAction } from "./ErrorLogAction";
 import { PoDraftCard } from "./PoDraftCard";
@@ -57,6 +58,15 @@ export function ChatThread({
                 equipmentId={item.equipmentId}
                 code={item.code}
                 recordedAt={item.recordedAt}
+              />
+            );
+          case "a2a_result":
+            return (
+              <A2aResultCard
+                key={item.id}
+                skill={item.skill}
+                chainId={item.chainId}
+                status={item.status}
               />
             );
         }
