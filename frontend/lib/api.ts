@@ -12,7 +12,8 @@ import type { Role } from "./role";
 import { ROLE_USER_ID } from "./role";
 import type { ApprovalKind } from "./types";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8003";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
 
 /**
  * 역할·신원 헤더. requested_by/decided_by 는 백엔드가 이 값에서 주입한다 (D23).
@@ -212,6 +213,49 @@ export const rejectPo = (poId: string, reason: string) =>
   apiFetch<ApiPo>(`/api/po/${poId}/reject`, "manager", {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+
+/** 부품의 공급사별 견적 — `/technician/po/new` 화면이 공급사를 고르기 전 조회 (D111). */
+export interface ApiQuote {
+  supplier_id: string;
+  name: string;
+  lead_days: number;
+  unit_price: number;
+  moq: number;
+}
+
+export const getPartQuotes = (role: Role, partNo: string) =>
+  apiFetch<{ part_no: string; quotes: ApiQuote[] }>(
+    `/api/po/quotes/${encodeURIComponent(partNo)}`,
+    role
+  );
+
+/** POST /api/po · PATCH /api/po/{poId} 공용 바디 (D111, P39 축소판 — 발주서만). */
+export interface CreatePoBody {
+  part_no: string;
+  qty: number;
+  supplier_id: string;
+  reason: string;
+  urgency?: "urgent" | "normal";
+}
+
+/**
+ * 화면에서 발주 초안을 직접 생성한다. 정비사만 — 팀장이 부르면 403.
+ * 단가·MOQ 미달·미지 공급사 등 검증 실패는 404/422 로 ApiError 를 던진다
+ * (`errorBody()` 로 status/reason/message 를 꺼내 보일 것 — `extractDetail()` 은
+ * `.detail` 이 없으면 `.message` 로 자동 폴백한다).
+ */
+export const createPo = (body: CreatePoBody) =>
+  apiFetch<ApiPo>("/api/po", "technician", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/** draft 상태 발주 초안을 수정한다. draft 아니면 409, 검증 실패는 422/404. */
+export const updatePo = (poId: string, body: CreatePoBody) =>
+  apiFetch<ApiPo>(`/api/po/${poId}`, "technician", {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
 
 /* -------------------------------------------------------------------------- */
