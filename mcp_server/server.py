@@ -12,12 +12,14 @@
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
 
-확장 11종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
+확장 13종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
   - check_disposal_blockers · verify_ownership · classify_part_criticality ·
     get_maintenance_metrics · classify_expenditure · assess_repair_value ·
     build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**) ·
     create_repair_record (**세 번째 쓰기 도구**, D98) ·
-    track_deadlines · assess_risk_grade (Sprint 11, D102)
+    track_deadlines · assess_risk_grade (Sprint 11, D102) ·
+    search_insurance_clause · assess_equipment_loan (Sprint 16, MQ-1603 —
+    백엔드 REST 를 HTTP 로 호출할 뿐 자격증명·파트너 대장을 참조하지 않는다)
 
 **기본이 `core` 인 이유(D69)**: `eval/run_eval.py` 가 부모 env 를 상속해 이 서버를 띄우므로
 기본이 `full` 이면 평가가 아무 표시 없이 확장 프롬프트로 돈다 — 그러면 "수정 효과 vs
@@ -230,6 +232,14 @@ if TOOLS_PROFILE == "full":
         DESCRIPTION as RISK_GRADE_DESC,
         assess_risk_grade as _assess_risk_grade,
     )
+    from mcp_server.tools.search_insurance_clause import (  # noqa: E402
+        DESCRIPTION as INSURANCE_CLAUSE_DESC,
+        search_insurance_clause as _search_insurance_clause,
+    )
+    from mcp_server.tools.assess_equipment_loan import (  # noqa: E402
+        DESCRIPTION as EQUIPMENT_LOAN_DESC,
+        assess_equipment_loan as _assess_equipment_loan,
+    )
 
     @mcp.tool(description=DISPOSAL_DESC)
     def check_disposal_blockers(
@@ -441,6 +451,22 @@ if TOOLS_PROFILE == "full":
         """`building_id`·`asset_id` 는 **둘 중 하나 필수**라 스키마상 둘 다 optional 이다
         (D80 의 either-or 공백). 둘 다 비거나 둘 다 있으면 도구가 `invalid_input` 으로 되돌린다."""
         return _assess_risk_grade(building_id=building_id, asset_id=asset_id)
+
+    @mcp.tool(description=INSURANCE_CLAUSE_DESC)
+    def search_insurance_clause(question: str) -> dict:
+        """`question` 은 필수 (D80). MaintQ 백엔드 REST(`/api/a2a/lookup-clause`)를 HTTP 로
+        호출할 뿐 A2A 자격증명·파트너 대장을 직접 참조하지 않는다 (D15·D93)."""
+        return _search_insurance_clause(question=question)
+
+    @mcp.tool(description=EQUIPMENT_LOAN_DESC)
+    def assess_equipment_loan(
+        loan_amount: float, purpose: str, collateral_building_id: str
+    ) -> dict:
+        """세 파라미터 전부 필수 (D80). MaintQ 백엔드 REST(`/api/a2a/assess-loan`)를 HTTP 로
+        호출할 뿐 A2A 자격증명·파트너 대장을 직접 참조하지 않는다 (D15·D93)."""
+        return _assess_equipment_loan(
+            loan_amount=loan_amount, purpose=purpose, collateral_building_id=collateral_building_id
+        )
 
 
 if __name__ == "__main__":

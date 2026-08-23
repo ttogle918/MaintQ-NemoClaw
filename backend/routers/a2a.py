@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError, call_skill
 from backend.a2a.payloads import build_assess_loan_payload, build_lookup_clause_payload
 from backend.a2a.trace import record_a2a_trace
+from backend.services.a2a_history import list_a2a_history
 
 router = APIRouter(prefix="/api/a2a", tags=["a2a"])
 logger = logging.getLogger(__name__)
@@ -44,6 +45,8 @@ async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
             request_chain_id=chain_id,
             base_url=base_url,
         )
+
+        res["request_chain_id"] = chain_id  # 파트너가 echo 안 해도 MCP 도구가 항상 상관관계 키를 받게 한다
 
         record_a2a_trace(
             session_id=req.session_id or "",
@@ -119,6 +122,8 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             base_url=base_url,
         )
 
+        res["request_chain_id"] = chain_id  # 파트너가 echo 안 해도 MCP 도구가 항상 상관관계 키를 받게 한다
+
         record_a2a_trace(
             session_id=req.session_id or "",
             skill_id="assess-loan",
@@ -161,3 +166,15 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             status="error",
         )
         raise HTTPException(status_code=exc.status_code or 400, detail=exc.detail or str(exc)) from exc
+
+
+@router.get("/history")
+def a2a_history_endpoint(
+    skill: str | None = None,
+    po_id: str | None = None,
+    building_id: str | None = None,
+    chain_id: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """A2A 호출 감사 이력 (D114) — `read_trace`(D76-2 ⓑ)와 달리 tool_payload 원문을 연다."""
+    return list_a2a_history(skill=skill, po_id=po_id, building_id=building_id, chain_id=chain_id, limit=limit)

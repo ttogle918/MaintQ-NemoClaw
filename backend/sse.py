@@ -50,6 +50,7 @@ def tool_result(
     elapsed: float,
     pages: list[int] | None = None,
     parts: list[str] | None = None,
+    a2a_chain_id: str | None = None,
 ) -> SseEvent:
     """도구 완료. `pages` 는 이 결과가 근거로 삼을 수 있는 PDF 물리 페이지 목록 (D54).
 
@@ -61,12 +62,18 @@ def tool_result(
     S2 는 부품이 도구 인자가 아니라 결과에 있어(부품명으로 조회한다) 인자만 보는 판정이
     부품 특정을 놓친다. summary 문자열을 파싱하지 않는 이유도 `pages` 와 같다 — 판정이
     산문 표현에 묶이면 문구를 다듬는 순간 지표가 흔들린다.
+
+    `a2a_chain_id` 는 A2A 파트너 응답(`search_insurance_clause`·`assess_equipment_loan`)의
+    상관관계 키다 (D113). `None` 이면 (기존 모든 도구처럼) 키 자체가 실리지 않는다 —
+    payload 는 바이트 단위로 무변화(D30).
     """
     data: dict = {"tool": tool, "status": status, "summary": summary, "elapsed": elapsed}
     if pages is not None:
         data["pages"] = pages
     if parts is not None:
         data["parts"] = parts
+    if a2a_chain_id is not None:
+        data["a2a_chain_id"] = a2a_chain_id
     return SseEvent("tool_result", data)
 
 

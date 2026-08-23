@@ -105,6 +105,7 @@ class TraceWriter:
         pages: list[int] | None = None,
         parts: list[str] | None = None,
         tool_payload: dict | None = None,
+        a2a_chain_id: str | None = None,
     ) -> sse.SseEvent:
         """도구 완료. `status` 는 D9 4종, 세분화는 도구가 `reason` 으로 (D46).
 
@@ -116,9 +117,13 @@ class TraceWriter:
         섞지 않는 것이 핵심이고(D76 ⓓ: SSE tool_result 필드 불변), 그래서 `payload` 와
         SSE `data` 의 바이트 동일(D30)도 그대로다. 컬럼만 있고 값을 쓰는 쪽이 없어
         3차 평가에서 "도구가 실제로 무엇을 반환했는지"를 사후 대조하지 못했다.
+
+        `a2a_chain_id` 는 A2A 파트너 응답의 상관관계 키 (D113) — `search_insurance_clause`·
+        `assess_equipment_loan` 결과에서만 채워지고, 나머지 도구는 `None` 이라 SSE `data`·
+        저장 payload 모두 무변화(D30)를 유지한다.
         """
         return self._write(
-            sse.tool_result(tool, status, summary, elapsed, pages, parts),
+            sse.tool_result(tool, status, summary, elapsed, pages, parts, a2a_chain_id),
             tool,
             tool_payload=tool_payload,
         )

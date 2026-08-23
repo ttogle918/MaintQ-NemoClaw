@@ -50,7 +50,12 @@ def test_success_returns_adapter_response(monkeypatch: pytest.MonkeyPatch, clien
     resp = client.post("/api/a2a/lookup-clause", json={"question": "화재보험 보장 범위는?"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"status": "completed", "answer": "약관상 보장됩니다.", "evidence": ["제3조"]}
+    assert resp.json() == {
+        "status": "completed",
+        "answer": "약관상 보장됩니다.",
+        "evidence": ["제3조"],
+        "request_chain_id": captured["request_chain_id"],
+    }
     assert captured["partner"] == "insuq"
     assert captured["skill_id"] == "lookup-clause"
     assert captured["payload"]["question"] == "화재보험 보장 범위는?"
@@ -198,7 +203,12 @@ def test_assess_loan_success_returns_adapter_response(
     resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
 
     assert resp.status_code == 200
-    assert resp.json() == {"status": "completed", "decision": "approved", "condition_note": None}
+    assert resp.json() == {
+        "status": "completed",
+        "decision": "approved",
+        "condition_note": None,
+        "request_chain_id": captured["request_chain_id"],
+    }
     assert captured["partner"] == "finallq"
     assert captured["skill_id"] == "assess-loan"
     assert captured["payload"]["loan_amount"] == 50000000
