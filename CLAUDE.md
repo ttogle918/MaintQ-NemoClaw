@@ -29,6 +29,9 @@
      커넥션도 분리한다(`db.draft_writer()` / `db.decision_writer()` / `db.repair_writer()`) —
      섞으면 TEMP TRIGGER 잠금이 사라진다
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
+   - 🔵 **화면 직접 생성(`POST /api/po`)은 이 규칙(D10) 대상이 아니다** (D111) — MCP 도구가 아니라
+     백엔드 쓰기라 처음부터 UPDATE 권한이 있다. 산출 로직은 `data/po_draft.py` 공유 계층에서
+     `create_po_draft`(MCP)와 동일하게 검증된다
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
 4. **model 파라미터는 enum('iG5A','S100','IE5') 강제** (D6, D13, D109 — IE5 는 정의 조회 경로만.
@@ -117,19 +120,24 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 978건** · seed **37건**(불변 아님 —
+**실측 기준선 (2026-08-21, D110 IE5 RAG 편입 후 재실행)** — spikes **32스위트 / 988건** · seed **37건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
 `error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **18개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 **17개**다. 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이 다르다**. 17로 '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라 재실행 불필요**, Sprint 10
-MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개, MQ-1002 리뷰 픽스가
-`/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가 `/manager/deadlines`·`/manager/risk-grade`
-2개 증가: 16→17→18, 이후 불변). spikes 스위트별 건수:
+프론트 라우트 **21개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
+차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이
+다르다**. '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라
+재실행 불필요**, Sprint 10 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence`
+2개, MQ-1002 리뷰 픽스가 `/manager/repair/[repairId]` 1개, Sprint 12 MQ-1204 가
+`/manager/deadlines`·`/manager/risk-grade` 2개 증가: 16→17→18. **18→19**: P40 v2 Plan 1(MUI 레이아웃
+격리 확인, 2026-08-21)이 `/v2/manager/po/[poId]` 를 신설했으나 이 문서에는 반영이 안 돼 있었다 —
+D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함께 정정한다. **19→21**: D111이
+`/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21, 이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` ·
-`agent_loop_contract 35` · `api_contract 31` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`agent_loop_contract 35` · `api_contract 41` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 25` · `citation_render 19` · `db_concurrency 13` · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
@@ -181,6 +189,14 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > 그대로 유지 — 안전 게이트(`needs_safety_block`)가 텍스트 내용 기반이라 데이터 출처와 무관하게
 > 동작함을 `backend/agent/loop.py:360-382` 직접 확인 후 결정했다.
 >
+> **978→988**: D111(P39 축소판 — 화면이 발주 초안을 직접 생성·수정)이 `api_contract`에
+> 10건을 더했다(31→41, 978+10=988) — 견적 사전 조회·화면 생성 권한 403·MOQ 미달 422·
+> draft 수정·전이 409·404. 나머지 31스위트는 무변경. `write_tool_contract`(`create_po_draft`
+> 리팩터 대상, 30건)도 리팩터 전후 동일 건수로 재확인됨 — 산출 로직을 `data/po_draft.py`로
+> 옮겼지만 출력 dict는 한 글자도 안 바뀌었다. seed·pytest·`error_codes`·MCP 도구 18종·DB
+> 24테이블 전부 무변경. 프론트 라우트는 `/technician/po/new`·`/technician/po/[poId]` 신설로
+> 함께 늘었다 — 위 프론트 라우트 문단(18→21)·`ui_honesty_contract` 문단(253→271) 참고.
+>
 > `ui_honesty_contract` 는 세 단계로 늘었다. **102→114**: 이 브랜치가 `components/asset/*.tsx`
 > 에 `InventoryDrawer.tsx`·`EquipmentHotspotDiagram.tsx` **2파일**을 신설해 L2 스캔 대상이
 > 12→14개가 되며 컴포넌트당 L2 검사 6건씩 자연 추가된 것(2×6=12) — 파일 1개가 아니라 두
@@ -224,6 +240,13 @@ MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence` 2개,
 > **871→872**: P30 이 `ui_honesty_contract` 에 오라클 1건을 더한 것(252→253)이 전부다.
 > 나머지 29스위트는 전건 무변경 — 2026-08-19 전수 재실행에서 스위트별 건수가 위 표와
 > 하나도 어긋나지 않았고 **FAIL 0 · 소켓 고갈 재시도 0회**였다.
+> **253→271**: D111(P39 축소판)이 신규 파일 3개를 기존 글롭에 편입시켰다 —
+> `components/asset/PoForm.tsx`(`components/asset/*.tsx` 글롭, ×6=6) + `technician/po/new`·
+> `technician/po/[poId]` 2페이지(`app/(console)/**/*.tsx` 글롭, 2×6=12) = 18, 253+18=271.
+> 이 확장 과정에서 `technician/po/[poId]/page.tsx`의 `ReadOnlyCard`가 `po.state === "draft"`
+> 3항 연쇄로 상태를 직접 비교하던 실제 D87 위반 1건(L2-18.4·18.5)이 드러나 `stateView("po",
+> po.state)` 호출로 즉시 교체했다 — 같은 커밋에서 해소, 신규 위반이 남지 않았다. 스위트는
+> **PASS 271/271**.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).

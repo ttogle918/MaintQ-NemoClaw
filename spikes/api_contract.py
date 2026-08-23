@@ -278,6 +278,116 @@ def run(client) -> None:
         f"{unknown}",
     )
 
+    # ── ㉗~㊱ P39 축소판 — 화면 직접 생성 (POST /api/po, D111)
+    quote_part = "BLT-V-A50"
+    r = client.get(f"/api/po/quotes/{quote_part}", headers=TECH)
+    quotes = r.json()["quotes"] if r.status_code == 200 else None
+    check(
+        "㉗ 부품 견적 사전 조회 (발주 화면이 공급사를 고르기 전)",
+        r.status_code == 200 and isinstance(quotes, list) and len(quotes) >= 1,
+        f"{r.status_code}, {len(quotes) if quotes is not None else 'N/A'}건",
+    )
+
+    supplier_id = quotes[0]["supplier_id"] if quotes else None
+    r = client.post(
+        "/api/po",
+        json={
+            "part_no": quote_part,
+            "qty": quotes[0]["moq"] if quotes else 1,
+            "supplier_id": supplier_id,
+            "reason": "화면 직접 생성 테스트",
+        },
+        headers=TECH,
+    )
+    body = r.json()
+    check(
+        "㉘ 정비사 화면 직접 생성 → 200 + draft + requested_by 즉시 stamp",
+        r.status_code == 200
+        and body.get("state") == "draft"
+        and body.get("requested_by") == "tech-01"
+        and body.get("session_id") is None
+        and set(body) == PO_DETAIL_KEYS,
+        f"{r.status_code}, state={body.get('state')}, requested_by={body.get('requested_by')}"
+        f", 키차이={set(body) ^ PO_DETAIL_KEYS or '없음'}",
+    )
+    new_po_id = body.get("po_id")
+
+    r = client.post(
+        "/api/po",
+        json={"part_no": quote_part, "qty": 1, "supplier_id": supplier_id, "reason": "x"},
+        headers=MGR,
+    )
+    check("㉙ 팀장이 화면 생성 호출 → 403", r.status_code == 403, f"{r.status_code}")
+
+    r = client.post(
+        "/api/po",
+        json={"part_no": quote_part, "qty": 1, "supplier_id": "NO-SUCH-SUP", "reason": "x"},
+        headers=TECH,
+    )
+    check("㉚ 없는 공급사 → 404(no_quote)", r.status_code == 404, f"{r.status_code}")
+
+    moq_supplier = next((q for q in (quotes or []) if q["moq"] > 1), None)
+    if moq_supplier:
+        r = client.post(
+            "/api/po",
+            json={
+                "part_no": quote_part,
+                "qty": moq_supplier["moq"] - 1,
+                "supplier_id": moq_supplier["supplier_id"],
+                "reason": "x",
+            },
+            headers=TECH,
+        )
+        check(
+            "㉛ MOQ 미달 → 422(moq_not_met)",
+            r.status_code == 422 and r.json().get("reason") == "moq_not_met",
+            f"{r.status_code}, reason={r.json().get('reason')}",
+        )
+    else:
+        check("㉛ MOQ 미달 → 422(moq_not_met)", False, "시드에 moq>1 공급사가 없어 이 경로를 검증 못 함")
+
+    # ── ㉜~㊱ PATCH — draft 수정
+    r = client.patch(
+        f"/api/po/{new_po_id}",
+        json={
+            "part_no": quote_part,
+            "qty": (quotes[0]["moq"] if quotes else 1) + 1,
+            "supplier_id": supplier_id,
+            "reason": "수량 정정",
+        },
+        headers=TECH,
+    )
+    body2 = r.json()
+    check(
+        "㉜ draft 수정 → 200 + qty·reason 반영",
+        r.status_code == 200
+        and body2.get("qty") == (quotes[0]["moq"] if quotes else 1) + 1
+        and body2.get("reason") == "수량 정정",
+        f"{r.status_code}, qty={body2.get('qty')}, reason={body2.get('reason')!r}",
+    )
+    r = client.patch(
+        f"/api/po/{new_po_id}",
+        json={"part_no": quote_part, "qty": 1, "supplier_id": supplier_id, "reason": "x"},
+        headers=MGR,
+    )
+    check("㉝ 팀장이 PATCH 호출 → 403", r.status_code == 403, f"{r.status_code}")
+
+    r = client.post(f"/api/po/{new_po_id}/submit", headers=TECH)
+    check("㉞ 제출(submit) 성공 — 이후 PATCH 는 409 여야 한다", r.status_code == 200, f"{r.status_code}")
+    r = client.patch(
+        f"/api/po/{new_po_id}",
+        json={"part_no": quote_part, "qty": 1, "supplier_id": supplier_id, "reason": "x"},
+        headers=TECH,
+    )
+    check("㉟ pending 상태를 PATCH → 409(draft 아님)", r.status_code == 409, f"{r.status_code}")
+
+    r = client.patch(
+        "/api/po/PO-9999",
+        json={"part_no": quote_part, "qty": 1, "supplier_id": supplier_id, "reason": "x"},
+        headers=TECH,
+    )
+    check("㊱ 없는 발주 PATCH → 404", r.status_code == 404, f"{r.status_code}")
+
 
 def run_print_page_checks() -> None:
     """`_attach_print_pages` (D57) 순수 함수 검증 — DB·HTTP 없이 딕셔너리로만.
