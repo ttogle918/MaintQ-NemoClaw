@@ -953,3 +953,34 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
 **reviewer 게이트**: PASS(블로커 없음). 비블로커 노트 3건(구현자 보고 그대로 확인) — ① `mcp_client.py`의 "확장 11종" 주석 미갱신 ② `prompts.py` 헤더의 "len(EXT_RULES)==6" 서술 미갱신 ③ `api.ts`의 `endpoints` 상수에 `/api/a2a/history` 미등재(단, `endpoints` 자체가 프로젝트 전체에서 소비자 0건이라 기존 컨벤션과 일치 — 사실상 결함 아님). 셋 다 Stage 4로 미뤄도 무방.
 
 **곁가지 — D115(elice LLM 프로바이더 추가, 커밋 `5705345`, Sprint 16 계획 밖).** Stage 2 수동 체크리스트의 "실 채팅으로 도구 호출 확인" 항목이 `.env`의 `GEMINI_API_KEY`가 빈 값이고 OS `GOOGLE_API_KEY`도 무효해 막혔다. InsuQ 자매 프로젝트의 `elice` provider 패턴을 `backend/agent/llm.py`에 이식(`PROVIDERS`에 `"elice"` 추가, `EliceClient` + 순수 변환 함수 4종)해 우회 경로를 열고, 이걸로 실 채팅 검증까지 완료했다 — `search_insurance_clause` 실 호출·SSE 스트리밍·후속 LLM 호출까지 확인. 이식 중 실전에서 진짜 버그 발견: 합성 tool_calls로 이력을 짝지었더니 Gemini가 `thought_signature`를 요구해 400이 났다(InsuQ 문서가 이미 경고한 문제, D14a) — `anthropic_messages`와 같은 해법(JSON 텍스트 평탄화)으로 수정 후 재검증 통과. `spikes/llm_provider_contract.py`에 검사 9건(⑮~㉓) 추가, 회귀 전부 통과.
+
+---
+
+### Stage 3 완료 (2026-08-23)
+**커밋**: `7ff38b2` — `[M4] feat: Sprint 16 Stage 3 — A2A 응답 표시 4종 (맥락별 분산 + 통합 이력)`
+
+#### MQ-1607 — 채팅 A2A 결과 카드
+- `frontend/components/chat/A2aResultCard.tsx`(신규) · `frontend/components/chat/ChatThread.tsx`
+- 도구명(snake_case)↔skill 슬러그(kebab-case) 매핑을 reviewer가 백엔드(`routers/a2a.py`·`mcp_server/tools/*`)와 직접 대조해 정확함을 확인
+
+#### MQ-1608 — PO 상세 출금요청 상태 패널
+- `frontend/components/queue/WithdrawalStatusPanel.tsx`(신규) · `frontend/components/queue/PoDetail.tsx`
+- `TONE_BADGE`가 error/warn/unknown을 `Badge`의 "unknown"(점선, D87 오렌지 전용 규칙과 무충돌)으로 통합 — reviewer가 `Badge.tsx` 실제 톤 정의와 대조해 확인
+
+#### MQ-1609 — 건물 위험등급 담보대출 이력 패널
+- `frontend/components/asset/LoanAssessmentHistory.tsx`(신규) · `frontend/app/(console)/manager/risk-grade/page.tsx`
+- 단일 `getA2aHistory` 호출(N+1 없음), 성공 케이스 없음을 정상 상태로 안내
+
+#### MQ-1610 — 통합 A2A 이력 페이지
+- `frontend/components/screens/A2aHistoryScreen.tsx`(신규) · `frontend/app/(console)/manager/a2a/page.tsx`(신규)
+- 라우트 21→22 실측 확인(신규 페이지 1개)
+
+**eval-runner 종합**: seed 37 · `sp2_mcp_roundtrip` 20 · `write_tool_contract` 30 · `api_contract` 41 · `sp3_sse_events` 22 · `llm_provider_contract` 23 · `ruff check` clean · `tsc --noEmit`/`next build` clean(라우트 22개, `.next` 캐시 지우고 순차 실행해 병렬 빌드 경합 재현 안 됨). 새 회귀 0건.
+
+**reviewer 게이트**: PASS(블로커 없음). 구현자들이 남긴 노트 4건 전부 확인 — 도구명 매핑 정확, Badge 톤 매핑 D87 무충돌, `lookup-clause` 빈 응답 폴백 문구는 사양 미기술 구간의 합리적 보완(지어낸 값 없음), `status ?? "(진행 중)"` 방어 코드 안전.
+
+---
+
+## Sprint 16 진행 상태
+
+Stage 1~3 완료(request-withdrawal·lookup-clause·assess-loan 요청+응답 루프 및 화면 4종 전부 동작). 남은 것은 Stage 4(기존 스파이크 4종 카운트 갱신 + 문서 6종 갱신 + 신규 스파이크)와 Stage 5(전수 회귀 + CLAUDE.md 기준선 갱신)뿐 — 전부 인프라·문서 정리 성격이라 사용자 대면 기능 변화는 없음.
