@@ -981,6 +981,31 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
 
 ---
 
+---
+
+### Stage 4 완료 (2026-08-23)
+**커밋**: `346e7a7` — `[M4] docs: Sprint 16 Stage 4 — 카운트 갱신 + 문서 6종 + 신규 계약 스파이크`
+
+#### MQ-1611 — 기존 계약 스파이크 4종 카운트 갱신
+- `spikes/{prompt_rules,tools_profile_contract,s10_smoke,ui_honesty_contract}.py`
+- `L2_FILES_FLOOR`는 스펙 추정 39가 아니라 실측 42 채택 — D111 누적 drift 근거를 주석에 남김(reviewer가 커밋 해시 인용 오류 1건 발견, 직접 수정)
+- 회귀: prompt_rules 24 · tools_profile_contract 7 · s10_smoke 17 · ui_honesty_contract 291, 전부 CLAUDE.md 기준선과 실측 일치
+
+#### MQ-1612 — 문서 갱신 6종
+- `docs/{04_MCP_TOOLS,06_REPO_API,13_DEPLOYMENT,00_MVP_SCOPE,README,07_BACKLOG}.md`
+- §19·§20 신규 절이 실제 도구 코드(DESCRIPTION·reason 어휘)와 1:1 일치함을 reviewer가 직접 대조 확인
+- `grep "확장 11종"` 대상 6개 문서 전부 0건 확인(역사적 문서 3종은 의도적으로 미반영)
+
+#### MQ-1613 — 신규 스파이크 a2a_partner_tools_contract
+- `spikes/a2a_partner_tools_contract.py`(신규, 22건) — D15·D93 소스 격리(liveness 앵커 포함) · full/core 프로파일 분리 · 5경로 응답 매핑 · SSE 바이트 무변화 · `GET /api/a2a/history` 필터 왕복
+- 실 `data/maintq.db` mtime·size 불변 확인(eval-runner 재확인)
+
+**eval-runner 종합**: seed 37 · sp2_mcp_roundtrip 20 · write_tool_contract 30 · api_contract 41 · sp3_sse_events 22 · ruff clean · pytest 83 · a2a_identity_contract 19 · mcp_client_contract 15. `spikes/*.py` 32→33개 실측 확인(신규 1개). 새 회귀 0건 — `llm_provider_contract` 기준선(CLAUDE.md 14) 불일치는 D115(Sprint 16 계획 밖, 별도 커밋 `5705345`)로 인한 기존 문서 drift이며 이번 스테이지가 만든 회귀가 아님(Stage 5에서 CLAUDE.md 기준선에 함께 반영 필요).
+
+**reviewer 게이트**: PASS(블로커 없음). 확인 요청 5건 전부 실증 확인(D111 커밋 해시 소소한 오류 1건은 직접 수정). 비블로커 관찰 2건 — ① `mcp_server/server.py:158` 배너 주석 "확장 11종" 잔존(다음 스테이지 정리 권고) ② `GET /api/a2a/history` 역할 게이트 부재는 Stage 1부터 이월(별도 검토 필요, 사용자가 "나중에 한번에 확인"하기로 함).
+
+---
+
 ## Sprint 16 진행 상태
 
-Stage 1~3 완료(request-withdrawal·lookup-clause·assess-loan 요청+응답 루프 및 화면 4종 전부 동작). 남은 것은 Stage 4(기존 스파이크 4종 카운트 갱신 + 문서 6종 갱신 + 신규 스파이크)와 Stage 5(전수 회귀 + CLAUDE.md 기준선 갱신)뿐 — 전부 인프라·문서 정리 성격이라 사용자 대면 기능 변화는 없음.
+Stage 1~4 완료(request-withdrawal·lookup-clause·assess-loan 요청+응답 루프, 화면 4종, 카운트·문서 정합까지 전부 완료). 남은 것은 Stage 5(전수 회귀 재실행 + CLAUDE.md 기준선 갱신)뿐 — 코드 변경 없는 검증·기록 스테이지.
