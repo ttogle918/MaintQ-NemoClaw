@@ -21,15 +21,23 @@ DATABASE_URL = os.environ.get(
     "postgresql://localhost/maintq"  # 로컬 개발 기본값
 )
 
+# SQLite 호환 스텁 (Postgres는 이것들을 사용하지 않지만 기존 코드 호환성을 위해 유지)
+BUSY_TIMEOUT_MS = 5000  # SQLite 타임아웃 설정
+DB_PATH = Path(os.environ.get("MAINTQ_DB", "data/maintq.db"))  # SQLite 경로 (호환용)
+
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def connect() -> Iterator[psycopg.Connection]:
+def connect(db_path: Path | None = None) -> Iterator[psycopg.Connection]:
     """Postgres 연결 컨텍스트 매니저.
 
     기존 SQLite 인터페이스를 유지하되, 드라이버만 교체.
     자동 커밋 비활성화 — 명시적 commit/rollback 필수.
+
+    Args:
+        db_path: SQLite 호환성을 위해 수용하지만 Postgres에서는 무시한다.
+                 DATABASE_URL 환경변수가 우선된다.
     """
     con = None
     try:
