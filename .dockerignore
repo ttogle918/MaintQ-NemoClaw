@@ -30,7 +30,8 @@ data/cache
 # ── 분석 노트북 (런타임 불필요) ──
 data-analysis
 
-# ── SQLite DB (볼륨 마운트로 제공) ──
+# ── SQLite DB 잔재 (Sprint 16 MQ-1614 로 Postgres 전환 완료 — 이제 만들어질 일은
+# 없지만, 로컬 작업 중 남는 파일이 실수로 이미지에 들어가지 않게 계속 제외한다) ──
 *.db
 *.db-wal
 *.db-shm

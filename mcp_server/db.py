@@ -104,7 +104,14 @@ def read_only() -> Iterator[psycopg.Connection]:
 # 영구히 붙여두고, 이 커넥션이 "MCP 쓰기 도구 커넥션"인지는 세션 GUC 로 표시한다.
 # read_only()·backend/db.py 커넥션은 이 GUC 를 절대 설정하지 않으므로 그쪽 UPDATE 는
 # 영향받지 않는다.
-_MCP_WRITE_GUARD_ON = "SET maintq.mcp_write_guard = 'on'"
+# ⚠ SET LOCAL — 반드시 트랜잭션 범위여야 한다. Supabase 같은 PgBouncer 트랜잭션 풀링
+# 환경에서는 커넥션(client 관점의 con.close())이 끝나도 물리적 백엔드가 즉시 다른
+# 클라이언트에게 재사용될 수 있다 — 세션 범위 `SET`(LOCAL 없이)을 쓰면 이 GUC 가 그
+# 다음 무관한 요청에 새어 들어가 D10 가드가 엉뚱하게 발동/미발동할 수 있다. `SET LOCAL`
+# 은 COMMIT/ROLLBACK 시 자동 원복돼 풀링 모드와 무관하게 안전하다 — psycopg 커넥션은
+# 기본이 autocommit=False 라 이 문장이 곧 트랜잭션의 첫 문장이 되고, 그 트랜잭션 안에서
+# 실행되는 INSERT 까지 그대로 적용된 뒤 `con.commit()` 에서 정확히 사라진다.
+_MCP_WRITE_GUARD_ON = "SET LOCAL maintq.mcp_write_guard = 'on'"
 
 
 @contextmanager
