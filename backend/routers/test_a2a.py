@@ -176,3 +176,149 @@ def test_generic_client_error_without_status_code_defaults_to_400(monkeypatch: p
 def test_blank_question_is_rejected_by_validation(client: TestClient):
     resp = client.post("/api/a2a/lookup-clause", json={"question": ""})
     assert resp.status_code == 422
+
+
+# ---- POST /api/a2a/assess-loan ------------------------------------------------
+
+
+_LOAN_BODY = {"loan_amount": 50000000, "purpose": "설비 증설 자금", "collateral_building_id": "BLD-001"}
+
+
+def test_assess_loan_success_returns_adapter_response(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path
+):
+    captured: dict = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "completed", "decision": "approved", "condition_note": None}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "completed", "decision": "approved", "condition_note": None}
+    assert captured["partner"] == "finallq"
+    assert captured["skill_id"] == "assess-loan"
+    assert captured["payload"]["loan_amount"] == 50000000
+    assert captured["payload"]["purpose"] == "설비 증설 자금"
+    assert captured["payload"]["collateral_building_id"] == "BLD-001"
+
+    rows = _traces(db_path)
+    assert [r["event_type"] for r in rows] == ["tool_call", "tool_result"]
+    result_payload = json.loads(rows[1]["payload"])
+    assert result_payload["status"] == "ok"
+
+
+def test_assess_loan_generates_chain_id_when_not_provided(monkeypatch: pytest.MonkeyPatch, client: TestClient):
+    captured: dict = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert captured["request_chain_id"].startswith("CHAIN-LOAN-")
+
+
+def test_assess_loan_uses_provided_chain_id(monkeypatch: pytest.MonkeyPatch, client: TestClient):
+    captured: dict = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    client.post("/api/a2a/assess-loan", json={**_LOAN_BODY, "request_chain_id": "CHAIN-FIXED-2"})
+
+    assert captured["request_chain_id"] == "CHAIN-FIXED-2"
+
+
+def test_assess_loan_base_url_defaults_to_localhost_9101(monkeypatch: pytest.MonkeyPatch, client: TestClient):
+    monkeypatch.delenv("MAINTQ_A2A_FINALLQ_BASE_URL", raising=False)
+    captured: dict = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert captured["base_url"] == "http://localhost:9101"
+
+
+def test_assess_loan_base_url_reads_env_override(monkeypatch: pytest.MonkeyPatch, client: TestClient):
+    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_BASE_URL", "https://finallq.example.com")
+    captured: dict = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert captured["base_url"] == "https://finallq.example.com"
+
+
+def test_assess_loan_timeout_maps_to_504(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2ATimeoutError("timed out")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert resp.status_code == 504
+    result_payload = json.loads(_traces(db_path)[1]["payload"])
+    assert result_payload["status"] == "timeout"
+
+
+def test_assess_loan_upstream_unavailable_maps_to_502(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path):
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2AUpstreamUnavailableError("adapter down", status_code=502)
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert resp.status_code == 502
+    result_payload = json.loads(_traces(db_path)[1]["payload"])
+    assert result_payload["status"] == "unavailable"
+
+
+def test_assess_loan_generic_client_error_uses_its_own_status_code(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: Path
+):
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2AClientError("schema invalid", status_code=400, detail="bad request")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "bad request"
+    result_payload = json.loads(_traces(db_path)[1]["payload"])
+    assert result_payload["status"] == "error"
+
+
+def test_assess_loan_missing_required_field_rejected_by_validation(client: TestClient):
+    resp = client.post(
+        "/api/a2a/assess-loan",
+        json={"loan_amount": 50000000, "purpose": "설비 증설 자금"},
+    )
+    assert resp.status_code == 422
+
+
+def test_assess_loan_non_positive_amount_rejected_by_validation(client: TestClient):
+    resp = client.post("/api/a2a/assess-loan", json={**_LOAN_BODY, "loan_amount": 0})
+    assert resp.status_code == 422

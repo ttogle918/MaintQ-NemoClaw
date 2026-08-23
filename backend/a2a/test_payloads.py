@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.a2a.payloads import (
+    build_assess_loan_payload,
     build_lookup_clause_payload,
     build_request_withdrawal_payload,
     get_finallq_company_id,
@@ -147,4 +148,25 @@ def test_build_lookup_clause_payload_minimal(db_path: Path, link_finallq):
         "requester": {"finallq_company_id": "CMP-MAINTQ-001"},
         "request_chain_id": "CHAIN-CLAUSE-1",
         "question": "화재 특약 보장 범위는?",
+    }
+
+
+# ---- build_assess_loan_payload -----------------------------------------------
+
+
+def test_build_assess_loan_payload_minimal(db_path: Path, link_finallq):
+    link_finallq(external_ref="CMP-MAINTQ-001")
+    payload = build_assess_loan_payload(
+        loan_amount=50000000,
+        purpose="설비 증설 자금",
+        collateral_building_id="BLD-001",
+        request_chain_id="CHAIN-LOAN-1",
+        db_path=db_path,
+    )
+    assert payload == {
+        "requester": {"finallq_company_id": "CMP-MAINTQ-001"},
+        "request_chain_id": "CHAIN-LOAN-1",
+        "loan_amount": 50000000,
+        "purpose": "설비 증설 자금",
+        "collateral_building_id": "BLD-001",
     }
