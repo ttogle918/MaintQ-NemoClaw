@@ -21,6 +21,7 @@ from pathlib import Path
 
 from backend import manifest
 from backend.db import connect
+from backend.services import po_documents
 from data import po_draft
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
@@ -75,7 +76,8 @@ def iso_utc(ts: str | None) -> str | None:
 # LEFT JOIN 인 이유: requested_by 는 stamp 전 NULL 이고, 미등록 ID 여도 행이 사라지면 안 된다
 _PO_SELECT = (
     "SELECT p.*, pt.name AS part_name, s.name AS supplier_name,"
-    " ru.display_name AS requested_by_name, du.display_name AS decided_by_name"
+    " ru.display_name AS requested_by_name, ru.department AS requested_by_department,"
+    " du.display_name AS decided_by_name"
     " FROM po_drafts p"
     " JOIN parts pt ON pt.part_no = p.part_no"
     " JOIN suppliers s ON s.supplier_id = p.supplier_id"
@@ -319,8 +321,24 @@ def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
             )
             else None
         )
+        # find_alternative_parts 와 같은 쿼리 (D118 발주요청서 §3 "재고·대체품 확인").
+        # compat_confirmed=false 는 제안 금지 대상이라 여기서도 걸러 낸다.
+        po["alternatives"] = [
+            dict(alt)
+            for alt in con.execute(
+                "SELECT a.alt_part_no, pt2.name AS alt_part_name, a.note"
+                " FROM part_alternatives a JOIN parts pt2 ON pt2.part_no = a.alt_part_no"
+                " WHERE a.part_no = ? AND a.compat_confirmed = true"
+                " ORDER BY a.alt_part_no",
+                (po["part_no"],),
+            ).fetchall()
+        ]
         # 화면 B "실행 로그 전체 보기" 링크 (D21)
         po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
+
+        # D118 — 정비·부품 발주요청서(02) 미리보기. 저장하지 않고 조회 시점에 렌더한다
+        # (D86 과 같은 이유: 문안이 바뀌면 저장본이 조용히 낡는다).
+        po["documents_preview"] = {"po_request": po_documents.render_po_request_document(po)}
         return po
 
 

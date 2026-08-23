@@ -32,13 +32,35 @@ from __future__ import annotations
 TEMPLATE_REVIEWED = True
 TEMPLATE_REVIEWED_AT = "2026-08-13"
 
+# ── 정비·부품 발주요청서 (02, D118) — data/templates/02_정비부품발주요청서.docx 문구를
+#    옮긴 렌더 문안. 아직 사람이 검수하지 않았다 — 승인 전까지는 아래를 False 로 둔다.
+PO_REQUEST_TEMPLATE_REVIEWED = False
+PO_REQUEST_TEMPLATE_REVIEWED_AT: str | None = None
 
-def template_review_notice() -> str:
+# ── 설비 이상 진단 보고서 (01, D118) — 같은 이유로 미검수.
+DIAGNOSIS_TEMPLATE_REVIEWED = False
+DIAGNOSIS_TEMPLATE_REVIEWED_AT: str | None = None
+
+
+def _notice(reviewed: bool, reviewed_at: str | None) -> str:
     """문서 본문·API 응답에 함께 싣는 문안 검수 상태 한 줄.
 
     ⚠ **검수가 끝나도 줄을 없애지 않는다.** 법적 효력이 있는 문서라
     *"언제 누가 검수했는가"* 가 남는 편이 낫다 — 침묵은 검수 여부를 알려주지 않는다.
     """
-    if not TEMPLATE_REVIEWED:
+    if not reviewed:
         return "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
-    return f"문안 사람 검수 완료 ({TEMPLATE_REVIEWED_AT})"
+    return f"문안 사람 검수 완료 ({reviewed_at})"
+
+
+def template_review_notice() -> str:
+    """처분 승인서·진술보장서(기존)의 검수 상태 — 하위호환을 위해 인자 없이 유지."""
+    return _notice(TEMPLATE_REVIEWED, TEMPLATE_REVIEWED_AT)
+
+
+def po_request_template_review_notice() -> str:
+    return _notice(PO_REQUEST_TEMPLATE_REVIEWED, PO_REQUEST_TEMPLATE_REVIEWED_AT)
+
+
+def diagnosis_template_review_notice() -> str:
+    return _notice(DIAGNOSIS_TEMPLATE_REVIEWED, DIAGNOSIS_TEMPLATE_REVIEWED_AT)
