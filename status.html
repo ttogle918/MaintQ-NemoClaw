@@ -148,7 +148,8 @@
     당시 "다른 세션 미커밋 작업"이었던 A2A 클라이언트 배관(<code class="inline">client.py</code>·<code class="inline">auth_header.py</code>·<code class="inline">trace.py</code>)·
     공급사 계좌 컬럼·A2A 스파이크·Dockerfile을 전부 커밋했습니다(현재 브랜치는 <code class="inline">master</code>). 그 과정에서
     <code class="inline">spikes/test_elice_stream.py</code>에 <b>평문 JWT API 키</b>가 박혀 있는 것을 발견해 커밋하지 않고
-    <code class="inline">.gitignore</code>에 추가했습니다 — 아래 부록 참고.
+    <code class="inline">.gitignore</code>에 추가했습니다. 이어서 <b>reviewer 게이트를 사후 실행</b>해 위반 2건(<code class="inline">traces.tool</code> 명명 규약,
+    <code class="inline">data/seed.py</code>의 낡은 detail 문구)을 찾아 고쳐 push했습니다 — 전부 아래 부록 참고.
     더 크고 상시 갱신되는 프로젝트 대시보드는 <code class="inline">docs/status/maintq-status.html</code>에 있습니다 — 이 문서는 그것과 별개로, 사용자가 지정한 8개 항목만 좁혀서 다시 확인한 감사 보고서입니다.
   </div>
 
@@ -171,8 +172,8 @@
       <ul>
         <li><b>화면 직접 PO 초안 생성 UI</b> — 백엔드 도구는 있음, 브랜치 목적인 화면 자체가 아직 없음(직전 커밋은 설계 문서뿐)</li>
         <li><b>도구 호출 "이유" 필드</b> — SSE에 tool/input만 있고 rationale 없음. 백엔드가 문자열 하나만 추가하면 됨</li>
-        <li><b>A2A 프로토콜/클라이언트</b> — 이제 커밋·테스트 완료(<code class="inline">a2a_identity_contract</code> 19/19). FinAllQ 어댑터 상대 실 HTTP 왕복까지 확인했지만, 인증은 여전히 의도적 스텁이고 InsuQ 쪽은 미검증</li>
-        <li><b>A2A 상담 요청 빌더</b> — request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8)까지 3종</b>이 실데이터 기반으로 동작. 남은 건 실 InsuQ/FinAllQ 서버 연동 확인뿐</li>
+        <li><b>A2A 프로토콜/클라이언트</b> — 커밋·테스트·reviewer 게이트까지 통과(<code class="inline">a2a_identity_contract</code> 19/19). FinAllQ 어댑터 상대 에러 경로(502)까지 실측했지만, 인증은 여전히 의도적 스텁이고 진짜 성공 경로(200)는 아직 아무도 못 봤음</li>
+        <li><b>A2A 상담 요청 빌더</b> — request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8)까지 3종</b>이 실데이터 기반으로 동작. 단 S8은 InsuQ 쪽 2차 홉 미구현으로 로컬·배포 어디서도 아직 성공 못 봄(MaintQ 밖 블로커) — S5·lookup-clause는 실 코어 백엔드 연동 확인이 남음</li>
         <li><b>보전지표의 잔가율 곡선</b> — 정률 목업 공식(의도적 고지). 실 감가 데이터가 없다는 한계가 실증돼 있음</li>
       </ul>
     </div>
@@ -289,13 +290,13 @@
           <tr>
             <td class="feat">프로토콜/클라이언트 배관 (client·auth·trace·router)</td>
             <td><span class="chip partial">부분구현 · ~70%</span></td>
-            <td class="note">REST 호출·헤더·에러매핑(502/503/504)·trace 저장까지 실동작, 이제 전부 커밋 상태(<code class="inline">a2a_identity_contract</code> 19/19 PASS). FinAllQ 어댑터를 로컬로 띄워 <b>실 HTTP 왕복(502 upstream_unavailable)까지 확인</b>했지만, <code class="inline">auth_header.py</code>는 여전히 문서화된 의도적 스텁이고 InsuQ 어댑터 쪽은 미검증.</td>
+            <td class="note">REST 호출·헤더·에러매핑(502/503/504)·trace 저장까지 실동작, 전부 커밋 상태(<code class="inline">a2a_identity_contract</code> 19/19 PASS, reviewer 게이트로 <code class="inline">traces.tool</code> 명명 규약까지 정정 완료). FinAllQ 어댑터(A2A_Q 레포, 로컬 9101)를 실제로 띄워 <b>MaintQ→어댑터 구간 실 HTTP 왕복(502 upstream_unavailable)까지 확인</b>했지만, 이건 어댑터가 자기 다운스트림 못 찾을 때의 에러 경로일 뿐 — 진짜 성공 경로(200)는 아직 아무도 안 봤음. InsuQ 어댑터는 아예 띄운 적 없음. <code class="inline">auth_header.py</code>는 여전히 문서화된 의도적 스텁.</td>
             <td class="evi"><code>backend/a2a/client.py:32-93</code><code>backend/a2a/auth_header.py:19-28</code></td>
           </tr>
           <tr>
             <td class="feat">상담 요청 빌더 (보험/대출 상담 payload)</td>
             <td><span class="chip partial">부분구현 · ~85%</span></td>
-            <td class="note">request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8, 설비 담보 대출 사전 판정)까지 3종</b>이 실 DB 필드(partner_links, PO 금액, 공급사 계좌) 기반으로 동작하고 라우터에 연결됨. assess-loan은 승인/조건부/거절 사전 판정만 하고 상태 전이를 만들지 않아 승인 게이트 없는 질의형으로 설계.</td>
+            <td class="note">request-withdrawal(S5)·lookup-clause에 이어 <b>assess-loan(S8, 설비 담보 대출 사전 판정)까지 3종</b>이 실 DB 필드(partner_links, PO 금액, 공급사 계좌) 기반으로 동작하고 라우터에 연결됨. assess-loan은 승인/조건부/거절 사전 판정만 하고 상태 전이를 만들지 않아 승인 게이트 없는 질의형으로 설계. <b>⚠ S8은 로컬에서 뭘 띄워도 아직 성공(200)을 볼 수 없음</b> — 아래 callout 참고.</td>
             <td class="evi"><code>backend/a2a/payloads.py</code><code>backend/routers/a2a.py</code></td>
           </tr>
           <tr>
@@ -308,8 +309,16 @@
       </table>
     </div>
 
+    <div class="callout" style="border-left-color:var(--crit);background:var(--crit-soft)">
+      <b>S8 assess-loan은 로컬·배포 상관없이 지금 성공 경로(200)를 볼 수 없습니다 — MaintQ 밖의 블로커.</b>
+      A2A_Q 레포 <code class="inline">adapters/finallq_a2a/insuq_client.py</code>에 오늘 날짜로 명시돼 있습니다: assess-loan의 2차 홉인
+      <code class="inline">verify-collateral-insurance</code>를 <b>InsuQ가 아직 구현하지 않았음</b>(501 반환) — FinAllQ 어댑터가 이를 502로 변환해 MaintQ까지 그대로 전파됩니다.
+      InsuQ 어댑터를 로컬에 띄워도, MaintQ를 배포에 올려도 이 스킬 자체가 상대편에 없어서 결과는 같습니다.
+      InsuQ 팀이 해당 엔드포인트를 만들 때까지는 <b>MaintQ·FinAllQ 어댑터 양쪽 다 이미 할 수 있는 걸 다 한 상태</b>입니다.
+    </div>
     <div class="callout">
       <b>종합 A2A 준비도 ≈ 50%.</b> 배관(70%)·요청 빌더(85%) 모두 진전됐지만, 반대편에서 응답을 "보여주는" 화면은 여전히 0%입니다 — 요청은 3개 스킬(S5·lookup-clause·S8) 다 나가는데, 돌아온 응답을 사람이 확인할 방법이 코드 안에 없다는 병목은 그대로입니다.
+      전체 E2E 실 왕복 검증은 아직 <b>"할 수 없음"</b>(S8, InsuQ 미구현)과 <b>"안 해봄"</b>(S5·lookup-clause, 각 실제 코어 백엔드·AI 엔진 필요)이 섞여 있습니다.
     </div>
   </section>
 
@@ -334,13 +343,21 @@
             <td class="feat"><code class="inline">.gitignore</code> gap 수정</td>
             <td class="note"><code class="inline">.env</code> 단독 패턴이 <code class="inline">.env.local</code>을 못 잡던 gap을 발견해 <code class="inline">.env.local</code>·<code class="inline">.env.*.local</code> 패턴 추가(내용 자체는 무해했음 — API 베이스 URL 하나뿐).</td>
           </tr>
+          <tr>
+            <td class="feat">reviewer 게이트 사후 실행 · 위반 2건 수정</td>
+            <td class="note">D91~D96·D15/D93·D10/D81·D30 전부 위반 없음 확인. 진짜 위반 2건은 고쳐서 push: ① <code class="inline">traces.tool</code> 값이 <code class="inline">docs/A2A_IDENTITY.md:349</code> 규약(<code class="inline">a2a:skill-id</code>)과 다른 언더스코어 포맷이었음 → 정정. ② <code class="inline">data/seed.py</code>의 "A2A 쓰는 쪽 아직 없다" 주석·detail이 이 세션이 trace.py를 추가하면서 이미 거짓이 됐던 것 → 정정. reviewer의 세 번째 경고(assess-loan payload의 <code class="inline">collateral_building_id</code> 위치)는 A2A_Q 실제 어댑터 스키마 대조 결과 <b>오탐으로 판명</b> — 코드는 안 건드림.</td>
+          </tr>
+          <tr>
+            <td class="feat">S8 E2E 성공 경로는 아직 못 봄 — InsuQ 미구현이 원인</td>
+            <td class="note">로컬 FinAllQ 어댑터(9101) 상대로 MaintQ→어댑터 구간 에러 경로(502)만 실측 확인. 3개(MaintQ·FinAllQ 어댑터·InsuQ 어댑터)를 다 띄워도 <code class="inline">assess-loan</code>의 2차 홉인 <code class="inline">verify-collateral-insurance</code>를 <b>InsuQ가 아직 구현 안 함</b>(501, A2A_Q 레포 오늘 날짜 명시)이라 성공(200)은 불가능. request-withdrawal·lookup-clause도 각각 FinAllQ 실 코어(:8080)·InsuQ AI 엔진(:8000)까지 떠 있어야 진짜 성공 경로를 볼 수 있어 아직 미검증.</td>
+          </tr>
         </tbody>
       </table>
     </div>
   </section>
 
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 이후 부록에 적은 S8 구현·커밋 정리·보안 발견은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목의 진행 상황을 갱신한 것입니다.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">cddb5de</code>.</div>
   </div>
 
 </div>
