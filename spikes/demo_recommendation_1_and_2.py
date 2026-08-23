@@ -143,7 +143,7 @@ def main():
             con = sqlite3.connect(db_path)
             con.row_factory = sqlite3.Row
             rows = con.execute(
-                "SELECT seq, event_type, tool, request_chain_id, tool_payload FROM traces WHERE session_id = 'S1' AND tool = 'a2a_request_withdrawal' ORDER BY seq"
+                "SELECT seq, event_type, tool, request_chain_id, tool_payload FROM traces WHERE session_id = 'S1' AND tool = 'a2a:request-withdrawal' ORDER BY seq"
             ).fetchall()
             con.close()
 
@@ -192,7 +192,7 @@ def main():
             con = sqlite3.connect(db_path)
             con.row_factory = sqlite3.Row
             clause_traces = con.execute(
-                "SELECT seq, event_type, tool, request_chain_id, tool_payload FROM traces WHERE session_id = 'S1' AND tool = 'a2a_lookup_clause' ORDER BY seq"
+                "SELECT seq, event_type, tool, request_chain_id, tool_payload FROM traces WHERE session_id = 'S1' AND tool = 'a2a:lookup-clause' ORDER BY seq"
             ).fetchall()
             con.close()
 

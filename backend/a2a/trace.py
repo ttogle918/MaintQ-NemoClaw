@@ -37,7 +37,7 @@ def record_a2a_trace(
 
     call_payload_json = json.dumps(
         {
-            "tool": f"a2a_{skill_id.replace('-', '_')}",
+            "tool": f"a2a:{skill_id}",
             "input": request_payload,
             "ts": now_iso,
         },
@@ -46,7 +46,7 @@ def record_a2a_trace(
 
     result_payload_json = json.dumps(
         {
-            "tool": f"a2a_{skill_id.replace('-', '_')}",
+            "tool": f"a2a:{skill_id}",
             "status": status,
             "summary": f"A2A {skill_id} {status}",
             "elapsed": 0.1,
@@ -68,7 +68,7 @@ def record_a2a_trace(
         con.execute(
             "INSERT INTO traces (session_id, seq, event_type, tool, payload, request_chain_id)"
             " VALUES (?, ?, 'tool_call', ?, ?, ?)",
-            (session_id, next_seq, f"a2a_{skill_id.replace('-', '_')}", call_payload_json, request_chain_id),
+            (session_id, next_seq, f"a2a:{skill_id}", call_payload_json, request_chain_id),
         )
 
         # 2. tool_result insert
@@ -78,7 +78,7 @@ def record_a2a_trace(
             (
                 session_id,
                 next_seq + 1,
-                f"a2a_{skill_id.replace('-', '_')}",
+                f"a2a:{skill_id}",
                 result_payload_json,
                 raw_response_json,
                 request_chain_id,

@@ -588,7 +588,7 @@ def main() -> None:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
     print(
         f"\n통과 ({len(results)}건) — 판정과 식별자는 분리돼 있고, '모름'을 적을 자리는 살아 있으며,\n"
-        "request_chain_id 는 **쓰는 쪽이 아직 없다**(⑪-b — 호출부가 생기면 이 검사를 뒤집는다)"
+        "request_chain_id 는 **backend/a2a/trace.py 가 쓴다**(⑪-b — 무관한 세션에는 여전히 새지 않는다)"
     )
 
 

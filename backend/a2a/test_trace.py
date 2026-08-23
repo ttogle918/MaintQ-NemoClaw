@@ -37,7 +37,7 @@ def test_records_tool_call_and_tool_result_pair(db_path: Path):
     rows = _rows(db_path, "sess-01")
     assert [r["event_type"] for r in rows] == ["tool_call", "tool_result"]
     assert [r["seq"] for r in rows] == [1, 2]
-    assert all(r["tool"] == "a2a_request_withdrawal" for r in rows)
+    assert all(r["tool"] == "a2a:request-withdrawal" for r in rows)
     assert all(r["request_chain_id"] == "CHAIN-001" for r in rows)
 
 
@@ -52,7 +52,7 @@ def test_tool_call_payload_contains_request_input(db_path: Path):
     )
     call_row = _rows(db_path, "sess-01")[0]
     payload = json.loads(call_row["payload"])
-    assert payload["tool"] == "a2a_lookup_clause"
+    assert payload["tool"] == "a2a:lookup-clause"
     assert payload["input"] == {"question": "화재 특약 보장 범위는?"}
 
 

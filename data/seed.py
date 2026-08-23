@@ -235,10 +235,12 @@ CREATE TABLE traces (
   -- ⚠ 이 스프린트는 **컬럼만** 만든다. 값을 쓰는 쪽(backend/agent/trace.py)은 D76-2 담당.
   tool_payload TEXT,
   -- A2A 멀티홉 추적용 (D94-ⓐ). nullable — 기존 행·기존 INSERT 문에 영향이 없다.
-  -- ⚠⚠ **쓰는 쪽이 아직 없다.** A2A 호출부(QMesh)가 미착수라 **현재 전 행 NULL 이 정상**이며,
-  --     spikes/a2a_identity_contract.py 가 그 사실을 **명시적 라벨로 기록**한다.
+  -- ✅ **쓰는 쪽이 생겼다** — backend/a2a/trace.py(record_a2a_trace)가 A2A 호출부(request-
+  --     withdrawal·lookup-clause·assess-loan)에서 실제로 이 컬럼에 값을 채운다. A2A 와
+  --     무관한 세션(정비 대화 등)의 행은 여전히 NULL 이 정상이며, 이 회귀도 그 경계를 본다.
+  --     spikes/a2a_identity_contract.py ⑪-a/⑪-b 가 그 사실을 실측(스캐너)으로 확인한다.
   --     D76-2 가 컬럼만 만들고 쓰는 쪽이 없어 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기
-  --     위해, "값이 비었다"가 아니라 "쓰는 쪽이 없다"를 회귀가 말하게 한다.
+  --     위해, ⑪-b 는 "값이 비었다"가 아니라 "누가 쓰는가"를 회귀가 말하게 한다.
   request_chain_id TEXT,
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
   -- token 은 없다 (D41): 저장하지 않는 게 설계다. backend/agent/trace.py 참조
@@ -2760,7 +2762,7 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         "㉕ traces.request_chain_id 존재 · nullable (D94-ⓐ)",
         rc_col is not None and rc_col[3] == 0,
         f"존재={rc_col is not None}, notnull={rc_col[3] if rc_col else '-'}"
-        " · **쓰는 쪽 없음 — A2A 호출부 미착수**, 계측 회귀는"
+        " · **쓰는 쪽 = backend/a2a/trace.py**, 실측 계측 회귀는"
         " `spikes/a2a_identity_contract.py` 가 본다",
     )
 

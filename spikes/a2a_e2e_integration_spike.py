@@ -122,7 +122,7 @@ def run_e2e_tests():
             ).fetchall()
             con.close()
 
-            a2a_traces = [r for r in rows if r["tool"] == "a2a_request_withdrawal"]
+            a2a_traces = [r for r in rows if r["tool"] == "a2a:request-withdrawal"]
             assert len(a2a_traces) == 2, f"Expected 2 a2a traces (tool_call + tool_result), got {len(a2a_traces)}"
             assert a2a_traces[0]["event_type"] == "tool_call"
             assert a2a_traces[0]["request_chain_id"].startswith("CHAIN-PO-0117-")
@@ -158,7 +158,7 @@ def run_e2e_tests():
             con = sqlite3.connect(db_path)
             con.row_factory = sqlite3.Row
             clause_traces = con.execute(
-                "SELECT event_type, tool, payload, tool_payload, request_chain_id FROM traces WHERE session_id = 'S1' AND tool = 'a2a_lookup_clause' ORDER BY seq"
+                "SELECT event_type, tool, payload, tool_payload, request_chain_id FROM traces WHERE session_id = 'S1' AND tool = 'a2a:lookup-clause' ORDER BY seq"
             ).fetchall()
             con.close()
 
