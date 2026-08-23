@@ -149,7 +149,8 @@
     공급사 계좌 컬럼·A2A 스파이크·Dockerfile을 전부 커밋했습니다(현재 브랜치는 <code class="inline">master</code>). 그 과정에서
     <code class="inline">spikes/test_elice_stream.py</code>에 <b>평문 JWT API 키</b>가 박혀 있는 것을 발견해 커밋하지 않고
     <code class="inline">.gitignore</code>에 추가했습니다. 이어서 <b>reviewer 게이트를 사후 실행</b>해 위반 2건(<code class="inline">traces.tool</code> 명명 규약,
-    <code class="inline">data/seed.py</code>의 낡은 detail 문구)을 찾아 고쳐 push했습니다 — 전부 아래 부록 참고.
+    <code class="inline">data/seed.py</code>의 낡은 detail 문구)을 찾아 고쳐 push했습니다. 마지막으로 <b>A2A_Q 시나리오맵의 크로스팀 Top 3 시나리오(S1 출금·S4 담보대출·S5 처분통지)</b>에 대해
+    MaintQ 쪽 코드가 실제로 얼마나 있는지 코드 실측으로 확인했습니다 — 전부 아래 새 섹션·부록 참고.
     더 크고 상시 갱신되는 프로젝트 대시보드는 <code class="inline">docs/status/maintq-status.html</code>에 있습니다 — 이 문서는 그것과 별개로, 사용자가 지정한 8개 항목만 좁혀서 다시 확인한 감사 보고서입니다.
   </div>
 
@@ -323,6 +324,47 @@
   </section>
 
   <section>
+    <div class="sec-head"><h2>A2A 크로스팀 Top 3 시나리오 — MaintQ 측 구현도</h2><span class="count">A2A_Q 시나리오맵 기준 · 코드 실측</span></div>
+    <div class="callout" style="border-left-color:var(--accent);background:var(--accent-soft)">
+      <b>⚠ 번호 충돌 주의.</b> 여기 <code class="inline">S1</code>·<code class="inline">S4</code>·<code class="inline">S5</code>는 <b>A2A_Q 레포의 크로스팀 시나리오맵 번호</b>입니다.
+      MaintQ 자체 문서(<code class="inline">docs/02_SCENARIOS.md</code>)는 이미 <code class="inline">S1~S29</code>를 다른 의미로 쓰고 있고(예: 지금 코드의 request-withdrawal은 MaintQ 문서에서 <code class="inline">S5</code>),
+      실제로 A2A_Q의 "S1 출금요청"이 MaintQ 코드에서는 <code class="inline">S5</code>로 불립니다. 두 네임스페이스를 섞어 인용하지 마세요.
+    </div>
+    <div class="datatable-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:16%">시나리오 (A2A_Q 번호)</th><th style="width:10%">MaintQ측 완성도</th><th style="width:37%">된 것</th><th style="width:37%">안 된 것</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feat">S1 · 출금 요청<br><span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(MaintQ 문서상 S5 = request-withdrawal)</span></td>
+            <td><span class="chip partial">~70%</span></td>
+            <td class="note">payload 조립(<code class="inline">build_request_withdrawal_payload</code>) · PO 승인 시 자동 발신(<code class="inline">routers/po.py:170</code>) · trace 기록 · <b>A2A 전송 실패가 승인 자체를 되돌리지 않음</b>(명시적 설계, docstring에 근거 있음)</td>
+            <td class="note">공급사 알림 로직이 A2A 유무와 무관하게 <b>백엔드 전체에 0건</b>(grep 실측). FinAllQ가 <code class="inline">input-required</code>(2단 결재 대기)로 비동기 응답해도 <b>이후 최종 승인 여부를 받을 콜백/웹훅/폴링이 전무</b> — MaintQ의 "발주 확정"은 A2A 호출 전에 이미 끝나 있어 사용자가 그린 순서(출금 처리 → 발주 확정)와 실제 순서가 다름</td>
+          </tr>
+          <tr>
+            <td class="feat">S4 · 담보 대출<br><span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(멀티홉, MaintQ 문서상 S8/assess-loan에 대응)</span></td>
+            <td><span class="chip partial">~40%</span></td>
+            <td class="note">MaintQ→FinAllQ 심사 요청 발신(<code class="inline">assess-loan</code>, 오늘 구현) · FinAllQ↔InsuQ 내부 조정은 MaintQ 책임 밖이라 원래 안 만드는 게 맞음</td>
+            <td class="note"><b>"최종 승인 → 출금 실행"으로 자동으로 잇는 코드가 전혀 없음</b> — <code class="inline">assess_loan</code>·<code class="inline">request_withdrawal</code> 사이에 grep으로 찾아지는 연결고리 0건. 이 대출이 <b>MaintQ의 어떤 엔티티(PO? 자산? 새 개체?)에 귀속되는지 설계 자체가 없음</b>. 게다가 InsuQ의 2차 홉(<code class="inline">verify-collateral-insurance</code>) 자체가 아직 미구현(크로스팀 블로커, 위 8번 섹션 참고)</td>
+          </tr>
+          <tr>
+            <td class="feat">S5 · 처분 및 보험 통지</td>
+            <td><span class="chip none">~20%</span></td>
+            <td class="note">MaintQ 자산 처분 판정·서명 워크플로우(<code class="inline">check_disposal_blockers</code>·<code class="inline">generate_disposal_document</code>·decisions 서명)는 시나리오 앞부분과 겹치는 기존 기능으로 이미 있음</td>
+            <td class="note">InsuQ <code class="inline">notify-asset-change</code> 발신 — <b>payload builder도 엔드포인트도 트리거 지점도 0건</b>(grep 실측, A2A 코드 전체에 "notify_asset"·"asset_change" 매치 없음). <code class="inline">backend/services/decisions.py</code>·<code class="inline">routers/decisions.py</code>에 "A2A" 문자열 자체가 0건. 매각대금/입금 확인 필드도 처분 데이터에 없음</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <b>공통 패턴 — MaintQ는 "요청 발신"까지는 강하고 "받은 이후"가 약합니다.</b> 3개 시나리오 다 요청을 쏘는 쪽(payload 조립·클라이언트 호출·trace 기록)은 있거나(S1·S4) 기존 기능이 재활용 가능(S5)한데,
+      비동기 완료 확인(콜백/웹훅), 멀티홉 마지막 단계로의 자동 연결, 새 스킬 자체(notify-asset-change)는 전부 손 안 댄 영역입니다.
+      브레인스토밍 중이던 <b>"A2A 외부 응답 표시 뷰"</b> 작업과 상당 부분 겹칩니다 — 표시 뷰를 만들려면 어차피 "받은 응답을 어디에 어떻게 붙일지"를 정해야 하는데, 그 설계가 S1의 콜백 부재·S4의 귀속 엔티티 부재와 같은 뿌리입니다.
+    </div>
+  </section>
+
+  <section>
     <div class="sec-head"><h2>부록 · 이번 갱신에서 발견·처리한 것</h2><span class="count">2026-08-23</span></div>
     <div class="datatable-wrap">
       <table>
@@ -357,7 +399,7 @@
   </section>
 
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">cddb5de</code>.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>.</div>
   </div>
 
 </div>
