@@ -882,7 +882,25 @@ flowchart LR
 
   <!-- ================= 근거 ================= -->
   <section>
-    <div class="sec-head"><h2>그림이 참조한 실제 코드</h2><span class="count">대조표</span></div>
+    <div class="sec-head" style="margin-top:34px"><h2>⑪ RAG dense(임베딩) 검색 흐름 — DB가 Postgres로 바뀐 뒤</h2><span class="count">신규 · Sprint 16 D116·D117, 2026-08-24</span></div>
+    <div class="note warn">
+      <b>⚠ 위 ②의 "테이블 24"는 이제 낡았습니다.</b> Sprint 16(D116)이 SQLite→Postgres 전환을 완료했고,
+      D117이 <code>manual_chunks</code> 테이블(pgvector, 2,048차원)을 더해 <b>테이블 25개</b>가 됐습니다.
+      DB 자체도 SQLite 파일이 아니라 <code>DATABASE_URL</code>이 가리키는 Postgres 인스턴스입니다 — 위 다이어그램의
+      "쓰기 경로가 갈린다" 구조(사람 API ↔ MCP 쓰기 도구 3종, D10)는 그대로지만 강제 메커니즘이
+      SQLite의 <code>CREATE TEMP TRIGGER</code>에서 Postgres 영구 트리거 + 세션 GUC로 바뀌었습니다.
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>매뉴얼 검색은 이제 키워드 + dense 하이브리드입니다.</b> 정비사 질문 → <code>rag_search_manual</code> 도구 →
+      <code>mcp_server/rag.py::search()</code>가 키워드(IDF) 점수를 계산하는 동시에 <code>dense_scorer.score()</code>를
+      호출 → <code>data/external/nvidia_embed.py</code>가 질의를 NVIDIA API(<code>nvidia/nemotron-3-embed-1b</code>)로
+      임베딩(캐시 우선, <code>data/cache/embeddings/</code>) → Postgres <code>manual_chunks</code>에서 같은 기종의
+      사전 계산된 코퍼스 임베딩을 읽어 코사인 유사도 계산 → 두 점수를 가중 융합(현재 1.0/1.0 임시값)해 순위 결정.
+      <code>NVIDIA_API_KEY</code>가 없으면 예외 없이 키워드 전용으로 물러납니다(D47의 <code>dense=None</code>과 동일한
+      정상 상태 — 매뉴얼 검색 기능 자체가 dense 설정 하나 때문에 죽지 않습니다).
+    </div>
+
+    <div class="sec-head" style="margin-top:34px"><h2>그림이 참조한 실제 코드</h2><span class="count">대조표</span></div>
     <div class="twrap">
       <table>
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
@@ -904,6 +922,8 @@ flowchart LR
           <tr><td><b>외부 응답 원본 보관 · 3자 대조 (Sprint 13, D103·D105)</b></td><td class="mono">data/external/store.py(봉투·메타 allowlist) · data/external/elice_docvision.py(2차 판독기, 정답지 아님) · data/verify_actions_absence.py(<code>CONFIRMED_ABSENT</code>/<code>DISAGREE</code>/<code>STILL_AMBIGUOUS</code>/<code>RECOVERABLE</code> 판정) · <code>data/raw/external/&lt;source&gt;/</code>(git 추적, 요청 파라미터 저장 불가)</td></tr>
           <tr><td><b>LLM 응답 캐시 (Sprint 13, D104)</b></td><td class="mono">backend/agent/llm_cache.py(옵트인 · <code>MAINTQ_LLM_CACHE=on</code>) · <code>loop.py</code> D55 재생 표식 · eval/run_eval.py <code>--replay</code> + 기본 모드 강제 차단 · 캐시는 <code>data/cache/llm/</code>(git 미추적)</td></tr>
           <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
+          <tr><td><b>SQLite → Postgres 전환 (Sprint 16, D116)</b></td><td class="mono">backend/db.py · mcp_server/db.py(Postgres 전용, DB_PATH override) · data/dbcompat.py(sqlite3 호환 계층) · data/pg_isolation.py(스파이크 격리 스키마) · scripts/postgres_guards.sql(D10 영구 트리거+세션 GUC, <b><code>SET LOCAL</code></b>)</td></tr>
+          <tr><td><b>RAG dense 임베딩 (Sprint 16, D117)</b></td><td class="mono">mcp_server/dense_scorer.py(DenseScorer 구현) · data/external/nvidia_embed.py(NVIDIA API 클라이언트, 캐시 <code>data/cache/embeddings/</code>) · scripts/migrate_vectors.py(코퍼스 색인) · Postgres <code>manual_chunks</code> 테이블(pgvector, scripts/postgres_schema.sql §24)</td></tr>
         </tbody>
       </table>
     </div>

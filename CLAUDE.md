@@ -9,9 +9,10 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D116**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D117**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 11종** §8~§18). 임의 변경 금지
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 13종** §8~§20, 총 20종 —
+  이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
    **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블) 을 더한다**
@@ -54,7 +55,8 @@
 - 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **11종**은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다. **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
+  - 확장 **13종**(코어 7 + 확장 13 = 20종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
+    **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
 

@@ -831,6 +831,16 @@
     </details>
   </section>
 
+  <div class="note-strip" style="border-left-color:var(--warn);background:var(--warn-soft)">
+    <b>⚠ 이 문서는 2026-08-19(Sprint 11) 기준에서 멈춰 있습니다.</b> Sprint 12~16(D111~D117 — 부서 분리·화면 직접 발주·model enum IE5 확장·RAG 실 인덱스·<b>SQLite→Postgres 전환</b>·<b>RAG dense 임베딩 활성화</b> 등)이 아직 위 카드·표·백로그에 반영되지 않았습니다. 전체 재작성은 이번 갱신 범위 밖이라 하지 않았고, 최신 상태는 <code class="inline">CLAUDE.md</code>(회귀 스위트·실측 기준선 문단)가 정본입니다. 아래는 <b>가장 최근 세션(2026-08-24)이 한 일만</b> 부록으로 추가합니다.
+  </div>
+
+  <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-08-24 — Sprint 16 MQ-1614 완결 · RAG dense 임베딩 활성화(D117).</b>
+    남아 있던 스파이크 <code class="inline">bundle_integrity.py</code>(26/26)와 공식 목록 밖 A2A 스파이크 2종(<code class="inline">a2a_outbound_contract</code> 4/4·<code class="inline">a2a_e2e_integration_spike</code> 2/2)을 SQLite 파일 픽스처에서 Postgres 격리 스키마로 포팅해 <b>spikes 33/33이 Postgres 위에서 통과</b>합니다. 이 과정에서 실제 DB 오염 버그(<code class="inline">Path</code>로 감싼 DSN이 격리를 우회해 공유 <code class="inline">public</code> 스키마에 쓴 것) 하나를 발견·수정했고, 같은 결함이 원인이었던 미반영 pytest 8파일(<code class="inline">backend/a2a/test_*.py</code> 등, 46/86 실패)도 함께 고쳐 <b>86/86 통과</b>로 만들었습니다. <code class="inline">mcp_server/db.py</code>의 D10 쓰기 가드도 세션 범위 <code class="inline">SET</code>에서 <code class="inline">SET LOCAL</code>로 바꿔 Supabase 같은 트랜잭션 풀링 환경에서도 안전하게 했습니다.
+    <br>이어서 오랫동안 미뤄 둔 <b>D51(dense 임베딩 검색 활성화)을 D117로 해소</b>했습니다 — <code class="inline">mcp_server/dense_scorer.py</code>가 D47이 예약해 둔 <code class="inline">dense=</code> 훅에 실제 임베딩 스코어러를 꽂았고, 코퍼스 임베딩은 새 Postgres 테이블 <code class="inline">manual_chunks</code>(pgvector, 2,048차원)에 저장합니다. 원래 요청은 Qwen3-Embedding이었으나 NVIDIA API 카탈로그 실측 결과 Qwen 임베딩이 없어, 한국어 문장 판별 테스트로 <code class="inline">nvidia/nemotron-3-embed-1b</code>를 대신 채택했습니다. Dockerfile도 이제서야 SQLite 볼륨 마운트 문구를 걷어내고 <code class="inline">DATABASE_URL</code> 기반 배포로 갱신됐습니다(실제 <code class="inline">docker build</code>+실행으로 검증). 하이브리드 가중치는 아직 임시값(1.0/1.0)이며 eval 실측은 다음 과제입니다.
+  </div>
+
   <div class="footer-strip">
     <div>다음 우선순위: <strong>Sprint 5~13 전부 완료 — 남은 것은 백로그(P39 화면 직접 초안 생성)와 사람 승인 대기 항목뿐</strong><br>
       <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · <b>신규</b> <code class="inline">iG5A NTC</code> D99 재승인 · <b>신규</b> <code class="inline">DISAGREE</code> 2건(<code class="inline">EEP</code>·<code class="inline">HWT</code>) 확인<br>

@@ -156,6 +156,25 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
     1,530원 집행 → `CONFIRMED_ABSENT` 24·`DISAGREE` 6·`STILL_AMBIGUOUS` 3·`RECOVERABLE` 1·
     `INCONCLUSIVE` 0 확정, 백로그 P28·P31 상태 갱신
 
+19. ✅ ~~**Sprint 14** — IE5 매뉴얼 추출 경로(P29) + 파생 결과 승격 규약(P28 ⓒ)~~ — **완료.**
+    Stage 1: 괘선 없는 표를 `page.edges` 유도 열 경계로 추출, 실패 시 폴백 없이 스킵(**D107**).
+    Stage 2: 파생 산출물(`data/extracted/`)의 DB 승격 기준을 "실제 조인 소비자가 생겼을 때만"으로
+    명문화(**D106**). 이월 항목(§8·§9)은 같은 세션에 마무리 — `ie5_extract_contract` 47→54건
+20. ✅ ~~**Sprint 15** — `model` enum 3종 확장(P11) + IE5 RAG 편입 + 화면 직접 발주 생성(P39 축소판)~~ —
+    **완료.** model enum 을 `iG5A|S100|IE5` 로 확장하되 안전 문구·`equipment` CHECK 는 그대로
+    유지(**D109**). 같은 날 재조사로 IE5 를 `rag_search_manual` 검색 대상에도 편입(194청크,
+    **D110**). `POST /api/po`로 화면이 발주 초안을 직접 생성하는 첫 REST 경로도 신설
+    (**D111**, `create_po_draft`는 폐지하지 않고 병행)
+21. ✅ ~~**Sprint 16** — A2A 아웃바운드 재개(P34 부분) + SQLite→Postgres 전환 + RAG dense 임베딩 검색~~
+    — **완료(2026-08-24).** request-withdrawal·lookup-clause·assess-loan 3종 A2A 스킬 재개
+    (**D112**). 다른 세션이 착수만 하고 멈춰 있던 Postgres 전환을 로컬 Docker(pgvector/pgvector:pg15)
+    로 실제로 완성 — D10 쓰기 가드를 영구 트리거+세션 GUC로, `read_only()`를 트랜잭션 읽기전용
+    강제로 재구현(**D116**). 오래 미뤄뒀던 D51(dense 검색 활성화 여부)도 이 세션에 해소 —
+    NVIDIA API 임베딩(`nvidia/nemotron-3-embed-1b`)으로 `rag_search_manual`에 하이브리드
+    dense 스코어러를 붙였다(**D117**, 코퍼스 1,229청크 전량 색인 완료). 이 과정에서 발견한
+    미반영 pytest 스위트(A2A 8파일, 46/86 FAIL)도 근본 원인(DSN 문자열 `Path()` 래핑 버그)까지
+    같은 세션에서 고쳐 86/86으로 정리 — 상세는 `docs/sprints/sprint-16-wip.md`
+
 > **남은 사람 승인 4건** — **`iG5A NTC` 1건 D99 재승인**(18번 Stage 5 회수분, 정본 병합 대기) ·
 > **`DISAGREE` 중 `iG5A EEP`·`HWT` 2건 확인**(18번, 위양성 여부 육안 대조) · **안전 문구 검수**(14번) ·
 > **A2A 파트너 자격증명 실값**(13번, QMesh 착수 전까지는 급하지 않음). 나머지는 전부 완료됐다.

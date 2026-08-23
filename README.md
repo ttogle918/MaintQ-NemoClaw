@@ -37,22 +37,23 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 
 ```
 [정비사 UI]──┐
-[팀장 UI]  ──┤→ [FastAPI 백엔드] → [Agent Loop (LLM)] → [MCP 서버] → [SQLite 목업 DB]
-             │        │                                      │
-             │        └── SSE 스트림 (token/tool_call/       └── [벡터스토어 (매뉴얼 RAG)]
+[팀장 UI]  ──┤→ [FastAPI 백엔드] → [Agent Loop (LLM)] → [MCP 서버] → [Postgres(pgvector) — 목업 데이터 + 매뉴얼 RAG 임베딩]
+             │        │
+             │        └── SSE 스트림 (token/tool_call/
              │             tool_result/block — D14·D22)
 ```
 
 (도식 원본: `docs/06_REPO_API.md` §0)
 
 - MCP 서버·백엔드 프로세스 분리 (D15) → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨. 단, 개발/데모 시에는 백엔드 `lifespan`이 MCP 서버를 서브프로세스로 **자동 기동**한다(D42) — 별도 터미널로 띄울 필요 없음
-- MCP 도구 **코어 7종 + 확장 11종 = 18종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
+- MCP 도구 **코어 7종 + 확장 13종 = 20종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
   기본 `core`. 도구를 늘린 채 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다.
   **D88** 이 이 기준선을 코드로 잠갔다 — `run_eval.py` 가 `/health` 실측으로 `core` 가 아니면 종료한다)
-  확장 11종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
+  확장 13종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
   `get_maintenance_metrics` `classify_expenditure` `assess_repair_value` `build_evidence_bundle`
   `generate_disposal_document` `create_repair_record`(Sprint 9, D98)
-  **`track_deadlines` `assess_risk_grade`**(Sprint 11, D102)
+  `track_deadlines` `assess_risk_grade`(Sprint 11, D102)
+  **`search_insurance_clause` `assess_equipment_loan`**(Sprint 16, D112 — A2A 아웃바운드, 상대 서버 미구현으로 현재 실패가 정상)
 - 코어 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
 - **쓰기 도구는 3종**(`create_po_draft` · `generate_disposal_document` · `create_repair_record`) — 셋 다
   **draft INSERT 만** 가능하고 UPDATE 권한이 없다. 승인/반려/서명은 사람 전용 API
@@ -60,12 +61,15 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 
 ## 빠른 시작
 
-요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/) (D27 — Docker는 MVP 제외, 백로그 P14), Node.js(프론트)
+요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/), Docker(로컬 Postgres 컨테이너 — Sprint 16 D116 이후 필수), Node.js(프론트)
 
 ```bash
 git clone https://github.com/<YOUR_ID>/MaintQ.git && cd MaintQ
+docker compose up -d postgres        # 로컬 Postgres(pgvector/pgvector:pg15, 포트 5434) 기동
 uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
-cp .env.example .env                 # GEMINI_API_KEY, MAINTQ_LLM_MODEL 입력 (기본 제공자: gemini)
+cp .env.example .env                 # DATABASE_URL(기본값이 위 컨테이너를 가리킴)·GEMINI_API_KEY·
+                                      # MAINTQ_LLM_MODEL 입력 (기본 제공자: gemini). NVIDIA_API_KEY는
+                                      # 선택 — 없으면 매뉴얼 검색이 키워드 전용으로 동작(D117)
 
 uv run python data/seed.py --with-error-codes   # 목업 DB 생성 (시드 케이스 맵 7종 + error_codes)
 
@@ -132,8 +136,9 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 > 누가 무엇을 판단했는지가 지워지면 승인의 의미가 사라진다(`data/related_parts.seed.json`
 > 의 `_승인_이력`).
 
-**회귀 현황**(2026-08-20 기준, `CLAUDE.md` 실측 기준선): spikes **32스위트 / 976건** · pytest **83건** ·
-seed **36건** · 프론트 라우트 **18개**(`npx next build`).
+**회귀 현황**(2026-08-24 기준, `CLAUDE.md` 실측 기준선): spikes **33스위트 / 1,052건** · pytest **169건**
+(공식 3파일 83건 + Sprint 16에서 발견·수정한 A2A 8파일 86건, `docs/sprints/sprint-16-wip.md` 참고) ·
+seed **37건** · `error_codes` **70건** · 프론트 라우트 **21개**(`npx next build`).
 
 **재현 방법**:
 
@@ -151,10 +156,10 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 |---|---|
 | [00 MVP_SCOPE](docs/00_MVP_SCOPE.md) | 반드시 구현할 기능 6종 + 인프라 + 완료 기준 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
-| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 11 = 18종** 입출력·설계 원칙 (계약 임의 변경 금지) |
+| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 13 = 20종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D116** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D117** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 
@@ -165,4 +170,5 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 
 ## 상태
 
-M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — 상세 진행 상태는 [docs/README.md](docs/README.md) 참조
+M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — Sprint 16(D116·D117, SQLite→Postgres 전환 +
+RAG dense 임베딩 검색)까지 M4 범위에서 완료됨. 상세 진행 상태는 [docs/README.md](docs/README.md) 참조

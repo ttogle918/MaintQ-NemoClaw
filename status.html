@@ -139,7 +139,7 @@
       <h1>8개 핵심 기능, 실제 코드 기준 점검</h1>
       <p>docs/10_DECISIONS.md·spikes 회귀·seed 데이터를 직접 읽어 판정했습니다. "구현됨"은 실제 로직 + seed/테스트로 동작 확인된 것, "부분구현"은 핵심은 있으나 요청한 범위 일부가 비어 있는 것, "목업만 있음"은 함수 시그니처·TODO뿐인 것입니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-23</b> · 최신 갱신<b>2026-08-23</b></div>
+    <div class="asof">기준 시점<b>2026-08-23</b> · 최신 갱신<b>2026-08-24</b></div>
   </header>
 
   <div class="note-strip">
@@ -398,8 +398,49 @@
     </div>
   </section>
 
+  <section>
+    <div class="sec-head"><h2>부록 · 2026-08-24 세션 — Postgres 전환 마무리 · RAG dense 임베딩 활성화</h2><span class="count">위 8개 기능 판정표와는 별개 축(백엔드/인프라)</span></div>
+    <div class="note-strip">
+      이 갱신은 8개 기능 판정표(2026-08-23)나 A2A 크로스팀 섹션과 직접 겹치지 않습니다 — <b>DB 백엔드 전환과 RAG 검색 품질 개선</b>이라는 별도 축의 작업입니다. 상세 근거는 <code class="inline">docs/10_DECISIONS.md</code> D117, <code class="inline">docs/sprints/sprint-16-wip.md</code> "4차 체크포인트" 참고.
+    </div>
+    <div class="datatable-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:26%" class="feat">Sprint 16(MQ-1614) 완결 — spikes 33/33</td>
+            <td class="note">남아 있던 <code class="inline">bundle_integrity.py</code>(26/26)와 공식 목록 밖 A2A 스파이크 2종(<code class="inline">a2a_outbound_contract</code> 4/4·<code class="inline">a2a_e2e_integration_spike</code> 2/2)을 SQLite 파일 픽스처에서 Postgres 격리 스키마(<code class="inline">data/pg_isolation.py</code>)로 포팅. 포팅 도중 <b>실제 DB 오염 버그</b>를 발견·수정(Path로 감싼 DSN이 <code class="inline">backend/db.py::connect()</code>의 격리 체크를 우회해 공유 <code class="inline">public</code> 스키마에 실제로 씀). 같은 결함이 원인이던 <b>미반영 pytest 8파일(46/86 실패)</b>도 함께 고쳐 86/86 통과.</td>
+          </tr>
+          <tr>
+            <td class="feat">D10 쓰기 가드 — <code class="inline">SET</code> → <code class="inline">SET LOCAL</code></td>
+            <td class="note"><code class="inline">mcp_server/db.py</code>의 세션 범위 GUC 설정을 트랜잭션 범위로 좁힘 — Supabase Transaction Pooler처럼 물리 커넥션이 여러 클라이언트에 재사용되는 환경에서 가드 상태가 무관한 요청으로 새는 것을 막음.</td>
+          </tr>
+          <tr>
+            <td class="feat">Dockerfile · docker-compose.yml · .dockerignore 갱신</td>
+            <td class="note">Dockerfile이 여전히 SQLite 볼륨 마운트 시절 안내문이었음(코드는 이미 Postgres 전용인데 배포 문서만 안 따라잡음) — <code class="inline">DATABASE_URL</code> 기반 배포로 재작성, Supabase 연결 풀 모드 주의사항 명시, 최초 배포 시 스키마·시드 적용 절차 추가. 실제 <code class="inline">docker build</code> + 컨테이너 실행 + <code class="inline">/health</code>·<code class="inline">/api/whoami</code>(DB 조회 포함) 응답까지 검증.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip done">D117</span> RAG dense(임베딩) 검색 활성화 — D51 해소</td>
+            <td class="note">오래 미뤄뒀던 D51을 해소. <code class="inline">mcp_server/dense_scorer.py</code>가 D47이 예약해 둔 <code class="inline">search(..., dense=)</code> 훅에 실제 스코어러를 연결. 코퍼스 임베딩은 신설 Postgres 테이블 <code class="inline">manual_chunks</code>(pgvector, 2,048차원, <code class="inline">scripts/postgres_schema.sql</code> §24)에 저장. 원래 요청은 Qwen3-Embedding이었으나 <b>NVIDIA API 카탈로그 실측(<code class="inline">/v1/models</code>) 결과 Qwen 임베딩이 아예 없었고</b>, 대안 2종을 한국어 문장 판별 테스트로 비교해 <code class="inline">nvidia/nemotron-3-embed-1b</code>를 채택(변별력 0.598 vs 0.444). <code class="inline">NVIDIA_API_KEY</code> 미설정 시 예외 없이 키워드 전용으로 조용히 물러나도록 설계(D47의 정상 상태, D40 위반 아님).</td>
+          </tr>
+          <tr>
+            <td class="feat">코퍼스 색인 진행 상황</td>
+            <td class="note">전체 매뉴얼 청크(iG5A·S100·IE5, JSONL 1,229행)를 <code class="inline">scripts/migrate_vectors.py</code>(속도 제한 포함, 캐시 히트는 재과금 없음)로 색인 <b>완료</b> — <code class="inline">manual_chunks</code> <b>1,229/1,229행</b> 전부 임베딩 채워짐. 최초 실행에서 1건(<code class="inline">s100-manual-p0440-00</code>)이 NVIDIA 게이트웨이 일시 502로 실패했으나 원인은 데이터·코드 문제가 아니었다 — 재실행 시 나머지 1,228건은 캐시 히트(재과금 없음)로 건너뛰고 실패했던 1건만 재시도해 성공, 최종 1,229/1,229 확인. 실제 검색 개선도 확인됨: "인버터가 갑자기 멈췄는데 무엇을 먼저 확인해야 하나요" 질의가 키워드 전용일 때는 top-1이 엉뚱한 페이지(p.146)였는데, dense 활성화 후 top-3 전부 올바른 "12장 이상 대책·고장 대책" 구간으로 이동.</td>
+          </tr>
+          <tr>
+            <td class="feat">벡터 저장소 — pgvector 채택, Qdrant Cloud는 이후 과제</td>
+            <td class="note"><code class="inline">data/analysis/rag_sizing.md</code> §4가 이미 "이 코퍼스 규모에서 전용 벡터스토어 도입 근거가 없다"고 결론 내린 상태라 이번엔 Postgres/pgvector로 갔음. 사용자가 향후 Qdrant Cloud 이전을 계획 중이라고 밝혀, 저장소를 옮길 때 바뀔 지점을 <code class="inline">scripts/migrate_vectors.py</code>의 INSERT 한 곳·<code class="inline">dense_scorer.py::_fetch_corpus_embeddings</code> 한 곳으로 좁혀 둠(추상화 계층은 미리 만들지 않음).</td>
+          </tr>
+          <tr>
+            <td class="feat">남은 것 — 하이브리드 가중치 튜닝</td>
+            <td class="note"><code class="inline">KEYWORD_WEIGHT</code>·<code class="inline">DENSE_WEIGHT</code>는 여전히 임시값(1.0/1.0). <code class="inline">rag_sizing.md</code> §7-3 원칙대로 <code class="inline">eval/testset.json</code> 실측 전까지 확정하지 않음 — 다음 세션 과제.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>. <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했습니다 — 아래 새 섹션 참고, 이 최신 push 해시는 그 갱신 이전 값입니다.</div>
   </div>
 
 </div>

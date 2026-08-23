@@ -853,10 +853,21 @@
         <p>Sprint 11 이 백로그 P36(D102)을 본 범위로 편입해 닫았습니다 — <code>deadlines</code>·<code>incidents</code>·<code>ownership_checks</code>·<code>risk_profile</code> 4테이블 + <code>track_deadlines</code>·<code>assess_risk_grade</code> 2도구. Sprint 7 이 한 번 v2 로 제외했던 항목을 MVP 완료 기준 달성 후 다시 열었습니다. <code>flags</code> 발생·해소는 별개 항목으로 여전히 0행입니다.</p>
       </div>
       <div class="step">
+        <div class="sn">완료</div>
+        <h4>SQLite → Postgres 전환 + RAG dense 임베딩 (Sprint 16, D116·D117)</h4>
+        <p>DB 자체를 Postgres로 옮겼고(pgvector 확장 포함), 새 테이블 <code>manual_chunks</code>(2,048차원 임베딩)를 더해 RAG 검색이 키워드+dense 하이브리드로 동작합니다. 코퍼스 임베딩은 <code>nvidia/nemotron-3-embed-1b</code>(NVIDIA API)로 계산 — 아래 note 참고, 기존 3분류(실제/생성/앞으로) 어디에도 깔끔히 안 들어맞는 새 데이터 유형입니다.</p>
+      </div>
+      <div class="step">
         <div class="sn">다음</div>
         <h4>백로그 — 화면 직접 초안 생성</h4>
         <p>남은 것은 화면에서 발주서·처분서·수리증빙을 직접 만들고 고치는 구조(P39)뿐입니다 — 새 D-결정이 필요한 설계 변경입니다.</p>
       </div>
+    </div>
+    <div class="note warn" style="margin-top:14px">
+      <b>임베딩 벡터는 위 3분류 어디에도 안 맞습니다 — 그래서 별도로 적습니다.</b>
+      <code>manual_chunks.embedding</code>은 "실제 데이터"(외부 원천에서 받아 근거로 인용하는 것)가 아닙니다 — 사용자에게 벡터 자체를 보여주거나 인용하는 일이 없고, 순위 계산에만 쓰입니다.
+      그렇다고 "생성한 데이터"(우리가 손으로 만든 목업·매핑)도 아닙니다 — NVIDIA API가 계산한 값이라 우리가 임의로 지어낸 수치가 아닙니다.
+      원문 텍스트(<code>manual_chunks.text</code>, LS 공식 매뉴얼에서 추출)는 여전히 "실제 데이터"로 인용 가능하고, <b>거기서 파생된 벡터만</b> 이 셋 중 어디에도 속하지 않는 제4의 유형입니다 — D65 고지 대상도 아니고 인용 대상도 아닌, 순수 검색 인프라입니다.
     </div>
     <div class="note">
       <b>데이터가 순서를 앞지르지 않게 합니다.</b> <b><code>related_parts</code> 승인으로 부품 특정 지표가 "판정 불가"에서 풀렸지만, 풀려서 나온 값은 <span style="white-space:nowrap">40.0%</span>(목표 90%)입니다.</b>
