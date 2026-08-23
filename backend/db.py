@@ -28,8 +28,10 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
-    con = sqlite3.connect(db_path or DB_PATH)
+    target = db_path or (Path(os.environ["MAINTQ_DB"]) if os.environ.get("MAINTQ_DB") else DB_PATH)
+    con = sqlite3.connect(target)
     con.execute("PRAGMA foreign_keys=ON")
+
     con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
     try:
         # WAL 은 DB 파일에 영속되는 설정이라 커넥션마다 재설정해도 무해하다.

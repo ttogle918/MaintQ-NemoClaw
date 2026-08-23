@@ -31,7 +31,9 @@ from backend.routers import (
     po,
     repairs,
     session,
+    a2a,
 )
+
 
 # .env 로드는 앱 진입점인 **여기 한 곳**에서만 한다 (D56).
 # `override=False` 가 핵심 — **OS 환경변수가 우선**이고 .env 는 빈 곳만 채운다.
@@ -113,6 +115,8 @@ app.include_router(inventory.router)
 app.include_router(hotspot_status.router)
 app.include_router(asset_monitoring.router)
 app.include_router(session.router)
+app.include_router(a2a.router)
+
 
 
 @app.get("/health")

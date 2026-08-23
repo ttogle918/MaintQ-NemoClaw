@@ -416,10 +416,11 @@ def run_trace(db: Path) -> None:
     # ⚠ 앵커 수를 함께 찍는다 — 0 이면 "쓰는 코드가 없다"가 아니라 **판정식이 죽은 것**이다
     #   (명세 정규식이 정확히 그렇게 공허 통과했다. 위 ANCHOR 주석 참조).
     check(
-        "⑪-b request_chain_id 를 쓰는 코드 0건 (A2A 호출부 미착수 — 생기면 이 검사를 뒤집는다)",
-        not hits and anchors > 0,
+        "⑪-b request_chain_id 를 쓰는 쪽이 계측한다 (A2A 호출부 backend/a2a/trace.py 착수)",
+        hits == ["backend/a2a/trace.py"] and anchors > 0,
         f"{len(scanned)}개 파일 스캔(주석·docstring 제외), traces 쓰기문 {anchors}건, 히트={hits or '없음'}",
     )
+
 
     # ── ⑫ event_type CHECK 는 여전히 3종 (D94 가 a2a_call 신설을 기각한 근거)
     tddl = table_ddl(db, "traces")
