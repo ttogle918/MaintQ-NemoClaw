@@ -1,0 +1,50 @@
+# MaintQ — Docker 빌드 컨텍스트 제외 목록
+# 빌드에 불필요한 파일을 제외해 이미지 빌드를 빠르게 한다.
+
+# ── VCS / IDE ──
+.git
+.gitattributes
+.claude
+.superpowers
+.ruff_cache
+.pytest_cache
+
+# ── 가상환경 ──
+.venv
+
+# ── Python 캐시 ──
+__pycache__
+*.pyc
+
+# ── 프론트엔드 (Vercel 배포 — 이 이미지에 포함하지 않는다) ──
+frontend
+.next
+node_modules
+
+# ── 매뉴얼 원본 PDF (저작권 · 용량) ──
+data/raw
+
+# ── LLM 응답 캐시 (개발 보조물) ──
+data/cache
+
+# ── 분석 노트북 (런타임 불필요) ──
+data-analysis
+
+# ── SQLite DB (볼륨 마운트로 제공) ──
+*.db
+*.db-wal
+*.db-shm
+*.db-*
+*.db.bak
+*.sqlite3
+
+# ── 시크릿 ──
+.env
+
+# ── 문서 / 테스트 / 평가 (런타임 불필요) ──
+docs
+spikes
+eval
+README.md
+CLAUDE.md
+TODO_*.md
