@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from .. import dense_scorer
 from ..rag import DEFAULT_TOP_K, MODELS, IndexNotBuilt, search
 
 DESCRIPTION = (
@@ -44,7 +45,7 @@ def rag_search_manual(model: str, query: str, top_k: int = DEFAULT_TOP_K) -> dic
         }
 
     try:
-        hits = search(model=model, query=query, top_k=top_k)
+        hits = search(model=model, query=query, top_k=top_k, dense=dense_scorer.score)
     except IndexNotBuilt as e:
         # empty 로 주면 "매뉴얼에 그런 내용이 없다"는 신호가 되어 에이전트가 절차를
         # 지어낼 여지가 생긴다. 미구축은 미구축이라고 정직하게 실패한다 (D9, 09_RUNTIME §3).

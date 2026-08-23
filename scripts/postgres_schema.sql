@@ -446,3 +446,29 @@ CREATE TABLE risk_profile (
   CHECK (power_capacity IS NULL OR power_capacity IN ('LOW','MEDIUM','HIGH')),
   CHECK (risk_grade     IS NULL OR risk_grade     IN ('LOW','MEDIUM','HIGH'))
 );
+
+-- §24 manual_chunks — 매뉴얼 청크 dense 임베딩 (D117, Sprint 16 곁가지). 원본 텍스트
+-- 정본은 여전히 data/extracted/manual_chunks.jsonl 파일이다(D48 — mcp_server/rag.py 의
+-- 키워드 검색은 그 파일만 읽는다, 이 테이블에 의존하지 않는다). 이 테이블은 **오직**
+-- dense 스코어러(mcp_server/dense_scorer.py)가 코사인 유사도 계산에 쓸 임베딩 벡터를
+-- 담는 용도다 — text/page/section 컬럼은 디버깅 편의상 같이 두되 정본이 아니다.
+-- 채우는 주체는 scripts/migrate_vectors.py 뿐이다(사람이 명시 실행, D105 식 지출 가드).
+-- MCP 쓰기 도구 3종은 이 테이블에 관여하지 않는다(D10 대상 밖 — 판정/발주 흐름이 아니다).
+-- embedding 차원 2048 은 nvidia/nemotron-3-embed-1b 고정값(D117) — 모델을 바꾸면 이
+-- 컬럼도 다시 만들어야 한다(값 재사용 불가, 모델마다 벡터공간이 다르다).
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE manual_chunks (
+  chunk_id   TEXT PRIMARY KEY,
+  manual_id  TEXT NOT NULL,
+  model      TEXT NOT NULL,
+  page       INTEGER NOT NULL,
+  section    TEXT NOT NULL,
+  text       TEXT NOT NULL,
+  char_len   INTEGER NOT NULL,
+  embedding  vector(2048),
+  embedded_at TIMESTAMP,
+  CHECK (model IN ('iG5A','S100','IE5'))
+);
+
+CREATE INDEX idx_manual_chunks_model ON manual_chunks(model);
