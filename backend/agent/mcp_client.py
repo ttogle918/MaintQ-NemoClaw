@@ -210,6 +210,19 @@ def summarize_result(tool: str, result: dict) -> str:
     if tool == "create_po_draft":
         return f"{result.get('po_id', '?')} {result.get('state', 'draft')} · {_won(result.get('total'))}"
 
+    if tool == "search_insurance_clause":
+        bits = []
+        if result.get("verdict"):
+            bits.append(f"판정 {result['verdict']}")
+        evidence = result.get("evidence") or []
+        if evidence:
+            bits.append(f"근거 {len(evidence)}건")
+        return "InsuQ 약관 조회 · " + " · ".join(bits) if bits else "InsuQ 약관 조회 완료"
+
+    if tool == "assess_equipment_loan":
+        verdict = result.get("verdict") or result.get("skill_status") or "?"
+        return f"FinAllQ 대출 사전판정 · {verdict}"
+
     # ── 확장 11종 (D69 `full` 프로파일에서만 호출된다) — `generate_disposal_document`·
     #    `create_repair_record`·`track_deadlines`·`assess_risk_grade` 처럼 아래 분기가 없는
     #    도구는 `status or "ok"` 로 떨어진다 (기존 §15 와 같은 처지 — 새 회귀는 아니다) ──

@@ -202,6 +202,26 @@ function onToolResult(s: ChatStreamState, data: Record<string, unknown>): ChatSt
     }
   }
 
+  // A2A 파트너 도구(D113·D114, MQ-1606) — 얇은 a2a_result 아이템만 push. 실제 구조화 내용은
+  // 렌더 컴포넌트(MQ-1607)가 chainId 로 GET /api/a2a/history 를 따로 열어 채운다.
+  const A2A_TOOLS = ["search_insurance_clause", "assess_equipment_loan"] as const;
+  if ((A2A_TOOLS as readonly string[]).includes(tool)) {
+    const chainId = typeof data.a2a_chain_id === "string" ? data.a2a_chain_id : null;
+    const status = typeof data.status === "string" ? data.status : "error";
+    const id = nextId(_ctx);
+    items = [
+      ...items,
+      {
+        kind: "a2a_result",
+        id,
+        skill: tool as "search_insurance_clause" | "assess_equipment_loan",
+        chainId,
+        status,
+      },
+    ];
+    _ctx = { ..._ctx, itemSeq: _ctx.itemSeq + 1 };
+  }
+
   return { ...s, items, trace: rebuildTrace(_ctx), _ctx };
 }
 

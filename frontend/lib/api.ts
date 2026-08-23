@@ -952,6 +952,40 @@ export const recordError = (equipmentId: string, code: string, actionTaken?: str
     { method: "POST", body: JSON.stringify({ code, action_taken: actionTaken ?? null }) }
   );
 
+/* -------------------------------------------------------------------------- */
+/* A2A 호출 감사 이력 (D114) — `backend/services/a2a_history.py`                */
+
+/** `GET /api/a2a/history` 항목 하나 (D114). `request`/`response` 는 파트너 스킬마다 모양이
+ * 달라 좁히지 않는다 — 소비자가 필요한 키만 골라 읽는다(`ApiMetrics` 와 같은 태도). */
+export interface ApiA2aHistoryItem {
+  request_chain_id: string;
+  skill: string;
+  session_id: string;
+  status: string | null;
+  request: Record<string, unknown> | null;
+  response: Record<string, unknown> | null;
+  ts: string;
+}
+
+export interface ApiA2aHistory {
+  count: number;
+  items: ApiA2aHistoryItem[];
+}
+
+export const getA2aHistory = (
+  role: Role,
+  params?: { skill?: string; poId?: string; buildingId?: string; chainId?: string; limit?: number }
+) => {
+  const q = new URLSearchParams();
+  if (params?.skill) q.set("skill", params.skill);
+  if (params?.poId) q.set("po_id", params.poId);
+  if (params?.buildingId) q.set("building_id", params.buildingId);
+  if (params?.chainId) q.set("chain_id", params.chainId);
+  if (params?.limit !== undefined) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetch<ApiA2aHistory>(`/api/a2a/history${qs ? `?${qs}` : ""}`, role);
+};
+
 export const endpoints = {
   chat: "/api/chat",
   trace: (sessionId: string) => `/api/chat/${sessionId}/trace`,

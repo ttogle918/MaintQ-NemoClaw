@@ -159,4 +159,18 @@ export type ChatItem =
   | { kind: "po_draft"; id: string; po: PoDraft }
   | { kind: "po_hold"; id: string; hold: PoHold }
   /** block 이 아니라 사용자 액션 — POST /api/equipment/{id}/errors (D29·A7) */
-  | { kind: "error_log"; id: string; equipmentId: string; code: string; recordedAt?: string };
+  | { kind: "error_log"; id: string; equipmentId: string; code: string; recordedAt?: string }
+  /**
+   * A2A 파트너 도구(`search_insurance_clause`·`assess_equipment_loan`) 결과 (D113·D114, MQ-1606).
+   * 얇은(thin) 아이템 — 구조화 내용(약관 근거·판정)은 여기 담지 않고, 렌더 컴포넌트(MQ-1607)가
+   * `chainId` 로 `GET /api/a2a/history` 를 따로 열어 채운다. `chainId` 가 `null` 인 것은
+   * 도구가 `status:"error"` 로 끝나 상관관계 키를 못 받은 경우(특히 `assess_equipment_loan` 은
+   * 이게 기본 경로) — 이때 렌더 컴포넌트는 이력 fetch 를 하지 않는다.
+   */
+  | {
+      kind: "a2a_result";
+      id: string;
+      skill: "search_insurance_clause" | "assess_equipment_loan";
+      chainId: string | null;
+      status: string;
+    };

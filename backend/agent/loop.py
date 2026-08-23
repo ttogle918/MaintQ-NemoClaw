@@ -38,6 +38,10 @@ MAX_LLM_CALLS_PER_TURN = 10
 MAX_LLM_CALLS_PER_SESSION = 50
 HISTORY_LIMIT = 20
 
+#: A2A 상관관계 키(`request_chain_id`)를 SSE `tool_result` 에 실어 나르는 도구 (MQ-1604, D113).
+#: 그 외 도구는 `payload` 에 이 키가 있어도(있을 리 없지만) 무시된다.
+_A2A_CHAIN_TOOLS = ("search_insurance_clause", "assess_equipment_loan")
+
 #: 이력에서 **잘라낼** 경로만 나열한다 (D76 — 화이트리스트가 아니라 블랙리스트).
 #: 키는 payload 루트부터의 경로, 값은 `"drop"`(통째 제거) 또는 int(문자 상한).
 #:
@@ -491,6 +495,13 @@ async def run_turn(
             # SSE tool_result 필드는 그대로다 (D76 ⓓ) — 프론트·score.py 무영향.
             # 컬럼만 있고 쓰는 쪽이 없어서 3차 평가가 "도구가 실제로 무엇을 반환했는지"를
             # 사후에 대조하지 못했다(`data/analysis/eval_gap_3rd.md`).
+            # D113 — A2A 상관관계 키. 이 두 도구의 성공 응답에만 실린다(MQ-1602 가 성공
+            # 분기에서 강제 주입). 빈 문자열은 "없음"과 같게 다룬다(MQ-1601 엣지케이스).
+            a2a_chain_id = (
+                payload.get("request_chain_id") if tu.name in _A2A_CHAIN_TOOLS else None
+            )
+            if isinstance(a2a_chain_id, str) and not a2a_chain_id:
+                a2a_chain_id = None
             yield trace.tool_result(
                 tu.name,
                 status,
@@ -499,6 +510,7 @@ async def run_turn(
                 pages=pages,
                 parts=parts,
                 tool_payload=payload,
+                a2a_chain_id=a2a_chain_id,
             )
 
             st.results[tu.name] = payload

@@ -310,6 +310,18 @@ EXT_RULES: tuple[str, ...] = (
     " 화기 취급·위험물 보관량·수전용량 중 미확인 항목이 있다는 뜻이니 등급을 추측해 채우지"
     " 마라(D62). `changed:true` 는 저장된 등급과 달라졌다는 알림일 뿐 이 도구가 `risk_profile`"
     " 을 갱신하지는 않는다 — 갱신은 이 도구의 몫이 아니며 사람이 판단한다.",
+    # 18 — 보험 약관 조회는 외부 응답 그대로 (신규, D112)
+    "**보험 약관 조회는 사용자가 명시적으로 물을 때만, InsuQ 응답을 그대로 인용한다.**"
+    " `search_insurance_clause` 는 MaintQ 매뉴얼이 아니라 외부 보험 파트너(InsuQ)의 A2A 응답이다 —"
+    " `lookup_error_code`·`rag_search_manual` 의 매뉴얼 인용과 절대 섞지 마라. 결과의 `answer`·"
+    " `evidence` 를 그대로 전달하고 네 해석을 덧붙이지 마라. `status:\"error\"` 면 InsuQ 로부터 확답을"
+    " 얻지 못한 것이다 — 보장 여부를 추측해서 답하지 말고 확인이 안 됐다고 말한다.",
+    # 19 — 설비 담보 대출 사전판정은 실패가 정상 경로 (S8, D112)
+    "**설비 담보 대출 사전판정은 FinAllQ 응답 그대로, 실패를 정상 경로로 안내한다.**"
+    " `assess_equipment_loan` 은 FinAllQ(→ 내부 2차홉 InsuQ) A2A 응답이다. 현재 이 연동은 파트너 쪽"
+    " 2차홉이 아직 준비되지 않아 `status:\"error\"`(`upstream_unavailable` 등)로 끝나는 것이 정상이다"
+    " — 실패를 네 판단으로 메우지 말고 결과의 `message` 를 그대로 전하며 지금은 확인할 수 없다고"
+    " 안내한다. 성공 응답을 받으면 필드를 지어내지 말고 있는 값만 전한다.",
 )
 
 # 각 확장 규칙이 **전제하는 도구**. 그 도구가 등록되지 않은 실행에서는 규칙도 붙지 않는다 —
@@ -321,6 +333,8 @@ _EXT_RULE_TOOLS: tuple[tuple[str, ...], ...] = (
     ("generate_disposal_document",),
     ("track_deadlines",),
     ("assess_risk_grade",),
+    ("search_insurance_clause",),
+    ("assess_equipment_loan",),
 )
 assert len(EXT_RULES) == len(_EXT_RULE_TOOLS)
 
@@ -347,6 +361,8 @@ _EXT_TOOL_LINES: dict[str, str] = {
     "create_repair_record": "- `create_repair_record` — 수리 증빙 **초안**만 생성. `expenditure_class` 는 시스템이 산출하며 서명 전엔 보전지표에 반영되지 않는다",
     "track_deadlines": "- `track_deadlines`    — 법정 기한(세액공제 사후관리·안전검사) 사전 경보. 처분 검토 전에 먼저 호출한다",
     "assess_risk_grade": "- `assess_risk_grade`  — 건물 단위 위험등급 산출 (`current_grade`·`changed` 조회, `risk_profile` 은 갱신하지 않는다)",
+    "search_insurance_clause": "- `search_insurance_clause` — 보험 약관 보장 여부를 InsuQ(외부 파트너)에 문의 (MaintQ 매뉴얼이 아니다)",
+    "assess_equipment_loan": "- `assess_equipment_loan` — 설비 담보 대출 사전판정을 FinAllQ(외부 파트너)에 문의 (2차홉 InsuQ 미비로 현재 실패가 정상)",
 }
 
 CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)
