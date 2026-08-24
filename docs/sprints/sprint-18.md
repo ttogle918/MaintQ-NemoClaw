@@ -398,3 +398,42 @@ MQ-1802 DoD에 `ui_honesty_contract.py` PASS 확인 항목(및 `layout.tsx`가 L
 **3개 태스크(MQ-1801~1803) 전부 착수 가능한 상태다.**
 
 실행: `/stage 1`
+
+---
+
+### Stage 1 완료 (2026-08-24) — Sprint 18 유일·마지막 스테이지
+
+**커밋**: `bf781e0` — `[M4] feat: Sprint 18 — 정비사 랜딩 화면 전환(챗봇→설비 대시보드) + doc3 계획 문서`
+(커밋 제목의 "+ doc3 계획 문서"는 복붙 오기 — Sprint 17과 무관, 실제 변경분은 본문 그대로
+정비사 랜딩 대시보드뿐. 로컬 단일 커밋이라 기능에 영향 없음)
+
+#### MQ-1801 — 랜딩 라우팅 전환
+- `frontend/lib/role.ts`(`ROLE_HOME.technician` 1줄) · `frontend/README.md`(라우트 표+주석
+  2곳, 명세보다 범위를 넓혀 갱신 — reviewer가 "문서 드리프트를 능동적으로 막은 것"으로 확인)
+
+#### MQ-1802 — ChatFab 신설
+- `frontend/components/layout/ChatFab.tsx`(신규) · `app/(console)/layout.tsx`(삽입 2줄)
+- 핵심 함정(`Link href`가 `ROLE_HOME.technician`을 참조하면 MQ-1801 이후 순환참조) 회피를
+  reviewer가 코드로 직접 확인
+
+#### MQ-1803 — 대시보드 카드 정렬+이미지
+- `technician/equipment-status/page.tsx`에 `countHotspotColors`·`rankAsset`·`compareAssets`
+  3개 순수함수, 정렬(🔴→🟠→🔵→정상→미상, 타이브레이크까지) + 카드 이미지(PNG 원본 재사용)+
+  인용문구+모델명. `ui_honesty_contract` 291/291 자체 확인 후 통합
+
+**eval-runner 종합**: seed 41/41(error_codes 70) · sp2_mcp_roundtrip 20/20(소켓 고갈 재시도
+후 해소) · write_tool_contract 30/30 · api_contract 52/52(변동 없음) · sp3_sse_events
+22/22(소켓 고갈 재시도 후 해소) · ruff clean · tsc clean · next build 21라우트(신규 없음) ·
+ui_honesty_contract 291/291.
+
+**reviewer 게이트**: PASS(블로커 없음). 5개 핵심 확인 항목(순환참조 회피·D87 3분기·정렬
+알고리즘 명세 일치·hooks 규칙·README 갱신 범위) 전부 코드 직접 대조로 확인.
+
+## Sprint 18 완료
+
+**유일 스테이지 완료.** 정비사 콘솔 첫 화면이 챗봇에서 설비 하이라이트 대시보드로 바뀌고,
+이상탐지 우선순위 정렬·모델 이미지 카드·챗 플로팅 버튼이 전부 연결됨. 백엔드·DB·API 신설
+0건 — 순수 프론트 전용 스프린트가 계획대로 끝났다.
+
+**다음**: 브라우저 QA(claude-in-chrome)로 실제 정렬 순서·카드 이미지·ChatFab 동작을
+사용자에게 보여줄 것(설계 배경이 된 원 요청이라 시각 확인이 특히 중요).
