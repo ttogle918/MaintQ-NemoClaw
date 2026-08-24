@@ -218,7 +218,7 @@
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
       <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-08-18, Sprint 13에서 무변경)</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-19</b></div>
+    <div class="asof">기준 시점<b>2026-08-19</b><span style="display:block;font-size:11px;margin-top:3px">로드맵 갱신 2026-08-24(D119)</span></div>
   </header>
 
   <div class="stats">
@@ -863,9 +863,14 @@
         <p><code>request-withdrawal</code>(S5)·<code>assess-loan</code>(S8)이 로컬 FinAllQ 어댑터 상대로 처음 <b>진짜 성공 응답</b>을 받았습니다 — <code>request-withdrawal</code>은 <code>error_code: null</code>이 그대로 나가던 버그를 고쳤고, <code>assess-loan</code>은 FinAllQ 쪽 계약 재작성 + InsuQ 2차 홉 구현으로 풀렸습니다(MaintQ 쪽 payload는 무변경). 별도로 <code>data/templates/</code> 사람 승인 문서 4종을 실측해 D118로 스코프를 정하고, 01(진단보고서)·02(발주요청서)를 <code>po_drafts</code>·<code>error_codes</code>·<code>part_alternatives</code>(신규 데이터 없이 기존 테이블만 소비) 기반으로 실제 렌더·배선했습니다. 03(자금집행요청서)은 내부통제 판정 데이터가 스키마에 없어 보류, 04(담보대출심사회신서)는 FinAllQ/InsuQ 전용 데이터라 MaintQ 범위에서 제외했습니다.</p>
       </div>
       <div class="step">
+        <div class="sn">완료</div>
+        <h4>재무부 승인 게이트 + 자금집행요청서(03) (Sprint 17, D119, 2026-08-24)</h4>
+        <p>바로 위 항목이 "보류"라고 적어 둔 것이 이 세션에 해소됐습니다 — <code>data/expenditure_limits.py</code>(예산 한도·1일 누적 한도·FDS·SoD)가 신설 판정 로직이고, <code>po_drafts.state</code>에 <code>finance_approved</code>/<code>finance_rejected</code>가 새로 생겨 팀장 승인 다음에 <b>MaintQ 자체 재무부 승인 단계</b>가 열렸습니다(D119 — D108의 명시적 예외, <code>finance-approve</code>/<code>finance-reject</code> 두 엔드포인트만 <code>department</code>를 봄). 03(자금집행요청서)도 이 시점에 실제로 렌더됩니다. <b>부수 효과</b>: FinAllQ 출금 요청(request-withdrawal, S5) 발신 시점이 팀장 승인에서 재무부 승인으로 옮겨갔습니다 — 크로스팀 문서(<code>../A2A_Q/MaintQ_시나리오맵.html</code>)에도 반영했습니다.</p>
+      </div>
+      <div class="step">
         <div class="sn">다음</div>
-        <h4>백로그 — 자금집행요청서(03) 내부통제 로직 + FinAllQ 추가 5스킬</h4>
-        <p>03은 예산/일일한도/FDS/겸직금지 판정 로직 설계와 재무부 승인 단계 신설 여부 결정부터 필요합니다. FinAllQ가 curl 검증까지 마친 추가 A2A 스킬 5종(advise-hedge 등)의 MaintQ측 아웃바운드 트리거는 <code>07_BACKLOG.md</code> P34에 대기열로 남아 있습니다(이번 시연 우선순위 아님).</p>
+        <h4>백로그 — FinAllQ 추가 5스킬 + Dockerfile "Northflank" 주석 정정</h4>
+        <p>FinAllQ가 curl 검증까지 마친 추가 A2A 스킬 5종(advise-hedge 등)의 MaintQ측 아웃바운드 트리거는 <code>07_BACKLOG.md</code> P34에 대기열로 남아 있습니다(이번 시연 우선순위 아님). 배포 타깃을 GCP Cloud Run으로 확정했는데 <code>Dockerfile</code> 헤더 주석이 여전히 "Northflank 배포용"으로 낡아 있어 다음 세션 정리 대상입니다.</p>
       </div>
     </div>
     <div class="note warn" style="margin-top:14px">
@@ -894,7 +899,7 @@
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-19 · DB 실측 08-18(무변경)</span>
+    <span>기준 2026-08-19 · DB 실측 08-18(무변경) · 로드맵 갱신 08-24</span>
     <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/raw/INDEX.md</code></span>
   </footer>
 

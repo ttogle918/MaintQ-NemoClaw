@@ -876,15 +876,52 @@
     <code class="inline">docs/07_BACKLOG.md</code> P34에 대기열로만 남겼습니다.
   </div>
 
+  <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-08-24 (세 번째 후속 세션) — Sprint 17 재무부 승인 게이트(D119) + doc3 · Sprint 18 정비사 랜딩 대시보드 · docker-compose.</b>
+    바로 위 부록이 "보류"라고 적어 둔 03(자금집행요청서)이 <b>이번 세션에 해소됐습니다</b> —
+    <code class="inline">data/expenditure_limits.py</code>(예산 한도·1일 누적 한도·FDS·SoD 4종 순수 함수)를
+    신설하고, <code class="inline">po_drafts.state</code>에 <code class="inline">finance_approved</code>/<code class="inline">finance_rejected</code>를
+    추가해 팀장 승인 다음에 <b>MaintQ 자체 재무부 승인 단계</b>를 새로 만들었습니다(<b>D119</b> — D108
+    "department는 권한이 아니다"의 명시적 예외, <code class="inline">finance-approve</code>/<code class="inline">finance-reject</code>
+    두 엔드포인트에 한해서만 <code class="inline">c.department=="finance"</code>를 확인합니다).
+    <b>이 변경으로 FinAllQ 출금 요청(request-withdrawal, S5) 발신 시점이 바뀌었습니다</b> — 원래
+    <code class="inline">POST /api/po/{id}/approve</code>(팀장 승인) 직후 발신하던 것을,
+    이제 새 <code class="inline">POST /api/po/{id}/finance-approve</code>(재무부 승인) 이후로
+    옮겼습니다. 이 사실은 <code class="inline">../A2A_Q/MaintQ_시나리오맵.html</code>과
+    <code class="inline">../A2A_Q/docs/presentation/a2a-contract-and-data-flow.html</code>(§4.1
+    다이어그램)에도 반영해 뒀습니다 — 크로스팀 문서라 트리거 시점 변경은 특히 중요합니다.
+    doc3(자금집행요청서)도 재무부 승인 시 <code class="inline">render_fund_execution_document()</code>로
+    자동 렌더됩니다(D86·D118과 같은 패턴 — 저장하지 않고 조회 시점 렌더).
+    <br>같은 세션에서 <b>Sprint 18</b>이 정비사 랜딩 화면을 챗봇에서 <b>설비 이상탐지 대시보드</b>로
+    바꿨습니다(<code class="inline">ROLE_HOME.technician</code> → <code class="inline">/technician/equipment-status</code>) —
+    "출근하자마자 볼 것은 대화창이 아니라 이상탐지된 설비 목록"이라는 사용자 요청이 계기였습니다.
+    이후 대화 기반 후속 개선 4라운드(4×3→3×3 그리드+페이지네이션, 카드 레이아웃 재설계,
+    <code class="inline">EquipmentCard.tsx</code> 컴포넌트 분리, 사이드바 빠른 메뉴 신설)까지
+    거쳤습니다. 브라우저 QA(claude-in-chrome)로 재무부 승인 흐름·정렬 우선순위(🔴&gt;🟠&gt;🔵&gt;정상)를
+    실사용 시나리오로 확인했고, 그 과정에서 실버그 2건(재무부 신원 전환이 새로고침 없이는
+    반영 안 되던 문제, hydration mismatch)을 더 찾아 고쳤습니다.
+    <br>마지막으로 <code class="inline">docker-compose.yml</code>에 <code class="inline">backend</code>
+    서비스(백엔드+MCP subprocess 동봉, frontend는 제외)를 추가했습니다 — "배포된 페이지로 테스트하니
+    느리다"는 사용자 문제 제기에 대응한 것으로, 로컬에서 <code class="inline">docker compose up -d</code>
+    한 번으로 백엔드를 띄워 <code class="inline">next dev</code>를 붙일 수 있습니다. MCP("AI 엔진")는
+    stdio 자식 프로세스 구조(D15)라 별도 compose 서비스로는 못 쪼갰습니다 — 진짜 2서비스 분리는
+    여전히 백로그 P14입니다. 상세 근거: <code class="inline">docs/sessions/2026-08-24_finance-approval-and-landing-dashboard.md</code>.
+    회귀 갱신: seed 41(+4, D119 CHECK 제약 검증) · <code class="inline">api_contract</code> 52(+11) ·
+    <code class="inline">ui_honesty_contract</code> 297(+6, <code class="inline">EquipmentCard.tsx</code> 신설) —
+    나머지 스위트는 무변동. MCP 도구 개수 표기도 이 세션에서 함께 정정했습니다 — <code class="inline">CLAUDE.md</code>가
+    오래 "11종/18종"으로 적혀 있었는데 실제로는 <b>코어 7 + 확장 13 = 20종</b>입니다(§8~§20 계약 문서
+    기준 정정, 코드 변경 아님).
+  </div>
+
   <div class="footer-strip">
     <div>다음 우선순위: <strong>Sprint 5~13 전부 완료 — 남은 것은 백로그(P39 화면 직접 초안 생성)와 사람 승인 대기 항목뿐</strong><br>
       <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · <b>신규</b> <code class="inline">iG5A NTC</code> D99 재승인 · <b>신규</b> <code class="inline">DISAGREE</code> 2건(<code class="inline">EEP</code>·<code class="inline">HWT</code>) 확인<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b></span></div>
     <div class="figs">
-      <div><b>976</b>회귀 단언 (32스위트) + seed 36 + pytest 83</div>
+      <div><b>1,279</b>회귀 단언 — 33스위트 1,069 + seed 41 + pytest 169 (실측 2026-08-24)</div>
       <div><b>24</b>DB 테이블 (코어 11 + 확장 7 + A2A 1 + 목업 1 + Sprint 11 4)</div>
-      <div><b>110</b>설계 결정 D1~D110</div>
-      <div><b>18</b>MCP 도구 (코어 7 + 확장 11)</div>
+      <div><b>119</b>설계 결정 D1~D119</div>
+      <div><b>20</b>MCP 도구 (코어 7 + 확장 13)</div>
     </div>
   </div>
 

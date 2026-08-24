@@ -347,7 +347,7 @@
           <tr>
             <td class="feat">S1 · 출금 요청<br><span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(MaintQ 문서상 S5 = request-withdrawal)</span></td>
             <td><span class="chip partial">~70%</span></td>
-            <td class="note">payload 조립(<code class="inline">build_request_withdrawal_payload</code>) · PO 승인 시 자동 발신(<code class="inline">routers/po.py:170</code>) · trace 기록 · <b>A2A 전송 실패가 승인 자체를 되돌리지 않음</b>(명시적 설계, docstring에 근거 있음)</td>
+            <td class="note">payload 조립(<code class="inline">build_request_withdrawal_payload</code>) · <s>PO 승인 시 자동 발신(<code class="inline">routers/po.py:170</code>)</s> <b>정정(2026-08-24, D119)</b>: 발신 시점이 팀장 승인에서 <b>새로 생긴 재무부 승인</b>(<code class="inline">POST /api/po/{id}/finance-approve</code>)으로 이동함 · trace 기록 · <b>A2A 전송 실패가 승인 자체를 되돌리지 않음</b>(명시적 설계, docstring에 근거 있음)</td>
             <td class="note">공급사 알림 로직이 A2A 유무와 무관하게 <b>백엔드 전체에 0건</b>(grep 실측). FinAllQ가 <code class="inline">input-required</code>(2단 결재 대기)로 비동기 응답해도 <b>이후 최종 승인 여부를 받을 콜백/웹훅/폴링이 전무</b> — MaintQ의 "발주 확정"은 A2A 호출 전에 이미 끝나 있어 사용자가 그린 순서(출금 처리 → 발주 확정)와 실제 순서가 다름</td>
           </tr>
           <tr>
@@ -530,8 +530,77 @@
     </div>
   </section>
 
+  <section>
+    <div class="sec-head"><h2>부록 · 2026-08-24 세 번째 후속 세션 — 재무부 승인 게이트(D119) + doc3 · 정비사 랜딩 대시보드 · docker-compose</h2><span class="count">위 A2A 크로스팀 섹션의 S1 행을 정정한다</span></div>
+    <div class="note-strip">
+      바로 위 부록(D118)이 "보류"라고 적어 둔 03(자금집행요청서)이 이 세션에 해소됐고, 그 구현이
+      <b>request-withdrawal(S5) 발신 시점을 바꿨습니다</b>. 별도로 정비사 랜딩 화면을 챗봇에서
+      설비 이상탐지 대시보드로 바꿨고, 로컬 테스트를 빠르게 하기 위해 <code class="inline">docker-compose.yml</code>에
+      backend 서비스를 추가했습니다. 상세 근거: <code class="inline">docs/sessions/2026-08-24_finance-approval-and-landing-dashboard.md</code>.
+    </div>
+    <div class="datatable-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:26%" class="feat"><span class="chip done">D119</span> 재무부 승인 게이트 신설 + doc3(자금집행요청서) 렌더</td>
+            <td class="note"><code class="inline">data/expenditure_limits.py</code>(예산 한도·1일 누적 한도·FDS·SoD 4종 순수 함수) 신설.
+            <code class="inline">po_drafts.state</code>에 <code class="inline">finance_approved</code>/<code class="inline">finance_rejected</code> 추가 —
+            팀장 승인 다음에 <b>MaintQ 자체 재무부 승인 단계</b>가 생겼다(D108 "department는 권한이 아니다"의
+            명시적 예외 — <code class="inline">finance-approve</code>/<code class="inline">finance-reject</code> 두 엔드포인트만
+            <code class="inline">c.department=="finance"</code>를 추가로 확인, <code class="inline">require()</code> 자체는 여전히
+            role만 봄). <b>이 변경으로 FinAllQ 출금 요청(request-withdrawal, S5) 발신 지점이
+            <code class="inline">POST /api/po/{id}/approve</code>(팀장 승인)에서
+            <code class="inline">POST /api/po/{id}/finance-approve</code>(재무부 승인)로 옮겨갔다</b> —
+            크로스팀 문서(<code class="inline">../A2A_Q/MaintQ_시나리오맵.html</code>,
+            <code class="inline">../A2A_Q/docs/presentation/a2a-contract-and-data-flow.html</code> §4.1)에도
+            반영해 뒀다. payload 스키마는 무변경(<code class="inline">approved_by</code>는 여전히 팀장 ID).
+            doc3(자금집행요청서)은 재무부 승인 시 <code class="inline">render_fund_execution_document()</code>로
+            자동 렌더된다(D86·D118과 같은 저장 안 함·조회 시점 렌더 패턴).</td>
+          </tr>
+          <tr>
+            <td class="feat">정비사 랜딩 화면 전환 — 챗봇 → 설비 이상탐지 대시보드</td>
+            <td class="note">"출근하자마자 볼 것은 대화창이 아니라 이상탐지된 설비 목록"이라는 사용자 요청이 계기.
+            <code class="inline">ROLE_HOME.technician</code>이 <code class="inline">/technician/equipment-status</code>로
+            바뀌었고, 진단 챗봇은 <code class="inline">ChatFab</code>(플로팅 진입 버튼)으로 이동했다.
+            이상탐지 색상(🔴&gt;🟠&gt;🔵&gt;정상) 우선순위로 정렬 + 3×3 그리드 페이지네이션 + 카드
+            레이아웃(품번·명칭 → 큰 이미지 → 위치·인용문구 → 배지) + 오른쪽 사이드바(빠른 메뉴:
+            발주 신규 작성·자산 목록/처분 사전판정)까지 4라운드 대화 기반 개선을 거쳤다.
+            브라우저 QA(claude-in-chrome)로 실사용 시나리오를 확인하는 과정에서 실버그 2건을
+            더 찾아 고쳤다 — 재무부 신원 전환이 새로고침 없이는 반영 안 되던 문제(형제 컴포넌트 간
+            상태 미공유, 커스텀 이벤트로 해결), hydration mismatch(localStorage 값을 렌더 바디에서
+            직접 읽던 문제, post-mount useEffect로 해결).</td>
+          </tr>
+          <tr>
+            <td class="feat">docker-compose.yml에 backend 서비스 추가</td>
+            <td class="note">"배포된 페이지로 테스트하니 느리다"는 문제 제기에 대응 — 로컬에서
+            <code class="inline">docker compose up -d</code> 한 번으로 백엔드(+MCP subprocess)를 띄우고
+            <code class="inline">next dev</code>를 붙일 수 있다. frontend는 제외(요청대로) —
+            Vercel/Netlify 배포 결정과 별개로 로컬은 <code class="inline">next dev</code>로 충분.
+            MCP("AI 엔진")는 stdio 자식 프로세스 구조(D15)라 별도 compose 서비스로는 못 쪼갰다 —
+            루트 <code class="inline">Dockerfile</code>(백엔드+MCP 동봉, 기존 파일) 그대로 재사용했고,
+            진짜 2서비스 분리는 여전히 백로그 P14다. 문법 검증(<code class="inline">docker compose
+            config -q</code>)만 통과했고 실제 빌드·기동은 사용자가 직접 확인하기로 함.</td>
+          </tr>
+          <tr>
+            <td class="feat">회귀·통계 갱신</td>
+            <td class="note">seed 41(+4, D119 CHECK 제약 검증) · <code class="inline">api_contract</code> 52(+11) ·
+            <code class="inline">ui_honesty_contract</code> 297(+6, <code class="inline">EquipmentCard.tsx</code> 신설로
+            L2 6건 자연 증가) — 나머지 32스위트는 무변동, 33스위트 합계 1,069건. pytest는
+            공식 목록(169건) 무변동(<code class="inline">data/test_expenditure_limits.py</code> 16건은
+            아직 공식 목록 미반영, 다음 세션 항목). <code class="inline">CLAUDE.md</code>의 D 범위
+            표기(D1~D118 → D1~D119)도 이 세션에서 4개 파일(<code class="inline">CLAUDE.md</code>·
+            <code class="inline">README.md</code>·<code class="inline">docs/README.md</code>·
+            <code class="inline">.claude/agents/reviewer.md</code>) 정정. MCP 도구 개수 표기(코어 7 +
+            확장 13 = 20종)도 오래 "11종/18종"으로 잘못 적혀 있던 것을 이 세션에서 정정했다
+            (코드 변경 아님, 문서 정정).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 push: <code class="inline">5cf9b81</code>. <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했고, <strong>같은 날 두 번째 후속 세션</strong>이 A2A 3종(S5·S8·lookup-clause) 실 E2E 확정과 문서 템플릿 렌더(D118)를 위 새 부록으로 추가했습니다 — 위 판정표·크로스팀 섹션의 "블로커"·"~50%"류 서술은 그 부록 기준으로 정정된 것으로 읽으십시오. 이 최신 push 해시는 이 갱신들 이전 값입니다.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 로컬 커밋: <code class="inline">e1a4a50</code>(이 저장소는 원격 upstream이 추적돼 있지 않습니다). <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했고, <strong>같은 날 두 번째 후속 세션</strong>이 A2A 3종(S5·S8·lookup-clause) 실 E2E 확정과 문서 템플릿 렌더(D118)를, <strong>같은 날 세 번째 후속 세션</strong>이 재무부 승인 게이트(D119)·doc3·정비사 랜딩 대시보드·docker-compose를 위 새 부록으로 추가했습니다 — 위 판정표·크로스팀 섹션의 "블로커"·"~50%"·"PO 승인 시 자동 발신"류 서술은 그 부록들 기준으로 정정된 것으로 읽으십시오.</div>
   </div>
 
 </div>
