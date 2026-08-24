@@ -34,6 +34,7 @@ def check(name: str, ok: bool, detail: str) -> None:
 
 TECH = {"X-Role": "technician", "X-User": "tech-01"}
 MGR = {"X-Role": "manager", "X-User": "mgr-01"}
+MGR_FIN = {"X-Role": "manager", "X-User": "mgr-02"}
 
 # ── `/api/po` 응답 **키 집합** 기준선 (D85) ──────────────────────────────────────
 # D85 가 `/api/po` 의 "경로·응답 형태 불변"을 조건으로 `GET /api/approvals` 신설을 허용했다.
@@ -393,6 +394,63 @@ def run(client) -> None:
         headers=TECH,
     )
     check("㊱ 없는 발주 PATCH → 404", r.status_code == 404, f"{r.status_code}")
+
+    # ── ㊲~㊶ D119 — 자금집행 승인(SoD): role → department → state 순서로 문지기 3중
+    r = client.post("/api/po/PO-0114/finance-approve", headers=TECH)
+    check(
+        "㊲ 정비사 finance-approve → 403 (role 사유, D119)",
+        r.status_code == 403 and "자금집행 승인" in r.json().get("detail", ""),
+        f"{r.status_code} {r.json().get('detail', '')[:60]}",
+    )
+
+    r = client.post("/api/po/PO-0114/finance-approve", headers=MGR)
+    check(
+        "㊳ mgr-01(maintenance) finance-approve → 403 (department 사유 — 재무부, D119)",
+        r.status_code == 403 and "재무부" in r.json().get("detail", ""),
+        f"{r.status_code} {r.json().get('detail', '')[:60]}",
+    )
+
+    # PO-0117 은 이 스크립트 앞부분(체크 ⑧)에서 이미 approved 로 소비됐다 — 여전히
+    # pending 인 PO-0115(시드 3건 중 PO-0116⑪ 반려, PO-0117⑧ 승인 후 유일하게 남는 건)로 검증한다.
+    r = client.post("/api/po/PO-0115/finance-approve", headers=MGR_FIN)
+    check(
+        "㊴ mgr-02 finance-approve on pending(PO-0115) → 409 (state 순서 위반, D38 과 구분)",
+        r.status_code == 409,
+        f"{r.status_code} {r.json().get('detail', '')[:60]}",
+    )
+
+    r = client.post("/api/po/PO-0114/finance-approve", headers=MGR_FIN)
+    body = r.json()
+    check(
+        "㊵ mgr-02 finance-approve on approved(PO-0114) → 200 + finance_approved stamp",
+        r.status_code == 200
+        and body.get("state") == "finance_approved"
+        and body.get("finance_decided_by") == "mgr-02"
+        and body.get("finance_decided_at") is not None,
+        f"{r.status_code}, state={body.get('state')}, finance_decided_by={body.get('finance_decided_by')}"
+        f", finance_decided_at={body.get('finance_decided_at')}",
+    )
+
+    r = client.post(
+        "/api/po/PO-0120/finance-reject", json={"reason": "일일 한도 초과"}, headers=MGR_FIN
+    )
+    body = r.json()
+    check(
+        "㊶ mgr-02 finance-reject on approved(PO-0120) → 200 + finance_rejected + 사유 저장",
+        r.status_code == 200
+        and body.get("state") == "finance_rejected"
+        and body.get("finance_decision_note") == "일일 한도 초과",
+        f"{r.status_code}, state={body.get('state')}, note={body.get('finance_decision_note')!r}",
+    )
+
+    r = client.post(
+        "/api/po/PO-0114/finance-reject", json={"reason": "재검토"}, headers=MGR_FIN
+    )
+    check(
+        "㊷ mgr-02 finance-reject on 이미 finance_approved 된 건(PO-0114) 재호출 → 409",
+        r.status_code == 409,
+        f"{r.status_code} {r.json().get('detail', '')[:60]}",
+    )
 
 
 def run_print_page_checks() -> None:

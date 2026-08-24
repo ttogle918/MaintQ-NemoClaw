@@ -264,6 +264,9 @@ PATCH /api/po/{po_id}                # draft 상태에서만 수정 (technician�
 POST /api/po/{po_id}/submit          # draft → pending   (technician만)
 POST /api/po/{po_id}/approve         # pending → approved (manager만)
 POST /api/po/{po_id}/reject          # pending → rejected (manager만, body: {reason} — 필수, D38)
+POST /api/po/{po_id}/finance-approve # approved → finance_approved (재무부 manager 전용, D119)
+                                     #   승인 직후 FinAllQ 출금 요청(S5) 전송 — approve() 자리에서 이동
+POST /api/po/{po_id}/finance-reject  # approved → finance_rejected (재무부 manager 전용, body: {reason})
 ```
 
 **403 규칙:** technician이 approve 호출 → 403. 이 테스트 케이스를 eval에 포함 (human-in-the-loop 증명).
@@ -546,9 +549,18 @@ POST /api/repairs/{id}/reject        # pending → rejected (**manager만**, bod
 ### 2.4 상태 전이 다이어그램
 
 ```
-[발주 po_drafts]
+[발주 po_drafts]                                    ★ Sprint 17 확장 (D119)
 draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ approved
                              └──────reject(팀장)──▶ rejected
+                                                          │
+                                          finance-approve(재무담당자)
+                                                          ▼
+                                       finance_pending ──┴──▶ finance_approved
+                                                          └──▶ finance_rejected
+
+※ `finance_pending` 박스는 개념적 표기일 뿐 실제 DB 상태값이 아니다 — `approved` 자체가
+   "재무 승인 대기중"을 겸한다(스키마 단순화). `finance-approve`/`finance-reject` 둘 다
+   `ALLOWED_FROM`에서 전이 시작점을 `approved`로 둔다.
 
 [처분 decisions]                                    ★ Sprint 7 신설
 draft ──submit(정비사)──▶ pending ──sign(팀장)────▶ signed

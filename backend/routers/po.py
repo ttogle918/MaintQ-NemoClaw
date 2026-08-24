@@ -154,24 +154,14 @@ def submit(po_id: str, c: Caller = Depends(caller)) -> dict:
 
 
 @router.post("/{po_id}/approve")
-async def approve(po_id: str, body: ApproveBody | None = None, c: Caller = Depends(caller)) -> dict:
+def approve(po_id: str, body: ApproveBody | None = None, c: Caller = Depends(caller)) -> dict:
     """pending → approved. 팀장 전용 — 정비사가 부르면 403.
 
-    승인 완료 직후 FinAllQ에 출금 요청(A2A request-withdrawal, S5)을 보낸다.
-    **A2A 전송 실패는 승인 자체를 되돌리지 않는다** — 발주는 이미 approved로
-    확정됐고(재무 승인은 별도 인간 절차), 전송 실패는 로그·trace에만 남긴다
-    (`dispatch_a2a_withdrawal_request`가 실패 trace를 이미 기록한다). 자동
-    재시도는 하지 않는다 — 멱등키가 아직 계약에 없어 중복 요청 위험이 있다.
+    FinAllQ 출금 요청 전송은 더 이상 여기서 하지 않는다 — 재무 승인(finance-approve)
+    시점으로 이동했다(D119). 팀장 승인은 재무 승인 대기 상태로 넘기는 것뿐이다.
     """
     require(c, "manager", "발주 승인")
-    result = _transition(po_id, "approved", c.user_id, body.note if body else None)
-
-    try:
-        await svc.dispatch_a2a_withdrawal_request(po_id)
-    except Exception:
-        logger.exception("A2A request-withdrawal 전송 실패: po_id=%s", po_id)
-
-    return result
+    return _transition(po_id, "approved", c.user_id, body.note if body else None)
 
 
 @router.post("/{po_id}/reject")
@@ -179,3 +169,43 @@ def reject(po_id: str, body: RejectBody, c: Caller = Depends(caller)) -> dict:
     """pending → rejected. 사유 필수 (D38)."""
     require(c, "manager", "발주 반려")
     return _transition(po_id, "rejected", c.user_id, body.reason)
+
+
+def _finance_transition_http(
+    po_id: str, target: str, finance_decided_by: str, note: str | None
+) -> dict:
+    try:
+        return svc._finance_transition(po_id, target, finance_decided_by, note)
+    except KeyError as e:
+        raise HTTPException(404, f"발주서를 찾을 수 없습니다: {po_id}") from e
+    except svc.TransitionError as e:
+        raise HTTPException(409, str(e)) from e
+
+
+@router.post("/{po_id}/finance-approve")
+async def finance_approve(
+    po_id: str, body: ApproveBody | None = None, c: Caller = Depends(caller)
+) -> dict:
+    """approved → finance_approved. 재무부 소속 manager 전용 (SoD, D119).
+    승인 직후 FinAllQ에 출금 요청(A2A request-withdrawal, S5)을 보낸다 — approve()가
+    갖던 자리에서 이동해 왔다. 전송 실패는 승인 자체를 되돌리지 않는다."""
+    require(c, "manager", "자금집행 승인")
+    if c.department != "finance":
+        raise HTTPException(403, "자금집행 승인은 재무부 소속만 수행할 수 있습니다 (D119)")
+    result = _finance_transition_http(
+        po_id, "finance_approved", c.user_id, body.note if body else None
+    )
+    try:
+        await svc.dispatch_a2a_withdrawal_request(po_id)
+    except Exception:
+        logger.exception("A2A request-withdrawal 전송 실패: po_id=%s", po_id)
+    return result
+
+
+@router.post("/{po_id}/finance-reject")
+def finance_reject(po_id: str, body: RejectBody, c: Caller = Depends(caller)) -> dict:
+    """approved → finance_rejected. 사유 필수 (D38). 재무부 소속 manager 전용 (D119)."""
+    require(c, "manager", "자금집행 반려")
+    if c.department != "finance":
+        raise HTTPException(403, "자금집행 반려는 재무부 소속만 수행할 수 있습니다 (D119)")
+    return _finance_transition_http(po_id, "finance_rejected", c.user_id, body.reason)
