@@ -204,6 +204,12 @@ def _evidence_lines(po: dict, ecd: dict) -> str:
         f" — 원문 인용: {_UNKNOWN} (인용 좌표만 남고 원문 텍스트는 저장되지 않는다)"
     ]
     for entry in (po.get("evidence") or {}).get("basis") or []:
+        # evidence는 LLM이 create_po_draft 호출 시 자유 형식으로 채운다(D34, 스키마
+        # 강제 없음) — basis가 리스트가 아니라 통짜 문자열로 오면 문자 하나하나가
+        # entry로 들어온다(실측: PO-0121). 이 함수의 "모르는 도구 이름도 던지지
+        # 않는다"는 관용은 dict 항목 안에서만 성립하므로 dict가 아닌 항목은 건너뛴다.
+        if not isinstance(entry, dict):
+            continue
         tool = entry.get("tool")
         if tool == "lookup_error_code":
             continue  # 위 매뉴얼 인용과 중복

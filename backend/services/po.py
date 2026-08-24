@@ -307,6 +307,13 @@ def _attach_print_pages(po: dict) -> None:
     if not evidence:
         return
     for entry in evidence.get("basis") or []:
+        # `evidence`는 LLM이 create_po_draft 호출 시 자유 형식으로 채우는 값이라(D34,
+        # 스키마 강제 없음) basis 항목이 항상 dict라는 보장이 없다 — 실측: 문자열 항목이
+        # 섞여 들어와 .get() 호출이 AttributeError로 터지며 PO 카드 렌더 자체가 실패했다
+        # (create_po_draft는 이미 성공한 뒤였는데도 채팅 응답이 "생성 실패"로 보임).
+        # 모양이 다른 항목은 그냥 건너뛴다 — 지어내지 않고, 죽지도 않는다.
+        if not isinstance(entry, dict):
+            continue
         page = entry.get("manual_page")
         if isinstance(page, int) and not isinstance(page, bool) and page >= 1:
             entry["print_page"] = manifest.to_print_page(model, page)
