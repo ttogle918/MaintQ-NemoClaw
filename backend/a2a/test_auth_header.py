@@ -1,25 +1,17 @@
 # -*- coding: utf-8 -*-
 """backend/a2a/auth_header.py 테스트.
 
-M1 목업(HTTP Basic, client_id:client_secret) 계약과 usable=False 폴백을 고정한다.
+D120 계약(Bearer <token> + X-A2A-Partner-Id)과 usable=False 폴백을 고정한다.
 """
 
 from __future__ import annotations
 
-import base64
-
 from backend.a2a import auth_header as ah
+from backend.a2a import credentials as cr
 
 
 def test_returns_empty_dict_when_not_configured(monkeypatch):
-    monkeypatch.delenv("MAINTQ_A2A_FINALLQ_CLIENT_ID", raising=False)
-    monkeypatch.delenv("MAINTQ_A2A_FINALLQ_CLIENT_SECRET", raising=False)
-    assert ah.build_auth_header("finallq") == {}
-
-
-def test_returns_empty_dict_when_incomplete(monkeypatch):
-    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_CLIENT_ID", "cid")
-    monkeypatch.delenv("MAINTQ_A2A_FINALLQ_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("FINALLQ_SERVICE_TOKEN", raising=False)
     assert ah.build_auth_header("finallq") == {}
 
 
@@ -27,26 +19,28 @@ def test_returns_empty_dict_for_unknown_partner():
     assert ah.build_auth_header("unknown-partner") == {}
 
 
-def test_builds_basic_auth_header_when_configured(monkeypatch):
-    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_CLIENT_ID", "cid")
-    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_CLIENT_SECRET", "csecret")
+def test_builds_bearer_auth_header_when_configured(monkeypatch):
+    monkeypatch.setenv("FINALLQ_SERVICE_TOKEN", "tok-value")
 
     header = ah.build_auth_header("finallq")
 
-    assert list(header.keys()) == ["Authorization"]
-    scheme, _, token = header["Authorization"].partition(" ")
-    assert scheme == "Basic"
-    decoded = base64.b64decode(token).decode("utf-8")
-    assert decoded == "cid:csecret"
+    assert header["Authorization"] == "Bearer tok-value"
+
+
+def test_includes_self_partner_id_header(monkeypatch):
+    monkeypatch.setenv("FINALLQ_SERVICE_TOKEN", "tok-value")
+
+    header = ah.build_auth_header("finallq")
+
+    assert header["X-A2A-Partner-Id"] == cr.SELF_PARTNER_ID
+    assert set(header.keys()) == {"Authorization", "X-A2A-Partner-Id"}
 
 
 def test_header_reflects_credential_changes_without_caching(monkeypatch):
-    monkeypatch.setenv("MAINTQ_A2A_INSUQ_CLIENT_ID", "a")
-    monkeypatch.setenv("MAINTQ_A2A_INSUQ_CLIENT_SECRET", "b")
+    monkeypatch.setenv("INSUQ_SERVICE_TOKEN", "a")
     first = ah.build_auth_header("insuq")
 
-    monkeypatch.setenv("MAINTQ_A2A_INSUQ_CLIENT_ID", "c")
-    monkeypatch.setenv("MAINTQ_A2A_INSUQ_CLIENT_SECRET", "d")
+    monkeypatch.setenv("INSUQ_SERVICE_TOKEN", "b")
     second = ah.build_auth_header("insuq")
 
     assert first != second

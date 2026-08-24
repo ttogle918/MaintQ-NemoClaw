@@ -118,8 +118,7 @@ async def test_base_url_trailing_slash_is_stripped(monkeypatch: pytest.MonkeyPat
 
 @pytest.mark.asyncio
 async def test_attaches_auth_header_when_partner_configured(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_CLIENT_ID", "cid")
-    monkeypatch.setenv("MAINTQ_A2A_FINALLQ_CLIENT_SECRET", "csecret")
+    monkeypatch.setenv("FINALLQ_SERVICE_TOKEN", "tok-value")
     captured = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={}))
 
     await call_skill(
@@ -130,7 +129,8 @@ async def test_attaches_auth_header_when_partner_configured(monkeypatch: pytest.
         base_url="http://adapter.local",
     )
 
-    assert captured["headers"]["Authorization"].startswith("Basic ")
+    assert captured["headers"]["Authorization"] == "Bearer tok-value"
+    assert captured["headers"]["X-A2A-Partner-Id"] == "maintq-agent"
 
 
 @pytest.mark.asyncio
