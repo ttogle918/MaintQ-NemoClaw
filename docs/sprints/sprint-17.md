@@ -1572,3 +1572,53 @@ kind?)` 시그니처 확인, `load()`/`decide()`/`found` 계산의 줄번호 전
 계획 수정 완료. **14개 태스크(MQ-1701~1714) 전부 착수 가능한 상태다.**
 
 실행: `/stage 1`
+
+---
+
+### Stage 1 완료 (2026-08-24)
+**커밋**: `7b28aee` — `[M4] feat: Sprint 17 Stage 1 — 재무부 승인 D119 등재 + DB 스키마 + 내부통제 판정 + 상태전이`
+(선행 인프라 수정 `12df5f5`가 별도 커밋으로 먼저 들어감 — Sprint 17 태스크는 아니지만
+Stage 1 회귀가 이 수정에 의존해 같은 세션에서 함께 처리)
+
+#### MQ-1701 — D119 등재 + S5+ 시나리오 반영
+- `docs/10_DECISIONS.md`(D119 신규 행) · `docs/02_SCENARIOS.md`(S5+ 행+각주) ·
+  `docs/00_MVP_SCOPE.md`(§3 확장 단락)
+- D115~D118과 같은 5열 표 형식 실측 검증(pipe count 대조) 중 D119 초안 문장의 리터럴
+  `technician|manager`가 표를 깨뜨리던 실제 버그 1건 발견·수정
+
+#### MQ-1702 — `po_drafts` 스키마 확장 + 시드 표본 + 자가검증
+- `data/seed.py`(DDL 4컬럼+CHECK 확장, 시드 표본 PO-0118/0119/0120, 자가검증 ㊲~㊵) ·
+  `docs/05_DB_SCHEMA.md §8` · `scripts/postgres_schema.sql`(스코프 밖이지만 필수 —
+  Postgres 타겟 재시드가 이 파일을 직접 읽어서, 안 고치면 즉시 실패)
+- 회귀: 재시드 41/41, `error_codes` 70건
+
+#### MQ-1703 — 내부통제 판정 로직 모듈
+- `data/expenditure_limits.py`(신규, 스펙 원문 그대로) · `data/test_expenditure_limits.py`
+  (신규)
+- 회귀: pytest 16/16
+
+#### MQ-1704 — `po_drafts` 상태 전이 규칙 확장
+- `backend/services/po.py`(`ALLOWED_FROM` 확장·`transition()` 수정·`_finance_transition()`
+  신규)
+- 스펙이 지시한 `now_utc_sql` 상단 import는 실측으로 순환 임포트
+  (`po→decisions→disposal→po`)가 재현돼 함수 내부 지연 import로 회피 — 공개 계약(시그니처·
+  `ALLOWED_FROM` 값)은 스펙과 동일
+- 회귀: `test_po_a2a_trigger.py`+`test_po_a2a_dispatch.py` 10/10(원본 그대로 무변화 확인)
+
+#### 회귀 게이트 정리 (스테이지 내 즉시 해소, 별도 태스크 아님)
+- `spikes/api_contract.py`의 `PO_LIST_ITEM_KEYS`에 MQ-1702 신규 컬럼 4개 추가 —
+  원래 Stage 2(MQ-1706) 몫이었으나 스테이지 경계마다 회귀를 깨끗하게 유지하려고 앞당김
+- `backend/db.py`의 ruff F401(미사용 import, Sprint 16부터의 기존 부채) 제거
+
+**eval-runner 종합**(2차 재확인 기준): seed 41/41(error_codes 70) · sp2_mcp_roundtrip
+20/20 · write_tool_contract 30/30 · api_contract 41/41 · sp3_sse_events 22/22 ·
+test_expenditure_limits 16/16 · test_po_a2a_trigger+test_po_a2a_dispatch 10/10 ·
+ruff clean. 1차 실행 중 `sp2_mcp_roundtrip`가 WinError 10014(소켓 고갈)로 1회
+실패했으나 단독 재실행으로 해소(코드 결함 아님).
+
+**reviewer 게이트**: PASS(블로커 없음). 비블로커 관찰 2건 — ① `data/test_expenditure_limits.py`가
+CLAUDE.md 공식 pytest 목록에 아직 미반영(`/done` 시 갱신 필요) ② `docs/00_MVP_SCOPE.md`의
+`docs/06_REPO_API.md §2.2` 인용이 현재는 정상 선행 참조이나 Stage 2 완료 시 §2.2 실제
+갱신 여부 확인 필요. **Stage 2 진입 조건 재확인**(reviewer가 명시적으로 짚음): 현재
+`approve()`가 여전히 A2A 출금 요청을 즉시 트리거한다 — Stage 2(MQ-1705)가 이 호출을
+`finance_approve()`로 반드시 옮겨야 하며, 이는 sprint-17.md에 이미 계획된 작업이다.
