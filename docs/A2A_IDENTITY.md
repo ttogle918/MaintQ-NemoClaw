@@ -400,6 +400,13 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
 
 ### 7.3 확정 자리
 
+> 🆕 **정정(2026-08-24, D120)** — 아래 env var 이름·Basic 스킴은 §7.3이 원래 세운 **제안**이었고,
+> 이후 실제로 그렇게 구현됐었다. 하지만 InsuQ·FinAllQ의 실 인증 필터를 직접 열어 대조한 결과
+> 양쪽 다 이 Basic(`CLIENT_ID`/`CLIENT_SECRET`) 스킴이 아니라 `Authorization: Bearer <token>` +
+> `X-A2A-Partner-Id` 자기신고 헤더만 검사하고 있었다 — 코드를 `<PARTNER>_SERVICE_TOKEN`(단일값)
+> + Bearer 조립으로 재작성했다(`docs/10_DECISIONS.md` D120, `backend/a2a/credentials.py`·
+> `auth_header.py` 참고). 아래 블록은 그 이전 설계 이력으로 남겨둔다.
+
 ```
 .env.example
   # ══ A2A 파트너 자격증명 (QMesh · 미착수) ══
@@ -411,7 +418,7 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
   MAINTQ_A2A_INSUQ_CLIENT_ID=
   MAINTQ_A2A_INSUQ_CLIENT_SECRET=
 
-읽는 곳 (제안)  backend/a2a/credentials.py  ← 새 모듈
+읽는 곳 (제안, D120으로 대체됨)  backend/a2a/credentials.py  ← 현재는 <PARTNER>_SERVICE_TOKEN 하나만 읽는다
 ```
 
 판단 근거:

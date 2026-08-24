@@ -291,7 +291,11 @@
           <tr>
             <td class="feat">프로토콜/클라이언트 배관 (client·auth·trace·router)</td>
             <td><span class="chip partial">부분구현 · ~70%</span></td>
-            <td class="note">REST 호출·헤더·에러매핑(502/503/504)·trace 저장까지 실동작, 전부 커밋 상태(<code class="inline">a2a_identity_contract</code> 19/19 PASS, reviewer 게이트로 <code class="inline">traces.tool</code> 명명 규약까지 정정 완료). FinAllQ 어댑터(A2A_Q 레포, 로컬 9101)를 실제로 띄워 <b>MaintQ→어댑터 구간 실 HTTP 왕복(502 upstream_unavailable)까지 확인</b>했지만, 이건 어댑터가 자기 다운스트림 못 찾을 때의 에러 경로일 뿐 — 진짜 성공 경로(200)는 아직 아무도 안 봤음. InsuQ 어댑터는 아예 띄운 적 없음. <code class="inline">auth_header.py</code>는 여전히 문서화된 의도적 스텁.</td>
+            <td class="note">REST 호출·헤더·에러매핑(502/503/504)·trace 저장까지 실동작, 전부 커밋 상태(<code class="inline">a2a_identity_contract</code> 19/19 PASS, reviewer 게이트로 <code class="inline">traces.tool</code> 명명 규약까지 정정 완료). FinAllQ 어댑터(A2A_Q 레포, 로컬 9101)를 실제로 띄워 <b>MaintQ→어댑터 구간 실 HTTP 왕복(502 upstream_unavailable)까지 확인</b>했지만, 이건 어댑터가 자기 다운스트림 못 찾을 때의 에러 경로일 뿐 — 진짜 성공 경로(200)는 아직 아무도 안 봤음. InsuQ 어댑터는 아예 띄운 적 없음. <s><code class="inline">auth_header.py</code>는 여전히 문서화된 의도적 스텁.</s>
+            <b>정정(2026-08-24, D120)</b>: <code class="inline">auth_header.py</code>는 더 이상 스텁이
+            아니다 — InsuQ·FinAllQ 실 인증 필터(Bearer + <code class="inline">X-A2A-Partner-Id</code>)와
+            대조해 D93의 Basic(CLIENT_ID/SECRET) 스킴을 폐기하고 실제 스킴으로 재작성했다. 아래 새
+            부록 참고.</td>
             <td class="evi"><code>backend/a2a/client.py:32-93</code><code>backend/a2a/auth_header.py:19-28</code></td>
           </tr>
           <tr>
@@ -485,9 +489,11 @@
             MaintQ 쪽 코드 변경은 없었다 — 원래부터 계약을 지키고 있었기 때문.</td>
           </tr>
           <tr>
-            <td class="feat">lookup-clause — 여전히 차단(변화 없음)</td>
-            <td class="note">서비스 자격증명 미설정으로 정상적으로 차단됨을 재확인 — 코드 결함이
-            아니라 사람이 해야 할 프로비저닝(<code class="inline">TODO_직접할일.md</code>).</td>
+            <td class="feat"><s>lookup-clause — 여전히 차단(변화 없음)</s></td>
+            <td class="note"><s>서비스 자격증명 미설정으로 정상적으로 차단됨을 재확인 — 코드 결함이
+            아니라 사람이 해야 할 프로비저닝.</s> <b>정정(2026-08-24, 네 번째 후속 세션)</b>: 이 판정은
+            틀렸다 — 막힌 원인이 MaintQ 쪽 자격증명이 아니라 <b>InsuQ가 스킬 자체를 미구현</b>(501
+            고정 반환)이었던 것이고, 그마저도 이제 해소됐다. 아래 새 부록 참고.</td>
           </tr>
           <tr>
             <td class="feat">FinAllQ가 추가 5개 스킬 구현·공유 — MaintQ 쪽은 미착수(의도적)</td>
@@ -599,8 +605,89 @@
     </div>
   </section>
 
+  <section>
+    <div class="sec-head"><h2>부록 · 2026-08-24 네 번째 후속 세션 — A2A 인증 스킴 교체(D120) · 계정 선택 화면 · lookup-clause·직원용 화면 실측</h2><span class="count">위 A2A 크로스팀 섹션의 S1 행, 8번 판정, lookup-clause 서술을 추가로 정정한다</span></div>
+    <div class="note-strip">
+      이 부록은 두 세션에 걸친 작업을 합쳐 적는다 — <b>① 같은 날 앞선 세션</b>이 D120(인증 스킴 교체)·
+      계정 선택 화면·D121·3프로젝트 동시 QA(시나리오 1·2 E2E 성공)를 완료했고,
+      <b>② 발표 준비 중이던 이 세션</b>이 그 뒤에 InsuQ lookup-clause 상태와 FinAllQ·InsuQ 직원용
+      화면 존재 여부를 코드 직접 대조로 재조사했다. 상세 근거:
+      <code class="inline">docs/sessions/2026-08-24_finance-approval-and-landing-dashboard.md</code>.
+    </div>
+    <div class="datatable-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:26%" class="feat"><span class="chip done">D120</span> A2A 인증 스킴 교체 — Basic → Bearer+X-A2A-Partner-Id</td>
+            <td class="note">사용자가 "SERVICE_TOKEN 이름으로 통일하고 싶다"고 요청해 InsuQ·FinAllQ
+            레포를 직접 열어 대조한 결과, InsuQ의 실 인증 필터(<code class="inline">ServiceTokenFilter.java</code>)는
+            D93이 정한 <code class="inline">MAINTQ_A2A_&lt;PARTNER&gt;_CLIENT_ID</code>/<code class="inline">_SECRET</code> →
+            Basic이 아니라 <code class="inline">Authorization: Bearer &lt;token&gt;</code> +
+            <code class="inline">X-A2A-Partner-Id</code> 자기신고 헤더만 검사하고 있었다(FinAllQ→InsuQ
+            2차 홉이 이미 이 스킴으로 실 성공 중이었음). <code class="inline">credentials.py</code>를
+            <code class="inline">&lt;PARTNER&gt;_SERVICE_TOKEN</code>(단일값) 읽기로,
+            <code class="inline">auth_header.py</code>를 Bearer+파트너ID 조립으로 재작성.</td>
+          </tr>
+          <tr>
+            <td class="feat">계정 선택 화면 + 재무담당 전용 랜딩</td>
+            <td class="note">"계정마다 볼 수 있는 페이지가 달랐으면"이라는 요청에 진짜 로그인 대신
+            시뮬레이션 신원 선택 화면(<code class="inline">/</code>)을 신설 — 정비사·정비팀장·재무담당
+            3계정을 로그인 없이 전환한다. 재무담당은 <code class="inline">/manager/finance</code>(신규)로
+            이동, 기존 <code class="inline">ApprovalQueueScreen</code>을 <code class="inline">focus="finance"</code> prop으로
+            재사용.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip done">D121</span> <code class="inline">today_total</code> 자기 제외 SQL 정식 결정 등재</td>
+            <td class="note">Sprint 17 Stage 3 구현 당시 스펙 원문에 없던
+            <code class="inline">AND po_id != ?</code> 조건이 코드에만 남아있던 것을, 이미
+            <code class="inline">finance_approved</code>된 발주 재조회 시 자기 금액이 "오늘 누적"에
+            중복 산입되는 걸 막는 의도된 보정이라고 정식 등재.</td>
+          </tr>
+          <tr>
+            <td class="feat"><span class="chip done">✅</span> 3프로젝트 동시 기동 브라우저 QA — 시나리오 1·2 둘 다 E2E 성공</td>
+            <td class="note">MaintQ(로컬)+FinAllQ(어댑터·코어·프론트)+InsuQ(어댑터·백엔드·ai-engine·프론트)를
+            전부 띄운 상태에서 시나리오 1(진단→발주→팀장승인→재무승인→A2A 출금요청)과 시나리오 2
+            (담보대출 심사, MaintQ→FinAllQ→InsuQ 멀티홉) 둘 다 채팅으로 끝까지 실행해 성공 확인.
+            실버그 2건 발견·수정(<code class="inline">sod_check()</code> NULL TypeError,
+            <code class="inline">evidence.basis</code>가 문자열일 때 PO 카드 렌더가 죽던 버그).</td>
+          </tr>
+          <tr>
+            <td class="feat"><s><span class="chip none">차단</span> lookup-clause 자격증명 미설정</s> → <span class="chip done">정정 · 구현 확인됨</span></td>
+            <td class="note">3프로젝트 QA 세션은 "InsuQ가 곧 구현할 예정"이라는 사용자 확인만 받고
+            더 파지 않았는데, <b>발표 준비 세션이 실제로 확인해보니 이미 구현돼 있었다.</b> 단 위치가
+            예상과 다르다 — MaintQ가 D93·D120 인증으로 겨냥하던 Spring 백엔드(:8081)의
+            <code class="inline">A2aController</code>는 여전히 501 고정 반환. 실제 동작하는 건 별도
+            FastAPI 프로토타입 어댑터(InsuQ <code class="inline">a2a_adapter/</code>, 포트
+            <b>:9102</b>)이고, InsuQ 자체 RAG(<code class="inline">/qa</code>)를 그대로 호출하는 실동작이다.
+            MaintQ는 이미 :9102를 기본값으로 겨냥하고 있어(<code class="inline">MAINTQ_A2A_INSUQ_BASE_URL</code>
+            기본값) 추가 설정 없이 재검증 가능. <b>이 어댑터엔 인증 헤더 검증 자체가 없다</b> — D120이
+            맞춘 Bearer+파트너ID 스킴은 여기선 쟁점이 안 된다(검증 로직 자체가 없어 그냥 통과).
+            InsuQ 자체 <code class="inline">docs/07_BACKLOG.md</code> H9 항목도 "두 서비스가 같은
+            Agent Card로 스킬을 중복 선언 중, 최종 위치 결정 미완료"라 열어 두고 있다.</td>
+          </tr>
+          <tr>
+            <td class="feat">FinAllQ·InsuQ 직원(심사역)용 화면 — 실측 결과 성격이 갈린다</td>
+            <td class="note">3프로젝트 QA 세션은 개인 소비자용 대시보드만 찾고 "직원용 화면 발견 못함"으로
+            남겼는데, 발표 준비 세션이 코드를 직접 뒤져 확인했다. <b>InsuQ <code class="inline">/pro/inbox</code></b> —
+            진짜 내부 심사역 화면. <code class="inline">InboxController.java</code> 자바독에 "이 API는
+            A2A 외부 파트너가 아니라 InsuQ 내부 담당자(설계사·심사역)가 쓴다"고 명시돼 있고
+            <code class="inline">StaffAccess</code>(기존 사용자 JWT)로 게이트돼 있다 — 2026-08-24 당일
+            PR로 완성된 것으로 보임. <b>FinAllQ <code class="inline">/loan/review</code>(ADMIN)</b>도
+            진짜 내부 여신 심사역 화면 — assess-loan(S8) 신청이 <code class="inline">UNDER_REVIEW</code>로
+            뜨고 최종 승인은 항상 사람이 함. 반면 <b>FinAllQ <code class="inline">/transfers/approvals</code>(MANAGER)</b>는
+            겉보기엔 직원용 같지만 <code class="inline">ApprovalPolicy.decide()</code>가 승인자·요청
+            소유자의 <code class="inline">company_id</code> 일치를 요구하는 것으로 코드 확인됨
+            (<code class="inline">sameCustomer</code> 검사) — 즉 <b>MaintQ가 FinAllQ에 등록한 자기 회사
+            (8818) 계정</b>이 보는 결재선이지 FinAllQ 은행 내부 직원 화면이 아니다. 데모·문서에서
+            "상대 회사 직원 화면"이라고 뭉뚱그리면 과장이 된다.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <div class="footer-strip">
-    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 로컬 커밋: <code class="inline">e1a4a50</code>(이 저장소는 원격 upstream이 추적돼 있지 않습니다). <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했고, <strong>같은 날 두 번째 후속 세션</strong>이 A2A 3종(S5·S8·lookup-clause) 실 E2E 확정과 문서 템플릿 렌더(D118)를, <strong>같은 날 세 번째 후속 세션</strong>이 재무부 승인 게이트(D119)·doc3·정비사 랜딩 대시보드·docker-compose를 위 새 부록으로 추가했습니다 — 위 판정표·크로스팀 섹션의 "블로커"·"~50%"·"PO 승인 시 자동 발신"류 서술은 그 부록들 기준으로 정정된 것으로 읽으십시오.</div>
+    <div>기능별 판정표는 <strong>2026-08-23 최초 감사(4개 병렬 조사) 기준</strong>이며 코드 수정 없이 점검만 했습니다. 부록·A2A 크로스팀 시나리오 섹션에 적은 S8 구현·커밋 정리·보안 발견·reviewer 게이트·E2E 테스트 범위·S1/S4/S5 구현도 확인은 <strong>같은 날 후속 작업</strong>으로, 판정표 자체가 아니라 A2A 항목(8번)의 진행 상황을 갱신한 것입니다. 최신 로컬 커밋: <code class="inline">e1a4a50</code>(이 저장소는 원격 upstream이 추적돼 있지 않습니다). <strong>2026-08-24</strong> 후속 세션이 Postgres 전환 마무리·RAG dense 임베딩(D117)을 별도 부록으로 추가했고, <strong>같은 날 두 번째 후속 세션</strong>이 A2A 3종(S5·S8·lookup-clause) 실 E2E 확정과 문서 템플릿 렌더(D118)를, <strong>같은 날 세 번째 후속 세션</strong>이 재무부 승인 게이트(D119)·doc3·정비사 랜딩 대시보드·docker-compose를, <strong>같은 날 네 번째 후속 세션</strong>이 A2A 인증 스킴 교체(D120)·계정 선택 화면·D121·3프로젝트 QA를, <strong>같은 날 다섯 번째 후속 세션(발표 준비)</strong>이 lookup-clause 실제 구현 위치와 FinAllQ·InsuQ 직원용 화면의 정확한 성격을 위 새 부록으로 추가했습니다 — 위 판정표·크로스팀 섹션의 "블로커"·"~50%"·"PO 승인 시 자동 발신"·"lookup-clause 차단"류 서술은 그 부록들 기준으로 정정된 것으로 읽으십시오.</div>
   </div>
 
 </div>
