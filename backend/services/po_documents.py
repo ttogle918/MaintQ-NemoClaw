@@ -39,6 +39,8 @@ _DOC_STATUS_LABEL = {
     "pending": "결재 대기",
     "approved": "승인 완료",
     "rejected": "반려",
+    "finance_approved": "재무 승인 완료",
+    "finance_rejected": "재무 반려",
 }
 
 _APPROVAL_RESULT_LABEL = {
@@ -46,6 +48,8 @@ _APPROVAL_RESULT_LABEL = {
     "pending": "결재 대기 중",
     "approved": "승인",
     "rejected": "반려",
+    "finance_approved": "재무 승인",
+    "finance_rejected": "재무 반려",
 }
 
 
@@ -120,7 +124,11 @@ def render_po_request_document(po: dict) -> str:
     doc_status = _DOC_STATUS_LABEL.get(po["state"], po["state"])
     approval_result = _APPROVAL_RESULT_LABEL.get(po["state"], po["state"])
 
-    approver_signed_at = _UNKNOWN if po["state"] in ("approved", "rejected") else "(미기재 — 결재 전)"
+    approver_signed_at = (
+        _UNKNOWN
+        if po["state"] in ("approved", "rejected", "finance_approved", "finance_rejected")
+        else "(미기재 — 결재 전)"
+    )
     approval_comment = _val(po.get("decision_note"))
 
     return f"""[정비 · 부품 발주 요청서 — {doc_status}]
@@ -219,7 +227,11 @@ def render_diagnosis_document(po: dict) -> str:
     is_dangerous = ecd["severity"] in ("fault", "critical")
 
     doc_status = _DOC_STATUS_LABEL.get(po["state"], po["state"])
-    manager_signed_at = _UNKNOWN if po["state"] in ("approved", "rejected") else "(미기재 — 검토 전)"
+    manager_signed_at = (
+        _UNKNOWN
+        if po["state"] in ("approved", "rejected", "finance_approved", "finance_rejected")
+        else "(미기재 — 검토 전)"
+    )
 
     return f"""[설비 이상 진단 보고서 — {doc_status}]
 문서번호: DIAG-{po["po_id"]} (이 시스템은 진단 세션을 별도 저장하지 않아 연계 발주 ID로 채번한다)
@@ -261,3 +273,99 @@ def render_diagnosis_document(po: dict) -> str:
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
 문서 상태: {doc_status} | 생성 시스템: MaintQ | 서명 시점 해시: {_UNKNOWN}
 ※ {_doc_review.diagnosis_template_review_notice()}"""
+
+
+_FUND_TYPE = "부품 구매대금"  # 고정 — S1/S2 발주 전용 문서라 항상 이 값 (담보/대출 아님)
+_FUNDING_METHOD = "계좌이체"  # 고정 — A2A request-withdrawal 전제
+_MFA_STATUS_TEXT = "미구현 (MaintQ 에 MFA 시스템 없음)"  # D118 이 이미 이 문구를 확정
+
+
+def _mask_account(acct: str | None) -> str:
+    if not acct:
+        return _UNKNOWN
+    return acct[-4:].rjust(len(acct), "*") if len(acct) > 4 else acct
+
+
+def _fund_a2a_lines(a2a_info: dict | None) -> tuple[str, str, str]:
+    """(A2A_DELEGATED, A2A_TARGET, REQUEST_CHAIN_ID) 3필드."""
+    if a2a_info is None:
+        return "아니오 (아직 전송되지 않음)", _UNKNOWN, _UNKNOWN
+    delegated = "예" if a2a_info.get("status") == "ok" else "예 (전송 실패 또는 처리 중)"
+    return delegated, "FinAllQ", a2a_info["request_chain_id"]
+
+
+def render_fund_execution_document(
+    po: dict,
+    controls: dict[str, tuple],
+    a2a_info: dict | None,
+    payee: dict | None,
+) -> str:
+    """`data/templates/03_자금집행요청서.docx` 구조를 옮긴 평문 미리보기 (D118·D119).
+
+    입력 `po`는 `render_po_request_document()`와 같은 조립 결과여야 하고,
+    `controls`·`a2a_info`는 `backend/services/po.py`(MQ-1708)가 만든 모양 그대로,
+    `payee`는 공급사 계좌 정보(`{"account_number", "bank_code"}` | None)다.
+    """
+    qty, unit_price = po["qty"], po["unit_price"]
+    subtotal = unit_price * qty
+    vat = round(subtotal * 0.1)
+    total = subtotal + vat
+
+    budget_ok, budget_evidence = controls["budget"]
+    daily_ok, daily_evidence = controls["daily_limit"]
+    fds_verdict, fds_evidence = controls["fds"]
+    sod_ok, sod_evidence = controls["sod"]
+
+    delegated, target, chain_id = _fund_a2a_lines(a2a_info)
+    payee_bank = _val(payee.get("bank_code")) if payee else _UNKNOWN
+    payee_account = _mask_account(payee.get("account_number")) if payee else _UNKNOWN
+
+    doc_status = _DOC_STATUS_LABEL.get(po["state"], po["state"])
+    approval_result = _APPROVAL_RESULT_LABEL.get(po["state"], po["state"])
+    diagnosis_doc_no = f"DIAG-{po['po_id']}" if po.get("error_code_def") else _UNKNOWN
+
+    return f"""[자금집행 요청서 — {doc_status}]
+요청번호: FUND-{po["po_id"]}
+요청일시: {_val(po.get("decided_at"))}
+연계 발주요청서: {po["po_id"]}
+연계 진단서: {diagnosis_doc_no}
+기안 부서/기안자: {_val(po.get("requested_by_department"))} / {_val(po.get("requested_by_name"))}
+결재선(Chain ID): {chain_id}
+자금 종류: {_FUND_TYPE}
+
+1. 집행 목적 및 금액
+     · 목적: {po["reason"]}
+     · 금액: {_won(total)}원 ({amount_to_korean(total)})
+     · 집행 예정일: {_UNKNOWN} (시스템이 별도로 기록하지 않음)
+     · 집행 방법: {_FUNDING_METHOD}
+
+2. 수취인
+     · 수취인명(공급사): {po["supplier_name"]}
+     · 사업자번호: {_UNKNOWN} (suppliers 테이블에 없음)
+     · 은행: {payee_bank}
+     · 계좌(마스킹): {payee_account}
+
+3. 담보 · 대출 (해당 시)
+     · 해당 없음 — 본 문서는 일반 부품 발주(S1/S2) 전용이며 담보·대출 취급 대상이 아니다
+
+4. 내부통제 확인
+     · 예산 한도: {budget_evidence} — {"통과" if budget_ok else "초과"}
+     · 1일 누적 한도: {daily_evidence} — {"통과" if daily_ok else "초과"}
+     · FDS 판정: {fds_verdict} — {fds_evidence}
+     · 직무분리(SoD): {sod_evidence if sod_ok is None else ("통과" if sod_ok else "위반")} — {sod_evidence}
+
+5. 서명
+     · 기안(정비사): {_val(po.get("requested_by_name"))} / {_val(po.get("created_at"))}
+     · 승인(정비팀장): {_val(po.get("decided_by_name"))} / {_val(po.get("decided_at"))}
+     · 재무 승인(재무담당): {_val(po.get("finance_decided_by_name"))} / {_val(po.get("finance_decided_at"))}
+     · 승인 결과: {approval_result}
+     · 재무 의견 / 반려 사유: {_val(po.get("finance_decision_note"))}
+
+6. A2A 위임 전송
+     · 위임 여부: {delegated}
+     · 대상 시스템: {target}
+     · MFA 상태: {_MFA_STATUS_TEXT}
+
+※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
+문서 상태: {doc_status} | 생성 시스템: MaintQ
+※ {_doc_review.fund_execution_template_review_notice()}"""

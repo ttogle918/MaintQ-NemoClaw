@@ -46,9 +46,10 @@ PO_LIST_ITEM_KEYS = frozenset(
     {
         "created_at", "decided_at", "decided_by", "decided_by_name", "decision_note",
         "error_code", "evidence", "finance_decided_at", "finance_decided_by",
-        "finance_decision_note", "model", "part_name", "part_no", "po_id", "qty", "reason",
-        "requested_by", "requested_by_name", "requested_by_department", "session_id",
-        "state", "supplier_id", "supplier_name", "unit_price", "urgency",
+        "finance_decided_by_name", "finance_decision_note", "model", "part_name", "part_no",
+        "po_id", "qty", "reason", "requested_by", "requested_by_name",
+        "requested_by_department", "session_id", "state", "supplier_id", "supplier_name",
+        "unit_price", "urgency",
     }
 )
 # 상세는 목록 + 화면 B 재료 3종 + D118(01·02 렌더) 가산 3종
@@ -130,6 +131,14 @@ def run(client) -> None:
         d["requested_by"] == "tech-01" and d["requested_by_name"] == "김OO",
         f"{d['requested_by']} → {d['requested_by_name']}",
     )
+    check(
+        "③-b PO-0117 pending(재무 결정 전, 진단 있음) — documents_preview.fund_execution"
+        " 은 None (아직 팀장 승인 전이라 자금집행요청서 자체가 성립하지 않음, MQ-1710)."
+        " ★ 이 체크는 반드시 ⑧(PO-0117 approve)보다 앞에서 실행돼야 한다 — PO-0117 은"
+        " 이 스크립트에서 그 뒤로 되돌릴 수 없이 approved 로 소비된다.",
+        d["documents_preview"]["fund_execution"] is None,
+        f"state={d['state']}, fund_execution={d['documents_preview'].get('fund_execution')!r}",
+    )
 
     # ── ★ 403 규칙 — 평가 지표
     r = client.post("/api/po/PO-0117/approve", headers=TECH)
@@ -164,6 +173,15 @@ def run(client) -> None:
     )
     r = client.post("/api/po/PO-0117/approve", headers=MGR)
     check("⑨ 이미 승인된 건 재승인 → 409", r.status_code == 409, f"{r.status_code}")
+
+    d116 = client.get("/api/po/PO-0116", headers=MGR).json()
+    check(
+        "⑨-b PO-0116 pending(model/error_code 없는 S2 표본, 진단서도 이미 None) —"
+        " documents_preview.fund_execution 도 마찬가지로 None (MQ-1710)."
+        " ★ 이 체크는 반드시 ⑩(PO-0116 reject)보다 앞에서 실행돼야 한다.",
+        d116["documents_preview"]["fund_execution"] is None,
+        f"state={d116['state']}, fund_execution={d116['documents_preview'].get('fund_execution')!r}",
+    )
 
     # ── 반려는 사유 필수 (D38)
     r = client.post("/api/po/PO-0116/reject", json={}, headers=MGR)
@@ -419,6 +437,18 @@ def run(client) -> None:
         f"{r.status_code} {r.json().get('detail', '')[:60]}",
     )
 
+    # ㊴-b MQ-1710 — PO-0114 는 ㊵ 에서 finance_approved 로 소비되므로, "재무 결정 전
+    # approved 표본" 검증은 반드시 ㊵ 의 POST 이전인 여기서 끼워 넣는다(스프린트 문서
+    # 엣지 케이스 절이 명시한 조율 지점).
+    d114 = client.get("/api/po/PO-0114", headers=MGR).json()
+    fund114 = d114["documents_preview"]["fund_execution"]
+    check(
+        "㊴-b PO-0114 approved(재무 결정 전) — documents_preview.fund_execution non-null"
+        " + SOD 미확정 문구('확인 전') (MQ-1710)",
+        fund114 is not None and "확인 전" in fund114,
+        f"state={d114['state']}, fund_execution 일부={(fund114[:80] if fund114 else None)!r}",
+    )
+
     r = client.post("/api/po/PO-0114/finance-approve", headers=MGR_FIN)
     body = r.json()
     check(
@@ -450,6 +480,27 @@ def run(client) -> None:
         "㊷ mgr-02 finance-reject on 이미 finance_approved 된 건(PO-0114) 재호출 → 409",
         r.status_code == 409,
         f"{r.status_code} {r.json().get('detail', '')[:60]}",
+    )
+
+    # ── ㊸~㊹ MQ-1710 — 자금집행요청서(03) 렌더 계약: 재무 결정 확정 표본 (D118·D119)
+    d118 = client.get("/api/po/PO-0118", headers=MGR).json()
+    fund118 = d118["documents_preview"]["fund_execution"]
+    budget_line_118 = next((ln for ln in (fund118 or "").splitlines() if "예산 한도" in ln), "")
+    check(
+        "㊸ PO-0118(finance_approved) — fund_execution non-null + '자금집행 요청서' 헤더"
+        " + budget_check 통과('통과')",
+        fund118 is not None and "자금집행 요청서" in fund118 and "통과" in budget_line_118,
+        f"state={d118['state']}, budget_line={budget_line_118!r}",
+    )
+
+    d119 = client.get("/api/po/PO-0119", headers=MGR).json()
+    fund119 = d119["documents_preview"]["fund_execution"]
+    budget_line_119 = next((ln for ln in (fund119 or "").splitlines() if "예산 한도" in ln), "")
+    check(
+        "㊹ PO-0119(finance_rejected, 예산 초과 표본) — fund_execution 텍스트 예산 한도"
+        " 줄에 '초과' 문구 (budget_check ok=False 실증)",
+        fund119 is not None and "초과" in budget_line_119,
+        f"state={d119['state']}, budget_line={budget_line_119!r}",
     )
 
 

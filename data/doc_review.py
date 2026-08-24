@@ -41,6 +41,11 @@ PO_REQUEST_TEMPLATE_REVIEWED_AT: str | None = None
 DIAGNOSIS_TEMPLATE_REVIEWED = False
 DIAGNOSIS_TEMPLATE_REVIEWED_AT: str | None = None
 
+# ── 자금집행요청서 (03, D118·D119) — data/templates/03_자금집행요청서.docx 문구를
+#    옮긴 렌더 문안. 아직 사람이 검수하지 않았다 — 승인 전까지는 아래를 False 로 둔다.
+FUND_EXECUTION_TEMPLATE_REVIEWED = False
+FUND_EXECUTION_TEMPLATE_REVIEWED_AT: str | None = None
+
 
 def _notice(reviewed: bool, reviewed_at: str | None) -> str:
     """문서 본문·API 응답에 함께 싣는 문안 검수 상태 한 줄.
@@ -64,3 +69,7 @@ def po_request_template_review_notice() -> str:
 
 def diagnosis_template_review_notice() -> str:
     return _notice(DIAGNOSIS_TEMPLATE_REVIEWED, DIAGNOSIS_TEMPLATE_REVIEWED_AT)
+
+
+def fund_execution_template_review_notice() -> str:
+    return _notice(FUND_EXECUTION_TEMPLATE_REVIEWED, FUND_EXECUTION_TEMPLATE_REVIEWED_AT)
