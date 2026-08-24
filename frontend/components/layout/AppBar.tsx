@@ -2,6 +2,7 @@
 
 import { Logo } from "@/components/ui/Chip";
 import { sx } from "@/lib/sx";
+import { ManagerIdentitySwitch } from "./ManagerIdentitySwitch";
 import { RoleTabs } from "./RoleTabs";
 import { ThemeSwitch } from "./ThemeSwitch";
 
@@ -19,6 +20,8 @@ export function AppBar({ pendingCount }: { pendingCount: number }) {
       <span style={sx("width:1px;height:18px;background:var(--line);margin:0 6px")} />
 
       <RoleTabs pendingCount={pendingCount} />
+      <span style={sx("width:1px;height:18px;background:var(--line);margin:0 6px")} />
+      <ManagerIdentitySwitch />
 
       <div style={sx("flex:1")} />
       <ThemeSwitch />

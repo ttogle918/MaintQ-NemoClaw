@@ -40,7 +40,12 @@ export const STATE_LABEL: Record<ApprovalKind, Record<string, { text: string; to
     po: {
       draft: { text: "draft", tone: "neutral" },
       pending: { text: "◔ pending", tone: "info" },
-      approved: { text: "✓ approved", tone: "ok" },
+      // Sprint 17(D119) — `approved` 는 이제 팀장 승인 완료가 아니라 재무부 결재 대기를
+      // 겸한다. 아직 확정이 아니므로 `ok`(초록) 로 두면 이미 끝난 것처럼 보인다(D87 취지
+      // 확장 적용) — 최종 확정은 `finance_approved` 가 진다.
+      approved: { text: "◔ 재무승인대기", tone: "info" },
+      finance_approved: { text: "✓ finance_approved", tone: "ok" },
+      finance_rejected: { text: "✕ finance_rejected", tone: "danger" },
       rejected: { text: "✕ rejected", tone: "danger" },
     },
     disposal: {
@@ -82,6 +87,13 @@ export function isDraftState(state: string): boolean {
  *  않게 한다 (D87, `isDraftState` 선례와 같은 패턴). */
 export function isPendingState(state: string): boolean {
   return state === "pending";
+}
+
+/** 팀장 승인 완료(재무부 승인 대기) 여부 — 재무 결재 컨트롤 노출 조건. 컴포넌트가
+ *  "approved" 리터럴을 직접 비교하지 않게 한다 (D87, `isDraftState`/`isPendingState` 와 같은
+ *  패턴, Sprint 17). */
+export function isApprovedState(state: string): boolean {
+  return state === "approved";
 }
 
 /** `kind` → 배지. 모르는 종류도 숨기지 않는다 — 원문 + `warn` 으로 목록에 남는다. */

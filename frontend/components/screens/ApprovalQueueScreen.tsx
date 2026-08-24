@@ -21,6 +21,8 @@ import {
   ApiError,
   approvePo,
   extractDetail,
+  financeApprovePo,
+  financeRejectPo,
   getApprovals,
   getDecision,
   getPo,
@@ -33,7 +35,7 @@ import {
 } from "@/lib/api";
 import { toEvidenceEntries, toPoQueueEntry, toQueueEntry, toQuotes } from "@/lib/mappers";
 import { EVIDENCE_PO_0117, PENDING, QUOTES_PO_0117, RECENT } from "@/lib/mock/queue";
-import { ROLE_USER_NAME } from "@/lib/role";
+import { getManagerIdentity } from "@/lib/role";
 import { sx } from "@/lib/sx";
 import type { QueueEntry } from "@/lib/types";
 
@@ -53,6 +55,8 @@ type Source = "loading" | "live" | "mock";
 export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
   const [source, setSource] = useState<Source>("loading");
   const [pending, setPending] = useState<ApiApproval[]>([]);
+  /** 재무 승인 대기(po kind 로 한정) — "최근 처리" 4건 슬라이스와는 역할이 다르다 (Sprint 17) */
+  const [financePending, setFinancePending] = useState<ApiApproval[]>([]);
   const [recent, setRecent] = useState<ApiApproval[]>([]);
   /** 선택된 항목 (라이브). 큐 목록 밖의 딥링크도 여기 들어온다 */
   const [selected, setSelected] = useState<QueueEntry | null>(null);
@@ -70,17 +74,22 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
       // 종결 어휘가 종류마다 다르다 — 발주는 `approved`, 처분은 `signed` 다.
       // 한 어휘로 정규화하지 않기로 한 계약(D85)의 대가로 조회가 한 번 더 필요하다.
       // ⛔ 여기서 `approved` 를 처분에도 쓰지 말 것 — 서명은 다른 사건이다.
-      const [p, approved, signed, rejected] = await Promise.all([
+      // ⛔ D119(Sprint 17) 이후 po 의 `approved` 는 더 이상 종결이 아니다(재무 승인 대기) —
+      // "최근 처리" 목록에 넣지 않는다. `financePending` 섹션이 이미 그 항목을 보여준다.
+      const [p, financeApproved, signed, rejected] = await Promise.all([
         getApprovals("manager", "pending"),
-        getApprovals("manager", "approved"),
+        getApprovals("manager", "approved", "po"), // 재무 승인 대기 (po kind 로 한정)
         getApprovals("manager", "signed"),
         getApprovals("manager", "rejected"),
       ]);
-      const done = [...approved, ...signed, ...rejected].slice(0, 4);
+      const done = [...signed, ...rejected].slice(0, 4);
       setPending(p);
+      setFinancePending(financeApproved);
       setRecent(done);
 
-      const found = selectedId ? [...p, ...done].find((i) => i.id === selectedId) : null;
+      const found = selectedId
+        ? [...p, ...financeApproved, ...done].find((i) => i.id === selectedId)
+        : null;
 
       if (selectedId && !found) {
         // 큐 4목록 밖의 발주(예: 아직 `draft`) 딥링크. `/api/po` 로 직접 확인한다 —
@@ -150,6 +159,22 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
     }
   }
 
+  async function decideFinance(action: "approve" | "reject", reason?: string) {
+    if (!detail) return;
+    try {
+      const updated =
+        action === "approve"
+          ? await financeApprovePo(detail.po_id)
+          : await financeRejectPo(detail.po_id, reason ?? "");
+      setNotice(
+        `${updated.po_id} 재무 ${action === "approve" ? "승인" : "반려"} 완료 — ${updated.state}`
+      );
+      await load();
+    } catch (e) {
+      setNotice(e instanceof ApiError ? `${e.status} — ${extractDetail(e.body)}` : String(e));
+    }
+  }
+
   const live = source === "live";
   const pendingEntries = live ? pending.map(toQueueEntry) : PENDING;
   const recentEntries = live ? recent.map(toQueueEntry) : RECENT;
@@ -178,7 +203,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           </span>
           <Spacer />
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
-            팀장 {ROLE_USER_NAME.manager}
+            {getManagerIdentity().label}
           </span>
           <Avatar />
         </ConsoleHeader>
@@ -187,6 +212,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           <div style={sx("display:grid;grid-template-columns:280px 1fr;min-height:560px")}>
             <QueueList
               pending={pendingEntries}
+              financePending={live ? financePending.map(toQueueEntry) : []}
               recent={recentEntries}
               selectedId={chosen.id}
             />
@@ -198,6 +224,9 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
                 documentsPreview={live && detail ? detail.documents_preview : undefined}
                 onApprove={live ? () => void decide("approve") : undefined}
                 onReject={live ? (reason) => void decide("reject", reason) : undefined}
+                isFinanceApprover={getManagerIdentity().department === "finance"}
+                onFinanceApprove={live ? () => void decideFinance("approve") : undefined}
+                onFinanceReject={live ? (reason) => void decideFinance("reject", reason) : undefined}
               />
             ) : chosen.kind === "disposal" && live && decision ? (
               <DecisionDetail

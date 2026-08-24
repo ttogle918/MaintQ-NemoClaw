@@ -323,11 +323,16 @@ function nineRows(extra: Row[] = []): Row[] {
     if (v.known) bad.push(`${kind}/${state}→known=true`);
     if (v.text !== state) bad.push(`${kind}/${state}→text=${v.text}`);
   }
-  const known = stateView("po", "approved");
+  // Sprint 17(D119, MQ-1712) — po/approved 는 이제 "재무승인대기"(tone: info) 로 바뀌었다.
+  // 대조군(맵 안의 값이 정상적으로 tone='ok' 로 떨어지는지 확인하는 축)은 새 상태 머신에서
+  // 실제로 "확정 완료"를 뜻하는 finance_approved 로 옮긴다.
+  const known = stateView("po", "finance_approved");
   check(
     "stateView — 맵 밖 (kind,state) 5종이 tone='ok' 로 떨어지지 않는다 (known=false + 원문)",
     bad.length === 0 && known.tone === "ok" && known.known,
-    bad.length ? bad.join(" / ") : `검사 ${probes.length}종 전부 warn/known=false · 대조군 po/approved=${known.tone}`
+    bad.length
+      ? bad.join(" / ")
+      : `검사 ${probes.length}종 전부 warn/known=false · 대조군 po/finance_approved=${known.tone}`
   );
 }
 

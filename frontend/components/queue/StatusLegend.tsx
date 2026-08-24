@@ -5,7 +5,9 @@ import type { PoState } from "@/lib/types";
 const LEGEND: { state: PoState; desc: string }[] = [
   { state: "draft", desc: "정비사 작성 중" },
   { state: "pending", desc: "승인 대기" },
-  { state: "approved", desc: "발주 확정" },
+  { state: "approved", desc: "팀장 승인 — 재무 승인 대기 (D119)" },
+  { state: "finance_approved", desc: "재무 승인 완료 — 발주 확정" },
+  { state: "finance_rejected", desc: "재무 반려" },
   { state: "rejected", desc: "반려" },
 ];
 

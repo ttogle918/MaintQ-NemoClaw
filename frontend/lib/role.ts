@@ -42,3 +42,35 @@ export const ROLE_USER_NAME: Record<Role, string> = {
 export function roleFromPath(pathname: string): Role {
   return pathname.startsWith("/manager") ? "manager" : "technician";
 }
+
+/**
+ * 팀장 화면 안에서 실제로 액션을 부리는 신원 — 정비팀장(발주 승인)과 재무담당(재무승인,
+ * Sprint 17)이 같은 `/manager` 라우트를 공유한다 (D52 — 시뮬레이션 신원, 실제 인증 아님).
+ * `getManagerIdentity()` 기본값은 `MANAGER_IDENTITIES[0]`(정비팀장) — 배열 순서를 바꾸면
+ * 기존 회귀(프론트 라우트 개수 등)가 흔들린다.
+ */
+export interface ManagerIdentity {
+  userId: string;
+  displayName: string;
+  department: "maintenance" | "finance";
+  label: string;
+}
+
+export const MANAGER_IDENTITIES: ManagerIdentity[] = [
+  { userId: "mgr-01", displayName: "박OO", department: "maintenance", label: "정비팀장 · 박OO" },
+  { userId: "mgr-02", displayName: "최OO", department: "finance", label: "재무담당 · 최OO" },
+];
+
+const MANAGER_IDENTITY_KEY = "maintq_manager_identity";
+
+/** SSR 안전 — `window` 없으면 기본값(정비팀장). */
+export function getManagerIdentity(): ManagerIdentity {
+  if (typeof window === "undefined") return MANAGER_IDENTITIES[0];
+  const stored = window.localStorage.getItem(MANAGER_IDENTITY_KEY);
+  return MANAGER_IDENTITIES.find((m) => m.userId === stored) ?? MANAGER_IDENTITIES[0];
+}
+
+export function setManagerIdentity(userId: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MANAGER_IDENTITY_KEY, userId);
+}

@@ -12,10 +12,13 @@ import type { QueueEntry } from "@/lib/types";
  */
 export function QueueList({
   pending,
+  financePending = [],
   recent,
   selectedId,
 }: {
   pending: QueueEntry[];
+  /** 신규 — 비어 있으면 섹션 자체를 렌더하지 않는다 (Sprint 17, MQ-1714) */
+  financePending?: QueueEntry[];
   recent: QueueEntry[];
   selectedId: string;
 }) {
@@ -31,6 +34,18 @@ export function QueueList({
           <QueueItem key={`${e.kind}:${e.id}`} entry={e} selected={e.id === selectedId} />
         ))}
       </div>
+
+      {financePending.length > 0 && (
+        <>
+          <div style={sx("height:1px;background:var(--line);margin:14px 12px 0")} />
+          <SectionLabel>재무 승인 대기 · {financePending.length}</SectionLabel>
+          <div style={sx("padding:0 12px;display:flex;flex-direction:column;gap:8px")}>
+            {financePending.map((e) => (
+              <QueueItem key={`${e.kind}:${e.id}`} entry={e} selected={e.id === selectedId} />
+            ))}
+          </div>
+        </>
+      )}
 
       <div style={sx("height:1px;background:var(--line);margin:14px 12px 0")} />
       <SectionLabel>최근 처리</SectionLabel>

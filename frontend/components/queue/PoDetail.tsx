@@ -3,10 +3,12 @@
 import { StateBadge, UrgencyBadge } from "@/components/ui/Badge";
 import { Mono } from "@/components/ui/Mono";
 import { sx } from "@/lib/sx";
+import { isApprovedState, isPendingState } from "@/lib/queueState";
 import type { EvidenceEntry, QueueEntry, SupplierQuote } from "@/lib/types";
 import { DecisionBar } from "./DecisionBar";
 import { DocumentPreview } from "./DocumentPreview";
 import { EvidenceCard } from "./EvidenceCard";
+import { FinanceDecisionBar } from "./FinanceDecisionBar";
 import { SupplierCompare } from "./SupplierCompare";
 import { WithdrawalStatusPanel } from "./WithdrawalStatusPanel";
 
@@ -21,15 +23,26 @@ export function PoDetail({
   documentsPreview,
   onApprove,
   onReject,
+  isFinanceApprover,
+  onFinanceApprove,
+  onFinanceReject,
 }: {
   entry: QueueEntry;
   evidence: EvidenceEntry[];
   quotes: SupplierQuote[];
   /** D118 — 백엔드가 조회 시점에 렌더한 문서 미리보기. 목업 모드(라이브 아님)에서는 없다 */
-  documentsPreview?: { po_request: string; diagnosis: string | null } | null;
+  documentsPreview?: {
+    po_request: string;
+    diagnosis: string | null;
+    fund_execution: string | null;
+  } | null;
   /** 미지정이면 목업 모드 — 버튼이 아무것도 저장하지 않는다 */
   onApprove?: () => void;
   onReject?: (reason: string) => void;
+  /** MQ-1714 가 `getManagerIdentity().department === "finance"` 로 계산해 넘긴다 */
+  isFinanceApprover?: boolean;
+  onFinanceApprove?: () => void;
+  onFinanceReject?: (reason: string) => void;
 }) {
   const recommended = quotes.find((q) => q.recommended) ?? quotes[0];
 
@@ -63,14 +76,29 @@ export function PoDetail({
             sub="미리보기 — 발주 데이터를 조회 시점에 렌더한 문안"
             text={documentsPreview.po_request}
           />
+          <DocumentPreview
+            title="자금집행 요청서"
+            sub="미리보기 — 재무 승인 대기/완료 발주만 표시(팀장 승인 전에는 해당 없음)"
+            text={documentsPreview.fund_execution}
+          />
         </>
       )}
 
-      <DecisionBar
-        supplierName={recommended?.name ?? ""}
-        onApprove={onApprove}
-        onReject={onReject}
-      />
+      {isPendingState(entry.state) && (
+        <DecisionBar
+          supplierName={recommended?.name ?? ""}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+      )}
+      {isApprovedState(entry.state) && (
+        <FinanceDecisionBar
+          supplierName={recommended?.name ?? ""}
+          canAct={isFinanceApprover ?? false}
+          onApprove={onFinanceApprove}
+          onReject={onFinanceReject}
+        />
+      )}
     </div>
   );
 }

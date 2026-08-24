@@ -9,7 +9,7 @@
  *   → fetch + ReadableStream 으로 직접 파싱한다 (readSse 참조)
  */
 import type { Role } from "./role";
-import { ROLE_USER_ID } from "./role";
+import { getManagerIdentity, ROLE_USER_ID } from "./role";
 import type { ApprovalKind } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -18,9 +18,14 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:80
 /**
  * 역할·신원 헤더. requested_by/decided_by 는 백엔드가 이 값에서 주입한다 (D23).
  * X-User 는 **ASCII 사용자 ID** — 한글 표시명을 넣으면 fetch 가 거부한다 (D36).
+ *
+ * manager 는 고정 ID 가 아니다 — `/manager` 화면 안에서 정비팀장/재무담당을 전환할 수 있으므로
+ * (`getManagerIdentity()`, Sprint 17 D119) 실제 어느 신원인지는 매 호출 시점에 읽는다.
+ * `mgr-02`(재무담당)도 이미 ASCII 라 D36 위반 없음.
  */
 export function authHeaders(role: Role): Record<string, string> {
-  return { "X-Role": role, "X-User": ROLE_USER_ID[role] };
+  const userId = role === "manager" ? getManagerIdentity().userId : ROLE_USER_ID.technician;
+  return { "X-Role": role, "X-User": userId };
 }
 
 export async function apiFetch<T>(
@@ -165,12 +170,21 @@ export interface ApiPo {
   unit_price: number;
   reason: string;
   urgency: "urgent" | "normal";
-  state: "draft" | "pending" | "approved" | "rejected";
+  /** Sprint 17(D119) — `approved` 는 이제 팀장 승인 완료가 아니라 "재무 승인 대기"를 겸한다.
+   * 최종 확정은 `finance_approved`, 재무부 반려는 `finance_rejected` (표시는
+   * `lib/queueState.stateView("po", state)` 한 곳, D87). */
+  state: "draft" | "pending" | "approved" | "rejected" | "finance_approved" | "finance_rejected";
   requested_by: string | null;
   requested_by_name: string;
   decided_by: string | null;
   decided_by_name: string;
   decision_note: string | null;
+  /** 재무부 승인/반려자 — `approved`(팀장 승인) 이후 두 번째 결재 단계 (D119) */
+  finance_decided_by: string | null;
+  finance_decided_by_name: string;
+  finance_decision_note: string | null;
+  decided_at: string | null;
+  finance_decided_at: string | null;
   session_id: string | null;
   created_at: string;
   quotes?: { supplier_id: string; name: string; lead_days: number; unit_price: number; moq: number }[];
@@ -178,8 +192,9 @@ export interface ApiPo {
   alternatives?: { alt_part_no: string; alt_part_name: string; note: string | null }[];
   trace_url?: string | null;
   /** D118 — 조회 시점 렌더 미리보기(D86). 저장하지 않는다. `diagnosis`는 이 발주가
-   * 에러코드 진단에서 시작하지 않았으면(단종 대체 등) null 이다. */
-  documents_preview?: { po_request: string; diagnosis: string | null } | null;
+   * 에러코드 진단에서 시작하지 않았으면(단종 대체 등) null 이다. `fund_execution`은
+   * 재무부 승인(`finance_approved`) 이후에만 값이 있는 자금집행요청서 미리보기(D119). */
+  documents_preview?: { po_request: string; diagnosis: string | null; fund_execution: string | null } | null;
 }
 
 export interface ApiBasis {
@@ -215,6 +230,24 @@ export const approvePo = (poId: string, note?: string) =>
 /** pending → rejected. 사유 필수 (D38) — 없으면 백엔드가 422. */
 export const rejectPo = (poId: string, reason: string) =>
   apiFetch<ApiPo>(`/api/po/${poId}/reject`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+/**
+ * approved → finance_approved. **재무부만**(Sprint 17, D119) — `"manager"` 역할로 고정
+ * 호출하지만 `authHeaders`가 내부적으로 `getManagerIdentity()`를 참조하므로 실제 어느
+ * 재무 담당인지는 자동으로 반영된다(정비팀장 신원으로 부르면 403은 백엔드가 판정).
+ */
+export const financeApprovePo = (poId: string, note?: string) =>
+  apiFetch<ApiPo>(`/api/po/${poId}/finance-approve`, "manager", {
+    method: "POST",
+    body: JSON.stringify({ note: note ?? null }),
+  });
+
+/** approved → finance_rejected. 사유 필수(D38) — 없으면 백엔드가 422. */
+export const financeRejectPo = (poId: string, reason: string) =>
+  apiFetch<ApiPo>(`/api/po/${poId}/finance-reject`, "manager", {
     method: "POST",
     body: JSON.stringify({ reason }),
   });
@@ -998,6 +1031,9 @@ export const endpoints = {
   poSubmit: (poId: string) => `/api/po/${poId}/submit`,
   poApprove: (poId: string) => `/api/po/${poId}/approve`,
   poReject: (poId: string) => `/api/po/${poId}/reject`,
+  /** 재무부 승인/반려 (Sprint 17, D119) — approved → finance_approved|finance_rejected */
+  poFinanceApprove: (poId: string) => `/api/po/${poId}/finance-approve`,
+  poFinanceReject: (poId: string) => `/api/po/${poId}/finance-reject`,
   /** 통합 승인 큐 (D85) — 읽기 전용. 전이는 종류별 경로가 각자의 역할 게이트와 함께 한다 */
   approvals: "/api/approvals",
   decisions: "/api/decisions",

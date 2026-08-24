@@ -4,7 +4,13 @@ import type { Citation } from "./citation";
 /* -------------------------------------------------------------------------- */
 /* 발주 (docs/05_DB_SCHEMA §8)                                                */
 
-export type PoState = "draft" | "pending" | "approved" | "rejected";
+export type PoState =
+  | "draft"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "finance_approved"
+  | "finance_rejected";
 export type Urgency = "urgent" | "normal";
 
 export interface PoDraft {
