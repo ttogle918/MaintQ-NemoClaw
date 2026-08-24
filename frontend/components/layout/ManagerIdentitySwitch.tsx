@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { sx } from "@/lib/sx";
 import {
@@ -20,7 +20,17 @@ import {
  */
 export function ManagerIdentitySwitch() {
   const pathname = usePathname();
-  const [selected, setSelected] = useState(() => getManagerIdentity().userId);
+  // SSR-안전 초기값(항상 배열 0번째) — `getManagerIdentity()`를 초기화 함수로 바로 쓰면
+  // 서버 렌더(HTML)는 `window` 부재로 0번째를 내는데 클라이언트 첫 렌더는 즉시
+  // localStorage 를 읽어 값이 다를 수 있어(예: 이전에 재무담당을 선택해 둔 상태)
+  // hydration mismatch 로 전체 트리가 클라이언트 재렌더로 강등된다(실측: 2026-08-24 QA).
+  // 마운트 후 `useEffect`에서 실제 값으로 동기화한다 — 그 시점은 이미 hydration이 끝난
+  // 뒤라 안전하다.
+  const [selected, setSelected] = useState(MANAGER_IDENTITIES[0].userId);
+
+  useEffect(() => {
+    setSelected(getManagerIdentity().userId);
+  }, []);
 
   if (roleFromPath(pathname) !== "manager") return null;
 

@@ -63,6 +63,16 @@ export const MANAGER_IDENTITIES: ManagerIdentity[] = [
 
 const MANAGER_IDENTITY_KEY = "maintq_manager_identity";
 
+/**
+ * `setManagerIdentity()` 가 바뀔 때마다 쏘는 이벤트 — `ManagerIdentitySwitch`(AppBar,
+ * 레이아웃 레벨)와 `ApprovalQueueScreen`(페이지 콘텐츠, 형제 컴포넌트)이 React 상태를
+ * 공유하지 않아서, localStorage 만 바꿔서는 페이지 쪽이 재렌더할 계기가 없다(실측:
+ * 전환 직후 승인 버튼이 안 뜨고 새로고침해야만 반영되던 버그, 2026-08-24 QA에서 발견).
+ * 페이지 쪽이 이 이벤트를 구독해 강제 재렌더하면 `getManagerIdentity()`를 참조하는
+ * 모든 지점(헤더 라벨·`isFinanceApprover`)이 다음 렌더에서 자동으로 새 값을 읽는다.
+ */
+export const MANAGER_IDENTITY_CHANGE_EVENT = "maintq:manager-identity-change";
+
 /** SSR 안전 — `window` 없으면 기본값(정비팀장). */
 export function getManagerIdentity(): ManagerIdentity {
   if (typeof window === "undefined") return MANAGER_IDENTITIES[0];
@@ -73,4 +83,5 @@ export function getManagerIdentity(): ManagerIdentity {
 export function setManagerIdentity(userId: string): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(MANAGER_IDENTITY_KEY, userId);
+  window.dispatchEvent(new Event(MANAGER_IDENTITY_CHANGE_EVENT));
 }

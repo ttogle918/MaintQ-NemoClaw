@@ -35,7 +35,11 @@ import {
 } from "@/lib/api";
 import { toEvidenceEntries, toPoQueueEntry, toQueueEntry, toQuotes } from "@/lib/mappers";
 import { EVIDENCE_PO_0117, PENDING, QUOTES_PO_0117, RECENT } from "@/lib/mock/queue";
-import { getManagerIdentity } from "@/lib/role";
+import {
+  getManagerIdentity,
+  MANAGER_IDENTITIES,
+  MANAGER_IDENTITY_CHANGE_EVENT,
+} from "@/lib/role";
 import { sx } from "@/lib/sx";
 import type { QueueEntry } from "@/lib/types";
 
@@ -67,6 +71,17 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
   /** 수리 증빙 상세 — `kind === "repair"` 일 때만 채워진다 (MQ-1002) */
   const [repair, setRepair] = useState<ApiRepair | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * 현재 매니저 신원(헤더 라벨·`isFinanceApprover` 계산에 씀). 렌더 중 직접
+   * `getManagerIdentity()`를 부르지 않는다 — SSR 은 `window` 부재로 항상 배열 0번째를
+   * 내는데, hydration 중인 클라이언트 첫 렌더는 즉시 localStorage 를 읽어 값이 달라질 수
+   * 있어(예: 이전에 재무담당을 선택해 둔 상태) hydration mismatch 로 전체 트리가 클라이언트
+   * 재렌더로 강등된다(실측: 2026-08-24 QA). SSR-안전 기본값(배열 0번째)으로 초기화하고,
+   * 마운트 후 `useEffect`에서 실제 값으로 동기화 — `ManagerIdentitySwitch`(형제 컴포넌트,
+   * AppBar)가 전환 시 쏘는 이벤트도 같은 effect 가 구독해 반영한다(전환 직후 새로고침
+   * 없이도 반영되게 하는 수정, 같은 QA에서 함께 발견됨).
+   */
+  const [managerIdentity, setManagerIdentityState] = useState(MANAGER_IDENTITIES[0]);
   const [missing, setMissing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -142,6 +157,13 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const syncIdentity = () => setManagerIdentityState(getManagerIdentity());
+    syncIdentity(); // 마운트 직후(= hydration 완료 후) 실제 localStorage 값으로 1회 동기화
+    window.addEventListener(MANAGER_IDENTITY_CHANGE_EVENT, syncIdentity);
+    return () => window.removeEventListener(MANAGER_IDENTITY_CHANGE_EVENT, syncIdentity);
+  }, []);
+
   async function decide(action: "approve" | "reject", reason?: string) {
     if (!detail) return;
     try {
@@ -203,7 +225,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           </span>
           <Spacer />
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
-            {getManagerIdentity().label}
+            {managerIdentity.label}
           </span>
           <Avatar />
         </ConsoleHeader>
@@ -224,7 +246,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
                 documentsPreview={live && detail ? detail.documents_preview : undefined}
                 onApprove={live ? () => void decide("approve") : undefined}
                 onReject={live ? (reason) => void decide("reject", reason) : undefined}
-                isFinanceApprover={getManagerIdentity().department === "finance"}
+                isFinanceApprover={managerIdentity.department === "finance"}
                 onFinanceApprove={live ? () => void decideFinance("approve") : undefined}
                 onFinanceReject={live ? (reason) => void decideFinance("reject", reason) : undefined}
               />
