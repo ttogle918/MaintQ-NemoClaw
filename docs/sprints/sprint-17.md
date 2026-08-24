@@ -1622,3 +1622,39 @@ CLAUDE.md 공식 pytest 목록에 아직 미반영(`/done` 시 갱신 필요) �
 갱신 여부 확인 필요. **Stage 2 진입 조건 재확인**(reviewer가 명시적으로 짚음): 현재
 `approve()`가 여전히 A2A 출금 요청을 즉시 트리거한다 — Stage 2(MQ-1705)가 이 호출을
 `finance_approve()`로 반드시 옮겨야 하며, 이는 sprint-17.md에 이미 계획된 작업이다.
+
+---
+
+### Stage 2 완료 (2026-08-24)
+**커밋**: `80804fb` — `[M4] feat: Sprint 17 Stage 2 — finance-approve/reject 엔드포인트 + A2A 발신 시점 이동`
+(선행 문서 정비 `76dc766`가 별도 커밋으로 먼저 들어감 — Sprint 17 태스크는 아니지만 같은
+세션에서 `docs/13_DEPLOYMENT.md`를 Postgres/pgvector 전제로 갱신)
+
+#### MQ-1705 — `finance-approve`/`finance-reject` 엔드포인트 + A2A 이동
+- `backend/routers/po.py`(`approve()` 동기 복귀+A2A 제거, `_finance_transition_http()`
+  신규, `finance_approve`/`finance_reject` 신규) · `docs/06_REPO_API.md`(§2.2·§2.4)
+- Stage 1 게이트가 예고한 핵심 항목(A2A 발신 이동)을 curl 6케이스(403 role·403 department·
+  200 승인·200 반려·409 상태순서·422 사유공백)로 직접 검증
+
+#### MQ-1706 — 회귀: REST 계약(403/409/200)
+- `spikes/api_contract.py`에 신규 체크 6건(㊲~㊷) 추가, 41→47건
+- 실행 중 명세가 가정한 픽스처(PO-0117)가 앞선 체크에서 이미 소비돼 있던 걸 발견 — PO-0115로
+  교체해 해소(실측 기반 수정)
+
+#### MQ-1707 — 회귀: A2A 트리거 이동 재검증
+- `backend/routers/test_po_a2a_trigger.py` 전면 재작성(8개 함수) — `_seed_finance_manager()`
+  로컬 헬퍼로 격리 스키마에 없는 `mgr-02`/finance 픽스처 보강
+- 회귀: `test_po_a2a_trigger.py`+`test_po_a2a_dispatch.py` 13/13
+
+**eval-runner 종합**: seed 41/41(error_codes 70) · sp2_mcp_roundtrip 20/20 ·
+write_tool_contract 30/30 · api_contract 47/47 · sp3_sse_events 22/22 ·
+test_expenditure_limits 16/16 · test_po_a2a_trigger+test_po_a2a_dispatch 13/13 ·
+ruff clean. 인프라 노이즈(Windows Docker Desktop의 Postgres 포트포워딩 간헐적
+`ConnectionTimeout`, 2명의 tool-builder가 독립적으로 겪음)가 관측됐으나 재시도로 코드와
+무관함을 확인 — 최종 eval-runner 실행은 재시도 없이 1회차 클린.
+
+**reviewer 게이트**: PASS(블로커 없음). Stage 1이 예고한 3가지 핵심 확인 항목
+(`approve()`의 A2A 호출 제거 · `_finance_transition`의 컬럼 분리 · role→department 체크
+순서) 전부 코드로 재확인 완료. 비블로커 관찰 1건 — `finance_reject`의 pydantic 검증(422)이
+`require()`의 role 체크(403)보다 먼저 실행되는 기존 관성은 `reject()` 선례와 동일, 이번
+스테이지가 새로 만든 문제 아님.
