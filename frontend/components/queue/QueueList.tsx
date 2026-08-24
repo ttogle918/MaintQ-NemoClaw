@@ -15,12 +15,17 @@ export function QueueList({
   financePending = [],
   recent,
   selectedId,
+  showPending = true,
 }: {
   pending: QueueEntry[];
   /** 신규 — 비어 있으면 섹션 자체를 렌더하지 않는다 (Sprint 17, MQ-1714) */
   financePending?: QueueEntry[];
   recent: QueueEntry[];
   selectedId: string;
+  /** false면 "승인 대기" 섹션 자체를 숨긴다 — 재무담당 전용 화면(`/manager/finance`)이
+   * 재무 승인 대기만 보여줄 때 씀. 데이터를 지우는 게 아니라 이 화면의 관심사 밖이라
+   * 숨기는 것뿐이다(값은 여전히 상위에서 조회된다). */
+  showPending?: boolean;
 }) {
   return (
     <div
@@ -28,16 +33,20 @@ export function QueueList({
         "border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--panel)"
       )}
     >
-      <SectionLabel>승인 대기 · {pending.length}</SectionLabel>
-      <div style={sx("padding:0 12px;display:flex;flex-direction:column;gap:8px")}>
-        {pending.map((e) => (
-          <QueueItem key={`${e.kind}:${e.id}`} entry={e} selected={e.id === selectedId} />
-        ))}
-      </div>
+      {showPending && (
+        <>
+          <SectionLabel>승인 대기 · {pending.length}</SectionLabel>
+          <div style={sx("padding:0 12px;display:flex;flex-direction:column;gap:8px")}>
+            {pending.map((e) => (
+              <QueueItem key={`${e.kind}:${e.id}`} entry={e} selected={e.id === selectedId} />
+            ))}
+          </div>
+        </>
+      )}
 
       {financePending.length > 0 && (
         <>
-          <div style={sx("height:1px;background:var(--line);margin:14px 12px 0")} />
+          {showPending && <div style={sx("height:1px;background:var(--line);margin:14px 12px 0")} />}
           <SectionLabel>재무 승인 대기 · {financePending.length}</SectionLabel>
           <div style={sx("padding:0 12px;display:flex;flex-direction:column;gap:8px")}>
             {financePending.map((e) => (

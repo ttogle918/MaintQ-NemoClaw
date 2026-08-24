@@ -55,8 +55,20 @@ type Source = "loading" | "live" | "mock";
  *
  * 백엔드가 꺼져 있으면 목업으로 떨어지되 **배너로 명시**한다.
  * 조용히 목업을 보여주면 데모에서 "동작한다"는 오해를 만든다.
+ *
+ * `focus="finance"`(신규, 계정 선택 화면이 재무담당을 보낼 때)는 같은 데이터·같은
+ * 컴포넌트를 재사용하되 **일반 승인 대기 섹션을 숨기고 재무 승인 대기를 기본 선택**한다 —
+ * 재무담당이 이 화면에 들어오면 자기 일(재무 승인)이 바로 보이게 하려는 것뿐이지,
+ * 데이터 자체를 다르게 조회하지 않는다(권한은 여전히 백엔드 department 체크가 진짜로 막는다,
+ * D119 — 이 prop 은 UI 편의고 보안 경계가 아니다).
  */
-export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
+export function ApprovalQueueScreen({
+  selectedId,
+  focus = "all",
+}: {
+  selectedId?: string;
+  focus?: "all" | "finance";
+}) {
   const [source, setSource] = useState<Source>("loading");
   const [pending, setPending] = useState<ApiApproval[]>([]);
   /** 재무 승인 대기(po kind 로 한정) — "최근 처리" 4건 슬라이스와는 역할이 다르다 (Sprint 17) */
@@ -138,7 +150,10 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
         }
       }
 
-      const target = found ?? p[0] ?? null;
+      // focus="finance"면 기본 선택도 재무 승인 대기 첫 건이다 — 그래야 들어오자마자
+      // 자기가 처리할 항목이 바로 열린다. `found`(딥링크)가 있으면 그게 항상 우선이다.
+      const primaryList = focus === "finance" ? financeApproved : p;
+      const target = found ?? primaryList[0] ?? null;
       setSelected(target ? toQueueEntry(target) : null);
       // 종류별 상세는 각자의 경로에서 온다 — `/api/approvals` 는 목록 전용이다 (D85)
       setDetail(target?.kind === "po" ? await getPo("manager", target.id) : null);
@@ -151,7 +166,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
     } catch {
       setSource("mock");
     }
-  }, [selectedId]);
+  }, [selectedId, focus]);
 
   useEffect(() => {
     void load();
@@ -199,10 +214,13 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
 
   const live = source === "live";
   const pendingEntries = live ? pending.map(toQueueEntry) : PENDING;
+  const financePendingEntries = live ? financePending.map(toQueueEntry) : [];
   const recentEntries = live ? recent.map(toQueueEntry) : RECENT;
   const chosen = live
     ? selected
     : (pendingEntries.find((e) => e.id === selectedId) ?? pendingEntries[0] ?? null);
+  const headerLabel = focus === "finance" ? "재무 승인 대기" : "승인 대기";
+  const headerCount = focus === "finance" ? financePendingEntries.length : pendingEntries.length;
 
   return (
     <ScreenStack>
@@ -221,7 +239,7 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           <span style={sx("font:600 13px 'Pretendard';color:var(--ink)")}>MaintQ</span>
           <Divider />
           <span style={sx("font:700 13px 'Pretendard';color:var(--ink)")}>
-            승인 대기 <span style={sx("color:var(--orange-tx)")}>({pendingEntries.length})</span>
+            {headerLabel} <span style={sx("color:var(--orange-tx)")}>({headerCount})</span>
           </span>
           <Spacer />
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
@@ -234,9 +252,10 @@ export function ApprovalQueueScreen({ selectedId }: { selectedId?: string }) {
           <div style={sx("display:grid;grid-template-columns:280px 1fr;min-height:560px")}>
             <QueueList
               pending={pendingEntries}
-              financePending={live ? financePending.map(toQueueEntry) : []}
+              financePending={financePendingEntries}
               recent={recentEntries}
               selectedId={chosen.id}
+              showPending={focus !== "finance"}
             />
             {chosen.kind === "po" ? (
               <PoDetail
