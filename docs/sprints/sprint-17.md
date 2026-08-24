@@ -1658,3 +1658,45 @@ ruff clean. 인프라 노이즈(Windows Docker Desktop의 Postgres 포트포워�
 순서) 전부 코드로 재확인 완료. 비블로커 관찰 1건 — `finance_reject`의 pydantic 검증(422)이
 `require()`의 role 체크(403)보다 먼저 실행되는 기존 관성은 `reject()` 선례와 동일, 이번
 스테이지가 새로 만든 문제 아님.
+
+---
+
+### Stage 3 완료 (2026-08-24)
+**커밋**: `def1d19` — `[M4] feat: Sprint 17 Stage 3 — 내부통제 계산 조립 + doc3(자금집행요청서) 렌더`
+
+#### MQ-1708 — `get_po()` 내부통제 계산 + A2A 이력 조회 + doc3 게이트
+- `backend/services/po.py`(`_PO_SELECT`에 `finance_decided_by_name` LEFT JOIN,
+  `controls`/`a2a_info`/`payee` 계산 블록 신규)
+- MQ-1709와 병렬 완료 직후 통합 테스트까지 자체 수행(PO-0118·PO-0114 두 표본 렌더 확인)
+
+#### MQ-1709 — doc3 렌더 함수 + 검수 플래그
+- `backend/services/po_documents.py`(`render_fund_execution_document()` 신규, 상태
+  라벨·서명 시각 4-상태 확장) · `data/doc_review.py`(검수 플래그 신규)
+- 담보/대출 "해당 없음", MFA_STATUS "미구현" 고정 문구(D118) 그대로 반영 확인
+
+#### MQ-1710 — 회귀: doc3 렌더 계약 + 키집합 동기화
+- `spikes/api_contract.py`에 신규 5건, 47→52건
+- 스펙이 가정한 체크 배치(PO-0117/PO-0116 검증을 파일 뒤쪽에 이어 붙임)가 실제 실행
+  순서와 안 맞는 것을 발견 — 두 표본이 그 위치 전에 이미 approve/reject로 소비돼 있어,
+  MQ-1706의 PO-0117→PO-0115 치환과 같은 원칙으로 소비 전 시점에 재배치해 해소
+
+#### 회귀에서 발견해 커밋 전 직접 고친 버그 1건 (별도 태스크 아님)
+- `sod_check()` 호출 가드가 `finance_decided_by`만 확인해 `requested_by`가 NULL인 정상
+  상태(D23·D37)에서 `TypeError`로 죽던 버그를 `backend/routers/test_po_a2a_trigger.py`
+  4건 FAIL로 발견 — 가드를 신원 3종 전부 있을 때만 호출하도록 넓혀 해소.
+  `data/expenditure_limits.py::sod_check` 함수 자체는 스펙 원문 그대로 무변경(방어는
+  호출부 책임이라는 설계 유지)
+
+**eval-runner 종합**(2차 재확인 기준): seed 41/41(error_codes 70) · sp2_mcp_roundtrip
+20/20 · write_tool_contract 30/30 · api_contract 52/52 · sp3_sse_events 22/22 ·
+test_expenditure_limits 16/16 · test_po_a2a_trigger+test_po_a2a_dispatch 13/13 ·
+ruff clean · 순환 임포트 없음(`po`·`po_documents` 둘 다). 1차 회귀에서 위 버그로 인한
+FAIL 4건이 있었으나 수정 후 재실행에서 재시도 없이 1회차 클린.
+
+**reviewer 게이트**: PASS(블로커 없음). `sod_check` 가드 수정이 D62를 지키는지, 함수
+자체는 무변경인지, `spikes/api_contract.py`의 체크 재배치가 실제로 소비 전 시점에서
+실행되는지(파일을 직접 읽고 라인 순서 확인) 전부 검증 완료. 비블로커 관찰 2건 — ①
+`today_total` 쿼리의 `po_id != ?` 자기중복 방지 조건이 설계 스펙 원문에 없던 것이라
+`docs/10_DECISIONS.md`에 D 번호로 정식 등재하거나 스펙 문서 갱신 권장 ②
+`render_fund_execution_document()`의 담보/대출 섹션 문구가 스펙의 "해당 없음" 단문보다
+부가 설명이 붙어 있음(값을 지어낸 건 아니라 D62 위반 아님).
