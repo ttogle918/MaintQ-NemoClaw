@@ -1,5 +1,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# MaintQ — Northflank 배포용 Dockerfile
+# MaintQ — GCP Cloud Run 배포용 Dockerfile (2026-08-24 정정 — 배포 타깃을 Northflank에서
+# GCP Cloud Run + Supabase(Postgres+pgvector) + Vercel/Netlify(frontend)로 확정했다,
+# docs/13_DEPLOYMENT.md 참고. 아래 빌드·실행·최초 배포 절차 자체는 플랫폼 무관이라 그대로 유효.
 #
 # 구조:  FastAPI 백엔드 + MCP subprocess (단일 컨테이너)
 # DB:    Postgres (Sprint 16 MQ-1614 — SQLite→Postgres 전환 완료). 컨테이너는
@@ -85,7 +87,7 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# Health check — Northflank 가 서비스 상태를 판단하는 엔드포인트
+# Health check — Cloud Run 이 서비스 상태를 판단하는 엔드포인트
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 

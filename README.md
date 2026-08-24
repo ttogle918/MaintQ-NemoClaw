@@ -136,9 +136,9 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 > 누가 무엇을 판단했는지가 지워지면 승인의 의미가 사라진다(`data/related_parts.seed.json`
 > 의 `_승인_이력`).
 
-**회귀 현황**(2026-08-24 기준, `CLAUDE.md` 실측 기준선): spikes **33스위트 / 1,052건** · pytest **169건**
-(공식 3파일 83건 + Sprint 16에서 발견·수정한 A2A 8파일 86건, `docs/sprints/sprint-16-wip.md` 참고) ·
-seed **37건** · `error_codes` **70건** · 프론트 라우트 **21개**(`npx next build`).
+**회귀 현황**(2026-08-24 기준, `CLAUDE.md` 실측 기준선): spikes **33스위트 / 1,075건** · pytest **185건**
+(공식 4파일 99건 + Sprint 16에서 발견·수정한 A2A 8파일 86건, `docs/sprints/sprint-16-wip.md` 참고) ·
+seed **41건** · `error_codes` **70건** · 프론트 라우트 **22개**(`npx next build`).
 
 **재현 방법**:
 
@@ -159,7 +159,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 13 = 20종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D119** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D121** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 

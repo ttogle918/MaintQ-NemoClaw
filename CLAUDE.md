@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D119**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D121**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 13종** §8~§20, 총 20종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
@@ -82,12 +82,15 @@
   검사 ⑤(반복 고장)가 위양성 FAIL 한다.
   📌 이 두 함정으로 **에이전트가 두 번(MQ-708·MQ-713a) DB 를 망가뜨렸다.** 재시드 후에는
   `SELECT count(*) FROM error_codes` 가 **65** 인지 확인한다.
-- `data/rules/test_rules.py` · `backend/agent/test_llm_cache.py` · `data/external/test_elice_docvision.py`
+- `data/rules/test_rules.py` · `backend/agent/test_llm_cache.py` · `data/external/test_elice_docvision.py` ·
+  `data/test_expenditure_limits.py`
   — 룰 카탈로그(근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78)) + **LLM 응답 카세트**
   (D104 — 키·값 직렬화·`CachingClient`·`stats_line()`) + **Elice 지출 가드**(D105 — 캐시 우선·
-  네트워크 전 예외·가격 상수)
-  ⚠ 실행 커맨드(**3파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
-  backend/agent/test_llm_cache.py data/external/test_elice_docvision.py -q`**
+  네트워크 전 예외·가격 상수) + **내부통제 판정**(Sprint 17 MQ-1703 — 예산 한도·1일 누적 한도·
+  FDS·SoD 4종 순수 함수, D119)
+  ⚠ 실행 커맨드(**4파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
+  backend/agent/test_llm_cache.py data/external/test_elice_docvision.py
+  data/test_expenditure_limits.py -q`**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
@@ -138,7 +141,10 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **33스위트 / 1,052건**(전 33스위트 실제 Postgres 위에서 실측, `bundle_integrity` 포함).
+spikes **33스위트 / 1,075건**(전 33스위트 실제 Postgres 위에서 실측, `bundle_integrity` 포함 —
+1,052 에서 `api_contract`(+11, Sprint 17 D119 재무부 승인·doc3 계약)·`ui_honesty_contract`
+(+12, Sprint 18 대시보드 신규 파일 2건×6 — `EquipmentCard.tsx`·`manager/finance/page.tsx`)
+반영해 2026-08-24 재계산).
 **32→33**: Sprint 16 Stage 4(MQ-1613, 다른 세션이 이 세션 착수 전 이미
 커밋·push)가 `a2a_partner_tools_contract.py`(22건)를 신설했는데 이 문서 목록에 반영이 안 돼
 있었다 — `ls spikes/*.py` 실측으로 뒤늦게 발견해 여기서 정정한다. (`ls spikes/*.py` 는 37개를
@@ -146,14 +152,14 @@ spikes **33스위트 / 1,052건**(전 33스위트 실제 Postgres 위에서 실�
 `demo_recommendation_1_and_2.py` 는 PASS/FAIL 단언 없는 시연 스크립트)는 의도적으로 공식
 목록 밖이고, 나머지 2개(`a2a_outbound_contract.py`·`a2a_e2e_integration_spike.py`)는 진짜
 계약 스파이크이지만 아직 공식 33종에 편입할지 결정 전이다 — 포팅은 완료됨,
-`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **37건**(불변 아님 —
+`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **41건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
 `error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **21개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
+프론트 라우트 **22개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이
 다르다**. '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라
 재실행 불필요**, Sprint 10 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence`
@@ -161,9 +167,11 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 `/manager/deadlines`·`/manager/risk-grade` 2개 증가: 16→17→18. **18→19**: P40 v2 Plan 1(MUI 레이아웃
 격리 확인, 2026-08-21)이 `/v2/manager/po/[poId]` 를 신설했으나 이 문서에는 반영이 안 돼 있었다 —
 D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함께 정정한다. **19→21**: D111이
-`/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21, 이후 불변). spikes 스위트별 건수:
+`/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21. **21→22**(2026-08-24,
+"빠른 정리" 세션): 계정 선택 화면 작업이 `/manager/finance`(재무담당 전용 랜딩)를 신설했다,
+이후 불변). spikes 스위트별 건수:
 `a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
-`agent_loop_contract 35` · `api_contract 41` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`agent_loop_contract 35` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
@@ -172,7 +180,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 291` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 303` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**
@@ -362,6 +370,15 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > **재발 방지책이 필요하면**: `docs/10_DECISIONS.md` 에 Postgres 마이그레이션 자체를 다루는
 > D-결정이 아직 없다 — 다음 세션이 D10 가드 재구현 방식·`dbcompat` 계층·`pg_isolation` 스키마
 > 전략·"서브프로세스는 `DATABASE_URL` 을 격리 DSN 으로 받아야 한다" 규칙을 D 번호로 등재할 것.
+
+> **pytest 83→99 · spikes 1,052→1,075 · seed 37→41 (2026-08-24, "빠른 정리" 세션)**:
+> `data/test_expenditure_limits.py`(16건, MQ-1703 — 예산 한도·1일 누적 한도·FDS·SoD 4종
+> 순수 함수, D119)가 커밋 시점부터 이미 존재했으나 위 "회귀 스위트" 절 공식 목록에 반영이 안
+> 돼 있었다 — 실측(`uv run --with pytest python -m pytest data/test_expenditure_limits.py -q`,
+> 16 passed)으로 확인 후 공식 목록에 편입하며 커맨드를 3파일 합산 → **4파일 합산**으로 갱신했다.
+> 같은 세션에서 이미 실측 확정돼 있던 spikes(`api_contract` 52·`ui_honesty_contract` 303,
+> Sprint 17·18 반영분)·seed 41건(D119 CHECK 제약 검증 ㊲~㊵ 4건 추가)도 위 스위트별 표·헤드라인에
+> 함께 정정했다 — 실행 결과가 표기와 어긋나 있던 것을 이 세션에서 발견·정리.
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
