@@ -103,7 +103,11 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
     });
   }
 
-  const symptoms = po.evidence?.symptoms ?? [];
+  // evidence 는 LLM 이 자유 형식으로 채운다(D34, 스키마 강제 없음) — symptoms 가 배열이 아니라
+  // 통짜 문자열로 오는 경우가 실측됐다(evidence.basis 와 같은 함정, 88bd22f). 죽지도, 지어내지도
+  // 않는다 — 문자열이면 항목 1개짜리 배열로 취급한다.
+  const symptomsRaw = po.evidence?.symptoms ?? [];
+  const symptoms = Array.isArray(symptomsRaw) ? symptomsRaw : [symptomsRaw];
   if (symptoms.length) {
     rows.push({ label: "SYMPTOMS", value: symptoms.join(" · ") });
   }
@@ -164,7 +168,11 @@ export function toEvidenceEntries(po: ApiPo): EvidenceEntry[] {
  * 로 정직하게 병기한다 (W-6 표시측 해소, Stage 1).
  */
 function firstCitation(po: ApiPo): Citation | undefined {
-  const basis = po.evidence?.basis?.find((b) => typeof b.manual_page === "number");
+  // basis 도 symptoms 와 같은 함정이 있다 — LLM 이 배열이 아니라 문자열로 채운 실측 사례가
+  // 이미 있다(backend/services/po.py::_attach_print_pages, 88bd22f). 배열이 아니면 인용 없음으로
+  // 정직하게 처리한다(지어내지 않는다).
+  const basisList = Array.isArray(po.evidence?.basis) ? po.evidence.basis : [];
+  const basis = basisList.find((b) => typeof b.manual_page === "number");
   if (!basis || typeof basis.manual_page !== "number") return undefined;
   return {
     manual: `${po.model ?? ""} 매뉴얼`.trim(),

@@ -14,6 +14,10 @@ data-analysis/data/processed/
 *.db-wal
 *.db-shm
 
+# 로컬 포트 오버라이드 (docker-compose.override.yml 은 docker compose 가 자동 병합한다) —
+# 다른 프로젝트(FinAllQ 등)와 로컬 포트가 겹칠 때 개인 환경에서만 바꿔 쓰는 파일이라 커밋 대상 아님.
+docker-compose.override.yml
+
 # 환경·시크릿
 .env
 # Next.js 로컬 오버라이드 — 개인별 파일이라 커밋 대상이 아니다.

@@ -36,7 +36,9 @@ def search_insurance_clause(question: str) -> dict:
     url = f"{base_url.rstrip('/')}/api/a2a/lookup-clause"
 
     try:
-        resp = httpx.post(url, json={"question": question}, timeout=12.0)
+        # backend/routers/a2a.py 의 InsuQ 호출 타임아웃(25초, InsuQ RAG 실측 ~11초 대응)보다
+        # 여유 있게 잡는다 — 안 그러면 이 도구가 먼저 끊겨서 백엔드 응답을 못 받는다.
+        resp = httpx.post(url, json={"question": question}, timeout=30.0)
     except httpx.TimeoutException as exc:
         return {"status": "error", "reason": "timeout", "message": str(exc)}
     except httpx.HTTPError as exc:

@@ -32,7 +32,13 @@ from backend.services import po as po_svc
 
 logger = logging.getLogger(__name__)
 
-# 09_RUNTIME §2 — 상한. TOOL_TIMEOUT_SEC 는 mcp_client 소유라 재정의하지 않는다
+# 09_RUNTIME §2 — 상한. TOOL_TIMEOUT_SEC(기본 10초, mcp_client 소유)는 도구별로 재정의하지
+# 않는 게 원칙이지만, search_insurance_clause 하나만 예외를 둔다 — InsuQ RAG 파이프라인 실측
+# 응답 시간이 ~11.3초(2026-08-24 리허설, curl 직결 확인)라 기본 10초로는 구조적으로 항상
+# 타임아웃난다. 다른 18종 도구는 기본값 그대로 — 이 사전은 "예외 목록"이지 새 기본값이 아니다.
+_TOOL_TIMEOUT_OVERRIDES: dict[str, float] = {
+    "search_insurance_clause": 25.0,
+}
 MAX_TOOL_CALLS_PER_TURN = 8
 MAX_LLM_CALLS_PER_TURN = 10
 MAX_LLM_CALLS_PER_SESSION = 50
@@ -476,7 +482,9 @@ async def run_turn(
             # trace 패널이 "0.0s · N calls" 라는 거짓을 표시했다. 계약(06_REPO_API)이
             # 필드로 명시한 값이 상시 거짓이면 감사 화면의 신뢰가 통째로 무너진다.
             t0 = time.perf_counter()
-            outcome = await client.call(tu.name, tu.input, timeout=TOOL_TIMEOUT_SEC)
+            outcome = await client.call(
+                tu.name, tu.input, timeout=_TOOL_TIMEOUT_OVERRIDES.get(tu.name, TOOL_TIMEOUT_SEC)
+            )
             elapsed = time.perf_counter() - t0
             payload = outcome if isinstance(outcome, dict) else {"status": "error"}
             status = str(payload.get("status", "error"))

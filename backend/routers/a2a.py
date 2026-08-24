@@ -44,6 +44,10 @@ async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
             payload=payload,
             request_chain_id=chain_id,
             base_url=base_url,
+            # InsuQ RAG 파이프라인 실측 응답 시간이 ~11초라 기본 10초보다 길다(2026-08-24 리허설 확인,
+            # curl 직결 시 11.302s) — 다른 두 스킬(request-withdrawal·assess-loan)은 기본값으로 충분해
+            # 여기만 늘린다.
+            timeout=25.0,
         )
 
         res["request_chain_id"] = chain_id  # 파트너가 echo 안 해도 MCP 도구가 항상 상관관계 키를 받게 한다
