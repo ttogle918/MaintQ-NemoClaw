@@ -1,27 +1,27 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { countHotspotColors, EquipmentCard } from "@/components/asset/EquipmentCard";
 import { ConsoleFrame, ConsoleHeader, ScreenStack, Spacer } from "@/components/layout/ConsoleFrame";
 import { StatusBanner } from "@/components/layout/StatusBanner";
 import { Avatar, Divider, Logo } from "@/components/ui/Chip";
 import { Mono } from "@/components/ui/Mono";
 import { getAssets, getHotspotStatus, type ApiAsset, type ApiHotspotStatus } from "@/lib/api";
-import { MODEL_BASE_IMAGE, MODEL_CITATION } from "@/lib/hotspots";
-import { hotspotColorView } from "@/lib/mappers";
 import { ROLE_USER_NAME } from "@/lib/role";
 import { sx } from "@/lib/sx";
 
-/** 한 페이지에 보여줄 카드 수 — 가로 4 × 세로 3 그리드 (Sprint 18 후속 요청). */
-const PAGE_SIZE = 12;
-const GRID_COLS = 4;
+/** 한 페이지에 보여줄 카드 수 — 가로 3 × 세로 3 그리드(사용자 요청, 2026-08-24 4×3에서 축소). */
+const PAGE_SIZE = 9;
+const GRID_COLS = 3;
 
 /**
  * `/technician/equipment-status` — 설비 하이라이트 대시보드 목록 (Sprint 10 브레인스토밍 C).
  *
  * 독립된 신규 화면이다(`asset` 목록과 별개, spec §4-1 "독립된 새 대시보드 화면"). 자산마다
  * `hotspot-status`를 조회해 배지(🔴N 🟠N 🔵N)를 붙인다 — 9개뿐이라 병렬 호출로 충분하다.
- * 카드는 4×3 그리드로 페이지네이션된다(한 페이지 12개) — 세로로 길게 늘어지지 않게.
+ * 카드는 3×3 그리드로 페이지네이션된다(한 페이지 9개). 오른쪽 사이드바는 다른 메뉴·
+ * 워크플로우를 위해 비워 둔 자리다(2026-08-24 사용자 요청 — 무엇을 넣을지는 미정, 지금은
+ * 구조만 잡아 둔다. 없는 기능을 있는 것처럼 채우지 않는다, D87과 같은 태도).
  */
 export default function EquipmentStatusListPage() {
   const [assets, setAssets] = useState<ApiAsset[] | null>(null);
@@ -90,34 +90,64 @@ export default function EquipmentStatusListPage() {
           <Avatar />
         </ConsoleHeader>
 
-        <div style={sx("padding:14px 16px;display:flex;flex-direction:column;gap:14px")}>
-          {assets === null ? (
-            <div style={sx("font:12.5px 'Pretendard';color:var(--dim);padding:20px 0")}>
-              불러오는 중…
-            </div>
-          ) : assets.length === 0 ? (
-            <div style={sx("font:12.5px 'Pretendard';color:var(--dim);padding:20px 0")}>
-              설비가 없습니다.
-            </div>
-          ) : (
-            <>
-              <div
-                style={sx(
-                  `display:grid;grid-template-columns:repeat(${GRID_COLS},1fr);gap:12px`
-                )}
-              >
-                {pagedAssets.map((a) => (
-                  <EquipmentCard key={a.asset_id} asset={a} status={statusByAsset.get(a.asset_id)} />
-                ))}
+        <div style={sx("padding:14px 16px;display:grid;grid-template-columns:1fr 240px;gap:16px")}>
+          <div style={sx("display:flex;flex-direction:column;gap:14px;min-width:0")}>
+            {assets === null ? (
+              <div style={sx("font:12.5px 'Pretendard';color:var(--dim);padding:20px 0")}>
+                불러오는 중…
               </div>
-              {pageCount > 1 && (
-                <Pagination page={clampedPage} pageCount={pageCount} onChange={setPage} />
-              )}
-            </>
-          )}
+            ) : assets.length === 0 ? (
+              <div style={sx("font:12.5px 'Pretendard';color:var(--dim);padding:20px 0")}>
+                설비가 없습니다.
+              </div>
+            ) : (
+              <>
+                <div
+                  style={sx(
+                    `display:grid;grid-template-columns:repeat(${GRID_COLS},1fr);gap:12px`
+                  )}
+                >
+                  {pagedAssets.map((a) => (
+                    <EquipmentCard key={a.asset_id} asset={a} status={statusByAsset.get(a.asset_id)} />
+                  ))}
+                </div>
+                {pageCount > 1 && (
+                  <Pagination page={clampedPage} pageCount={pageCount} onChange={setPage} />
+                )}
+              </>
+            )}
+          </div>
+
+          <WorkflowSidebar />
         </div>
       </ConsoleFrame>
     </ScreenStack>
+  );
+}
+
+/**
+ * 오른쪽 사이드바 — 다른 메뉴·워크플로우 자리(2026-08-24 사용자 요청, 무엇을 넣을지는
+ * 아직 안 정해짐). 빈 상태를 정직하게 "준비 중"으로 표시한다 — 있지도 않은 메뉴를
+ * 지어내 채우지 않는다(D87과 같은 태도).
+ */
+function WorkflowSidebar() {
+  return (
+    <aside
+      style={sx(
+        "border-left:1px solid var(--line);padding-left:16px;display:flex;" +
+          "flex-direction:column;gap:8px"
+      )}
+    >
+      <span style={sx("font:700 11.5px 'Pretendard';color:var(--dim)")}>빠른 메뉴</span>
+      <div
+        style={sx(
+          "border:1px dashed var(--line);border-radius:8px;padding:16px;" +
+            "font:11.5px 'Pretendard';color:var(--dim2);text-align:center"
+        )}
+      >
+        준비 중
+      </div>
+    </aside>
   );
 }
 
@@ -163,20 +193,6 @@ function Pagination({
   );
 }
 
-/** `EquipmentRow`의 배지 카운팅 루프 + `rankAsset`/`compareAssets`가 함께 쓰는 순수 함수. */
-function countHotspotColors(
-  status: ApiHotspotStatus | undefined
-): { red: number; orange: number; blue: number } {
-  const parts = status?.parts ?? [];
-  const counts = { red: 0, orange: 0, blue: 0 };
-  for (const p of parts) {
-    if (p.color === "red") counts.red += 1;
-    else if (p.color === "orange") counts.orange += 1;
-    else if (p.color === "blue") counts.blue += 1;
-  }
-  return counts;
-}
-
 /**
  * 정렬 우선순위 등급. tier 0=🔴 있음 → 1=🟠만 → 2=🔵만 → 3=정상 → 4=상태 미상/로딩 중/조회 실패.
  * 등급 판단은 하이라이트 상태(`status.status`) 기준이지 모델 정보 유무 기준이 아니다.
@@ -211,119 +227,4 @@ function compareAssets(
     if (rb.totalCount !== ra.totalCount) return rb.totalCount - ra.totalCount;
   }
   return a.asset_id.localeCompare(b.asset_id);
-}
-
-/**
- * 그리드 셀 1칸(세로 카드) — 기존 가로 1행(`EquipmentRow`)을 4열 그리드에 맞게 세로
- * 레이아웃으로 재구성했다(Sprint 18 후속 요청, 목록을 가로로 늘어뜨리지 않고 4×3으로).
- * 순서(품번명·명칭 → 큰 이미지 → 위치·설명 → 이상탐지 배지)는 사용자가 그려 준 와이어프레임
- * 그대로다. 배지·정직성 분기(D87) 로직은 그대로, 배치만 바뀐다.
- */
-function EquipmentCard({
-  asset,
-  status,
-}: {
-  asset: ApiAsset;
-  status: ApiHotspotStatus | undefined;
-}) {
-  const counts = countHotspotColors(status);
-  const model = status?.model;
-  const baseImage = model ? MODEL_BASE_IMAGE[model] : undefined;
-  const citation = model ? MODEL_CITATION[model] : undefined;
-
-  return (
-    <Link
-      href={`/technician/equipment-status/${encodeURIComponent(asset.asset_id)}`}
-      style={sx(
-        "border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;" +
-          "display:flex;flex-direction:column;gap:8px;text-decoration:none"
-      )}
-    >
-      <div style={sx("display:flex;flex-direction:column;gap:2px;min-width:0")}>
-        <Mono size={11}>{asset.asset_id}</Mono>
-        <span
-          style={sx(
-            "font:700 13px 'Pretendard';color:var(--ink);white-space:nowrap;" +
-              "overflow:hidden;text-overflow:ellipsis"
-          )}
-        >
-          {asset.name}
-        </span>
-      </div>
-
-      {model === undefined ? (
-        // 로딩 중 또는 조회 실패 — 지어내지 않는다(D87), 빈 스켈레톤만 둔다.
-        <div
-          style={sx(
-            "width:100%;aspect-ratio:4/3;background:var(--sw);border-radius:6px"
-          )}
-        />
-      ) : baseImage ? (
-        // eslint-disable-next-line @next/next/no-img-element -- 크롭된 정적 자산, 최적화 불필요
-        <img
-          src={baseImage}
-          alt={`${model} 도면`}
-          style={sx(
-            "width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;" +
-              "border:1px solid var(--line)"
-          )}
-        />
-      ) : (
-        // model 은 있지만 도면 좌표 미보유(IE5, D109) — 안전 문구·RAG 청킹과 같은 이유로 이
-        // 하이라이트 좌표도 iG5A·S100만 커버한다. 현재 시드에 model='IE5' 인스턴스가 없어
-        // (equipment.model CHECK 2종 유지) 실사용에서 도달하지 않는 방어적 분기.
-        <div
-          style={sx(
-            "width:100%;aspect-ratio:4/3;background:var(--sw);border-radius:6px;" +
-              "display:flex;align-items:center;justify-content:center;color:var(--dim2);" +
-              "font-size:32px"
-          )}
-        >
-          ⚙
-        </div>
-      )}
-
-      <div style={sx("font:11px 'Pretendard';color:var(--dim)")}>
-        라인 {asset.line_id ?? "미배정"}
-        {status?.model && ` · ${status.model}`}
-      </div>
-
-      {citation && (
-        <span style={sx("font:8.5px 'Pretendard';color:var(--dim2);line-height:1.3")}>
-          {citation}
-        </span>
-      )}
-
-      {status === undefined ? (
-        <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>확인 중…</span>
-      ) : status.status !== "ok" ? (
-        <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>상태 미상</span>
-      ) : (
-        <div style={sx("display:flex;gap:8px;flex-wrap:wrap")}>
-          {counts.red > 0 && (
-            <Badge color={hotspotColorView("red").dotColor ?? "var(--ink)"}>🔴 {counts.red}</Badge>
-          )}
-          {counts.orange > 0 && (
-            <Badge color={hotspotColorView("orange").dotColor ?? "var(--ink)"}>
-              🟠 {counts.orange}
-            </Badge>
-          )}
-          {counts.blue > 0 && (
-            <Badge color={hotspotColorView("blue").dotColor ?? "var(--ink)"}>
-              🔵 {counts.blue}
-            </Badge>
-          )}
-          {counts.red + counts.orange + counts.blue === 0 && (
-            <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>정상</span>
-          )}
-        </div>
-      )}
-    </Link>
-  );
-}
-
-function Badge({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <span style={sx(`font:700 11.5px 'Pretendard';color:${color}`)}>{children}</span>
-  );
 }
