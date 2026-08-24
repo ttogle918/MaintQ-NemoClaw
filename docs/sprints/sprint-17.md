@@ -1700,3 +1700,73 @@ FAIL 4건이 있었으나 수정 후 재실행에서 재시도 없이 1회차 �
 `docs/10_DECISIONS.md`에 D 번호로 정식 등재하거나 스펙 문서 갱신 권장 ②
 `render_fund_execution_document()`의 담보/대출 섹션 문구가 스펙의 "해당 없음" 단문보다
 부가 설명이 붙어 있음(값을 지어낸 건 아니라 D62 위반 아님).
+
+---
+
+### Stage 4 완료 (2026-08-24) — Sprint 17 마지막 스테이지
+
+**커밋**: `754baf4` — `[M4] feat: Sprint 17 Stage 4 — 재무부 신원 전환 UX + 화면 반영 (마지막 스테이지)`
+
+#### MQ-1711 — 재무부 신원 전환 UX
+- `frontend/lib/role.ts`(`ManagerIdentity`·`MANAGER_IDENTITIES`·localStorage 기반
+  `getManagerIdentity`/`setManagerIdentity`) · `ManagerIdentitySwitch.tsx`(신규) ·
+  `AppBar.tsx`
+- 병렬 진행 중 MQ-1712가 같은 파일에 선제로 같은 코드를 써놓은 걸 스스로 발견해 중복 선언
+  정리(다른 태스크와의 파일 충돌을 tool-builder가 직접 해소한 사례)
+
+#### MQ-1712 — API 클라이언트/타입 확장
+- `frontend/lib/api.ts`·`types.ts`·`queueState.ts`(`po.approved` tone `ok`→`info`) ·
+  `frontend/lib/__checks__/ui_honesty.ts`(공식 회귀 대조군을 `finance_approved`로 이동,
+  tool-builder 현실성 평가가 사전에 잡아 둔 필수 항목)
+- 회귀: `ui_honesty_contract.py` 291/291(CLAUDE.md 기준선과 일치)
+
+#### MQ-1713 — `PoDetail` 재무 액션 UI
+- `FinanceDecisionBar.tsx`(신규) · `PoDetail.tsx`
+- 명세는 "DecisionBar 구조 복제"였으나 기존 `RejectPanel`을 재사용하는 쪽으로 판단(D38 취지에
+  더 맞음, 중복 코드 없음)
+
+#### MQ-1714 — 승인 큐 화면 재무 대기열 wiring
+- `ApprovalQueueScreen.tsx`(재무 대기열 조회 분리, `decideFinance()`, 딥링크 `found` 확장) ·
+  `QueueList.tsx`("재무 승인 대기" 섹션)
+- `next build` 클린(21라우트, 신규 라우트 없음) — MQ-1711/1712/1713과 통합 그린까지 자체 확인
+
+#### 커밋 전 직접 반영한 비블로커 정정 2건 (reviewer 관찰, 별도 태스크 아님)
+- `StatusLegend.tsx` — `approved` 범례가 여전히 "발주 확정"(구 의미)이던 것을 "팀장 승인 —
+  재무 승인 대기 (D119)"로, `finance_approved`/`finance_rejected` 범례 신규 추가
+- `ApprovalQueueScreen.tsx`의 "최근 처리"(`done`) 목록에서 이제 비종결인 `approved` po를
+  제외 — `financePending` 섹션이 이미 그 항목을 보여주므로 중복이자 오해 소지 제거
+
+**eval-runner 종합**: seed 41/41(error_codes 70) · sp2_mcp_roundtrip 20/20 ·
+write_tool_contract 30/30 · api_contract 52/52(변동 없음, 프론트 전용 스테이지) ·
+sp3_sse_events 22/22 · test_expenditure_limits 16/16 · test_po_a2a_trigger+dispatch
+13/13(1차 WinError 10014 소켓 고갈, 단독 재실행으로 해소) · ruff clean · `tsc --noEmit`
+clean · `next build` 21라우트 · `ui_honesty_contract.py` 291/291.
+
+**reviewer 게이트**: PASS(블로커 없음). D87(`approved` tone 전환이 실제로 초록 누수 없이
+됐는지)·L1 순수성(`role.ts`)·`MANAGER_IDENTITIES[0]` 순서·재무 대기열 조회 분리·
+`decideFinance()`의 REST 계약 일치 전부 코드로 직접 확인. 비블로커 관찰 2건은 위에서
+바로 반영, 1건(SSR 하이드레이션 잠재 경고, 기존 패턴과 동일 — 이번 스테이지 고유 결함
+아님)은 정보성으로만 기록.
+
+---
+
+## Sprint 17 완료
+
+**Stage 1~4 전부 완료.** doc3(자금집행요청서) 렌더 + 재무부 승인 단계(D119)가 실제로 동작한다
+— DB 스키마 확장부터 내부통제 판정·REST 엔드포인트·문서 렌더·화면 반영까지 전 층이 연결됨.
+14개 태스크(MQ-1701~1714) 전부 완료, 회귀 스위트 전건 그린. 커밋 순서:
+`12df5f5`(선행 인프라 픽스) → `7b28aee`+`adca285`(Stage 1) → `76dc766`(배포 문서 갱신,
+Sprint 17 태스크는 아님) → `80804fb`+`26fa15b`(Stage 2) → `def1d19`+`366e637`(Stage 3) →
+`754baf4`(Stage 4).
+
+**다음 세션 확인 사항**:
+- `data/test_expenditure_limits.py`(16건)를 CLAUDE.md 공식 pytest 목록에 반영(현재 "3파일군
+  +4파일군"에 미포함)
+- `docs/10_DECISIONS.md`에 D120 후보로 `today_total` 자기중복 배제 조건 정식 등재 검토
+  (Stage 3 reviewer 관찰)
+- `.env.example`의 `INSUQ_SERVICE_TOKEN`/`FINALLQ_SERVICE_TOKEN` 커밋 여부(사용자 판단 대기,
+  이번 스프린트 동안 계속 미결)
+- `docs/sessions/2026-08-24_spikes_test.md`(터미널 로그 원문 덤프, 미추적) 정리 여부(사용자
+  판단 대기)
+- 브라우저 기반 수동 QA(신원 전환·재무 승인 큐 실제 클릭 흐름) — 사용자가 스프린트 종료 후
+  진행하기로 함
