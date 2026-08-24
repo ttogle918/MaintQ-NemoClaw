@@ -43,14 +43,17 @@ MGR = {"X-Role": "manager", "X-User": "mgr-01"}
 # (기준선을 두 곳에 적으면 한쪽만 고쳐도 조용히 어긋난다).
 PO_LIST_ITEM_KEYS = frozenset(
     {
-        "created_at", "decided_by", "decided_by_name", "decision_note", "error_code",
-        "evidence", "model", "part_name", "part_no", "po_id", "qty", "reason",
-        "requested_by", "requested_by_name", "session_id", "state", "supplier_id",
-        "supplier_name", "unit_price", "urgency",
+        "created_at", "decided_at", "decided_by", "decided_by_name", "decision_note",
+        "error_code", "evidence", "finance_decided_at", "finance_decided_by",
+        "finance_decision_note", "model", "part_name", "part_no", "po_id", "qty", "reason",
+        "requested_by", "requested_by_name", "requested_by_department", "session_id",
+        "state", "supplier_id", "supplier_name", "unit_price", "urgency",
     }
 )
-# 상세는 목록 + 화면 B 재료 3종
-PO_DETAIL_KEYS = PO_LIST_ITEM_KEYS | {"quotes", "inventory", "trace_url"}
+# 상세는 목록 + 화면 B 재료 3종 + D118(01·02 렌더) 가산 3종
+PO_DETAIL_KEYS = PO_LIST_ITEM_KEYS | {
+    "quotes", "inventory", "trace_url", "alternatives", "error_code_def", "documents_preview",
+}
 
 
 #: seq 를 **일부러 뒤섞어** INSERT 한다 — 저장 순서가 아니라 `ORDER BY seq` 가

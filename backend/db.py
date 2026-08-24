@@ -14,7 +14,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg
-from psycopg import sql
 
 from data.dbcompat import CompatCursor, sqlite_row_factory
 

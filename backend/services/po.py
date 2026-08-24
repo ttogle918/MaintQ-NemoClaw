@@ -7,8 +7,10 @@ MCP 도구 스키마에 `requested_by` 가 있으면 LLM 이 그 값을 채울 �
 백엔드는 사람 쪽 코드라 UPDATE 권한이 있어도 되고(D10 은 MCP 도구만 제약),
 LLM 은 이 경로에 개입할 수 없다.
 
-**상태 전이 (docs/06_REPO_API.md §2.4)**
+**상태 전이 (docs/06_REPO_API.md §2.4, D119 재무부 승인 단계 확장)**
     draft ──submit(정비사)──▶ pending ──approve(팀장)──▶ approved
+                                 │                          ├──finance-approve(재무부)──▶ finance_approved
+                                 │                          └──finance-reject(재무부)───▶ finance_rejected
                                  └──────reject(팀장)──▶ rejected
 전이의 주체(역할)는 라우터가, 전이의 순서(현재 상태)는 여기서 강제한다.
 """
@@ -29,6 +31,8 @@ ALLOWED_FROM: dict[str, str] = {
     "pending": "draft",
     "approved": "pending",
     "rejected": "pending",
+    "finance_approved": "approved",
+    "finance_rejected": "approved",
 }
 
 
@@ -373,7 +377,18 @@ def transition(
     note: str | None = None,
     db_path: Path | None = None,
 ) -> dict:
-    """상태 전이. 현재 상태가 맞지 않으면 TransitionError."""
+    """상태 전이. 현재 상태가 맞지 않으면 TransitionError.
+
+    `now_utc_sql` 은 함수 안에서 지연 임포트한다 — `decisions.py` 가(직접, 그리고
+    `disposal.py` 를 거쳐 간접적으로) `po.py` 를 이미 임포트하므로, 이 파일 상단에
+    `from backend.services.decisions import now_utc_sql` 을 두면 `po → decisions →
+    disposal → po`(초기화 도중, `iso_utc` 미정의) 순환 임포트가 실제로 발생한다
+    (실측 확인됨 — `repairs.py` 의 상단 임포트 선례는 `repairs.py` 자신이 그 순환
+    사이클에 들어 있지 않아 성립하는 것이라 `po.py` 에는 그대로 적용되지 않는다).
+    함수 호출 시점엔 두 모듈이 이미 완전히 로드돼 있어 이 지연 임포트는 안전하다.
+    """
+    from backend.services.decisions import now_utc_sql
+
     with connect(db_path) as con:
         r = con.execute("SELECT state FROM po_drafts WHERE po_id = ?", (po_id,)).fetchone()
         if r is None:
@@ -385,9 +400,34 @@ def transition(
             con.execute("UPDATE po_drafts SET state = ? WHERE po_id = ?", (target, po_id))
         else:
             con.execute(
-                "UPDATE po_drafts SET state = ?, decided_by = ?, decision_note = ? WHERE po_id = ?",
-                (target, decided_by, note, po_id),
+                "UPDATE po_drafts SET state = ?, decided_by = ?, decision_note = ?,"
+                " decided_at = ? WHERE po_id = ?",
+                (target, decided_by, note, now_utc_sql(), po_id),
             )
+    return get_po(po_id, db_path) or {}
+
+
+def _finance_transition(
+    po_id: str,
+    target: str,
+    finance_decided_by: str,
+    note: str | None,
+    db_path: Path | None = None,
+) -> dict:
+    """재무 승인 전이. 팀장 전용 `decided_by`/`decision_note`와 별도 컬럼 3종을 쓴다."""
+    from backend.services.decisions import now_utc_sql
+
+    with connect(db_path) as con:
+        r = con.execute("SELECT state FROM po_drafts WHERE po_id = ?", (po_id,)).fetchone()
+        if r is None:
+            raise KeyError(po_id)
+        if r["state"] != ALLOWED_FROM[target]:
+            raise TransitionError(po_id, r["state"], target)
+        con.execute(
+            "UPDATE po_drafts SET state = ?, finance_decided_by = ?,"
+            " finance_decision_note = ?, finance_decided_at = ? WHERE po_id = ?",
+            (target, finance_decided_by, note, now_utc_sql(), po_id),
+        )
     return get_po(po_id, db_path) or {}
 
 
@@ -396,7 +436,7 @@ async def dispatch_a2a_withdrawal_request(
     base_url: str | None = None,
     db_path: Path | None = None,
 ) -> dict | None:
-    """S5: approved 상태의 발주서를 FinAllQ A2A 어댑터(request-withdrawal)로 전송하고 traces에 기록한다."""
+    """S5: finance_approved 상태의 발주서를 FinAllQ A2A 어댑터(request-withdrawal)로 전송하고 traces에 기록한다."""
     import os
     import uuid
     from backend.a2a.client import call_skill

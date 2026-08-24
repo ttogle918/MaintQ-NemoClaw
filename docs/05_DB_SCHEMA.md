@@ -269,7 +269,7 @@ CREATE TABLE po_drafts (
                                        --   이후 가격 변동과 무관하게 승인 시점 근거가 보존됨
   reason       TEXT NOT NULL,          -- 진단 근거 (화면 B 근거 카드 소스)
   urgency      TEXT DEFAULT 'normal',
-  state        TEXT DEFAULT 'draft',   -- 'draft'|'pending'|'approved'|'rejected'
+  state        TEXT DEFAULT 'draft',   -- 'draft'|'pending'|'approved'|'rejected'|'finance_approved'|'finance_rejected' (Sprint 17, MQ-1702)
   requested_by TEXT REFERENCES users,  -- 정비사 사용자 ID('tech-01') — X-User 헤더에서 백엔드가 주입
                                        --   (D23 도구 파라미터 아님 / D36 ASCII ID / D41 users FK)
   decided_by   TEXT REFERENCES users,  -- 팀장 사용자 ID('mgr-01') — 승인/반려 시 X-User에서 주입
@@ -277,12 +277,18 @@ CREATE TABLE po_drafts (
                                        --   사유 없는 반려는 요청자가 뭘 고쳐야 할지 알 수 없음
   session_id   TEXT,                   -- 이 발주를 만든 대화 세션 (D21) — 화면 B "실행 로그 보기" 링크의 키
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  decided_at            DATETIME,               -- 팀장 결정 시각 (Sprint 17, 기존 gap — approve/reject 도 지금까지 없었다)
+  finance_decided_by    TEXT REFERENCES users,   -- 재무 담당 사용자 ID (Sprint 17, MQ-1702)
+  finance_decision_note TEXT,                    -- 재무 승인 코멘트 / 반려 사유 (Sprint 17, MQ-1702)
+  finance_decided_at    DATETIME,                -- 재무 결정 시각 (Sprint 17, MQ-1702)
 
   -- (model, error_code)는 error_codes 복합키를 참조 — code 단독으로는 "같은 코드, 다른 의미"가
   -- 발주 이력에서 무너짐 (D13). 존재하지 않는 코드는 FK가 튕겨내므로 LLM이 지어낸 코드로
   -- 발주서를 만들 수 없다 (D23·D31과 같은 논리)
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
 
+  CHECK (state IN ('draft','pending','approved','rejected','finance_approved','finance_rejected')),
+  CHECK (urgency IN ('urgent','normal')),
   -- code 형식: 대문자 canonical, 2~4자 (실측 64건 전부 이 범위 — 3자 51 / 4자 12 / 2자 1)
   CHECK (error_code IS NULL OR (
            length(error_code) BETWEEN 2 AND 4
@@ -293,6 +299,14 @@ CREATE TABLE po_drafts (
   CHECK (evidence IS NULL OR json_valid(evidence))
 );
 ```
+
+**Sprint 17(MQ-1702) 확장 — 재무부 승인 단계.** `approved`가 이제 "팀장 승인 완료, 재무 결정
+대기"를 겸한다 — 재무부가 `finance_approved`/`finance_rejected`로 최종 결정한다. `decided_at`은
+그동안 없던 gap이었다(팀장 결정 시각을 저장할 컬럼 자체가 없었다) — 이번에 함께 메웠다.
+`finance_decided_by`/`finance_decision_note`/`finance_decided_at`은 팀장 승인 3종
+(`decided_by`/`decision_note`/`created_at` 대신 `decided_at`)과 같은 역할을 재무 결정에
+대해 한 벌 더 갖는 구조다. `finance_decision_note`도 반려 시 필수(D38과 동일한 원칙 — Sprint
+17 회귀 픽스처 PO-0119 참고).
 
 > ⚠️ **`PRAGMA foreign_keys=ON`을 커넥션마다 실행할 것.** SQLite는 FK 검증이 **기본 OFF**다. 이걸 안 켜면 위 복합 FK가 조용히 무시되어 매뉴얼에 없는 코드로도 발주서가 만들어진다 — D33의 보증이 통째로 사라진다. `mcp_server/db.py`의 커넥션 팩토리에서 강제한다.
 

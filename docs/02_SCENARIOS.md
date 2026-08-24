@@ -80,4 +80,7 @@
 | **S10** 근거 번들 → 서명 | precheck → **[요청] `/technician?prefill=…` 로 이동해 사용자가 전송** → 에이전트가 `generate_disposal_document`(draft INSERT) → **[제출] 자산 화면의 `submitDecision`** → `/api/approvals` → 팀장 `sign` | ⚠ **요청은 prefill, 제출은 자산 화면.** `decision_card` block 은 **만들지 않았다** — block 3종(`safety`·`po_card`·`citation`) 고정이 계약이다(D14·D22) |
 | **S18** 중고 취득 검증 | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(건물 위험등급, Sprint 11, D102) | `PARTIAL` → `VERIFIED` 승격 경로 없음. UI 도 성공색으로 그리지 않는다(D87) · UI: `/manager/risk-grade`(Sprint 12) |
 | **S29** 수리 증빙 서명 | `create_repair_record`(draft INSERT) → **[제출]** `POST /api/repairs/{id}/submit`(technician) → **[서명]** `POST /api/repairs/{id}/sign`(manager, D98) | **구현 완료 — Sprint 9** (P25). Sprint 7·8 에서 연속 이월된 뒤 착수됐다. 정본 병합(MQ-919, `actions` 결측 회수)은 사람 승인 대기 |
+| **S5+** 재무 승인 | approve(팀장) → **finance-approve/finance-reject(재무담당, D119)** → (승인 시) dispatch_a2a_withdrawal_request(S5, FinAllQ) | 재무부 소속(department='finance') manager 전용. `approved` 는 이제 "재무 승인 대기"를 겸한다 — 별도 `finance_pending` 상태를 만들지 않았다(스키마 단순화) |
 | ~~**S17** 법령 개정 감지~~ | — | **v2 로 제외.** `fetch_laws.check_revisions()` 는 코드에 살아 있으나(D75 가 쓴다) **MCP 도구로 노출하지 않는다** (`11 §10-3`) |
+
+S5(FinAllQ 출금 요청) 자체는 A2A_Q 저장소가 정의한 시나리오이고, S5+ 는 그 앞에 MaintQ 내부 재무 승인 단계를 끼워 넣은 확장이다 — 기존 S1+/S9/S10/S18/S29 표기 관례와 같다.

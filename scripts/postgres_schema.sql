@@ -160,8 +160,12 @@ CREATE TABLE po_drafts (
   decision_note TEXT,                   -- 반려 사유 / 승인 코멘트 (D38)
   session_id   TEXT,
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  decided_at            TIMESTAMP,                 -- 팀장 결정 시각 (기존 gap — approve/reject 도 지금까지 없었다)
+  finance_decided_by    TEXT REFERENCES users,     -- 재무 담당 사용자 ID
+  finance_decision_note TEXT,                      -- 재무 승인 코멘트 / 반려 사유
+  finance_decided_at    TIMESTAMP,                  -- 재무 결정 시각
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
-  CHECK (state IN ('draft','pending','approved','rejected')),
+  CHECK (state IN ('draft','pending','approved','rejected','finance_approved','finance_rejected')),
   CHECK (urgency IN ('urgent','normal')),
   CHECK (error_code IS NULL OR (
            length(error_code) BETWEEN 2 AND 4

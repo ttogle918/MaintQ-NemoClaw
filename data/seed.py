@@ -7,6 +7,7 @@
        + Sprint 9 repair_records 상태 불변식·error_codes 출처 컬럼·해시 재대조(㉗~㉙)
        + actions 병합 검증(㉚, MQ-919) + part_lifecycle_mock(㉛)
        + Sprint 11 deadlines·incidents·ownership_checks·risk_profile DDL 확정(㉜~㉟, MQ-1101)
+       + Sprint 15 error_codes IE5 병합(㊱) + Sprint 17 po_drafts finance 확장(㊲~㊵, MQ-1702)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -220,8 +221,12 @@ CREATE TABLE po_drafts (
   decision_note TEXT,                   -- 반려 사유 / 승인 코멘트 (D38)
   session_id   TEXT,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  decided_at            DATETIME,                 -- 팀장 결정 시각 (기존 gap — approve/reject 도 지금까지 없었다)
+  finance_decided_by    TEXT REFERENCES users,     -- 재무 담당 사용자 ID
+  finance_decision_note TEXT,                      -- 재무 승인 코멘트 / 반려 사유
+  finance_decided_at    DATETIME,                  -- 재무 결정 시각
   FOREIGN KEY (model, error_code) REFERENCES error_codes(model, code),
-  CHECK (state IN ('draft','pending','approved','rejected')),
+  CHECK (state IN ('draft','pending','approved','rejected','finance_approved','finance_rejected')),
   CHECK (urgency IN ('urgent','normal')),
   CHECK (error_code IS NULL OR (
            length(error_code) BETWEEN 2 AND 4
@@ -1985,7 +1990,8 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
         "notes": "야간조 정비사 육안 확인 — 팬 회전 불량",
     }
     # (po_id, part_no, qty, supplier_id, model, code, evidence, unit_price,
-    #  reason, urgency, state, requested_by, decided_by, decision_note, session_id)
+    #  reason, urgency, state, requested_by, decided_by, decision_note, session_id,
+    #  decided_at, finance_decided_by, finance_decision_note, finance_decided_at)
     rows = [
         (
             "PO-0117",
@@ -2003,6 +2009,10 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             None,
             None,
             "S1",
+            None,
+            None,
+            None,
+            None,
         ),
         (
             "PO-0116",
@@ -2020,6 +2030,10 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             None,
             None,
             "S2",
+            None,
+            None,
+            None,
+            None,
         ),
         (
             "PO-0115",
@@ -2034,6 +2048,10 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "normal",
             "pending",
             "tech-01",
+            None,
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -2054,6 +2072,10 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "mgr-01",
             "긴급 라인 정지 예방 — 승인",
             None,
+            "2026-08-05 03:20:00",
+            None,
+            None,
+            None,
         ),
         (
             "PO-0113",
@@ -2071,6 +2093,73 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
             "mgr-01",
             "예산 초과 — 차기 분기 재검토",
             None,
+            "2026-08-04 07:10:00",
+            None,
+            None,
+            None,
+        ),
+        (
+            "PO-0118",
+            "FAN-IG5-01",
+            2,
+            "SUP-A",
+            "iG5A",
+            "OHT",
+            None,
+            15000,
+            "냉각팬 예비분 확보 — 저액 소모품 발주",
+            "normal",
+            "finance_approved",
+            "tech-01",
+            "mgr-01",
+            "정상 승인",
+            None,
+            "2026-08-06 09:00:00",
+            "mgr-02",
+            "승인 — 예산·한도 이내",
+            "2026-08-06 10:30:00",
+        ),
+        (
+            "PO-0119",
+            "PCB-S100-CTRL-R2",
+            2,
+            "SUP-A",
+            None,
+            None,
+            None,
+            3000000,
+            "S100 제어보드 대량 확보 요청 — 예비 재고 확충",
+            "normal",
+            "finance_rejected",
+            "tech-02",
+            "mgr-01",
+            "긴급 확보 필요 — 승인",
+            None,
+            "2026-08-07 09:00:00",
+            "mgr-02",
+            "예산 한도 초과 — 반려",
+            "2026-08-07 11:15:00",
+        ),
+        (
+            "PO-0120",
+            "FUSE-30A",
+            10,
+            "SUP-C",
+            None,
+            None,
+            None,
+            9000,
+            "3번 라인 정기 교체분 — 소모품 보충",
+            "normal",
+            "approved",
+            "tech-01",
+            "mgr-01",
+            "정상 승인 — 재무 결정 대기",
+            None,
+            "2026-08-08 09:00:00",
+            None,
+            None,
+            None,
         ),
     ]
     if not with_codes:
@@ -2080,7 +2169,9 @@ def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
     con.executemany(
         "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, model, error_code,"
         " evidence, unit_price, reason, urgency, state, requested_by, decided_by,"
-        " decision_note, session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " decision_note, session_id, decided_at, finance_decided_by,"
+        " finance_decision_note, finance_decided_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
 
@@ -2274,7 +2365,9 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     parts.mfr_part_no 1건(㉖) · Sprint 9 repair_records 상태 불변식(D98)·error_codes 출처
     컬럼 짝(D100)·record_hash 재계산 대조(D84 태도) 3건(㉗~㉙) · actions 병합 검증
     (MQ-919) 1건(㉚) · part_lifecycle_mock 1건(㉛, Sprint 10 브레인스토밍 D) ·
-    Sprint 11 deadlines·incidents·ownership_checks·risk_profile 4건(㉜~㉟, MQ-1101)이 뒤에 붙는다.
+    Sprint 11 deadlines·incidents·ownership_checks·risk_profile 4건(㉜~㉟, MQ-1101) ·
+    Sprint 15 error_codes IE5 병합 1건(㊱) · Sprint 17 po_drafts finance 확장 4건
+    (㊲~㊵, MQ-1702)이 뒤에 붙는다.
     ⚠ 검사 번호는 `docs/10_DECISIONS.md` 본문이 인용한다 — D96 이 ㉒ 를, D95 가 ㉔ 를,
       D97 이 ㉖ 을 지목한다.
       번호를 바꾸면 이미 커밋된 D 본문이 조용히 거짓이 되므로 결정 문서를 같은 커밋에서 고칠 것.
@@ -3129,6 +3222,80 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f"IE5 행수={ie5_rows}(기대 5) · causes/actions 빈 값={ie5_empty}건"
         + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
+
+    # ㊲ po_drafts.state CHECK 확장 — finance_approved/finance_rejected 허용, 임의 문자열 거부
+    #    (Sprint 17 MQ-1702). 성공 케이스(2.의 INSERT 통과)는 count 로 확인하고, 실패 케이스는
+    #    실제로 UPDATE 를 시도해 SAVEPOINT 안에서 되돌린다.
+    finance_state_cnt = q(
+        "SELECT count(*) FROM po_drafts WHERE state IN ('finance_approved','finance_rejected')"
+    )[0]
+    con.execute("SAVEPOINT check_state_bogus")
+    bogus_detail = "UPDATE 가 통과해버림 (CHECK 미적용?)"
+    try:
+        con.execute("UPDATE po_drafts SET state='bogus_state' WHERE po_id='PO-0117'")
+        bogus_rejected = False
+    except sqlite3.IntegrityError as exc:
+        bogus_rejected, bogus_detail = True, str(exc)
+    finally:
+        con.execute("ROLLBACK TO check_state_bogus")
+        con.execute("RELEASE check_state_bogus")
+        con.commit()
+    check(
+        "㊲ po_drafts.state CHECK 확장 — finance_* 허용·임의값 거부 (Sprint 17 MQ-1702)",
+        finance_state_cnt == 2 and bogus_rejected,
+        f"finance_* 상태 행수={finance_state_cnt}(기대 2) · bogus_state 거부={bogus_rejected} · {bogus_detail}",
+    )
+
+    # ㊳ decided_at 불변식 — approved/rejected/finance_approved/finance_rejected 인 행은
+    #    decided_at 이 NULL 이면 안 된다 (Sprint 17 MQ-1702, 기존 gap 메움).
+    decided_at_gap = q(
+        "SELECT count(*) FROM po_drafts WHERE state IN"
+        " ('approved','rejected','finance_approved','finance_rejected') AND decided_at IS NULL"
+    )[0]
+    check(
+        "㊳ decided_at 불변식 — 결정된 발주는 decided_at NOT NULL (Sprint 17 MQ-1702)",
+        decided_at_gap == 0,
+        f"decided_at 누락 행수={decided_at_gap}(기대 0)",
+    )
+
+    # ㊴ PO-0118/PO-0119 재무 결정 표본 컬럼 완비 (Sprint 17 MQ-1702)
+    finance_sample_rows = con.execute(
+        "SELECT po_id, finance_decided_by, finance_decision_note, finance_decided_at"
+        " FROM po_drafts WHERE po_id IN ('PO-0118','PO-0119') ORDER BY po_id"
+    ).fetchall()
+    finance_sample_ok = len(finance_sample_rows) == 2 and all(
+        r[1] == "mgr-02" and r[2] and r[3] for r in finance_sample_rows
+    )
+    check(
+        "㊴ PO-0118/PO-0119 finance_decided_by='mgr-02' + note·decided_at 완비 (Sprint 17 MQ-1702)",
+        finance_sample_ok,
+        f"표본={finance_sample_rows}",
+    )
+
+    # ㊵ finance_decided_by FK 무결성 probe — 유령 사용자 ID 거부 확인 (Sprint 17 MQ-1702,
+    #    ⑩ fk_probe 와 같은 패턴, SAVEPOINT 이름만 분리)
+    con.execute("SAVEPOINT fk_probe_finance")
+    fin_fk_detail = "INSERT 가 통과해버림 (FK 미적용?)"
+    try:
+        con.execute(
+            "INSERT INTO po_drafts (po_id, part_no, qty, supplier_id, unit_price, reason,"
+            " requested_by, state, decided_by, decided_at, finance_decided_by) VALUES"
+            " ('PO-FK01','FAN-IG5-01',1,'SUP-A',1000,'재무 FK 검증','tech-01','approved',"
+            " 'mgr-01','2026-08-09 00:00:00','ghost-99')"
+        )
+        fin_fk_rejected = False
+    except sqlite3.IntegrityError as exc:
+        fin_fk_rejected, fin_fk_detail = True, str(exc)
+    finally:
+        con.execute("ROLLBACK TO fk_probe_finance")
+        con.execute("RELEASE fk_probe_finance")
+        con.commit()
+    check(
+        "㊵ 미등록 finance_decided_by → FK 거부 (Sprint 17 MQ-1702)",
+        fin_fk_rejected,
+        fin_fk_detail,
+    )
+
     return results
 
 
