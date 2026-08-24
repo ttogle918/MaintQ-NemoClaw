@@ -1,6 +1,7 @@
 "use client";
 
 import { AppBar } from "@/components/layout/AppBar";
+import { ChatFab } from "@/components/layout/ChatFab";
 import { PENDING_COUNT } from "@/lib/mock/queue";
 import { sx } from "@/lib/sx";
 import { ThemeProvider, useTheme } from "@/lib/theme-context";
@@ -29,6 +30,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       style={sx("min-height:100vh;background:var(--page);transition:background .2s")}
     >
       <AppBar pendingCount={PENDING_COUNT} />
+      <ChatFab />
       <div style={sx("padding:26px 24px 60px")}>{children}</div>
     </div>
   );

@@ -7,7 +7,7 @@ Next.js (App Router + TypeScript) 진단 콘솔(화면 A) · 승인 큐(화면 B
 
 ```bash
 npm install
-npm run dev            # http://localhost:3000 → /technician 으로 리다이렉트
+npm run dev            # http://localhost:3000 → /technician/equipment-status 으로 리다이렉트
 ```
 
 ## 라우트
@@ -17,7 +17,7 @@ npm run dev            # http://localhost:3000 → /technician 으로 리다이�
 
 | 라우트 | 화면 | X-Role |
 |---|---|---|
-| `/` | → `/technician` 리다이렉트 | — |
+| `/` | → `/technician/equipment-status` 리다이렉트 | — |
 | `/technician` | 진단 콘솔 (화면 A) | `technician` |
 | `/technician?scenario=s3` | 반복 고장 시나리오 — 데모 촬영용 | `technician` |
 | `/manager` | 승인 큐 (화면 B) | `manager` |
@@ -30,7 +30,7 @@ frontend/
 ├── app/
 │   ├── layout.tsx              # <html> · 폰트 (Pretendard · JetBrains Mono)
 │   ├── globals.css             # 테마 토큰(dark/dgray/gray/light) + keyframes
-│   ├── page.tsx                # → /technician
+│   ├── page.tsx                # → /technician/equipment-status
 │   └── (console)/              # 라우트 그룹 — URL 에 안 나타남
 │       ├── layout.tsx          # ThemeProvider + AppBar (라우트 이동에도 테마 유지)
 │       ├── technician/page.tsx

@@ -7,7 +7,7 @@
 export type Role = "technician" | "manager";
 
 export const ROLE_HOME: Record<Role, string> = {
-  technician: "/technician",
+  technician: "/technician/equipment-status",
   manager: "/manager",
 };
 
