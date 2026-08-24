@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-19</b><span style="display:block;font-size:11px;margin-top:3px">§⑤·§⑪·대조표는 2026-08-24 갱신(Sprint 17·18, D119)</span></div>
+    <div class="asof">기준 시점<b>2026-08-19</b><span style="display:block;font-size:11px;margin-top:3px">§⑤·§⑪·대조표는 2026-08-24 갱신(Sprint 17·18, D119~D121, 계정 선택 화면)</span></div>
   </header>
 
   <nav class="toc">
@@ -927,7 +927,8 @@ flowchart LR
         <tbody>
           <tr><td>REST 엔드포인트 <b>35종</b></td><td class="mono">backend/routers/ — chat · equipment · po · disposal(/api/assets) · decisions · approvals · inventory · hotspot_status(Sprint 10, D73) · <b>asset_monitoring</b>(Sprint 11, D73·D102)</td></tr>
           <tr><td>MCP 도구 <b>20종</b> (코어 7 + 확장 13, 2026-08-24 정정 — CLAUDE.md가 오래 "18종"으로 잘못 적혀 있었다)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b> · <b>Sprint 11 추가분(track_deadlines·assess_risk_grade)도 동일 게이트</b></td></tr>
-          <tr><td>프론트 라우트 <b>21개</b> (2026-08-24 정정, page.tsx 실측)</td><td class="mono">frontend/app/(console)/ — technician{,/equipment-status{,/[assetId]},/asset{,/[assetId]/{disposal,ownership,evidence,value}},/po/{new,[poId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,/trace/[sessionId],/deadlines,/risk-grade,/a2a} · app/page.tsx(루트) · app/v2/manager/po/[poId](D111)</td></tr>
+          <tr><td>프론트 라우트 <b>22개</b> (2026-08-24 재정정, page.tsx 실측 — 계정 선택 화면 커밋이 21→22)</td><td class="mono">frontend/app/(console)/ — technician{,/equipment-status{,/[assetId]},/asset{,/[assetId]/{disposal,ownership,evidence,value}},/po/{new,[poId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,<b>/finance</b>,/trace/[sessionId],/deadlines,/risk-grade,/a2a} · app/page.tsx(루트 — <b>계정 선택 화면으로 용도 변경</b>) · app/v2/manager/po/[poId](D111)</td></tr>
+          <tr><td><b>계정 선택 화면 · 재무담당 전용 랜딩 (2026-08-24)</b></td><td class="mono">frontend/app/page.tsx("누구로 볼까요?" 3계정 시뮬레이션 신원 선택 — 정비사·정비팀장·재무담당, 실 로그인 아님 D23·D38·D52 범위 밖) · frontend/app/(console)/manager/finance/page.tsx(<code>ApprovalQueueScreen focus="finance"</code> 재사용) · components/queue/QueueList.tsx(<code>showPending</code>) · components/screens/ApprovalQueueScreen.tsx — <b>권한 경계는 여전히 백엔드 department 체크(D119)가 실제로 막는다, 이 화면들은 UI 편의일 뿐</b></td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
           <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · DecisionDetail · SignBar · <b>RepairDetail</b>(Sprint 10, MQ-1002) · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
           <tr><td>자산 화면 컴포넌트</td><td class="mono">components/asset/ — AssetHeader · DisposalPanel · FindingList · VerificationMatrix · ResidualRiskCard · <b>EvidenceBundlePanel · ExpenditureForm</b>(Sprint 10, MQ-1001) · <b>InventoryDrawer · EquipmentHotspotDiagram</b>(Sprint 10 브레인스토밍)</td></tr>
@@ -944,7 +945,7 @@ flowchart LR
           <tr><td><b>반복 조회 가드</b> <span style="color:var(--crit)">(MQ-714 원복됨)</span></td><td class="mono">backend/agent/loop.py — <code>st.last_call</code> 서명 대조 → 안내문 1줄 후 <b>턴 종료</b>(<code>pending=[] ; break</code>). ⑦-d·⑦-d-b 는 원복과 함께 <b>제거</b></td></tr>
           <tr><td><b>SQLite → Postgres 전환 (Sprint 16, D116)</b></td><td class="mono">backend/db.py · mcp_server/db.py(Postgres 전용, DB_PATH override) · data/dbcompat.py(sqlite3 호환 계층) · data/pg_isolation.py(스파이크 격리 스키마) · scripts/postgres_guards.sql(D10 영구 트리거+세션 GUC, <b><code>SET LOCAL</code></b>)</td></tr>
           <tr><td><b>RAG dense 임베딩 (Sprint 16, D117)</b></td><td class="mono">mcp_server/dense_scorer.py(DenseScorer 구현) · data/external/nvidia_embed.py(NVIDIA API 클라이언트, 캐시 <code>data/cache/embeddings/</code>) · scripts/migrate_vectors.py(코퍼스 색인) · Postgres <code>manual_chunks</code> 테이블(pgvector, scripts/postgres_schema.sql §24)</td></tr>
-          <tr><td><b>A2A 아웃바운드 실 성공 (2026-08-24)</b></td><td class="mono">backend/a2a/payloads.py(<code>error_code</code>·<code>approved_by</code> None→"" 수정) · backend/services/po.py <code>dispatch_a2a_withdrawal_request()</code> · frontend/components/queue/WithdrawalStatusPanel.tsx(D114, 응답 표시)</td></tr>
+          <tr><td><b>A2A 아웃바운드 실 성공 (2026-08-24)</b></td><td class="mono">backend/a2a/payloads.py(<code>error_code</code>·<code>approved_by</code> None→"" 수정) · backend/services/po.py <code>dispatch_a2a_withdrawal_request()</code> · frontend/components/queue/WithdrawalStatusPanel.tsx(D114, 응답 표시) — <b>인증 스킴은 같은 날 D120으로 교체됨</b>: Basic(CLIENT_ID/SECRET) → Bearer(<code>&lt;PARTNER&gt;_SERVICE_TOKEN</code>) + <code>X-A2A-Partner-Id</code> 헤더, backend/a2a/credentials.py·auth_header.py</td></tr>
           <tr><td><b>문서 렌더 01·02 (D118, 2026-08-24)</b></td><td class="mono">backend/services/po_documents.py(진단보고서·발주요청서 렌더) · data/korean_number.py(한글 금액) · backend/services/po.py <code>get_po()</code>(error_codes·part_alternatives JOIN) · frontend/components/queue/DocumentPreview.tsx</td></tr>
           <tr><td><b>재무부 승인 게이트 + 문서 렌더 03 (Sprint 17, D119, 2026-08-24)</b></td><td class="mono">data/expenditure_limits.py(예산·일일한도·FDS·SoD) · backend/routers/po.py <code>finance_approve()</code>·<code>finance_reject()</code>(department 체크) · backend/services/po.py <code>_finance_transition()</code>·<code>dispatch_a2a_withdrawal_request()</code>(발신 시점 이동) · backend/services/po_documents.py <code>render_fund_execution_document()</code>(doc3) · frontend/components/queue/FinanceDecisionBar.tsx</td></tr>
           <tr><td><b>정비사 랜딩 대시보드 (Sprint 18, 2026-08-24)</b></td><td class="mono">frontend/lib/role.ts <code>ROLE_HOME.technician</code>→<code>/technician/equipment-status</code> · frontend/app/(console)/technician/equipment-status/page.tsx(3×3 그리드·페이지네이션·정렬) · frontend/components/asset/EquipmentCard.tsx · frontend/components/layout/ChatFab.tsx(챗봇 진입점 이동)</td></tr>
@@ -952,7 +953,7 @@ flowchart LR
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>33스위트 / 1,069건</b>(+ seed 41 · pytest 169, 실측 2026-08-24) — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>33스위트 / 1,075건</b>(+ seed 41 · pytest 99건(4파일군: rules·llm_cache·elice_docvision·expenditure_limits) + 86건(A2A 8파일군, pytest-asyncio 필요), 실측 2026-08-24) — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>deadline_risk_contract</code>(Sprint 11 신설 — 기한·위험등급 계약) ·
@@ -964,7 +965,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-19 · §⑤·§⑪·대조표 갱신 2026-08-24</span>
+    <span>기준 2026-08-19 · §⑤·§⑪·대조표·라우트 22개 갱신 2026-08-24</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 
