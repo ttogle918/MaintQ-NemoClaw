@@ -2,7 +2,8 @@
 
 **브랜치**: master · **범위**: Sprint 17(재무부 승인 게이트 + doc3 자금집행요청서, 4스테이지) →
 Sprint 18(정비사 랜딩 화면 전환: 챗봇 → 설비 대시보드, 1스테이지) → 브라우저 QA 버그 수정 →
-후속 UI 개선 4라운드(그리드·카드 레이아웃·컴포넌트 분리·사이드바 메뉴) → 배포 설계 문서 개정.
+후속 UI 개선 4라운드(그리드·카드 레이아웃·컴포넌트 분리·사이드바 메뉴) → 배포 설계 문서 개정 →
+`docker-compose.yml`에 backend 서비스 추가.
 같은 날짜의 다른 세션 로그(`2026-08-24.md` — Sprint 16 마무리/D117/D118/doc1·02, `2026-08-24_backend-hang-and-dashboard.md`,
 `2026-08-24_finallq_conversion.md`)와는 별개 세션이다.
 
@@ -39,6 +40,11 @@ Sprint 18(정비사 랜딩 화면 전환: 챗봇 → 설비 대시보드, 1스�
   3. `EquipmentCard`를 `components/asset/EquipmentCard.tsx`로 분리(기존 `*Card.tsx` 컨벤션 준수)
   4. 3×3 그리드로 축소 + 오른쪽 사이드바 신설(빠른 메뉴 자리) → 실사용 라우트 조사 후
      "발주 신규 작성"·"자산 목록·처분 사전판정" 2개로 채움(`AskUserQuestion`으로 사용자 선택)
+- **`docker-compose.yml`에 `backend` 서비스 추가** — "배포된 페이지로 테스트하니 느리다"는
+  사용자 문제 제기에 대응, 원격 배포 대신 로컬에서 빠르게 띄워 테스트하기 위함. frontend는
+  제외(요청대로) — Vercel/Netlify 배포 결정과 별개로 로컬은 `next dev`로 충분. 루트
+  `Dockerfile`(백엔드+MCP subprocess 동봉, 기존 파일)을 그대로 재사용해 `backend` 서비스
+  하나로 구성 — MCP("AI 엔진")를 별도 서비스로 분리하지 못한 이유는 아래 "다음 세션" 참고
 
 ## 결정과 맥락
 
@@ -112,6 +118,8 @@ Sprint 18(정비사 랜딩 화면 전환: 챗봇 → 설비 대시보드, 1스�
   `.claude/agents/reviewer.md` 4곳 모두 D1~D118 → **D1~D119**로 정정
 - `docs/05_DB_SCHEMA.md §8`·`docs/06_REPO_API.md §2.2/§2.4`는 Sprint 17 스테이지 진행 중
   이미 갱신 확인됨 — `docs/04_MCP_TOOLS.md`는 D119가 MCP 도구 계약을 건드리지 않아 무변경 정상
+- `docker compose config -q` 문법 검증 통과. **실제 빌드·기동은 이 세션에서 검증하지
+  않았다** — 사용자가 직접 `docker compose up -d` 로 확인하기로 함(2026-08-24)
 
 ## 다음 세션
 
@@ -123,6 +131,9 @@ Sprint 18(정비사 랜딩 화면 전환: 챗봇 → 설비 대시보드, 1스�
 4. 사이드바 빠른 메뉴 — 현재 2항목, 추가 요청 없으면 그대로 유지
 5. `docs/13_DEPLOYMENT.md §6`의 나머지 open item(Cloud Run 레플리카 정책, Supabase pooling
    모드) 결정
+6. `docker compose up -d backend`로 실제 빌드·기동 검증(이 세션은 문법 검증만 함)
+7. (선택) `docs/07_BACKLOG.md` P14 — MCP를 stdio 자식 프로세스에서 네트워크 서비스로 바꿔
+   compose에서 진짜 2서비스(backend/mcp)로 쪼갤지는 아직 백로그, 이번 세션엔 손대지 않음
 
 ## 사람 승인 대기
 

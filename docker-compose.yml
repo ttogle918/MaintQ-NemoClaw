@@ -16,5 +16,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # FastAPI 백엔드 + MCP 서버("AI 엔진")를 담은 컨테이너 — 별도 서비스가 아니라 한 컨테이너다.
+  # McpClient(backend/agent/mcp_client.py)가 mcp_server/server.py 를 **stdio 자식 프로세스**로
+  # 띄우는 구조라(D15 는 프로세스 분리이지 네트워크 분리가 아니다), MCP 를 compose 의 별도
+  # service 로 쪼개려면 stdio 대신 네트워크 트랜스포트로 바꾸는 리팩터가 먼저 필요하다
+  # (docs/07_BACKLOG.md P14 — 아직 미착수). 지금은 루트 Dockerfile(백엔드+MCP 동봉) 그대로 쓴다.
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maintq_backend
+    env_file:
+      - .env
+    environment:
+      # compose 네트워크 안에서는 host.docker.internal 이 아니라 서비스명으로 접속한다 —
+      # .env 의 DATABASE_URL(호스트에서 uv 로 직접 띄울 때 쓰는 localhost:5434)을 여기서
+      # 덮어써야 한다. postgres 서비스 내부 포트는 그대로 5432(호스트 매핑 5434 는 무관).
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/maintq
+      # MCP 도구 2종(search_insurance_clause·assess_equipment_loan)이 backend REST 를 부를 때
+      # 쓰는 주소 — 같은 컨테이너 안이므로 localhost 그대로 맞다.
+      MAINTQ_BACKEND_BASE_URL: http://localhost:8000
+      # 로컬 next dev(호스트에서 3000번대로 직접 실행)가 이 컨테이너를 호출할 수 있게 허용.
+      MAINTQ_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      # 기존 로컬 관례(frontend/.env.local 기본값 NEXT_PUBLIC_API_BASE=http://localhost:8003)
+      # 와 맞춘다 — 이 컨테이너를 띄우면 frontend/.env.local 을 안 건드려도 바로 붙는다.
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
 volumes:
   maintq_postgres_data:
