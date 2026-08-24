@@ -14,11 +14,29 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
-from backend.agent.mcp_client import McpClient
-from backend.routers import (
+# .env 로드는 앱 진입점인 **여기 한 곳**에서, 그리고 **다른 backend.* import 보다 먼저**
+# 한다 (D56). `override=False` 가 핵심 — **OS 환경변수가 우선**이고 .env 는 빈 곳만 채운다.
+# 파일이 프로세스 환경을 조용히 덮으면 "어느 키로 돌았는지"를 디버깅할 수 없다.
+# MCP 서브프로세스는 D42 의 `env={**os.environ}` 상속으로 같은 값을 본다.
+#
+# 🔴 순서가 실제로 중요하다 — 아래 `backend.routers` import 가 `backend.deps` →
+# `backend.db` 를 연쇄로 끌어오는데, `backend/db.py` 의 `DATABASE_URL` 은 모듈
+# import 시점에 `os.environ.get(...)` 으로 **한 번만** 평가되는 전역 상수다. `load_dotenv()`
+# 를 이 import 들 뒤에 두면 `.env` 가 아직 안 실려 있는 상태로 `DATABASE_URL` 이 잘못된
+# 기본값(`postgresql://localhost/maintq`, 포트 5432·자격증명 없음)으로 영구 고정되고,
+# 이후 모든 요청의 `psycopg.connect()` 가 존재하지 않는 대상에 접속을 시도하며 Windows
+# 에서 무한정 hang 한다 — 셸에 `DATABASE_URL` 이 직접 export 돼 있지 않으면 100% 재현된다
+# (2026-08-24 세션, systematic-debugging 으로 근본원인 확정: py-spy 로 워커 스레드가
+# `psycopg.connect` 안의 `select()` 에 멈춰 있는 것을 확인 → 최소 재현으로 import 순서
+# 하나가 원인임을 격리).
+load_dotenv(override=False)
+
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+from backend.agent.mcp_client import McpClient  # noqa: E402
+from backend.routers import (  # noqa: E402
     approvals,
     asset_monitoring,
     chat,
@@ -33,13 +51,6 @@ from backend.routers import (
     session,
     a2a,
 )
-
-
-# .env 로드는 앱 진입점인 **여기 한 곳**에서만 한다 (D56).
-# `override=False` 가 핵심 — **OS 환경변수가 우선**이고 .env 는 빈 곳만 채운다.
-# 파일이 프로세스 환경을 조용히 덮으면 "어느 키로 돌았는지"를 디버깅할 수 없다.
-# MCP 서브프로세스는 D42 의 `env={**os.environ}` 상속으로 같은 값을 본다.
-load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 
