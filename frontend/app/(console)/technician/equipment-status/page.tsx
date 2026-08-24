@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { countHotspotColors, EquipmentCard } from "@/components/asset/EquipmentCard";
 import { ConsoleFrame, ConsoleHeader, ScreenStack, Spacer } from "@/components/layout/ConsoleFrame";
@@ -126,9 +127,11 @@ export default function EquipmentStatusListPage() {
 }
 
 /**
- * 오른쪽 사이드바 — 다른 메뉴·워크플로우 자리(2026-08-24 사용자 요청, 무엇을 넣을지는
- * 아직 안 정해짐). 빈 상태를 정직하게 "준비 중"으로 표시한다 — 있지도 않은 메뉴를
- * 지어내 채우지 않는다(D87과 같은 태도).
+ * 오른쪽 사이드바 — 다른 메뉴·워크플로우 자리(2026-08-24 사용자 요청). 이 화면(설비
+ * 하이라이트)에서 자연스럽게 이어지는 정비사 워크플로우 진입점 2개만 둔다 — 특정
+ * asset_id·po_id가 필요한 화면(발주 상세·처분 사전판정 하위 화면 등)은 단독 메뉴로
+ * 부적합해 제외했다(사용자 확인, 2026-08-24). 진단 챗봇은 이미 우하단 `ChatFab`이
+ * 커버하므로 중복으로 안 올린다.
  */
 function WorkflowSidebar() {
   return (
@@ -139,15 +142,25 @@ function WorkflowSidebar() {
       )}
     >
       <span style={sx("font:700 11.5px 'Pretendard';color:var(--dim)")}>빠른 메뉴</span>
-      <div
-        style={sx(
-          "border:1px dashed var(--line);border-radius:8px;padding:16px;" +
-            "font:11.5px 'Pretendard';color:var(--dim2);text-align:center"
-        )}
-      >
-        준비 중
-      </div>
+      <SidebarLink href="/technician/po/new" icon="📝" label="발주 신규 작성" />
+      <SidebarLink href="/technician/asset" icon="🗂" label="자산 목록 · 처분 사전판정" />
     </aside>
+  );
+}
+
+function SidebarLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      style={sx(
+        "border:1px solid var(--line);border-radius:8px;background:var(--panel);" +
+          "padding:10px 12px;display:flex;align-items:center;gap:8px;text-decoration:none;" +
+          "font:600 12px 'Pretendard';color:var(--ink)"
+      )}
+    >
+      <span style={sx("font-size:14px")}>{icon}</span>
+      {label}
+    </Link>
   );
 }
 
