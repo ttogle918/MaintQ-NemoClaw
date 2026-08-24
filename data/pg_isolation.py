@@ -78,7 +78,12 @@ def create_isolated_schema(label: str = "spike", clone_data: bool = True) -> tup
     con = psycopg.connect(BASE_DATABASE_URL, row_factory=sqlite_row_factory, cursor_factory=CompatCursor)
     try:
         con.execute(f'CREATE SCHEMA "{schema}"')
-        con.execute(f'SET search_path TO "{schema}"')
+        # `public` 을 반드시 포함한다 — pgvector(D117) 확장이 이미 `public` 에 설치돼 있어
+        # `_SCHEMA_SQL` 의 `CREATE EXTENSION IF NOT EXISTS vector` 가 조용히 스킵되고,
+        # `manual_chunks.embedding vector(2048)` 컬럼 DDL 이 이 스키마만으로는 `vector`
+        # 타입을 찾지 못해 "type \"vector\" does not exist" 로 죽는다(실측: A2A pytest
+        # 8파일군에서 fixture 단계 52건 ERROR).
+        con.execute(f'SET search_path TO "{schema}", public')
         con.execute(_SCHEMA_SQL)
         con.execute(_GUARDS_SQL)
         if not clone_data:
