@@ -42,18 +42,21 @@ import sys
 import tempfile
 from collections.abc import Iterator
 from dataclasses import asdict
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from data import dbcompat, pg_isolation  # noqa: E402
+from backend.a2a import credentials as credentials_mod  # noqa: E402
 
 REAL_DB = ROOT / "data" / "maintq.db"
 ENV_EXAMPLE = ROOT / ".env.example"
 
 #: ⑯·⑰ 전용 가짜 값. 실제 자격증명이 아니며 어떤 출력에도 원문을 싣지 않는다.
-FAKE_ID = "cid-FAKE-NOT-A-REAL-CREDENTIAL"
-FAKE_SECRET = "sec-FAKE-NOT-A-REAL-CREDENTIAL-0123456789"
+#: D120 (2026-08-24) — Basic(CLIENT_ID/CLIENT_SECRET) → Bearer(SERVICE_TOKEN).
+#: 값이 하나로 합쳐지면서 부분설정(`incomplete`) 상태 자체가 사라졌다.
+FAKE_TOKEN = "tok-FAKE-NOT-A-REAL-CREDENTIAL-0123456789"
 
 #: ⑪-b 판정식 (sprint-8.md:649~660). 단순 grep 은 MQ-803 의 **DDL 주석**에 걸려 오탐한다.
 #:
@@ -273,13 +276,18 @@ def isolated_a2a_env() -> Iterator[None]:
 
     개발자 머신에 실값이 설정돼 있어도 ⑯ 결과가 흔들리지 않게 하는 유일한 방법이다.
     """
-    saved = {k: v for k, v in os.environ.items() if k.startswith("MAINTQ_A2A_")}
+    def _mine(k: str) -> bool:
+        # D120: `MAINTQ_A2A_*` 는 폐기됐지만 개발자 머신에 잔재가 남아 있을 수 있어
+        # 둘 다 걷어낸다 — 잔재가 남아 ⑯ 이 흔들리는 것이 이 헬퍼가 막으려는 바로 그것이다.
+        return k.startswith("MAINTQ_A2A_") or k.endswith(credentials_mod.ENV_SUFFIX)
+
+    saved = {k: v for k, v in os.environ.items() if _mine(k)}
     for k in saved:
         del os.environ[k]
     try:
         yield
     finally:
-        for k in [k for k in os.environ if k.startswith("MAINTQ_A2A_")]:
+        for k in [k for k in os.environ if _mine(k)]:
             del os.environ[k]
         os.environ.update(saved)
 
@@ -492,22 +500,19 @@ def run_env() -> None:
     # ── ⑭ .env.example 4키 존재 · 값 전부 빈칸 · **수집 키 절 밖**
     lines = ENV_EXAMPLE.read_text(encoding="utf-8").splitlines()
     marker = next((i for i, ln in enumerate(lines) if "외부 데이터 원천" in ln), None)
-    keys = [
-        "MAINTQ_A2A_FINALLQ_CLIENT_ID",
-        "MAINTQ_A2A_FINALLQ_CLIENT_SECRET",
-        "MAINTQ_A2A_INSUQ_CLIENT_ID",
-        "MAINTQ_A2A_INSUQ_CLIENT_SECRET",
-    ]
+    # D120 — Basic 4키에서 Bearer 2키로 줄었다. 이름은 코드가 정본이다(`env_name()`).
+    keys = [credentials_mod.env_name(pt) for pt in credentials_mod.PARTNERS]
     pos = {k: next((i for i, ln in enumerate(lines) if ln.strip() == f"{k}=") , None) for k in keys}
     missing = [k for k, v in pos.items() if v is None]
     nonempty = [k for k in keys if any(ln.startswith(f"{k}=") and ln.strip() != f"{k}=" for ln in lines)]
     check(
-        "⑭ .env.example 에 A2A 4키 · 값 전부 빈칸 · 수집 키 절(외부 데이터 원천) **위** (D93 ③ 기각)",
+        "⑭ .env.example 에 A2A 2키(D120 Bearer) · 값 전부 빈칸 · 수집 키 절(외부 데이터 원천) **위** (D93 ③ 기각)",
         not missing
         and not nonempty
         and marker is not None
         and all(v < marker for v in pos.values() if v is not None),
-        f"누락={missing or '없음'}, 실값={nonempty or '없음'}, 키줄={sorted(v for v in pos.values() if v is not None)}, 수집절={marker}",
+        f"대상 키={keys}, 누락={missing or '없음'}, 실값={nonempty or '없음'}, "
+        f"키줄={sorted(v for v in pos.values() if v is not None)}, 수집절={marker}",
     )
 
     # ── ⑮ MCP 격리 — 도구가 자격증명·파트너 대장을 보지 않는다 (D15·D93)
@@ -537,36 +542,40 @@ def run_env() -> None:
     from backend.a2a import credentials  # noqa: PLC0415
 
     # ── ⑯ load() 상태 4종. os.environ 을 직접 조작해 격리한다 (모듈 캐시가 있으면 성립 불가)
+    fin_env = credentials_mod.env_name("finallq")
     with isolated_a2a_env():
         s_none = credentials.load("finallq").status
-        os.environ["MAINTQ_A2A_FINALLQ_CLIENT_ID"] = FAKE_ID
-        s_part = credentials.load("finallq").status
-        os.environ["MAINTQ_A2A_FINALLQ_CLIENT_SECRET"] = FAKE_SECRET
+        # ⛔ 공백만 있는 값은 "없음"과 같게 다뤄야 한다 — D120 이 부분설정 상태를 없앴으므로
+        #    이 경계가 not_configured 의 유일한 회색지대다.
+        os.environ[fin_env] = "   "
+        s_blank = credentials.load("finallq").status
+        os.environ[fin_env] = FAKE_TOKEN
         s_full = credentials.load("finallq").status
         cred = credentials.load("finallq")
         s_unknown = credentials.load("qmesh-nope").status
         report = credentials.status_report()
 
-        # ⛔ secret 원문을 담지 않는다 — 길이·상태만 본다
+        # ⛔ 토큰 원문을 담지 않는다 — 길이·상태만 본다
         leaked = {
-            "repr": FAKE_SECRET in repr(cred),
-            "str": FAKE_SECRET in str(cred),
-            "fstring": FAKE_SECRET in f"{cred}",
-            "status_report": FAKE_SECRET in json.dumps(report, ensure_ascii=False),
+            "repr": FAKE_TOKEN in repr(cred),
+            "str": FAKE_TOKEN in str(cred),
+            "fstring": FAKE_TOKEN in f"{cred}",
+            "status_report": FAKE_TOKEN in json.dumps(report, ensure_ascii=False),
         }
-        asdict_leaks = FAKE_SECRET in json.dumps(asdict(cred), ensure_ascii=False)
-        secret_len_ok = len(cred.client_secret) == len(FAKE_SECRET)
+        asdict_leaks = FAKE_TOKEN in json.dumps(asdict(cred), ensure_ascii=False)
+        token_len_ok = len(cred.token) == len(FAKE_TOKEN)
 
     check(
-        "⑯ credentials.load() 상태 4종 (not_configured/incomplete/configured/unknown_partner) · 모듈 캐시 없음",
-        (s_none, s_part, s_full, s_unknown)
-        == ("not_configured", "incomplete", "configured", "unknown_partner")
+        "⑯ credentials.load() 상태 3종 (not_configured/configured/unknown_partner) · 공백=미설정 · 모듈 캐시 없음 (D120)",
+        (s_none, s_blank, s_full, s_unknown)
+        == ("not_configured", "not_configured", "configured", "unknown_partner")
         and report["insuq"] == "not_configured"
-        and secret_len_ok,
-        f"{s_none} → {s_part} → {s_full} / 미지={s_unknown}, secret_len 일치={secret_len_ok}",
+        and token_len_ok,
+        f"{s_none} → 공백:{s_blank} → {s_full} / 미지={s_unknown}, token_len 일치={token_len_ok} "
+        f"(D120 으로 incomplete 소멸 — 값이 하나뿐이라 부분설정이 성립하지 않는다)",
     )
 
-    # ── ⑰ secret 원문 부재 + **asdict/astuple 소비자 0건**
+    # ── ⑰ 토큰 원문 부재 + **asdict/astuple 소비자 0건**
     #    repr/str 은 막혀 있으나 dataclasses.asdict 는 원문을 그대로 낸다 —
     #    호출부가 생기는 스프린트의 `JSONResponse(asdict(cred))` 사고를 앞단에서 막는다.
     consumers: list[str] = []
@@ -576,7 +585,7 @@ def run_env() -> None:
         if touches_cred and re.search(r"\b(asdict|astuple)\s*\(", text):
             consumers.append(str(p.relative_to(ROOT)).replace("\\", "/"))
     check(
-        "⑰ repr·str·f-string·status_report 에 secret 원문 없음 · asdict/astuple 소비자 0건",
+        "⑰ repr·str·f-string·status_report 에 토큰 원문 없음 · asdict/astuple 소비자 0건",
         not any(leaked.values()) and not consumers,
         f"노출={[k for k, v in leaked.items() if v] or '없음'}, asdict 는 원문 노출={asdict_leaks}(소비자 {len(consumers)}건)",
     )
