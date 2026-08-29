@@ -187,7 +187,17 @@ NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌
 **셋 다 그 브랜치와 무관한 기존 문제**이고, 범위를 지키려고 기록만 하고 넘어갔다.
 1·2 는 실제로 사람을 멈춰 세우는 종류라 다음에 회귀를 만지는 사람이 먼저 볼 것.
 
-- 🔴 **`backend/agent/test_llm_cache.py::test_trace_replay_marks_events_when_cached` 가
+- 🔴 **`spikes/a2a_identity_contract.py` 가 D120 이후 죽어 있다** (2026-08-29 발견).
+  `AttributeError: 'PartnerCredential' object has no attribute 'client_secret'`
+  (`spikes/a2a_identity_contract.py:558`). D120(`ba340a6`)이 파트너 인증을
+  Basic(`client_id`/`client_secret`) → Bearer(`token`)로 바꾸면서 `PartnerCredential`
+  필드를 `token` 하나로 합쳤는데, **그 커밋은 `spikes/api_contract.py` 만 고치고 이
+  스파이크는 안 고쳤다.** 즉 CLAUDE.md 의 기준선 **“33스위트 / 1,075건”은 지금 재현
+  불가능하다** — 이 스위트(19건)가 실행 도중 예외로 죽는다. 기준선을 신뢰해 “전수 통과”
+  라고 보고하면 사실과 다르다. 고치려면 `run_env()` 의 `client_secret`·`FAKE_SECRET`
+  단언을 `token` 기준으로 다시 쓰면 된다(D120 의미는 그대로 검증 가능).
+
+- ✅ ~~**`backend/agent/test_llm_cache.py::test_trace_replay_marks_events_when_cached` 가
   공유 DB 로 샌다.** `TraceWriter(db_path=tmp_path / "t.db")` 로 **`Path` 객체**를 넘기는데
   `backend/db.py:56` 은 `isinstance(db_path, str) and startswith("postgresql://")` 일 때만
   인자를 존중한다 — `Path` 는 조용히 무시되고 `DATABASE_URL` 로 간다. CLAUDE.md 가 Sprint 16
@@ -195,7 +205,13 @@ NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌
   실 DB 로 샌다”). 테스트 docstring 은 아직 *“`tmp_path/"t.db"` 는 스키마가 없는 빈 sqlite
   파일이라 `_persist` 가 예외를 삼킨다”* 는 **SQLite 시절 전제**로 적혀 있어, 읽는 사람이
   격리돼 있다고 착각한다. 기준선 워크트리(`e963f9e`)에서도 동일 재현 확인.
-  Postgres 가 떠 있으면 그냥 통과해서 **아무도 모르고 지나간다** — 내려가야 드러난다.
+  Postgres 가 떠 있으면 그냥 통과해서 **아무도 모르고 지나간다** — 내려가야 드러난다.~~
+  → **해소 (2026-08-29, `714b900`).** `TraceWriter.__init__` 에 런타임 가드를 넣어
+  DSN 아닌 값은 `TypeError` 로 즉시 실패시키고, 두 테스트를 `data.pg_isolation` 격리
+  스키마로 옮겼다. 낡은 docstring 도 정정. 가드 회귀 2건 추가.
+  ⚠ **남은 일반화**: 같은 조용한 유출이 `backend/db.py::connect()` 를 직접 부르는
+  다른 호출부에도 성립한다 — 근본 차단은 `connect()` 자체에 같은 가드를 두는 것이지만,
+  호출부 전수 영향을 확인해야 해서 이번엔 `TraceWriter` 한 곳만 막았다.
 
 - 🔴 **pytest 는 `DATABASE_URL` 없이는 매단다.** pytest 실행 경로에는 `load_dotenv` 가 없어
   (`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값 `postgresql://localhost/maintq`
