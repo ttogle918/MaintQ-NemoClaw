@@ -278,7 +278,9 @@
     3자 대조 엔진(<code>data/verify_actions_absence.py</code>)이 34페이지(1,530원) 실판독으로 저장소 안에서 서로 충돌하던 세 진단을 판가름했습니다:
     <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0 · INCONCLUSIVE 0</code>.
     <code>_pending_review</code>(MQ-911)의 "매뉴얼에 원래 없음"이 24건에서 맞았고, <code>extract_triage</code>의 "S100 25건은 재추출로 회수"와
-    백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 회수는 <code>iG5A NTC</code> 1건뿐(D99 재승인 대기)입니다.
+    백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 기계 판정 기준 회수는 <b>0건</b>입니다.
+    <code>iG5A NTC</code> 1건은 <b>2026-08-29 사람이 위임 반려를 뒤집어 승인</b>해 정본에 병합했습니다
+    (기계 판정은 <code>STILL_AMBIGUOUS</code> 그대로, 귀속행 미확인).
     ⛔ 회수 건수는 목표가 아니었습니다 — <b>부재가 사실로 확정되는 것도 유효한 산출</b>입니다(절대규칙 3 위반 방지).
   </div>
 
@@ -582,9 +584,9 @@
           </tr>
           <tr>
             <td class="mono">error_codes.json</td>
-            <td class="num">65건</td>
-            <td>매뉴얼 표 추출<span class="sub">브라우저 실측 대조 완료</span></td>
-            <td>정의 룩업의 결정론적 소스 (D1)<span class="sub">⚠ <code>actions</code> 34건 결측 — <b>2026-08-19 3자 대조로 24건 <code>CONFIRMED_ABSENT</code> 확정</b>(매뉴얼에 원래 없음), <code>DISAGREE</code> 6 · <code>STILL_AMBIGUOUS</code> 3 · <code>RECOVERABLE</code> 1(<code>iG5A NTC</code>, D99 재승인 대기). 정본은 아직 미변경</span></td>
+            <td class="num">70건</td>
+            <td>매뉴얼 표 추출<span class="sub">브라우저 실측 대조 완료 · IE5 5건 병합(Sprint 15, D109)</span></td>
+            <td>정의 룩업의 결정론적 소스 (D1)<span class="sub">⚠ <code>actions</code> 33건 결측 — <b>2026-08-19 3자 대조로 24건 <code>CONFIRMED_ABSENT</code> 확정</b>(매뉴얼에 원래 없음), <code>DISAGREE</code> 6 · <code>STILL_AMBIGUOUS</code> 4 · <code>RECOVERABLE</code> 0. <code>iG5A NTC</code> 1건은 <b>2026-08-29 사람 승인으로 정본 병합</b>(기계 판정은 STILL_AMBIGUOUS 유지)</span></td>
             <td>1</td>
           </tr>
           <tr>
@@ -643,7 +645,7 @@
       <b>법령 원문 8조문은 이제 "실제 데이터"입니다.</b> Sprint 7 MQ-701 이 법제처 API 로 실수집해 <code>fetch_status: FETCHED</code>·<code>text_hash</code> 까지 채웠고, 08-12 에 <code>KR-OSHA-ENR-126</code>(안전검사의 주기 · 522자)이 더해졌습니다 — 그래서 위 배지가 <b>앞으로 만들 데이터 → 실제 데이터</b>로 옮겨갔습니다. 이 축에서 <b>받아야 옮길 수 있는</b> 유일한 항목이었습니다.<br>
       <b>126조가 채운 것은 "주기"입니다.</b> 93조는 <i>안전검사를 받아야 한다</i>까지만 말하고 <b>몇 년마다인지는 시행규칙에 있습니다</b> — 컨베이어는 <b>설치 후 3년 이내 최초, 이후 2년마다</b>. 이 값 없이 <code>SAFETY-INSPECTION</code> 룰이 기한을 말하면 그건 근거 없는 해석입니다. 그래서 룰의 <code>law_refs</code>가 2건이 되고 <code>rule_version</code>이 올라갔습니다.<br>
       마지막 1건 <code>KR-CITA-ENF-31</code>은 등록 제목(<code>즉시상각의제</code>)이 API 값(<code>즉시상각의 의제</code>)과 달라 <b>사람 승인을 거쳐 2026-08-13 수집 완료</b>됐습니다 — 계층 1 은 <b>8/8 FETCHED</b> 입니다. 자동으로 덮어쓰지 않은 것이 정상 동작입니다 — <b>조문을 손으로 타이핑하거나 대조 없이 갈아끼우면 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너지기 때문입니다.</b><br>
-      <b>Elice 재판독 34페이지가 새로 "실제 데이터"에 들어왔지만, "정답지"로 격상되지는 않습니다(D105).</b> InsuQ 실측 오탈자(<code>용어풀이</code>→<code>용어풀0</code>)가 자동 병합을 반증하므로, Elice 응답은 <code>_pending_review</code>·<code>extract_triage</code>와 <b>나란히 대조되는 3번째 진단</b>일 뿐입니다. 판독 결과 <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0</code> — <code>error_codes.json</code> 정본은 <b>아직 한 글자도 바뀌지 않았습니다</b>. 회수 후보(<code>iG5A NTC</code>) 1건이 D99 게이트를 통과해야 실제로 반영됩니다.
+      <b>Elice 재판독 34페이지가 새로 "실제 데이터"에 들어왔지만, "정답지"로 격상되지는 않습니다(D105).</b> InsuQ 실측 오탈자(<code>용어풀이</code>→<code>용어풀0</code>)가 자동 병합을 반증하므로, Elice 응답은 <code>_pending_review</code>·<code>extract_triage</code>와 <b>나란히 대조되는 3번째 진단</b>일 뿐입니다. 판독 결과 <code>CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0</code> — 이 판독만으로는 <code>error_codes.json</code> 정본이 <b>한 글자도 바뀌지 않았습니다</b>. 정본이 바뀐 것은 <b>2026-08-29 사람이 D99 게이트에서 <code>iG5A NTC</code> 1건을 승인</b>했을 때이며, 그때도 기계 판정(<code>STILL_AMBIGUOUS</code>)은 고치지 않고 그대로 뒀습니다 — 사람이 기계를 덮었다는 사실 자체가 기록으로 남아야 하기 때문입니다.
     </div>
   </section>
 

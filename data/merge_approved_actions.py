@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """승인된 `actions` 3건을 정본에 병합한다 (M1, MQ-919) — 멱등 재실행 가능.
 
-입력 : data/extracted/error_codes.json (정본, 65 entries)
+입력 : data/extracted/error_codes.json (정본, 70 entries — Sprint 15 IE5 5건 병합 후)
        data/extracted/error_codes_actions.candidate.json (후보, 사람 승인 완료 — TODO_직접할일.md)
 출력 : data/extracted/error_codes.json — `actions`·`actions_manual_id`·`actions_page`
        **3필드만** 갱신한다. 다른 필드는 절대 건드리지 않는다(아래 해시 대조가 그것을 증명한다).
@@ -18,10 +18,10 @@
 승인되지 않은 항목은 병합하지 않는다(엣지케이스: 일부만 승인).
 
 병합 전후 안전장치 (핵심):
-  1. 병합 **전** 65건 전체에서 `actions`·`actions_manual_id`·`actions_page` **3필드를
-     제외한** 나머지 전부를 정준 직렬화해 sha256 해시를 65건 계산해 둔다.
+  1. 병합 **전** 70건 전체에서 `actions`·`actions_manual_id`·`actions_page` **3필드를
+     제외한** 나머지 전부를 정준 직렬화해 sha256 해시를 70건 계산해 둔다.
   2. `APPROVED` 의 3건만 그 3필드를 후보 값으로 덮어쓴다.
-  3. 병합 **후** 같은 방식으로 65건 해시를 다시 계산해 **전건 대조**한다.
+  3. 병합 **후** 같은 방식으로 70건 해시를 다시 계산해 **전건 대조**한다.
      하나라도 다르면 (버그로 다른 필드가 건드려졌다는 뜻이므로) **파일을 쓰지 않고 중단**한다.
 
 재실행 안전성: 승인된 3건의 3필드가 이미 후보값과 같으면 "변경 없음"으로 안전하게 종료하고
@@ -51,14 +51,27 @@ ACTION_MAP = EXTRACTED / "ig5a_action_map.json"
 
 # 사람 승인 기록 (TODO_직접할일.md `## actions 검수` 절, 2026-08-17 사용자 최종 승인 G1·G2).
 # 후보 파일 전체를 무조건 병합하지 않는다 — 이 목록에 있는 것만 병합한다.
+#
+# ⚠ `iG5A NTC` 는 **2026-08-29 사람이 위임 반려를 뒤집어 승인한 건**이다 (2026-08-19 위임
+#   검수 결론은 보류였고 `actions_absence_verification.json` 의 기계 판정도 여전히
+#   `STILL_AMBIGUOUS` 다 — 그 감사 기록은 고치지 않는다). 근거의 한계(귀속행 0·공유 셀 가능성)는
+#   후보 파일 `entries[].override_note` 에 남아 있다. 기계 판정을 사람이 덮었다는 사실 자체를
+#   지우지 말 것 — 이 목록이 "사람 승인"의 정본이라는 위 원칙이 그 이유다.
 APPROVED: list[tuple[str, str]] = [
     ("iG5A", "RERR"),
     ("iG5A", "ETB"),
     ("S100", "FANW"),
+    ("iG5A", "NTC"),
 ]
+
+# 정본 entries 수 — Sprint 15(D109·MQ-1507)가 IE5 5건을 병합해 65 → 70 이 됐다.
+# 이 값은 방어적 가드용이다(엉뚱한 파일을 정본으로 잡는 사고를 막는다).
+EXPECTED_ENTRIES = 70
 
 ACTION_FIELDS = ("actions", "actions_manual_id", "actions_page")
 MERGE_MARKER = "actions 3건 병합"
+#: 사람이 위임 반려를 뒤집은 건은 별도 마커로 `_status` 에 남긴다 (MERGE_MARKER 와 독립).
+OVERRIDE_MARKER = "iG5A NTC actions 병합"
 
 
 def _entry_hash(entry: dict) -> str:
@@ -93,9 +106,10 @@ def merge_error_codes() -> bool:
 
     prev_entries = prev.get("entries") or []
     out_entries = out.get("entries") or []
-    if len(prev_entries) != 65 or len(out_entries) != 65:
+    if len(prev_entries) != EXPECTED_ENTRIES or len(out_entries) != EXPECTED_ENTRIES:
         raise SystemExit(
-            f"[중단] 정본 entries 가 65건이 아닙니다 (실측 {len(out_entries)}) — 병합하지 않았다"
+            f"[중단] 정본 entries 가 {EXPECTED_ENTRIES}건이 아닙니다"
+            f" (실측 {len(out_entries)}) — 병합하지 않았다"
         )
 
     cand_by_key = _by_key(cand.get("entries") or [])
@@ -103,9 +117,9 @@ def merge_error_codes() -> bool:
         if key not in cand_by_key:
             raise SystemExit(f"[중단] 승인 목록 {key} 가 후보 파일에 없습니다 — 방어적 중단")
 
-    # 🔴 병합 전 해시 (65건 전체, 비-actions 필드)
+    # 🔴 병합 전 해시 (70건 전체, 비-actions 필드)
     before_hashes = {key: _entry_hash(e) for key, e in _by_key(prev_entries).items()}
-    if len(before_hashes) != 65:
+    if len(before_hashes) != EXPECTED_ENTRIES:
         raise SystemExit(
             "[중단] (model,code) 키 중복 의심 — "
             f"entries {len(prev_entries)}건인데 고유 키 {len(before_hashes)}건"
@@ -127,12 +141,15 @@ def merge_error_codes() -> bool:
         for f in ACTION_FIELDS:
             target[f] = source.get(f)
 
-    # 🔴 병합 후 해시 재계산 — 65건 전체가 병합 전과 동일해야 한다(actions 3필드는 제외했으므로
+    # 🔴 병합 후 해시 재계산 — 70건 전체가 병합 전과 동일해야 한다(actions 3필드는 제외했으므로
     #    구조적으로 항상 같아야 정상이다 — 다르면 위 로직이 다른 필드를 건드렸다는 뜻이다).
     after_hashes = {key: _entry_hash(e) for key, e in _by_key(out_entries).items()}
     mismatched = [k for k in before_hashes if before_hashes[k] != after_hashes.get(k)]
     matched = len(before_hashes) - len(mismatched)
-    print(f"[해시 대조] 비-actions 필드 65건 중 {matched}건 일치 · 불일치 {len(mismatched)}건")
+    print(
+        f"[해시 대조] 비-actions 필드 {len(before_hashes)}건 중 {matched}건 일치"
+        f" · 불일치 {len(mismatched)}건"
+    )
     if mismatched:
         print(f"[중단] 해시 불일치 {mismatched} — 정본을 쓰지 않았다.")
         raise SystemExit(1)
@@ -154,6 +171,12 @@ def merge_error_codes() -> bool:
         new_status = prev_status
     else:
         new_status = f"{prev_status} · {MERGE_MARKER} (2026-08-17, MQ-919, TODO_직접할일.md 승인 완료)"
+    if OVERRIDE_MARKER not in new_status:
+        new_status += (
+            f" · {OVERRIDE_MARKER} (2026-08-29 — 2026-08-19 위임 반려를 사람이 뒤집은 건."
+            " 기계 판정은 STILL_AMBIGUOUS 로 남아 있고 귀속(rowspan)은 미확인이다,"
+            " 후보 파일 override_note 참조)"
+        )
     out["_status"] = new_status
     out["generated_at"] = str(date.today())
 
@@ -175,7 +198,10 @@ def merge_error_codes() -> bool:
         print(line)
 
     CANONICAL.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[기록] {CANONICAL} — actions {len(changed_keys)}건 병합 완료 (entries 65건 불변)")
+    print(
+        f"[기록] {CANONICAL} — actions {len(changed_keys)}건 병합 완료"
+        f" (entries {len(out_entries)}건 불변)"
+    )
     return True
 
 

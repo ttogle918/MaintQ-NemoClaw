@@ -143,11 +143,14 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 ## Sprint 8 — A2A
 
-- [ ] **A2A 연결 승인·파트너 자격증명 실값 — 미착수.** 시드 `partner_links` 5행은 **목업 전제**
-      (`data/seed.py` 의 `PARTNER_LINKS_MOCK = True`)이고 `.env` 의 A2A 4키
-      (`MAINTQ_A2A_{FINALLQ,INSUQ}_CLIENT_{ID,SECRET}`)는 **전부 비어 있다**.
-      FinAllQ ADMIN 과 사람 간 연결 승인을 거쳐 실값을 받으면 `.env` 에 기입하고
-      **`PARTNER_LINKS_MOCK` 을 `False` 로** 바꾼다(시드 출력의 "사람 확인 대기" 고지가 사라진다).
+- [ ] **A2A 연결 승인 표기 — 자격증명 실값은 확보됐다(2026-08-29 정정).** 이 항목은 오래
+      *"미착수 · `.env` 4키 전부 비어 있다"* 로 적혀 있었으나 **낡았다**: **D120** 이 스킴을
+      Basic(`MAINTQ_A2A_*_CLIENT_ID`/`_SECRET`)에서 **Bearer**(`INSUQ_SERVICE_TOKEN`·
+      `FINALLQ_SERVICE_TOKEN` + `X-A2A-Partner-Id: maintq-agent`)로 교체했고,
+      `.env` 의 그 두 키에는 **실값이 들어 있다**(FinAllQ→InsuQ 2차 홉이 같은 스킴으로 실 E2E 성공).
+      남은 것은 승인이 아니라 **표기 정합**이다 — 시드 `partner_links` 5행이 여전히 **목업 전제**
+      (`data/seed.py` 의 `PARTNER_LINKS_MOCK = True`)이므로, 이 5행이 실제 승인된 연결과 일치하는지
+      확인한 뒤 **`PARTNER_LINKS_MOCK` 을 `False` 로** 내린다(시드 출력의 "사람 확인 대기" 고지가 사라진다).
   - ⛔ **값 자체는 저장소·세션 로그·문서 어디에도 적지 않는다** — `.env.example` 은 키 이름만 둔다
     (`LAW_API_OC` 와 같은 규칙). 회귀 `spikes/a2a_identity_contract.py ⑭` 가 `.env.example` 의
     4키에 **실값이 없음**을, ⑮ 가 `mcp_server/**` 에서 **안 보임**(D15·D93)을 단언한다
@@ -213,7 +216,19 @@ Claude가 대신 못 하는 것들. 순서대로.
   - 설계: `docs/superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md`
   - ⛔ 지출은 **Stage 3 한 곳**에만 있다. Stage 1·2 는 네트워크·지출 0
   - ✅ `.env.example` 키 이름 등재는 **완료**(`ELICE_API_KEY`·`ELICE_DOCVISION_URL`, 값 없음)
-- [x] ❌ **D99 재승인 — `iG5A NTC` 회수 보류(반려).** Claude 위임 판정 (2026-08-19)
+- [x] 🔵 **D99 — `iG5A NTC` 사람 승인·정본 병합 완료 (2026-08-29).** 아래 위임 판정(반려)을
+      **사용자가 뒤집었다.** `data/merge_approved_actions.py` 로 병합했고 비-actions 필드 70건
+      해시 대조가 전건 일치했다(다른 필드 무손상). `actions` 결측 34 → **33건**,
+      `actions_manual_id IS NOT NULL` 3 → **4건**(회귀 기준값도 함께 갱신: `seed.py` 검사 ㉚ ·
+      `spikes/lookup_contract.py ⑭`).
+  - ⚠ **아래 반려 근거 셋은 지금도 유효하다** — 병합으로 해소된 것이 아니라 사람이 감수하고 넘긴 것이다.
+    기계 판정(`actions_absence_verification.json`)은 **고치지 않았다**(여전히 `STILL_AMBIGUOUS`) —
+    사람이 기계를 덮었다는 사실이 기록에 남아야 하기 때문이다. 근거와 한계는 후보 파일
+    `entries[].override_note` 에 보존된다
+  - 🔎 뒤집기를 뒷받침한 실측: 창의 첫 조각 *"시 출력을 차단합니다."* 가 정본 `NTC` 의 causes
+    *"NTC 오픈 시 출력을 차단합니다."* 와 이어지고, 앵커는 `error_name` *"NTC 오픈"* 완전일치
+    (`weak_anchor=False`)다. 그래도 **공유 셀 여부는 여전히 미확인**이다
+- [x] ❌ ~~**D99 재승인 — `iG5A NTC` 회수 보류(반려).**~~ Claude 위임 판정 (2026-08-19) — **위 항목으로 뒤집힘**
   판정 34건 중 `RECOVERABLE` 은 **1건뿐**이다. 정본 병합 전 사람 검수가 필요하다(MQ-919 경로).
   **사용자가 이 건에 한해 검수를 위임했다(2026-08-19).** 근거를 대조한 결과 **회수하면 안 된다**:
   1. 근거가 표 행이 아니라 **`text_window`**(240자 폴백) — 문장이 *"시 출력을 차단합니다"* 로 중간에서

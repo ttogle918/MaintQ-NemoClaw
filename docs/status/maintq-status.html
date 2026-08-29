@@ -318,8 +318,11 @@
     저장소 안에서 서로 충돌하던 세 진단을 판가름했습니다(1,530원 실판독 34페이지 집행):
     <code class="inline">CONFIRMED_ABSENT 24 · DISAGREE 6 · STILL_AMBIGUOUS 4 · RECOVERABLE 0 · INCONCLUSIVE 0</code>.
     <code class="inline">_pending_review</code>(MQ-911)의 "매뉴얼에 원래 없음"이 24건에서 맞았고, <code class="inline">extract_triage</code>의
-    "S100 25건은 재추출로 회수 가능"과 백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 회수 가능은
-    <code class="inline">iG5A NTC</code> 1건뿐입니다(D99 재승인 대기).
+    "S100 25건은 재추출로 회수 가능"과 백로그 P31의 "재추출 후보"는 <b>틀렸습니다</b> — 기계 판정
+    기준 회수 가능은 <b>0건</b>입니다. 다만 <code class="inline">iG5A NTC</code> 1건은
+    <b>2026-08-29 사람이 위임 반려를 뒤집어 승인</b>해 정본에 병합했습니다(기계 판정은 여전히
+    <code class="inline">STILL_AMBIGUOUS</code>, 귀속행 미확인 — 근거의 한계는 후보 파일
+    <code class="inline">override_note</code>에 남아 있습니다).
   </div>
 
   <!-- ============ 구현 완료 ============ -->
@@ -570,9 +573,9 @@
     <div class="issue">
       <span class="sev warn">사람 승인</span>
       <div>
-        <h4><b>🔴 신규</b> — <code class="inline">iG5A NTC</code> 1건 D99 재승인 대기 (Sprint 13 회수)</h4>
-        <p>3자 대조 엔진(<code class="inline">data/verify_actions_absence.py</code>)이 <code class="inline">actions</code> 결측 34건 중 <b>유일하게 회수 가능</b>으로 판정한 항목입니다. Elice DocVision 재판독이 매뉴얼 원문에서 조치문을 찾아냈지만, <code class="inline">error_codes.json</code> 정본 반영은 <b>D99 게이트</b>(사람 승인)를 그대로 통과해야 합니다 — 판독기가 맞다고 자동 병합하지 않습니다(D105).</p>
-        <div class="fix"><b>영향 —</b> 승인되면 <code class="inline">actions</code> 결측이 34 → 33건으로 줄어듭니다. 승인 전에는 정본이 바뀌지 않습니다.</div>
+        <h4>✅ 해소 (2026-08-29) — <code class="inline">iG5A NTC</code> 1건 D99 승인·정본 병합</h4>
+        <p>경과가 두 번 뒤집힌 항목입니다. Sprint 13 실판독 직후에는 <b>회수 가능(RECOVERABLE)</b>이었으나, 같은 날(2026-08-19) 위임 검수에서 판정 매트릭스 갭이 드러나 <code class="inline">STILL_AMBIGUOUS</code>로 정정되며 <b>보류(반려)</b>됐습니다. 2026-08-29 <b>사람이 그 반려를 뒤집어 승인</b>해 <code class="inline">data/merge_approved_actions.py</code>로 정본에 병합했습니다(비-actions 필드 70건 해시 대조 전건 일치).</p>
+        <div class="fix"><b>남은 한계 —</b> 기계 판정은 <b>바꾸지 않았습니다</b>. <code class="inline">actions_absence_verification.json</code>은 여전히 <code class="inline">STILL_AMBIGUOUS</code>이고 귀속행(rowspan)은 0(미확인)입니다 — 이 조치문이 <code class="inline">NTC</code> 전용인지 <code class="inline">HWT</code>·<code class="inline">EEP</code>·<code class="inline">ERR</code>·<code class="inline">COM</code>과 공유하는 셀인지는 확인되지 않았습니다. 근거와 한계는 후보 파일 <code class="inline">entries[].override_note</code>에 보존됩니다. <code class="inline">actions</code> 결측 34 → <b>33건</b>.</div>
       </div>
     </div>
     <div class="issue">
@@ -915,8 +918,8 @@
 
   <div class="footer-strip">
     <div>다음 우선순위: <strong>Sprint 5~13 전부 완료 — 남은 것은 백로그(P39 화면 직접 초안 생성)와 사람 승인 대기 항목뿐</strong><br>
-      <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) · <b>신규</b> <code class="inline">iG5A NTC</code> D99 재승인 · <b>신규</b> <code class="inline">DISAGREE</code> 2건(<code class="inline">EEP</code>·<code class="inline">HWT</code>) 확인<br>
-      ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b></span></div>
+      <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) — <b>이제 이 1건뿐입니다</b><br>
+      ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b> · <b><code class="inline">DISAGREE</code> 6건 확인 완료 — 조치 불필요(08-19)</b> · <b><code class="inline">iG5A NTC</code> D99 승인·정본 병합(08-29)</b> · <b>A2A 파트너 자격증명 실값 확보(D120 — Bearer 스킴 교체)</b></span></div>
     <div class="figs">
       <div><b>1,279</b>회귀 단언 — 33스위트 1,069 + seed 41 + pytest 169 (실측 2026-08-24)</div>
       <div><b>24</b>DB 테이블 (코어 11 + 확장 7 + A2A 1 + 목업 1 + Sprint 11 4)</div>

@@ -110,11 +110,20 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
 > 번호가 밀림) · **D105**(Elice DocVision 도입, 정답지로 취급하지 않음). P39 는 여전히
 > 스코프아웃(브레인스토밍부터 다시).
 >
-> 🎯 **판독 결과** — `CONFIRMED_ABSENT` **24** · `DISAGREE` **6** · `STILL_AMBIGUOUS` **3** ·
-> `RECOVERABLE` **1** · `INCONCLUSIVE` **0**. `_pending_review`(MQ-911)의 *"매뉴얼에 원래 없음"*
+> 🎯 **판독 결과(최종)** — `CONFIRMED_ABSENT` **24** · `DISAGREE` **6** · `STILL_AMBIGUOUS` **4** ·
+> `RECOVERABLE` **0** · `INCONCLUSIVE` **0**. `_pending_review`(MQ-911)의 *"매뉴얼에 원래 없음"*
 > 주장 28건 중 24건이 확정됐고, `extract_triage` 의 *"S100 25건은 파서 결함(`CELL_SPLIT`)"* 가설은
-> **기각**됐다 — 유료 OCR 로 데이터를 늘리려던 기대는 성립하지 않았다. 회수 가능은 `iG5A NTC`
-> **1건뿐**이고 D99 재승인 대기다.
+> **기각**됐다 — 유료 OCR 로 데이터를 늘리려던 기대는 성립하지 않았다.
+> ⚠ 이 문단은 오래 *"`RECOVERABLE` 1(`iG5A NTC`) · D99 재승인 대기"* 로 적혀 있었으나 **낡은 값이다**
+> (2026-08-29 실측 정정). 같은 날(2026-08-19) 후반부의 위임 검수에서 판정 매트릭스 갭이 드러나
+> `NTC` 는 `RECOVERABLE` → **`STILL_AMBIGUOUS`** 로 정정됐고(커밋 `8923866`·`bc76aef`),
+> `data/extracted/actions_absence_verification.json` 실측도 `RECOVERABLE` **0** 이다.
+> **34건 중 기계 판정 회수 가능은 0건** — 1,530원으로 산 것은 조치문이 아니라 34건 전부에 대한 확답이다.
+> 🔵 **다만 2026-08-29 사람이 그 반려를 뒤집어 `iG5A NTC` 1건을 승인·정본 병합했다**
+> (`data/merge_approved_actions.py`, 비-actions 필드 70건 해시 대조 전건 일치 · `actions` 결측 34 → **33건**).
+> 기계 판정은 **고치지 않았다** — `actions_absence_verification.json` 은 여전히 `STILL_AMBIGUOUS` 이고
+> 귀속행(rowspan)은 0(미확인)이다. 사람이 기계를 덮었다는 사실과 그 근거의 한계는
+> 후보 파일 `entries[].override_note` 에 남아 있다.
 
 1. ✅ ~~**사람** — `related_parts` 최종 승인~~ — **2026-08-12 완료.** 부품 특정 정확률이 "판정 불가" → **"미달 40.0%"**(목표 ≥90%) 로 바뀌었다 (D12 해제)
 2. ✅ ~~**사람** — 처분 승인서·진술보장서 **문안 검수**~~ — **2026-08-13 완료.** 19시나리오(판정 5종 전부) 렌더링본을 확인하고 **수정 없이 승인**. 출력 키가 `unreviewed_template_notice` → **`template_review_notice`** 로 바뀌었다 (**D90**) — 값이 "검수 완료"가 되는데 키에 `unreviewed` 가 남으면 자기모순이다
@@ -175,9 +184,19 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
     미반영 pytest 스위트(A2A 8파일, 46/86 FAIL)도 근본 원인(DSN 문자열 `Path()` 래핑 버그)까지
     같은 세션에서 고쳐 86/86으로 정리 — 상세는 `docs/sprints/sprint-16-wip.md`
 
-> **남은 사람 승인 4건** — **`iG5A NTC` 1건 D99 재승인**(18번 Stage 5 회수분, 정본 병합 대기) ·
-> **`DISAGREE` 중 `iG5A EEP`·`HWT` 2건 확인**(18번, 위양성 여부 육안 대조) · **안전 문구 검수**(14번) ·
-> **A2A 파트너 자격증명 실값**(13번, QMesh 착수 전까지는 급하지 않음). 나머지는 전부 완료됐다.
+> **남은 사람 승인 1건** — **안전 문구 검수**(14번, `SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE`).
+> 나머지 3건은 이미 종결됐다(2026-08-29 실측 정정 — 이 줄은 오래 *"남은 4건"* 으로 낡아 있었다):
+> ㉠ **`iG5A NTC` D99 → 2026-08-29 사람 승인·정본 병합 완료.** 경과가 두 번 뒤집혔다:
+> Sprint 13 실판독 직후 `RECOVERABLE` → 같은 날(2026-08-19) 위임 검수에서 매트릭스 갭이 드러나
+> `STILL_AMBIGUOUS` 로 정정되며 **보류(반려)** → 2026-08-29 **사람이 그 반려를 뒤집어 승인**.
+> 반려 근거였던 셋(표 행이 아닌 `text_window` 240자 폴백 · 귀속행 0 · `_pending_review` 의 공유 셀
+> 목록에 `'NTC 이상'` 명시)은 **지금도 유효하다** — 병합했다고 해소된 것이 아니라 사람이 감수하고
+> 넘긴 것이다. ㉡ **`DISAGREE` 6건 확인 → 같은 날 완료·조치 불필요**
+> (`TODO:232`, `EEP`·`HWT` 는 근거가 각각 설명문·8자 라벨이라 정본에 넣을 것이 없다).
+> ㉢ **A2A 파트너 자격증명 실값 → D120 으로 확보됨** — 스킴이 Basic(`CLIENT_ID`/`SECRET`)에서
+> Bearer(`INSUQ_SERVICE_TOKEN`·`FINALLQ_SERVICE_TOKEN`)로 바뀌었고 `.env` 두 키에 실값이 들어 있다.
+> 남은 것은 승인이 아니라 표기다 — `data/seed.py` 의 `PARTNER_LINKS_MOCK` 은 아직 `True` 이고,
+> 시드 `partner_links` 5행이 실제 승인된 연결인지 확인된 뒤에 `False` 로 내린다.
 >
 > ⚠ **`N` 이 확정됐다고 잔가곡선이 실측이 된 것은 아니다** — `RESIDUAL_AT_LIFE_END=0.50`·
 > `FLOOR=0.10` 은 근거 미확보 **가정**으로 남아 있고 D74·D65 의 추정치 고지는 유지된다.

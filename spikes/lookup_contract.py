@@ -286,11 +286,12 @@ def real_db_actions_source_check(real_db: Path) -> None:
     `actions_manual_id` 는 구조 컬럼(어느 코드가 병합됐는지)이지 조치문 **문장** 자체가
     아니므로 이 파일의 격리 원칙(합성 픽스처만 실사용값의 기준으로 삼는다)을 어기지 않는다.
 
-    이전 버전은 "전건 null" 을 봤다(병합 전). 승인 3건(iG5A RERR·ETB, S100 FANW)이 정본에
+    이전 버전은 "전건 null" 을 봤다(병합 전). 승인 4건(iG5A RERR·ETB·NTC, S100 FANW)이 정본에
     병합된 지금 그 검사를 그대로 두면 **위양성 FAIL** 한다 — 그래서 **실측 대조**로 바꾼다:
-    채워진 행이 정확히 그 3건인지(양성 축) + 나머지는 여전히 null인지(음성 축)를 함께 본다.
+    채워진 행이 정확히 그 4건인지(양성 축) + 나머지는 여전히 null인지(음성 축)를 함께 본다.
+    (`iG5A NTC` 는 2026-08-29 사람이 위임 반려를 뒤집어 승인한 건 — 기계 판정은 STILL_AMBIGUOUS)
     """
-    expected_filled = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW")}
+    expected_filled = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW"), ("iG5A", "NTC")}
     if dbcompat.USE_POSTGRES:
         con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
     else:
@@ -308,10 +309,10 @@ def real_db_actions_source_check(real_db: Path) -> None:
     filled_keys = {(m, c) for m, c in filled_rows}
     check(
         "⑭ D100 실 DB — actions_source(actions_manual_id) 실측 대조 "
-        "(정본 병합 MQ-919 완료 — 승인 3건만 채워짐)",
-        filled_keys == expected_filled and null_count == 67 and total > 0,
+        "(정본 병합 MQ-919 3건 + iG5A NTC 사람 승인 1건 = 4건만 채워짐)",
+        filled_keys == expected_filled and null_count == 66 and total > 0,
         f"[양성] 채워짐={sorted(filled_keys)}(기대 {sorted(expected_filled)}) · "
-        f"[음성] null={null_count}건(기대 67) · rows={total}(기대 70)",
+        f"[음성] null={null_count}건(기대 66) · rows={total}(기대 70)",
     )
 
 

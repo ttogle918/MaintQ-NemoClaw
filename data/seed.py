@@ -3024,12 +3024,15 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
         f" · [음성] 불일치={mismatches}",
     )
 
-    # ㉚ actions 병합 검증 (MQ-919, D99·D100). 승인 3건(iG5A RERR·ETB, S100 FANW)만
-    #    actions_manual_id 가 채워져 있어야 하고(양성 축), 그 외 62건은 여전히 NULL 이어야
-    #    한다(음성 축). 채워진 3건의 actions 내용도 후보 파일(병합 근거)과 대조한다.
+    # ㉚ actions 병합 검증 (MQ-919, D99·D100). 승인 4건(iG5A RERR·ETB·NTC, S100 FANW)만
+    #    actions_manual_id 가 채워져 있어야 하고(양성 축), 그 외 66건은 여전히 NULL 이어야
+    #    한다(음성 축). 채워진 4건의 actions 내용도 후보 파일(병합 근거)과 대조한다.
     #    `--with-error-codes` 없이 실행하면 0행이 정상 — 이때는 FAIL 이 아니라 통과시킨다
     #    (㉘ 와 같은 태도).
-    expected_merged = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW")}
+    #    ⚠ `iG5A NTC` 는 2026-08-29 사람이 위임 반려를 뒤집어 승인한 건이다(기계 판정은
+    #      여전히 STILL_AMBIGUOUS). 이 검사는 "승인된 것만 병합됐는가"를 보지 조치문이
+    #      옳은지를 보지 않는다 — 근거의 한계는 후보 파일 override_note 에 남아 있다.
+    expected_merged = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW"), ("iG5A", "NTC")}
     merged_rows = con.execute(
         "SELECT model, code, actions, actions_manual_id, actions_page"
         " FROM error_codes WHERE actions_manual_id IS NOT NULL"
@@ -3058,16 +3061,18 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
                 content_mismatches.append((m, c, "내용 불일치"))
         content_ok = not content_mismatches
         content_detail = (
-            f"불일치={content_mismatches}" if content_mismatches else "3건 전부 후보값과 일치"
+            f"불일치={content_mismatches}"
+            if content_mismatches
+            else f"{len(merged_rows)}건 전부 후보값과 일치"
         )
     check(
         "㉚ error_codes.actions 병합 검증 (MQ-919)",
         (
-            (merged_keys == expected_merged and null_count == 67 and content_ok)
+            (merged_keys == expected_merged and null_count == 66 and content_ok)
             if with_codes
             else (len(merged_rows) == 0)
         ),
-        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 67)"
+        f"[양성] 채워짐={sorted(merged_keys)} · [음성] NULL={null_count}건(기대 66)"
         f" · [내용대조] {content_detail}"
         + ("" if with_codes else " (게이트: --with-error-codes 없음 — 0행이 정상, FAIL 아님)"),
     )
