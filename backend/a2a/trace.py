@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from backend.db import connect
@@ -27,7 +26,7 @@ def record_a2a_trace(
     response_payload: dict[str, Any] | None,
     request_chain_id: str,
     status: str = "ok",
-    db_path: Path | str | None = None,
+    db_path: str | None = None,
 ) -> None:
     """traces 테이블에 A2A tool_call 및 tool_result 쌍을 저장한다."""
     if not session_id:

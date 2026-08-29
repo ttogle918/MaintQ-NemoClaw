@@ -216,7 +216,19 @@ def run(client, db: Path, built: dict[str, dict]) -> None:
     dec_states = {i["state"] for i in all_items if i["kind"] == "disposal"}
     check(
         "state 가 원 어휘 그대로 (approved ≠ signed, 정규화 금지)",
-        po_states <= {"draft", "pending", "approved", "rejected"}
+        # D119(Sprint 17) 가 재무부 승인 단계를 넣으며 finance_approved·finance_rejected 를
+        # 더했다 — 그 스프린트가 이 허용집합을 갱신하지 않아 이 검사는 그때부터 FAIL 하고
+        # 있었다(2026-08-29 발견). 어휘를 늘리는 것이 맞다: 이 검사의 취지는 "공통 어휘로
+        # 정규화하지 말라"이지 "상태는 4종뿐"이 아니다.
+        po_states
+        <= {
+            "draft",
+            "pending",
+            "approved",
+            "rejected",
+            "finance_approved",
+            "finance_rejected",
+        }
         and dec_states <= {"draft", "pending", "signed", "rejected"}
         and "draft" in dec_states,  # 픽스처 DEC-S001
         f"po={sorted(po_states)} · disposal={sorted(dec_states)}",

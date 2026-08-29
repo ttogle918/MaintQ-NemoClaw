@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from backend.db import connect
@@ -23,7 +22,7 @@ def list_a2a_history(
     building_id: str | None = None,
     chain_id: str | None = None,
     limit: int = 50,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """A2A 호출 감사 이력. `tool LIKE 'a2a:%'` 인 traces 행을 request_chain_id 로 묶어 반환한다.
 

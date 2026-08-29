@@ -61,7 +61,6 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from backend.db import connect
@@ -397,7 +396,7 @@ def _row_to_decision(r: sqlite3.Row, *, with_bundle: bool = False) -> dict:
     return d
 
 
-def list_decisions(state: str | None = None, db_path: Path | None = None) -> list[dict]:
+def list_decisions(state: str | None = None, db_path: str | None = None) -> list[dict]:
     sql = _DECISION_SELECT
     args: list[object] = []
     if state:
@@ -408,7 +407,7 @@ def list_decisions(state: str | None = None, db_path: Path | None = None) -> lis
         return [_row_to_decision(r) for r in con.execute(sql, args).fetchall()]
 
 
-def get_decision(decision_id: str, db_path: Path | None = None) -> dict | None:
+def get_decision(decision_id: str, db_path: str | None = None) -> dict | None:
     """상세 + 렌더된 문서·증빙 패키지 (D86). **저장하지 않는다.**"""
     with read_only(db_path) as con:
         r = con.execute(
@@ -697,7 +696,7 @@ def _locked_row(con: sqlite3.Connection, decision_id: str) -> sqlite3.Row:
     return r
 
 
-def submit(decision_id: str, *, requested_by: str, db_path: Path | None = None) -> dict:
+def submit(decision_id: str, *, requested_by: str, db_path: str | None = None) -> dict:
     """draft → pending. 정비사의 '팀장 승인 요청' (A3 — 에이전트 루프 밖).
 
     신원 stamp 를 여기서 한다 (D23·D37) — 도구는 `requested_by` 를 채우지 않는다.
@@ -716,7 +715,7 @@ def submit(decision_id: str, *, requested_by: str, db_path: Path | None = None) 
 
 
 def reject(
-    decision_id: str, *, reviewed_by: str, reason: str, db_path: Path | None = None
+    decision_id: str, *, reviewed_by: str, reason: str, db_path: str | None = None
 ) -> dict:
     """pending → rejected. 사유 필수 (D38) — 라우터의 pydantic 이 공백을 먼저 막는다."""
     with connect(db_path) as con:
@@ -738,7 +737,7 @@ def sign(
     override: bool = False,
     override_reason: str | None = None,
     note: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """pending → signed. **순서가 계약이다** (모듈 docstring ①~⑥ · D84).
 

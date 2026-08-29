@@ -32,7 +32,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from backend.services import decisions as dec_svc
 from backend.services import po as po_svc
@@ -106,7 +105,7 @@ def _repair_item(r: dict) -> dict:
 def list_approvals(
     state: str | None = None,
     kind: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> list[dict]:
     """통합 큐. `created_at DESC` 정렬.
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 
 from backend import manifest
 from backend.db import connect
@@ -47,7 +46,7 @@ class TransitionError(Exception):
         )
 
 
-def display_name(user_id: str | None, db_path: Path | None = None) -> str:
+def display_name(user_id: str | None, db_path: str | None = None) -> str:
     """ASCII 사용자 ID → 화면 표시명 (D36 매핑을 D41 로 `users` 테이블 이관).
 
     하드코딩 딕셔너리였던 것을 DB 조회로 바꿨다 — 표시명이 코드에 박혀 있으면 사용자가
@@ -113,7 +112,7 @@ def stamp_identity(
     po_id: str,
     requested_by: str,
     session_id: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> bool:
     """도구가 만든 draft 에 신원·세션을 새긴다 (D37).
 
@@ -169,7 +168,7 @@ def _validate_input(
     return None
 
 
-def quotes_for_part(part_no: str, db_path: Path | None = None) -> list[dict]:
+def quotes_for_part(part_no: str, db_path: str | None = None) -> list[dict]:
     """`GET /api/po/quotes/{part_no}` — 발주 초안을 만들기 전 공급사를 고르기 위한 조회.
     부품·공급사가 없으면 빈 리스트(404 아님 — "없다"는 유효한 조회 결과다, D62)."""
     with connect(db_path) as con:
@@ -187,7 +186,7 @@ def create(
     error_code: str | None = None,
     evidence: dict | None = None,
     requested_by: str,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`POST /api/po` — 화면이 발주 초안을 직접 생성한다(P39 축소판).
 
@@ -238,7 +237,7 @@ def update(
     model: str | None = None,
     error_code: str | None = None,
     evidence: dict | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`PATCH /api/po/{po_id}` — draft 상태에서만 수정. 없으면 KeyError, draft 가
     아니면 NotEditableError(라우터가 각각 404·409로 매핑). supplier/qty/model/
@@ -276,7 +275,7 @@ def update(
     return get_po(po_id, db_path) or {}
 
 
-def list_pos(state: str | None = None, db_path: Path | None = None) -> list[dict]:
+def list_pos(state: str | None = None, db_path: str | None = None) -> list[dict]:
     sql = _PO_SELECT
     args: list[object] = []
     if state:
@@ -319,7 +318,7 @@ def _attach_print_pages(po: dict) -> None:
             entry["print_page"] = manifest.to_print_page(model, page)
 
 
-def get_po(po_id: str, db_path: Path | None = None) -> dict | None:
+def get_po(po_id: str, db_path: str | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
         r = con.execute(_PO_SELECT + " WHERE p.po_id = ?", (po_id,)).fetchone()
@@ -438,7 +437,7 @@ def transition(
     target: str,
     decided_by: str | None = None,
     note: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """상태 전이. 현재 상태가 맞지 않으면 TransitionError.
 
@@ -475,7 +474,7 @@ def _finance_transition(
     target: str,
     finance_decided_by: str,
     note: str | None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """재무 승인 전이. 팀장 전용 `decided_by`/`decision_note`와 별도 컬럼 3종을 쓴다."""
     from backend.services.decisions import now_utc_sql
@@ -497,7 +496,7 @@ def _finance_transition(
 async def dispatch_a2a_withdrawal_request(
     po_id: str,
     base_url: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict | None:
     """S5: finance_approved 상태의 발주서를 FinAllQ A2A 어댑터(request-withdrawal)로 전송하고 traces에 기록한다."""
     import os

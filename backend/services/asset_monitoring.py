@@ -29,7 +29,6 @@ REST 가 에이전트 도구 노출 설정에 종속되면 안 된다.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from data import deadlines as deadlines_data
 from data import risk_grade as risk_grade_data
@@ -54,7 +53,7 @@ def deadlines(
     *,
     asset_id: str | None = None,
     window_days: int | str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`GET /api/deadlines` — `data.deadlines.track_deadlines` 위임.
 
@@ -75,7 +74,7 @@ def risk_grade(
     *,
     building_id: str | None = None,
     asset_id: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`GET /api/buildings/{building_id}/risk-grade`·`GET /api/assets/{asset_id}/risk-grade`
     — `data.risk_grade.risk_grade` 위임. `building_id`·`asset_id` 는 either-or 다 — 위반

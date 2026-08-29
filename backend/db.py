@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def connect(db_path: Path | str | None = None) -> Iterator[psycopg.Connection]:
+def connect(db_path: str | None = None) -> Iterator[psycopg.Connection]:
     """Postgres 연결 컨텍스트 매니저.
 
     기존 SQLite 인터페이스를 유지하되, 드라이버만 교체.
@@ -48,12 +48,28 @@ def connect(db_path: Path | str | None = None) -> Iterator[psycopg.Connection]:
                  backend/services/disposal.py·ownership.py 의 기존 관행과 같다: 모듈
                  임포트 시점 값으로 고정하면 회귀가 갈아끼워도 반영되지 않는다.
     """
+    # 🔴 인자로 준 대상이 **무시되는 상황을 조용히 넘기지 않는다** (2026-08-29).
+    #   아래 분기는 DSN 문자열만 존중한다 — `Path` 나 SQLite 경로 문자열을 넘기면
+    #   조용히 무시되고 `DATABASE_URL`(공유 DB)로 간다. 호출부는 격리했다고 믿는데
+    #   실제로는 실 데이터를 만지는 상태가 되고, 그게 Sprint 16 에서 두 번(payloads.py·
+    #   trace.py 의 `Path()` 래핑), 2026-08-29 에 한 번 더(test_llm_cache.py) 사고를 냈다.
+    #   ⚠ **`DB_PATH` 전역은 여기서 막지 않는다** — 스파이크 8곳이 그 전역을 갈아끼우고
+    #     전부 DSN 을 넣지만, 전역까지 조이면 회귀 전체가 이 한 줄에 인질이 된다.
+    #     인자 경로만 막아도 이 버그 클래스의 실제 발생 지점은 전부 덮인다.
+    if db_path is not None and not (
+        isinstance(db_path, str) and db_path.startswith("postgresql://")
+    ):
+        raise TypeError(
+            f"connect(db_path=...) 는 Postgres DSN 문자열이어야 합니다: {db_path!r}. "
+            "격리가 필요하면 data.pg_isolation.create_isolated_schema() 가 돌려주는 DSN 을 "
+            "쓰십시오 — DSN 이 아닌 값은 무시되고 공유 DB 로 연결됩니다."
+        )
     con = None
     try:
         target = DATABASE_URL
         if isinstance(DB_PATH, str) and DB_PATH.startswith("postgresql://"):
             target = DB_PATH
-        if isinstance(db_path, str) and db_path.startswith("postgresql://"):
+        if isinstance(db_path, str):
             target = db_path
         # row_factory: backend/services/* 다수가 sqlite3.Row 관행(row["col"]) 을 그대로 쓴다 —
         # psycopg 기본 tuple_row 로는 그 접근이 깨진다 (Sprint 16 MQ-1614 에서 발견).

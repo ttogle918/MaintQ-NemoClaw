@@ -9,14 +9,13 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from backend.a2a.trace import record_a2a_trace
 from backend.services.a2a_history import list_a2a_history
 
 
 def _seed(
-    db_path: Path,
+    db_path: str,
     *,
     session_id: str = "sess-01",
     skill_id: str,
@@ -39,7 +38,7 @@ def _seed(
 # ---- (a) po_id 필터 -----------------------------------------------------------
 
 
-def test_po_id_filter_matches_exactly(db_path: Path):
+def test_po_id_filter_matches_exactly(db_path: str):
     _seed(
         db_path,
         skill_id="request-withdrawal",
@@ -69,7 +68,7 @@ def test_po_id_filter_matches_exactly(db_path: Path):
 # ---- (b) skill 필터 -------------------------------------------------------------
 
 
-def test_skill_filter(db_path: Path):
+def test_skill_filter(db_path: str):
     _seed(
         db_path,
         skill_id="lookup-clause",
@@ -95,7 +94,7 @@ def test_skill_filter(db_path: Path):
 # ---- (c) chain_id 정확 매칭 (접두어 매칭 아님) ------------------------------------
 
 
-def test_chain_id_exact_match_not_prefix(db_path: Path):
+def test_chain_id_exact_match_not_prefix(db_path: str):
     _seed(
         db_path,
         skill_id="lookup-clause",
@@ -120,7 +119,7 @@ def test_chain_id_exact_match_not_prefix(db_path: Path):
 # ---- (d) tool_payload NULL 일 때 response: None ---------------------------------
 
 
-def test_tool_payload_null_yields_response_none(db_path: Path):
+def test_tool_payload_null_yields_response_none(db_path: str):
     _seed(
         db_path,
         skill_id="request-withdrawal",
@@ -141,7 +140,7 @@ def test_tool_payload_null_yields_response_none(db_path: Path):
 # ---- (e) 필터 없을 때 3종 스킬이 섞여 나옴 ----------------------------------------
 
 
-def test_no_filter_returns_all_three_skills(db_path: Path):
+def test_no_filter_returns_all_three_skills(db_path: str):
     _seed(
         db_path,
         skill_id="request-withdrawal",
@@ -174,7 +173,7 @@ def test_no_filter_returns_all_three_skills(db_path: Path):
 # ---- (f) limit 적용 --------------------------------------------------------------
 
 
-def test_limit_applied(db_path: Path):
+def test_limit_applied(db_path: str):
     for i in range(5):
         _seed(
             db_path,
@@ -190,7 +189,7 @@ def test_limit_applied(db_path: Path):
     assert len(result["items"]) == 2
 
 
-def test_limit_non_positive_returns_empty(db_path: Path):
+def test_limit_non_positive_returns_empty(db_path: str):
     _seed(
         db_path,
         skill_id="lookup-clause",
@@ -207,7 +206,7 @@ def test_limit_non_positive_returns_empty(db_path: Path):
 # ---- 엣지 케이스: tool_call 만 있고 tool_result 없음 -------------------------------
 
 
-def test_tool_call_only_no_result_yet(db_path: Path):
+def test_tool_call_only_no_result_yet(db_path: str):
     record_a2a_trace(
         session_id="sess-partial",
         skill_id="lookup-clause",
@@ -230,7 +229,7 @@ def test_tool_call_only_no_result_yet(db_path: Path):
     assert item["response"] is None
 
 
-def test_building_id_filter(db_path: Path):
+def test_building_id_filter(db_path: str):
     _seed(
         db_path,
         skill_id="assess-loan",

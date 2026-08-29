@@ -183,6 +183,17 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
 
+- 🟡 **본문이 빈 응답이 조용히 정상 종료된다** (2026-08-29, D123 조사 중 발견).
+  `elice_chunk_delta` 는 `delta.content` 만 읽고 `reasoning`/`reasoning_content` 는
+  버린다. 추론 모델이 본문을 안 내면 텍스트 0글자가 되는데, `backend/agent/loop.py` 의
+  `if not pending: break` 가 그대로 턴을 끝낸다 — `TRUNCATION_REASONS` 가
+  `MAX_TOKENS`/`LENGTH` 만 보므로 `finish_reason=stop` + 빈 본문은 **예외도 경고도 없이**
+  지나간다. InsuQ 는 같은 상황에서 `TruncatedResponseError` 로 터졌는데(그래서
+  `gpt-oss-120b` 를 기각했다), MaintQ 는 **터지지 않고 빈 응답을 낸다** — 어떤 면에서는
+  더 나쁘다. 현재 모델(`openai/gpt-oss-120b`)에서는 발화하지 않았지만(도구 5종 정상 호출)
+  모델을 바꾸면 발화할 수 있다. 최소 조치는 "텍스트 0글자 + 도구 호출 0건 + `stop`" 을
+  경고로 남기는 것.
+
 NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌리다 드러났다.
 **셋 다 그 브랜치와 무관한 기존 문제**이고, 범위를 지키려고 기록만 하고 넘어갔다.
 1·2 는 실제로 사람을 멈춰 세우는 종류라 다음에 회귀를 만지는 사람이 먼저 볼 것.

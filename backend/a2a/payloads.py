@@ -8,13 +8,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from backend.db import connect
 
 
-def get_finallq_company_id(db_path: Path | str | None = None) -> str | None:
+def get_finallq_company_id(db_path: str | None = None) -> str | None:
     """partner_links에서 finallq 파트너의 company 결 external_ref를 조회한다.
 
     회사 결은 subject_ref=''(D96)로 고정돼 있다.
@@ -34,7 +33,7 @@ def build_request_withdrawal_payload(
     po: dict[str, Any],
     supplier_row: dict[str, Any] | None = None,
     request_chain_id: str = "",
-    db_path: Path | str | None = None,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """S5 request-withdrawal 스킬 payload를 조립한다."""
     account_number = ""
@@ -79,7 +78,7 @@ def build_request_withdrawal_payload(
 def build_lookup_clause_payload(
     question: str,
     request_chain_id: str,
-    db_path: Path | str | None = None,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """InsuQ lookup-clause 스킬 payload를 조립한다."""
     return {
@@ -96,7 +95,7 @@ def build_assess_loan_payload(
     purpose: str,
     collateral_building_id: str,
     request_chain_id: str,
-    db_path: Path | str | None = None,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """FinAllQ assess-loan 스킬(S8, 설비 담보 대출 사전 판정) payload를 조립한다."""
     return {

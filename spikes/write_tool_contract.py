@@ -558,8 +558,12 @@ def verify_row(db: Path, po_id: str) -> None:
         # backend/db.py 도 Postgres 전용이라 db_path 인자를 더 안 본다(DATABASE_URL 전역
         # 고정) — 공유 DB 대신 이 테스트의 격리 스키마를 상대로 stamp 하도록 바꿔야 한다.
         backend_db.DATABASE_URL = db[1]
-    ok1 = stamp_identity(po_id, "tech-01", "S1", db_path=db)
-    ok2 = stamp_identity(po_id, "mgr-01", "S9", db_path=db)  # 재stamp 시도
+    # ⚠ `db` 는 Postgres 타겟이면 **(schema, dsn) 튜플**이다(`_open` 참조) — 백엔드로
+    #   넘길 때는 DSN 문자열만 준다. 튜플을 그대로 넘기면 `backend/db.py::connect()` 가
+    #   **조용히 무시하고 공유 DB 를 stamp** 했다(2026-08-29 가드 도입으로 발각).
+    stamp_target = db[1] if dbcompat.USE_POSTGRES else None
+    ok1 = stamp_identity(po_id, "tech-01", "S1", db_path=stamp_target)
+    ok2 = stamp_identity(po_id, "mgr-01", "S9", db_path=stamp_target)  # 재stamp 시도
     con = _open(db)
     con.row_factory = sqlite3.Row
     r2 = con.execute("SELECT * FROM po_drafts WHERE po_id=?", (po_id,)).fetchone()

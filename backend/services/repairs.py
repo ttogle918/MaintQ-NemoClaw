@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 
 from backend.db import connect
 from backend.services.decisions import now_utc_sql
@@ -82,7 +81,7 @@ def _row_to_repair(r: sqlite3.Row) -> dict:
     return d
 
 
-def list_repairs(state: str | None = None, db_path: Path | None = None) -> list[dict]:
+def list_repairs(state: str | None = None, db_path: str | None = None) -> list[dict]:
     sql = _REPAIR_SELECT
     args: list[object] = []
     if state:
@@ -93,7 +92,7 @@ def list_repairs(state: str | None = None, db_path: Path | None = None) -> list[
         return [_row_to_repair(r) for r in con.execute(sql, args).fetchall()]
 
 
-def get_repair(repair_id: str, db_path: Path | None = None) -> dict | None:
+def get_repair(repair_id: str, db_path: str | None = None) -> dict | None:
     """상세. `hash_verified` 는 저장된 `record_hash` 를 `data.repair_hash` 규약으로
     재계산해 대조한 결과다(D84 태도) — 서명되지 않은 레코드는 `record_hash` 가 NULL 이라
     항상 `false` 다(값이 없으니 "일치"가 성립할 수 없다 — `null` 이 아니라 `false` 로 고정하는
@@ -121,7 +120,7 @@ def submit(
     *,
     requested_by: str,
     session_id: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """draft → pending. 정비사의 '팀장 서명 요청' (A3 — 에이전트 루프 밖).
 
@@ -146,7 +145,7 @@ def submit(
     return get_repair(repair_id, db_path) or {}
 
 
-def sign(repair_id: str, *, verified_by: str, db_path: Path | None = None) -> dict:
+def sign(repair_id: str, *, verified_by: str, db_path: str | None = None) -> dict:
     """pending → signed. **manager 전용** (라우터가 역할을 강제한다).
 
     ⓐ `verified_by = X-User` ⓑ `signed_at = UTC now`(D39) ⓒ `record_hash =
@@ -175,7 +174,7 @@ def sign(repair_id: str, *, verified_by: str, db_path: Path | None = None) -> di
     return get_repair(repair_id, db_path) or {}
 
 
-def reject(repair_id: str, *, verified_by: str, reason: str, db_path: Path | None = None) -> dict:
+def reject(repair_id: str, *, verified_by: str, reason: str, db_path: str | None = None) -> dict:
     """pending → rejected. 사유 필수(D38) → `note` 에 저장. `rejected` 는 종착역(P15 백로그).
 
     라우터의 pydantic 이 공백을 먼저 막는다(422) — 여기서는 값을 그대로 받아 저장한다.

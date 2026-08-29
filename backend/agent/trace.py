@@ -30,7 +30,6 @@ import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
 import psycopg
 
@@ -260,7 +259,7 @@ class TraceWriter:
         )
 
 
-def read_trace(session_id: str, db_path: Path | None = None) -> dict:
+def read_trace(session_id: str, db_path: str | None = None) -> dict:
     """세션의 trace 전체 (D43 스키마) — `{session_id, count, events:[{seq,event,tool,data,ts}]}`.
 
     **없는 세션도 예외가 아니다** — `count: 0` 으로 돌려준다. 404 로 하면

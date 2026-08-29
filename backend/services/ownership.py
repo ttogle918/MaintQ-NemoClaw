@@ -23,7 +23,6 @@ REST 응답과 MCP 도구 출력을 **직접 대조**한다.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 import data.ownership as _own
 
@@ -42,7 +41,7 @@ def verify(
     *,
     asset_id: str | None = None,
     equipment_id: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """실사 판정 1건. 반환은 MCP 도구와 **같은 dict** 다 (`04 §9`).
 
@@ -66,7 +65,7 @@ def verify(
         }
 
 
-def verify_ref(ref: str, db_path: Path | None = None) -> dict:
+def verify_ref(ref: str, db_path: str | None = None) -> dict:
     """URL 경로 식별자 1칸으로 자산·설비를 **등록부에서 판별해** 판정한다.
 
     MCP 도구는 `asset_id`·`equipment_id` 를 따로 받지만 URL 에는 칸이 하나뿐이다.

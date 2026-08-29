@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from contextlib import contextmanager
@@ -38,7 +37,7 @@ from data.rules import engine  # D73 — 공유 데이터 계층. mcp_server 는
 
 
 @contextmanager
-def read_only(db_path: Path | None = None):
+def read_only(db_path: str | None = None):
     """판정 전용 **읽기 전용** 커넥션.
 
     `backend.db.connect()` 를 쓰지 않는 이유: 그건 쓰기 가능 커넥션이고 종료 시 `commit()`
@@ -146,7 +145,7 @@ def now_utc_iso() -> str:
 def list_assets(
     line_id: int | None = None,
     status: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> list[dict]:
     """자산 목록. `line_id`·`status` 필터.
 
@@ -171,7 +170,7 @@ def list_assets(
         return [dict(r) for r in con.execute(sql, args).fetchall()]
 
 
-def get_asset(asset_id: str, db_path: Path | None = None) -> dict | None:
+def get_asset(asset_id: str, db_path: str | None = None) -> dict | None:
     """자산 상세 + 하위 equipment 목록 (D68 — 처분의 단위는 호스트 설비)."""
     with read_only(db_path) as con:
         row = con.execute("SELECT * FROM assets WHERE asset_id = ?", (asset_id,)).fetchone()
@@ -286,7 +285,7 @@ def precheck(
     disposal_mode: str,
     disposal_date: str | None = None,
     at: date | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """처분 사전판정. **저장하지 않는다.**
 

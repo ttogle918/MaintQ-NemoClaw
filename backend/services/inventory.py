@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from data import inventory as data_inventory
 
@@ -43,7 +42,7 @@ def search(
     part_no: str | None = None,
     part_name: str | None = None,
     model: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`GET /api/inventory` — `data.inventory.search` 위임."""
     try:

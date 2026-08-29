@@ -29,7 +29,6 @@ REST 가 에이전트 도구 노출 설정에 종속되면 안 된다.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from data import maint_value
 
@@ -53,7 +52,7 @@ def metrics(
     *,
     asset_id: str,
     window_months: int | str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`GET /api/assets/{asset_id}/metrics` — `data.maint_value.maintenance_metrics` 위임.
 
@@ -74,7 +73,7 @@ def repair_value(
     failed_part: str,
     repair_cost: int | str,
     repair_scope: str | None = None,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`POST /api/equipment/{equipment_id}/repair-value` — 무저장. `data.maint_value.repair_value` 위임.
 
@@ -94,7 +93,7 @@ def repair_value(
         return _open_error(e)
 
 
-def part_criticality(*, part_no: str, db_path: Path | None = None) -> dict:
+def part_criticality(*, part_no: str, db_path: str | None = None) -> dict:
     """`GET /api/parts/{part_no}/criticality` — `data.maint_value.part_criticality` 위임."""
     try:
         with read_only(db_path) as con:
@@ -109,7 +108,7 @@ def expenditure(
     part_class: str | None = None,
     repair_scope: str,
     amount: int | str,
-    db_path: Path | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """`POST /api/expenditure/classify` — 무저장.
 
