@@ -181,6 +181,40 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   🔵 **2026-08-29 갱신 — QMesh 프로젝트에서 구현 진행 중이다.** MaintQ 는 지시를 받는 쪽이므로
   **이 레포에서 먼저 착수하지 않는다**(경로 선택도 QMesh 쪽 결정을 따른다)
 
+## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
+
+NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌리다 드러났다.
+**셋 다 그 브랜치와 무관한 기존 문제**이고, 범위를 지키려고 기록만 하고 넘어갔다.
+1·2 는 실제로 사람을 멈춰 세우는 종류라 다음에 회귀를 만지는 사람이 먼저 볼 것.
+
+- 🔴 **`backend/agent/test_llm_cache.py::test_trace_replay_marks_events_when_cached` 가
+  공유 DB 로 샌다.** `TraceWriter(db_path=tmp_path / "t.db")` 로 **`Path` 객체**를 넘기는데
+  `backend/db.py:56` 은 `isinstance(db_path, str) and startswith("postgresql://")` 일 때만
+  인자를 존중한다 — `Path` 는 조용히 무시되고 `DATABASE_URL` 로 간다. CLAUDE.md 가 Sprint 16
+  4차 체크포인트에 적어 둔 **그 버그 계열 그대로**다(“DSN 을 `Path()` 로 감싸면 검사를 벗어나
+  실 DB 로 샌다”). 테스트 docstring 은 아직 *“`tmp_path/"t.db"` 는 스키마가 없는 빈 sqlite
+  파일이라 `_persist` 가 예외를 삼킨다”* 는 **SQLite 시절 전제**로 적혀 있어, 읽는 사람이
+  격리돼 있다고 착각한다. 기준선 워크트리(`e963f9e`)에서도 동일 재현 확인.
+  Postgres 가 떠 있으면 그냥 통과해서 **아무도 모르고 지나간다** — 내려가야 드러난다.
+
+- 🔴 **pytest 는 `DATABASE_URL` 없이는 매단다.** pytest 실행 경로에는 `load_dotenv` 가 없어
+  (`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값 `postgresql://localhost/maintq`
+  = **포트 5432** 로 떨어지는데, `docker-compose.yml` 의 컨테이너는 **5434** 다. 아무도 듣지
+  않는 포트라 psycopg 가 타임아웃 없이 멈춘다 — 실패가 아니라 **무한 대기**라 원인 파악이
+  오래 걸린다. ⚠ **CLAUDE.md 「회귀 스위트」 절의 pytest 실행 커맨드에 이 전제가 빠져 있다** —
+  적힌 대로 복사해 돌리면 그대로 밟는다. 실제 실행은 아래처럼 해야 한다:
+  `DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)" uv run --with pytest ...`
+  (이 정정은 CLAUDE.md 수정이 필요해 **사람 확인 대기 중**이다.)
+
+- 🟡 **A2A 8파일군 “86건” 은 러너 출력이 아니다.** `def test_` 개수를 센 값이고 실제
+  pytest 출력은 **88** 이다 — `backend/a2a/test_client.py:213` 의
+  `@pytest.mark.parametrize("status_code", [502, 503, 504])` 가 함수 1개를 3건으로 편다.
+  CLAUDE.md 는 바로 위 문단에서 **“건수는 러너 출력이 기준이다”** 라고 못박고 있어
+  자기 규칙과 어긋난다. 이 값을 기준선 대조에 쓰면 **항상 +2 가 남아** 원인을 엉뚱한
+  곳에서 찾게 된다.
+
+---
+
 ## 백로그에 넣지 않은 것 (경계 메모)
 
 혼동하기 쉬워서 명시한다 — 아래는 **MVP 본체**다 (`00_MVP_SCOPE` 참조).
