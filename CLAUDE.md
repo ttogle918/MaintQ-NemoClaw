@@ -88,13 +88,24 @@
   (D104 — 키·값 직렬화·`CachingClient`·`stats_line()`) + **Elice 지출 가드**(D105 — 캐시 우선·
   네트워크 전 예외·가격 상수) + **내부통제 판정**(Sprint 17 MQ-1703 — 예산 한도·1일 누적 한도·
   FDS·SoD 4종 순수 함수, D119)
-  ⚠ 실행 커맨드(**4파일 합산**): **`uv run --with pytest python -m pytest data/rules/test_rules.py
+  ⚠ 실행 커맨드(**4파일 합산**): **`DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
+  uv run --with pytest python -m pytest data/rules/test_rules.py
   backend/agent/test_llm_cache.py data/external/test_elice_docvision.py
-  data/test_expenditure_limits.py -q`**
+  data/test_expenditure_limits.py -q`** → **114건**(99 + `test_llm_fallback.py` 15, 2026-08-29)
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
+  🔴 **`DATABASE_URL` 을 반드시 실어야 한다** (2026-08-29 실측). pytest 실행 경로에는
+  `load_dotenv` 가 없어(`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값
+  `postgresql://localhost/maintq` = **포트 5432** 로 떨어지는데 컨테이너는 **5434** 다.
+  아무도 듣지 않는 포트라 psycopg 가 타임아웃 없이 **무한 대기**한다 — 실패가 아니라
+  멈춤이라 원인 파악이 오래 걸린다. 실제로 `test_llm_cache.py::test_trace_replay_marks_
+  events_when_cached` 에서 걸린다(그 테스트가 `TraceWriter` 에 `Path` 를 넘겨 공유 DB 로
+  새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` — **8파일 86건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` — **8파일 88건**(러너 출력 기준. 오래 **86**
+  으로 적혀 있었는데 그건 `def test_` 개수였다 — `test_client.py:213` 의
+  `@pytest.mark.parametrize("status_code", [502, 503, 504])` 가 함수 1개를 3건으로 편다.
+  이 문서 아래 "건수는 러너 출력이 기준이다" 규칙에 맞춰 2026-08-29 정정), A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약. 커밋 `5895c2e`
   가 신설했지만 이 문서엔 반영이 안 돼 있다가 Sprint 16 4차 체크포인트에서 발견·정리(공식
   목록 편입 시 위 3파일과 합쳐 "4파일군 169건"이 된다).
@@ -102,7 +113,8 @@
   python -m pytest backend/a2a/test_auth_header.py backend/a2a/test_client.py
   backend/a2a/test_credentials.py backend/a2a/test_payloads.py backend/a2a/test_trace.py
   backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
-  backend/services/test_po_a2a_dispatch.py -q`** (`--with pytest-asyncio` 없이 돌리면
+  backend/services/test_po_a2a_dispatch.py -q`**
+  (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
 - `spikes/` — **33종**(`ls spikes/*.py` 는 37개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
