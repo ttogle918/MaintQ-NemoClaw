@@ -155,7 +155,7 @@ def create_po_draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 11종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98·D102)
+# 확장 13종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98·D102·D112)
 #
 # ★ 파라미터 타입을 좁히지 않는다. `get_error_history.line_id` 주석과 같은 이유다 —
 #   타입을 좁히면 LLM 이 문자열로 넘긴 순간 pydantic 이 본체 진입 전에 예외를 던져
