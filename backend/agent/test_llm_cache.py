@@ -19,6 +19,27 @@ if str(ROOT) not in sys.path:
 
 from backend.agent.llm import ToolUse  # noqa: E402
 from backend.agent import llm_cache as lc  # noqa: E402
+from data.pg_isolation import (  # noqa: E402
+    create_isolated_schema,
+    drop_isolated_schema,
+)
+
+
+@pytest.fixture()
+def trace_dsn():
+    """`TraceWriter` 용 격리 Postgres 스키마 DSN.
+
+    ⚠ 예전에는 `tmp_path / "t.db"` 를 넘겼는데, Postgres 전환(D116) 후 그 `Path` 는
+    `backend/db.py::connect()` 에서 **조용히 무시되고 공유 DB 로 갔다** — 격리된 줄
+    알았지만 실 DB 에 쓰고 있었고, Postgres 가 내려가면 무한 대기로 드러났다
+    (2026-08-29, `docs/07_BACKLOG.md` 「알려진 결함」). 이제 `TraceWriter` 가 DSN 이
+    아닌 값을 받으면 `TypeError` 로 즉시 실패한다.
+    """
+    schema, dsn = create_isolated_schema(label="llm_cache_trace", clone_data=False)
+    try:
+        yield dsn
+    finally:
+        drop_isolated_schema(schema)
 
 
 def test_cache_disabled_by_default(monkeypatch):
@@ -246,19 +267,21 @@ def test_interrupted_stream_is_not_cached(tmp_path):
 from backend.agent.trace import TraceWriter  # noqa: E402
 
 
-def test_trace_replay_marks_events_when_cached(tmp_path, monkeypatch):
+def test_trace_replay_marks_events_when_cached(tmp_path, monkeypatch, trace_dsn):
     """히트 세션은 replay 표식이 붙어 eval/score.has_replay() 가 분모에서 뺀다 (D55).
 
     이 한 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다 — 이 테스트가 그것만 본다.
 
-    ⚠ **DB 까지는 검증하지 않는다.** `tmp_path / "t.db"` 는 스키마가 없는 빈 sqlite 파일이라
-    `trace.tool_call(...)` 의 `TraceWriter._persist` 는 `traces` 테이블이 없어 예외를 삼키고
-    `persist_errors` 를 올린 뒤 조용히 리턴한다(모듈 설계상 저장 실패가 스트림을 끊지 않는다).
-    이 테스트가 보는 것은 **메모리상 `event.data`** 뿐이다 — 실제로 DB 행이 쓰였는지는
-    검증하지 않는다. `assert trace.persist_errors == 0` 을 넣으면 이 테스트 자체가 (스키마가
-    없으므로) 항상 실패해 목적과 다른 이유로 깨진다.
+    보는 것은 **메모리상 `event.data`** 다 — 실제 DB 행까지는 검증하지 않는다.
+
+    ⚠ 이 docstring 은 오래 *"`tmp_path/"t.db"` 는 스키마 없는 빈 sqlite 파일이라 `_persist`
+    가 예외를 삼킨다"* 로 적혀 있었다. **Postgres 전환(D116) 후로는 틀린 설명이었다** —
+    그 `Path` 는 `backend/db.py::connect()` 에서 무시되고 **공유 DB 로 갔다.** 격리돼 있다고
+    읽히지만 실제로는 실 DB 에 쓰고 있었고, Postgres 가 내려가야 무한 대기로 드러났다.
+    지금은 `trace_dsn` 픽스처의 격리 스키마를 쓰고, `TraceWriter` 가 DSN 아닌 값을 받으면
+    `TypeError` 로 즉시 실패한다 (2026-08-29).
     """
-    trace = TraceWriter("sess-cache-test", db_path=tmp_path / "t.db")
+    trace = TraceWriter("sess-cache-test", db_path=trace_dsn)
     assert trace.replay is False
 
     _drain(lc.CachingClient(_Fake(_DELTAS), provider="p", model="m", root=tmp_path), **_KW)
@@ -341,7 +364,7 @@ class _FakeMcp:
         return self.responses.get(tool, {"status": "error", "reason": "unknown_tool"})
 
 
-def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path):
+def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path, trace_dsn):
     """e2e — 기존 두 테스트는 판정식을 **재현**만 할 뿐이라 `loop.py` 의 배선이 통째로
     빠져도 통과한다. 이 테스트는 실제 `run_turn` 을 한 턴 돌려, `last_hit=True` 인
     LLM 으로 나온 `tool_call` 이벤트에 `replay: true` 가 실제로 실리는지 확인한다
@@ -355,7 +378,7 @@ def test_run_turn_marks_tool_call_replay_on_cache_hit(tmp_path):
     ]
     llm = _CachedHitLlm(script)
     mcp = _FakeMcp({"lookup_error_code": {"status": "ok", "code": "OHT"}})
-    trace = TraceWriter("sess-cache-e2e", db_path=tmp_path / "t.db")
+    trace = TraceWriter("sess-cache-e2e", db_path=trace_dsn)
 
     async def go():
         events = []
@@ -469,3 +492,19 @@ def test_cache_dir_is_git_ignored():
         "양성 축 실패 — 추적 대상 파일도 rc!=0(제외됨)이면 이 검사가 아무것도 구분하지 "
         f"못한다는 뜻이다 (rc={tracked.returncode})"
     )
+
+
+def test_trace_writer_rejects_a_path(tmp_path):
+    """`Path` 를 넘기면 조용히 공유 DB 로 새지 말고 즉시 실패해야 한다 (2026-08-29).
+
+    Sprint 16 에서 같은 계열 사고가 두 번 났다(`payloads.py`·`trace.py` 의 `Path()` 래핑).
+    타입 힌트만으로는 못 막는다 — 런타임 가드가 이 검사의 대상이다.
+    """
+    with pytest.raises(TypeError, match="DSN"):
+        TraceWriter("sess-guard", db_path=tmp_path / "t.db")
+
+
+def test_trace_writer_still_accepts_dsn_and_none(trace_dsn):
+    """양성 축 — 가드가 정상 입력까지 막으면 그게 더 나쁘다."""
+    assert TraceWriter("sess-ok", db_path=trace_dsn).db_path == trace_dsn
+    assert TraceWriter("sess-none").db_path is None

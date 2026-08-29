@@ -80,9 +80,24 @@ class TraceWriter:
     """
 
     def __init__(
-        self, session_id: str, db_path: Path | None = None, *, replay: bool = False
+        self, session_id: str, db_path: str | None = None, *, replay: bool = False
     ) -> None:
         self.session_id = session_id
+        # 🔴 Postgres 전환 후 `db_path` 는 **DSN 문자열이거나 None** 이다 (D116).
+        # `backend/db.py::connect()` 는 `isinstance(db_path, str) and
+        # startswith("postgresql://")` 일 때만 이 인자를 존중하므로, `Path` 를 넘기면
+        # **조용히 무시되고 공유 DB 로 간다** — 격리된 줄 알고 실 데이터를 오염시키는
+        # 사고가 Sprint 16 에서 두 번 났다(`payloads.py`·`trace.py` 의 `Path()` 래핑).
+        # 조용한 유출보다 즉시 실패가 낫다: 여기서 막는다 (2026-08-29).
+        if db_path is not None and not (
+            isinstance(db_path, str) and db_path.startswith("postgresql://")
+        ):
+            raise TypeError(
+                f"TraceWriter(db_path=...) 는 Postgres DSN 문자열이어야 합니다: {db_path!r}. "
+                "격리가 필요하면 data.pg_isolation.create_isolated_schema() 가 돌려주는 "
+                "DSN 을 쓰십시오 — Path 를 넘기면 backend/db.py 가 조용히 무시하고 "
+                "공유 DB 에 씁니다."
+            )
         self.db_path = db_path
         #: 재생 여부 (D55). True 면 모든 이벤트 payload 에 `replay: true` 를 주입해
         #: 실 도구 결과와 구분한다 — 실적 판정은 이 표식이 섞인 세션을 분모에서 뺀다.
