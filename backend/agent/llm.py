@@ -500,7 +500,7 @@ class EliceClient:
         return gen()
 
 
-PROVIDERS = ("gemini", "anthropic", "elice", "openai")
+PROVIDERS = ("gemini", "anthropic", "elice", "openai", "nvidia")
 
 
 def get_client() -> LlmClient:
@@ -538,6 +538,13 @@ def get_client() -> LlmClient:
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         key_label = "OPENAI_API_KEY"
         base_url = "https://api.openai.com"
+    elif provider == "nvidia":
+        # NVIDIA NIM 무료 티어 — OpenAI 호환이라 EliceClient 를 그대로 재사용한다.
+        # ⛔ base_url 에 `/v1` 을 붙이지 않는다: EliceClient 가 없으면 붙인다(L422-424).
+        #    여기에 박으면 `/v1/v1` 이 된다.
+        api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
+        key_label = "NVIDIA_API_KEY"
+        base_url = "https://integrate.api.nvidia.com"
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         key_label = "ANTHROPIC_API_KEY"
@@ -554,7 +561,7 @@ def get_client() -> LlmClient:
         )
     if provider == "gemini":
         inner = GeminiClient(model=model, api_key=api_key)
-    elif provider in ("elice", "openai"):
+    elif provider in ("elice", "openai", "nvidia"):
         inner = EliceClient(model=model, api_key=api_key, base_url=base_url)
     else:
         inner = AnthropicClient(model=model, api_key=api_key)
