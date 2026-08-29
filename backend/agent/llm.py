@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ class ToolUse:
 
 # 스트림 델타: ("text", str) | ("tool_use", ToolUse) | ("end", stop_reason)
 LlmDelta = tuple[str, object]
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -500,26 +503,87 @@ class EliceClient:
         return gen()
 
 
+class FallbackClient:
+    """primary 스트림이 **열리기 전에** 실패하면 fallback 으로 넘긴다 (2026-08-29).
+
+    ⛔ **첫 델타가 나간 뒤에는 폴백하지 않는다.** 이미 화면에 토큰이 흘러간 뒤 다른
+    모델로 다시 쓰면 중복·모순 출력이 된다 — 그 시점부터는 예외를 그대로 전파해
+    호출자가 지금까지 누적된 델타로 판단하게 둔다. `mcp_client` 의 "취소 직후 재호출"
+    경계와 같은 종류의 판단이다.
+
+    실패 **유형을 분류하지 않는다.** 크레딧 소진이 어떤 상태코드로 오는지 확정하지
+    못했고, 분류에서 빠진 오류가 곧 "폴백이 안 되는 오류"가 된다 — 사이트가 죽지
+    않는 쪽을 기본값으로 둔다. 대신 폴백까지 실패하면 예외를 그대로 올린다(D40 태도 —
+    조용히 빈 응답을 내지 않는다).
+
+    전환은 WARNING 으로 남긴다. 조용한 전환은 "왜 이번 달 청구서가 있지"가 된다 —
+    Elice 장애 때 겪은 조용한 강등(생성 실패가 전부 거부 응답으로 둔갑)의 반복이다.
+    로그에는 **예외 타입 이름만** 넣는다: 응답 본문에 키가 섞여 있을 수 있다 (D40).
+    """
+
+    def __init__(
+        self,
+        primary: LlmClient,
+        fallback: LlmClient,
+        *,
+        primary_label: str,
+        fallback_label: str,
+    ) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        self._primary_label = primary_label
+        self._fallback_label = fallback_label
+
+    def stream(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[LlmDelta]:
+        primary, fallback = self._primary, self._fallback
+        primary_label, fallback_label = self._primary_label, self._fallback_label
+
+        async def gen() -> AsyncIterator[LlmDelta]:
+            yielded = False
+            try:
+                async for delta in primary.stream(
+                    system=system, messages=messages, tools=tools
+                ):
+                    yielded = True
+                    yield delta
+            except Exception as exc:  # noqa: BLE001 — 어떤 실패든 폴백 대상이다
+                if yielded:
+                    raise  # 이미 나간 토큰이 있다 — 다시 쓰지 않는다
+                logger.warning(
+                    "LLM 제공자 폴백: %s → %s (원인 %s). 유료 경로로 전환됐다.",
+                    primary_label,
+                    fallback_label,
+                    type(exc).__name__,
+                )
+                async for delta in fallback.stream(
+                    system=system, messages=messages, tools=tools
+                ):
+                    yield delta
+
+        return gen()
+
+
 PROVIDERS = ("gemini", "anthropic", "elice", "openai", "nvidia")
 
 
-def get_client() -> LlmClient:
-    """환경변수로 실제 클라이언트를 만든다 (D56 — 제공자 분기, 기본 gemini).
+def _build_single_client(provider: str, model: str) -> LlmClient:
+    """제공자 하나에 대한 클라이언트를 만든다 (D56 — 제공자 분기).
 
-    env 는 **OS 환경변수가 우선**이고 `.env` 는 빈 곳만 채운다 — 로드 지점은
-    `backend/main.py` 의 `load_dotenv(override=False)` 한 곳이다 (D56).
+    ⚠ **모델을 인자로 받는다.** 폴백 클라이언트는 primary 와 다른 모델로 만들어져야
+    하는데, 여기서 `MAINTQ_LLM_MODEL` 을 직접 읽으면 폴백을 조립하는 쪽이 전역
+    환경변수를 잠시 바꿔 끼우는 수밖에 없다 — 전역 상태 변경은 동시 호출에서
+    엉키고, 예외 경로에서 원복이 새면 조용히 잘못된 모델로 과금된다.
 
     **키가 없으면 ScriptedClient 로 폴백하지 않고 실패한다 (D40).**
     스크립트는 테스트가 명시적으로 주입할 때만 쓰인다.
     """
-    # `or` — .env 의 빈 키(`MAINTQ_LLM_PROVIDER=`)는 미설정과 같다 (D56, main.py CORS 와 동일 근거)
-    provider = (os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini").strip().lower()
     if provider not in PROVIDERS:
         raise RuntimeError(
             f"MAINTQ_LLM_PROVIDER 는 {PROVIDERS} 중 하나여야 합니다: {provider!r}"
         )
 
-    model = os.environ.get("MAINTQ_LLM_MODEL", "").strip()
     base_url = ""
     if provider == "gemini":
         # SDK 관례상 두 이름이 통용된다 — GEMINI_API_KEY 를 우선하고 GOOGLE_API_KEY 도 인정
@@ -560,12 +624,45 @@ def get_client() -> LlmClient:
             "(D40) — 가짜 응답을 진짜로 착각하는 사고를 막기 위해서입니다."
         )
     if provider == "gemini":
-        inner = GeminiClient(model=model, api_key=api_key)
-    elif provider in ("elice", "openai", "nvidia"):
-        inner = EliceClient(model=model, api_key=api_key, base_url=base_url)
-    else:
-        inner = AnthropicClient(model=model, api_key=api_key)
+        return GeminiClient(model=model, api_key=api_key)
+    if provider in ("elice", "openai", "nvidia"):
+        return EliceClient(model=model, api_key=api_key, base_url=base_url)
+    return AnthropicClient(model=model, api_key=api_key)
+
+
+def get_client() -> LlmClient:
+    """환경변수로 실제 클라이언트를 만든다 (D56 — 제공자 분기, 기본 gemini).
+
+    env 는 **OS 환경변수가 우선**이고 `.env` 는 빈 곳만 채운다 — 로드 지점은
+    `backend/main.py` 의 `load_dotenv(override=False)` 한 곳이다 (D56).
+
+    `MAINTQ_LLM_FALLBACK_PROVIDER` 와 `MAINTQ_LLM_FALLBACK_MODEL` 이 **둘 다** 있으면
+    `FallbackClient` 로 감싼다 (2026-08-29). 하나만 있으면 켜지 않고 경고만 남긴다 —
+    절반만 적용하면 "폴백이 켜진 줄 알았는데 아니었다"가 되고, 그건 폴백이 없는 것보다
+    나쁘다. 비어 있으면 이 변경 이전과 완전히 같은 동작이다.
+    """
+    # `or` — .env 의 빈 키(`MAINTQ_LLM_PROVIDER=`)는 미설정과 같다 (D56, main.py CORS 와 동일 근거)
+    provider = (os.environ.get("MAINTQ_LLM_PROVIDER") or "gemini").strip().lower()
+    model = os.environ.get("MAINTQ_LLM_MODEL", "").strip()
+    inner = _build_single_client(provider, model)
+
+    fb_provider = (os.environ.get("MAINTQ_LLM_FALLBACK_PROVIDER") or "").strip().lower()
+    fb_model = (os.environ.get("MAINTQ_LLM_FALLBACK_MODEL") or "").strip()
+    if fb_provider and fb_model:
+        inner = FallbackClient(
+            inner,
+            _build_single_client(fb_provider, fb_model),
+            primary_label=provider,
+            fallback_label=fb_provider,
+        )
+    elif fb_provider or fb_model:
+        logger.warning(
+            "MAINTQ_LLM_FALLBACK_PROVIDER 와 MAINTQ_LLM_FALLBACK_MODEL 은 함께 "
+            "설정해야 한다 — 하나만 있어 폴백을 켜지 않았다."
+        )
+
     # 카세트는 **명시적 옵트인**이다 (D104). 켜지 않으면 위 클라이언트가 그대로 나간다.
+    # ⚠ 폴백보다 **바깥**에 둔다 — 캐시 히트는 제공자 선택 이전에 끝나야 한다.
     from backend.agent.llm_cache import CachingClient, cache_enabled  # noqa: PLC0415
 
     if cache_enabled():

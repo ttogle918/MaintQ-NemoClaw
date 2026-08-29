@@ -60,6 +60,14 @@ _ENV_KEYS = (
     "ELICE_API_KEY",
     "ELICE_LLM_URL",
     "MAINTQ_LLM_CACHE",
+    # 2026-08-29 — nvidia provider + 자동 폴백이 더한 키 3종. 위 `MAINTQ_LLM_CACHE`
+    # 와 정확히 같은 함정이다: 폴백 두 키가 **둘 다** 살아 있으면 get_client() 가
+    # FallbackClient 로 감싸므로, 안 비우면 ⑩·⑬ 의 isinstance(c, GeminiClient)
+    # 판정이 `.env` 내용에 따라 흔들린다. `.env.example` 이 이 둘을 채우도록
+    # 권하고 있어 **사용자가 그대로 복사하는 순간 발화한다.**
+    "MAINTQ_LLM_FALLBACK_PROVIDER",
+    "MAINTQ_LLM_FALLBACK_MODEL",
+    "NVIDIA_API_KEY",
 )
 
 
