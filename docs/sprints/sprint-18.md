@@ -3,7 +3,11 @@
 **계획 작성일**: 2026-08-24 · **대상 스펙**:
 `docs/superpowers/specs/2026-08-24-technician-landing-dashboard-design.md`(사용자 승인 완료,
 107줄) + 스펙 작성 이후 대화에서 확정된 추가 사항(정렬 로직·이미지 재사용 방침·위치 표시
-스코프 제외, 아래 각 태스크 명세에 반영) · **상태**: 계획만 — 코드 미착수
+스코프 제외, 아래 각 태스크 명세에 반영) · **상태**: ✅ **완료 (2026-08-24)** —
+Stage 1 전건 착지 + 브라우저 QA (`bf781e0` 구현 · `c3fc9d8` 완료 기록 · `fc6916a` QA ·
+`9af6743` 4x3 그리드+페이지네이션 후속). 산출: `role.ts` 랜딩 전환 ·
+`components/layout/ChatFab.tsx` · `components/asset/EquipmentCard.tsx`.
+회귀: `ui_honesty_contract` 291→303건(신규 파일 2건×6)
 
 Sprint 17(재무부 승인+doc3)과 **독립**이다. 백엔드·DB·MCP 도구·API 신설이 전혀 없는
 **프론트엔드 전용** 스프린트 — 라우팅 상수 1줄, 신규 컴포넌트 1개, 기존 화면 1개 확장이 전부다.

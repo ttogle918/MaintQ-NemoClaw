@@ -1,7 +1,11 @@
 # Sprint 17 — 재무부 승인 단계 신설 + doc3(자금집행요청서) 렌더
 
 **계획 작성일**: 2026-08-24 · **대상 스펙**: `docs/superpowers/specs/2026-08-24-finance-approval-doc3-design.md`
-(사용자 승인 완료) · **상태**: 계획만 — 코드 미착수
+(사용자 승인 완료) · **상태**: ✅ **완료 (2026-08-24)** — Stage 1~4 전건 착지 + 브라우저 QA
+(`7b28aee` Stage 1 · `80804fb` Stage 2 · `def1d19` Stage 3 · `754baf4` Stage 4 · `f3ebd49` QA·미결 2건 해소).
+산출: D119(재무부 승인 단계) · `data/expenditure_limits.py`(내부통제 4종 판정) ·
+`POST /api/po/{po_id}/finance-approve|reject` · doc3(자금집행요청서) 렌더 · `/manager/finance`.
+회귀: `api_contract` 41→52건 · pytest `data/test_expenditure_limits.py` 16건 신설
 
 > ⚠ 이 스프린트 착수 직전, 사용자가 CLAUDE.md 회귀 기준선(spikes 33종 + seed + pytest)을
 > 별도 터미널에서 갱신 중이다. 아래 DoD 는 **절대 건수를 못박지 않는다** — "회귀 스위트 전건
