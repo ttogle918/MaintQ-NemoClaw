@@ -10,8 +10,13 @@
 from __future__ import annotations
 
 
+import pytest
+
+from data import dbcompat
+
 from backend.a2a.payloads import (
     build_assess_loan_payload,
+    build_assess_used_equipment_loan_payload,
     build_lookup_clause_payload,
     build_request_withdrawal_payload,
     get_finallq_company_id,
@@ -169,3 +174,107 @@ def test_build_assess_loan_payload_minimal(db_path: str, link_finallq):
         "purpose": "설비 증설 자금",
         "collateral_building_id": "BLD-001",
     }
+
+
+# ---- build_assess_used_equipment_loan_payload (S13) --------------------------
+#
+# ⚠ 계획서는 `tmp_db` 픽스처를 쓰지만 이 레포에는 없다 — 관례는 `db_path`(격리 스키마,
+#   빈 DB)이고 자산은 테스트가 직접 심는다(`seed_po` 선례). 그래서 아래 헬퍼를 둔다.
+
+
+@pytest.fixture()
+def seed_assets(db_path: str):
+    """S13 payload 파생에 필요한 자산 2건 + 소유권 점검 2행을 심는다.
+
+    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산
+    `AST-NO-INSPECTION`  — `last_inspection_date` 가 NULL (D62 키 생략 검증용)
+    """
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        con.execute(
+            "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
+            " acquired_at, last_inspection_date, inspection_valid_until,"
+            " safety_inspection_target)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "AST-L3-CONV", "3라인 컨베이어", "설비", 3, "BLD-A",
+                "2019-05-01", "2026-03-02", "2027-03-01", True,
+            ),
+        )
+        con.execute(
+            "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
+            " acquired_at, last_inspection_date, inspection_valid_until,"
+            " safety_inspection_target)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "AST-NO-INSPECTION", "점검이력 없는 설비", "설비", 3, "BLD-A",
+                "2021-01-01", None, None, None,
+            ),
+        )
+        for cat, item, state in (
+            ("소유", "취득 증빙", "VERIFIED"),
+            ("담보", "근저당 설정 여부", "UNVERIFIED"),
+        ):
+            con.execute(
+                "INSERT INTO ownership_checks (asset_id, category, check_item, state,"
+                " checked_at) VALUES (?, ?, ?, ?, ?)",
+                ("AST-L3-CONV", cat, item, state, "2026-08-01 00:00:00"),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
+def test_assess_used_equipment_loan_payload_derives_fields_from_asset(db_path, seed_assets):
+    """자산 하나에서 계약 4필드가 파생된다 — 호출자는 asset_id 와 금액만 준다."""
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-L3-CONV", loan_amount=5_000_000.0,
+        request_chain_id="CHAIN-TEST-1", db_path=db_path,
+    )
+
+    assert p["loan_amount"] == 5_000_000.0
+    assert p["request_chain_id"] == "CHAIN-TEST-1"
+    assert p["collateral_building_id"] == "BLD-A"
+    assert p["equipment_year"] == 2019
+    assert isinstance(p["inspection_data"], dict)
+
+
+def test_inspection_data_carries_ownership_checks(db_path, seed_assets):
+    """계약이 'S18 verify_ownership 결과 참조 가능'이라 적었고 그게 ownership_checks 다."""
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-L3-CONV", loan_amount=1.0, request_chain_id="C", db_path=db_path,
+    )
+    checks = p["inspection_data"]["ownership_checks"]
+
+    assert isinstance(checks, list) and checks
+    assert set(checks[0]) == {"category", "check_item", "state"}
+    assert checks[0]["state"] in ("VERIFIED", "UNVERIFIED")
+
+
+def test_equipment_year_is_labelled_as_acquisition_year(db_path, seed_assets):
+    """MaintQ 는 제조연도를 저장하지 않는다 — 취득연도를 보내되 그 사실을 함께 보낸다."""
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-L3-CONV", loan_amount=1.0, request_chain_id="C", db_path=db_path,
+    )
+
+    assert p["inspection_data"]["equipment_year_basis"] == "acquired_at"
+
+
+def test_missing_inspection_dates_are_omitted_not_blanked(db_path, seed_assets):
+    """NULL 은 키 자체를 생략한다 — 빈 문자열·0 으로 채우지 않는다 (D62)."""
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-NO-INSPECTION", loan_amount=1.0, request_chain_id="C", db_path=db_path,
+    )
+
+    assert "last_inspection_date" not in p["inspection_data"]
+    assert "inspection_valid_until" not in p["inspection_data"]
+    # 양성 축 — 생략이 "스캐너가 눈이 멀었다"가 아니라 "값이 없다"임을 보인다
+    assert p["inspection_data"]["equipment_year_basis"] == "acquired_at"
+
+
+def test_unknown_asset_raises(db_path, seed_assets):
+    """없는 자산으로 payload 를 만들지 않는다 — 조용히 빈 값을 보내면 수신부가 400 을 낸다."""
+    with pytest.raises(ValueError, match="AST-NOPE"):
+        build_assess_used_equipment_loan_payload(
+            asset_id="AST-NOPE", loan_amount=1.0, request_chain_id="C", db_path=db_path,
+        )
