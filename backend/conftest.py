@@ -182,3 +182,33 @@ def seed_lien_decisions(db_path: str):
         con.commit()
     finally:
         con.close()
+
+
+@pytest.fixture()
+def fetch_asset(db_path: str):
+    def _fetch(asset_id: str) -> dict:
+        con = dbcompat.connect_dsn(db_path)
+        try:
+            r = con.execute(
+                "SELECT * FROM assets WHERE asset_id = ?", (asset_id,)
+            ).fetchone()
+            return dict(r) if r is not None else {}
+        finally:
+            con.close()
+
+    return _fetch
+
+
+@pytest.fixture()
+def fetch_decision(db_path: str):
+    def _fetch(decision_id: str) -> dict:
+        con = dbcompat.connect_dsn(db_path)
+        try:
+            r = con.execute(
+                "SELECT * FROM decisions WHERE decision_id = ?", (decision_id,)
+            ).fetchone()
+            return dict(r) if r is not None else {}
+        finally:
+            con.close()
+
+    return _fetch

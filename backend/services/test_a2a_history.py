@@ -8,7 +8,8 @@
 
 from __future__ import annotations
 
-import sqlite3
+
+from data import dbcompat
 
 from backend.a2a.trace import record_a2a_trace
 from backend.services.a2a_history import list_a2a_history
@@ -216,7 +217,10 @@ def test_tool_call_only_no_result_yet(db_path: str):
         db_path=db_path,
     )
     # tool_result 행을 지워 tool_call 만 남긴다 (이론상 발생 안 하지만 방어적으로 확인)
-    con = sqlite3.connect(db_path)
+    # ⚠ `db_path` 는 Postgres DSN 문자열이다(D116) — `sqlite3.connect()` 로는 못 연다.
+    #   Postgres 전환 때 이 파일이 공식 8파일 목록 밖이라 아무도 안 돌려 남아 있었다
+    #   (2026-08-30 발견).
+    con = dbcompat.connect_dsn(db_path)
     con.execute("DELETE FROM traces WHERE event_type = 'tool_result'")
     con.commit()
     con.close()

@@ -14,39 +14,8 @@ from __future__ import annotations
 
 import pytest
 
-from data import dbcompat
 
 from backend.services.lien import resolve_lien_consent
-
-
-@pytest.fixture()
-def fetch_asset(db_path: str):
-    def _fetch(asset_id: str) -> dict:
-        con = dbcompat.connect_dsn(db_path)
-        try:
-            r = con.execute(
-                "SELECT * FROM assets WHERE asset_id = ?", (asset_id,)
-            ).fetchone()
-            return dict(r) if r is not None else {}
-        finally:
-            con.close()
-
-    return _fetch
-
-
-@pytest.fixture()
-def fetch_decision(db_path: str):
-    def _fetch(decision_id: str) -> dict:
-        con = dbcompat.connect_dsn(db_path)
-        try:
-            r = con.execute(
-                "SELECT * FROM decisions WHERE decision_id = ?", (decision_id,)
-            ).fetchone()
-            return dict(r) if r is not None else {}
-        finally:
-            con.close()
-
-    return _fetch
 
 
 def test_writes_reference_and_returns_true(db_path, seed_lien_decisions, fetch_asset):

@@ -381,3 +381,142 @@ def test_assess_used_equipment_loan_unknown_asset_is_400(
 
     assert res.status_code == 400
     assert "AST-NOPE" in res.json()["detail"]
+
+
+# ---- S12: request-settlement -------------------------------------------------
+
+
+def _fake_settlement(lien_released: bool):
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        return {
+            "status": "ok",
+            "action": "repay",
+            "lien_released": lien_released,
+            "remaining_balance": 5_000_000,
+        }
+
+    return _fake_call_skill
+
+
+def test_settlement_released_writes_lien_consent_ref(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions, fetch_asset
+) -> None:
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_settlement(True))
+
+    res = client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-0001", "sale_amount": 8_000_000,
+            "outstanding_loan": 3_000_000, "approved_by": "U-FIN-01",
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json()["maintq_lien_consent_updated"] is True
+    ref = fetch_asset("AST-LIEN")["lien_consent_ref"]
+    assert ref  # 비어 있지 않다
+    assert ref.strip() == ref  # 공백만 있는 값도 아니다
+    assert ref.startswith("A2A-SETTLE-")  # traces 로 되짚을 수 있는 형태다
+
+
+def test_settlement_not_released_writes_nothing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions, fetch_asset
+) -> None:
+    """음성 축 — `lien_released=false` 면 담보는 그대로 남는다."""
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_settlement(False))
+
+    res = client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-0001", "sale_amount": 1,
+            "outstanding_loan": 999_999_999, "approved_by": "U",
+        },
+    )
+
+    assert res.status_code == 200
+    assert fetch_asset("AST-LIEN")["lien_consent_ref"] is None
+
+
+def test_settlement_missing_key_writes_nothing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions, fetch_asset
+) -> None:
+    """`lien_released` 키가 아예 없으면 아무것도 쓰지 않는다 — 조용한 해소 금지."""
+
+    async def _no_key(**kwargs: Any) -> dict:
+        return {"status": "ok", "action": "hold"}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _no_key)
+
+    res = client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-0001", "sale_amount": 1,
+            "outstanding_loan": 1, "approved_by": "U",
+        },
+    )
+
+    assert res.status_code == 200
+    assert "maintq_lien_consent_updated" not in res.json()
+    assert fetch_asset("AST-LIEN")["lien_consent_ref"] is None
+
+
+def test_settlement_never_signs_the_decision(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions, fetch_decision
+) -> None:
+    """🔴 `lien_released=true` 여도 결정은 draft 그대로다 — 서명은 사람이 한다."""
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_settlement(True))
+
+    client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-0001", "sale_amount": 8_000_000,
+            "outstanding_loan": 3_000_000, "approved_by": "U-FIN-01",
+        },
+    )
+
+    d = fetch_decision("DEC-0001")
+    assert d["state"] == "draft"
+    assert d["signed_at"] is None
+    assert d["reviewed_by"] is None
+
+
+def test_upstream_failure_leaves_state_unchanged(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions, fetch_asset
+) -> None:
+    """상대가 죽어도 MaintQ 상태는 안 바뀐다."""
+
+    async def _boom(**kwargs: Any) -> dict:
+        raise A2AUpstreamUnavailableError("down")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _boom)
+
+    res = client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-0001", "sale_amount": 1,
+            "outstanding_loan": 1, "approved_by": "U",
+        },
+    )
+
+    assert res.status_code == 502
+    assert fetch_asset("AST-LIEN")["lien_consent_ref"] is None
+
+
+def test_settlement_on_asset_without_lien_is_400(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_lien_decisions
+) -> None:
+    async def _fake(**kwargs: Any) -> dict:
+        raise AssertionError("담보 없는 자산인데 발신하면 안 된다")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake)
+
+    res = client.post(
+        "/api/a2a/request-settlement",
+        json={
+            "decision_id": "DEC-NOLIEN", "sale_amount": 1,
+            "outstanding_loan": 1, "approved_by": "U",
+        },
+    )
+
+    assert res.status_code == 400
+    assert "담보" in res.json()["detail"]
