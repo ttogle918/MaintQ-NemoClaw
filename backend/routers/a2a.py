@@ -15,12 +15,74 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError, call_skill
-from backend.a2a.payloads import build_assess_loan_payload, build_lookup_clause_payload
+from backend.a2a.payloads import (
+    build_assess_loan_payload,
+    build_assess_used_equipment_loan_payload,
+    build_lookup_clause_payload,
+)
 from backend.a2a.trace import record_a2a_trace
 from backend.services.a2a_history import list_a2a_history
 
 router = APIRouter(prefix="/api/a2a", tags=["a2a"])
 logger = logging.getLogger(__name__)
+
+
+async def _dispatch(
+    *,
+    skill_id: str,
+    payload: dict[str, Any],
+    chain_id: str,
+    session_id: str,
+    base_url: str,
+    partner_label: str,
+    partner: str = "finallq",
+) -> dict[str, Any]:
+    """A2A 발신 + trace 기록 + 오류 매핑. 스킬마다 같은 블록을 복제하지 않는다.
+
+    상태코드 매핑은 기존 `lookup-clause`·`assess-loan` 과 동일하다:
+    timeout→504 · unavailable→502 · client error→그쪽 status(없으면 400).
+
+    ⛔ **기존 두 엔드포인트를 이 헬퍼로 바꾸지 않았다** — 동작하는 코드를 함께
+    건드리면 회귀 위험만 커진다. 신규 2종(S12·S13)만 쓴다. 기존 것 정리는 별건이다.
+    """
+
+    def _trace(status: str, response: dict[str, Any]) -> None:
+        record_a2a_trace(
+            session_id=session_id,
+            skill_id=skill_id,
+            request_payload=payload,
+            response_payload=response,
+            request_chain_id=chain_id,
+            status=status,
+        )
+
+    try:
+        res = await call_skill(
+            partner=partner,
+            skill_id=skill_id,
+            payload=payload,
+            request_chain_id=chain_id,
+            base_url=base_url,
+        )
+        # 파트너가 echo 안 해도 상관관계 키를 보장한다 (기존 두 엔드포인트와 같은 태도)
+        res["request_chain_id"] = chain_id
+        _trace("ok", res)
+        return res
+    except A2ATimeoutError as exc:
+        _trace("timeout", {"error": str(exc)})
+        raise HTTPException(
+            status_code=504, detail=f"{partner_label} A2A adapter timeout"
+        ) from exc
+    except A2AUpstreamUnavailableError as exc:
+        _trace("unavailable", {"error": str(exc)})
+        raise HTTPException(
+            status_code=502, detail=f"{partner_label} A2A adapter unavailable"
+        ) from exc
+    except A2AClientError as exc:
+        _trace("error", {"error": str(exc)})
+        raise HTTPException(
+            status_code=exc.status_code or 400, detail=exc.detail or str(exc)
+        ) from exc
 
 
 class LookupClauseRequest(BaseModel):
@@ -104,6 +166,13 @@ class AssessLoanRequest(BaseModel):
     request_chain_id: str | None = Field(None, description="멀티홉 추적용 체인 ID")
 
 
+class AssessUsedEquipmentLoanRequest(BaseModel):
+    asset_id: str = Field(..., min_length=1, description="담보로 잡을 MaintQ 자산 ID")
+    loan_amount: float = Field(..., gt=0, description="중고 설비 담보 대출 희망 금액")
+    session_id: str | None = Field(None, description="MaintQ 세션 ID")
+    request_chain_id: str | None = Field(None, description="멀티홉 추적용 체인 ID")
+
+
 @router.post("/assess-loan")
 async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
     """FinAllQ A2A assess-loan 스킬을 호출해 설비 담보 대출 사전 판정을 조회한다(S8)."""
@@ -170,6 +239,39 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             status="error",
         )
         raise HTTPException(status_code=exc.status_code or 400, detail=exc.detail or str(exc)) from exc
+
+
+@router.post("/assess-used-equipment-loan")
+async def assess_used_equipment_loan_endpoint(
+    req: AssessUsedEquipmentLoanRequest,
+) -> dict[str, Any]:
+    """FinAllQ assess-used-equipment-loan 스킬로 중고 설비 담보 대출 심사를 요청한다(S13).
+
+    S8(`assess-loan`)과 달리 호출자는 `asset_id` 와 금액만 준다 — 계약이 요구하는
+    담보 건물·연식·점검 이력은 빌더가 `assets`·`ownership_checks` 에서 파생한다.
+    """
+    base_url = os.environ.get("MAINTQ_A2A_FINALLQ_BASE_URL") or "http://localhost:9101"
+    chain_id = req.request_chain_id or f"CHAIN-UELOAN-{uuid.uuid4().hex[:8]}"
+
+    try:
+        payload = build_assess_used_equipment_loan_payload(
+            asset_id=req.asset_id,
+            loan_amount=req.loan_amount,
+            request_chain_id=chain_id,
+        )
+    except ValueError as exc:
+        # 없는 자산이다 — **발신하지 않는다.** 조용히 빈 값을 보내면 수신부가 400 을 낸다
+        # (request-withdrawal 이 error_code=None 으로 schema_validation_failed 를 맞은 전례).
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await _dispatch(
+        skill_id="assess-used-equipment-loan",
+        payload=payload,
+        chain_id=chain_id,
+        session_id=req.session_id or "",
+        base_url=base_url,
+        partner_label="FinAllQ",
+    )
 
 
 @router.get("/history")

@@ -332,3 +332,52 @@ def test_assess_loan_missing_required_field_rejected_by_validation(client: TestC
 def test_assess_loan_non_positive_amount_rejected_by_validation(client: TestClient):
     resp = client.post("/api/a2a/assess-loan", json={**_LOAN_BODY, "loan_amount": 0})
     assert resp.status_code == 422
+
+
+# ---- S13: assess-used-equipment-loan ----------------------------------------
+
+
+def test_assess_used_equipment_loan_endpoint_returns_partner_response(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_assets
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {"status": "ok", "decision": "conditional", "appraised_value": 4_000_000}
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    res = client.post(
+        "/api/a2a/assess-used-equipment-loan",
+        json={"asset_id": "AST-L3-CONV", "loan_amount": 5_000_000},
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["decision"] == "conditional"
+    assert body["request_chain_id"]  # 파트너가 echo 안 해도 채워진다
+    assert captured["skill_id"] == "assess-used-equipment-loan"
+    assert captured["partner"] == "finallq"
+    # 빌더가 자산에서 파생한 값이 실제로 실려 나간다 (양성 축)
+    assert captured["payload"]["collateral_building_id"] == "BLD-A"
+    assert captured["payload"]["equipment_year"] == 2019
+
+
+def test_assess_used_equipment_loan_unknown_asset_is_400(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_assets
+) -> None:
+    """빌더가 ValueError 를 던지면 500 이 아니라 400 으로 나간다 — 발신 자체를 안 한다."""
+
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        raise AssertionError("없는 자산인데 발신하면 안 된다")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    res = client.post(
+        "/api/a2a/assess-used-equipment-loan",
+        json={"asset_id": "AST-NOPE", "loan_amount": 1},
+    )
+
+    assert res.status_code == 400
+    assert "AST-NOPE" in res.json()["detail"]

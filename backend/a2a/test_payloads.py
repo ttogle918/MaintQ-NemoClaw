@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import pytest
 
-from data import dbcompat
 
 from backend.a2a.payloads import (
     build_assess_loan_payload,
@@ -180,49 +179,6 @@ def test_build_assess_loan_payload_minimal(db_path: str, link_finallq):
 #
 # ⚠ 계획서는 `tmp_db` 픽스처를 쓰지만 이 레포에는 없다 — 관례는 `db_path`(격리 스키마,
 #   빈 DB)이고 자산은 테스트가 직접 심는다(`seed_po` 선례). 그래서 아래 헬퍼를 둔다.
-
-
-@pytest.fixture()
-def seed_assets(db_path: str):
-    """S13 payload 파생에 필요한 자산 2건 + 소유권 점검 2행을 심는다.
-
-    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산
-    `AST-NO-INSPECTION`  — `last_inspection_date` 가 NULL (D62 키 생략 검증용)
-    """
-    con = dbcompat.connect_dsn(db_path)
-    try:
-        con.execute(
-            "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
-            " acquired_at, last_inspection_date, inspection_valid_until,"
-            " safety_inspection_target)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                "AST-L3-CONV", "3라인 컨베이어", "설비", 3, "BLD-A",
-                "2019-05-01", "2026-03-02", "2027-03-01", True,
-            ),
-        )
-        con.execute(
-            "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
-            " acquired_at, last_inspection_date, inspection_valid_until,"
-            " safety_inspection_target)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                "AST-NO-INSPECTION", "점검이력 없는 설비", "설비", 3, "BLD-A",
-                "2021-01-01", None, None, None,
-            ),
-        )
-        for cat, item, state in (
-            ("소유", "취득 증빙", "VERIFIED"),
-            ("담보", "근저당 설정 여부", "UNVERIFIED"),
-        ):
-            con.execute(
-                "INSERT INTO ownership_checks (asset_id, category, check_item, state,"
-                " checked_at) VALUES (?, ?, ?, ?, ?)",
-                ("AST-L3-CONV", cat, item, state, "2026-08-01 00:00:00"),
-            )
-        con.commit()
-    finally:
-        con.close()
 
 
 def test_assess_used_equipment_loan_payload_derives_fields_from_asset(db_path, seed_assets):
