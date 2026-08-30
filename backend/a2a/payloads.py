@@ -165,3 +165,54 @@ def build_assess_used_equipment_loan_payload(
         "equipment_year": int(str(acquired)[:4]) if acquired else 0,
         "inspection_data": inspection,
     }
+
+
+def build_request_settlement_payload(
+    decision_id: str,
+    sale_amount: float,
+    outstanding_loan: float,
+    approved_by: str,
+    prepayment_fee: float | None,
+    request_chain_id: str,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """FinAllQ request-settlement 스킬(S12, 매각대금 정산·근저당 말소) payload.
+
+    **`decision_id` 는 미서명 draft 결정을 가리킨다 — 그것이 정상 경로다.**
+    담보 자산은 LIEN-CONSENT(BLOCKING)로 서명이 막혀 있고 그 담보를 푸는 수단이
+    이 스킬 자신이므로(같은 룰의 `resolve_options[1]` "대출 상환 후 근저당 말소"),
+    정산 요청이 서명보다 먼저 일어나야 한다. 계약도 이를 명시한다.
+
+    `approved_by` 는 **정산 요청 승인자**이지 처분 서명자가 아니다 — draft 결정은
+    `reviewed_by` 가 NULL 이라 거기서 읽으면 항상 빈다. 호출자가 준다.
+
+    ⚠️ FinAllQ `decide_settlement()` 는 DB 조회 0인 순수 함수라 응답의
+    `remaining_balance` 는 산술 결과일 뿐 장부 반영 잔액이 아니다(TASK-195).
+    MaintQ 는 `lien_released` 만 소비한다.
+    """
+    with connect(db_path) as con:
+        row = con.execute(
+            "SELECT a.has_lien, a.lien_creditor FROM decisions d"
+            " JOIN assets a ON a.asset_id = d.asset_id"
+            " WHERE d.decision_id = ?",
+            (decision_id,),
+        ).fetchone()
+    if row is None:
+        raise ValueError(f"알 수 없는 decision_id: {decision_id}")
+    if not row["has_lien"] or not row["lien_creditor"]:
+        raise ValueError(f"{decision_id} 의 자산에 담보가 없다 — 정산 요청 대상이 아니다.")
+
+    payload: dict[str, Any] = {
+        "requester": {"finallq_company_id": get_finallq_company_id(db_path) or ""},
+        "request_chain_id": request_chain_id,
+        "decision_id": decision_id,
+        "sale_amount": sale_amount,
+        "lien_creditor": row["lien_creditor"],
+        "outstanding_loan": outstanding_loan,
+        "approved_by": approved_by,
+    }
+    # optional — None 이면 키를 생략한다. 단 **0.0 은 "수수료 0원"이라는 사실**이므로 싣는다.
+    # `if prepayment_fee:` 로 쓰면 0 이 조용히 사라져 "모름"과 "0원"이 같아진다.
+    if prepayment_fee is not None:
+        payload["prepayment_fee"] = prepayment_fee
+    return payload

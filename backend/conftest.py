@@ -147,3 +147,38 @@ def seed_assets(db_path: str):
         con.commit()
     finally:
         con.close()
+
+
+@pytest.fixture()
+def seed_lien_decisions(db_path: str):
+    """S12 payload 파생에 필요한 담보 자산 2건 + draft 결정 2건을 심는다.
+
+    `DEC-0001`  → `AST-LIEN`   : `has_lien=1` · `lien_creditor='한빛은행 여신부'` ·
+                                 `lien_consent_ref IS NULL` (= LIEN-CONSENT 발화 상태)
+    `DEC-NOLIEN`→ `AST-NOLIEN` : `has_lien=0` (정산 요청 대상이 아님)
+
+    둘 다 **미서명 draft** 다 — 담보 자산은 LIEN-CONSENT(BLOCKING)로 서명이 막혀
+    있고 그 담보를 푸는 수단이 S12 자신이라, 서명 후 호출은 구조적으로 불가능하다.
+    """
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        for aid, has_lien, creditor in (
+            ("AST-LIEN", True, "한빛은행 여신부"),
+            ("AST-NOLIEN", False, None),
+        ):
+            con.execute(
+                "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
+                " has_lien, lien_creditor, lien_consent_ref)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+                (aid, f"{aid} 설비", "설비", 3, "BLD-A", has_lien, creditor),
+            )
+        for did, aid in (("DEC-0001", "AST-LIEN"), ("DEC-NOLIEN", "AST-NOLIEN")):
+            con.execute(
+                "INSERT INTO decisions (decision_id, asset_id, decision_type,"
+                " evidence_bundle, bundle_hash, verdict_at_signing, state, reason)"
+                " VALUES (?, ?, 'SALE', '{}', 'sha256:test', 'BLOCKED', 'draft', '테스트')",
+                (did, aid),
+            )
+        con.commit()
+    finally:
+        con.close()

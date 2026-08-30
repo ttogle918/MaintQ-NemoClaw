@@ -17,6 +17,7 @@ from backend.a2a.payloads import (
     build_assess_loan_payload,
     build_assess_used_equipment_loan_payload,
     build_lookup_clause_payload,
+    build_request_settlement_payload,
     build_request_withdrawal_payload,
     get_finallq_company_id,
 )
@@ -233,4 +234,76 @@ def test_unknown_asset_raises(db_path, seed_assets):
     with pytest.raises(ValueError, match="AST-NOPE"):
         build_assess_used_equipment_loan_payload(
             asset_id="AST-NOPE", loan_amount=1.0, request_chain_id="C", db_path=db_path,
+        )
+
+
+# ---- build_request_settlement_payload (S12) ----------------------------------
+
+
+def test_request_settlement_payload_reads_lien_creditor_via_decision(
+    db_path, seed_lien_decisions
+):
+    """decision_id → decisions.asset_id → assets.lien_creditor 로 타고 간다."""
+    p = build_request_settlement_payload(
+        decision_id="DEC-0001", sale_amount=8_000_000.0, outstanding_loan=3_000_000.0,
+        approved_by="U-FIN-01", prepayment_fee=None,
+        request_chain_id="CHAIN-SET-1", db_path=db_path,
+    )
+
+    assert p["decision_id"] == "DEC-0001"
+    assert p["lien_creditor"] == "한빛은행 여신부"
+    assert p["sale_amount"] == 8_000_000.0
+    assert p["outstanding_loan"] == 3_000_000.0
+    assert p["approved_by"] == "U-FIN-01"
+
+
+def test_prepayment_fee_omitted_when_none(db_path, seed_lien_decisions):
+    """계약상 optional 이다 — None 이면 키를 생략한다 (0 으로 채우지 않는다)."""
+    p = build_request_settlement_payload(
+        decision_id="DEC-0001", sale_amount=1.0, outstanding_loan=1.0,
+        approved_by="U", prepayment_fee=None, request_chain_id="C", db_path=db_path,
+    )
+
+    assert "prepayment_fee" not in p
+
+
+def test_prepayment_fee_included_when_zero(db_path, seed_lien_decisions):
+    """0 은 '없음'이 아니라 '수수료 0원'이라는 사실이다 — 생략하지 않는다."""
+    p = build_request_settlement_payload(
+        decision_id="DEC-0001", sale_amount=1.0, outstanding_loan=1.0,
+        approved_by="U", prepayment_fee=0.0, request_chain_id="C", db_path=db_path,
+    )
+
+    assert p["prepayment_fee"] == 0.0
+
+
+def test_draft_decision_is_accepted(db_path, seed_lien_decisions):
+    """decision_id 는 **미서명 draft** 를 가리킨다 — 그것이 정상 경로다.
+
+    담보 자산은 LIEN-CONSENT(BLOCKING)로 서명이 막혀 있고, 그 담보를 푸는 수단이
+    이 스킬 자신이다. 서명 후 호출은 구조적으로 불가능하다.
+    """
+    p = build_request_settlement_payload(
+        decision_id="DEC-0001", sale_amount=1.0, outstanding_loan=1.0,
+        approved_by="U", prepayment_fee=None, request_chain_id="C", db_path=db_path,
+    )
+
+    assert p["decision_id"] == "DEC-0001"
+
+
+def test_unknown_decision_raises(db_path, seed_lien_decisions):
+    with pytest.raises(ValueError, match="DEC-NOPE"):
+        build_request_settlement_payload(
+            decision_id="DEC-NOPE", sale_amount=1.0, outstanding_loan=1.0,
+            approved_by="U", prepayment_fee=None, request_chain_id="C", db_path=db_path,
+        )
+
+
+def test_asset_without_lien_raises(db_path, seed_lien_decisions):
+    """담보가 없는 자산에 정산을 요청하지 않는다 — lien_creditor 가 빈 채로 나가면
+    수신부가 400 을 낸다(계약 필수 필드)."""
+    with pytest.raises(ValueError, match="담보"):
+        build_request_settlement_payload(
+            decision_id="DEC-NOLIEN", sale_amount=1.0, outstanding_loan=1.0,
+            approved_by="U", prepayment_fee=None, request_chain_id="C", db_path=db_path,
         )
