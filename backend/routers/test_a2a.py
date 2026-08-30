@@ -97,7 +97,11 @@ def test_uses_provided_chain_id(monkeypatch: pytest.MonkeyPatch, client: TestCli
     assert captured["request_chain_id"] == "CHAIN-FIXED-1"
 
 
-def test_base_url_defaults_to_localhost_9102(monkeypatch: pytest.MonkeyPatch, client: TestClient):
+def test_insuq_base_url_defaults_to_localhost_8081(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+):
+    """InsuQ 가 lookup-clause 를 FastAPI 어댑터(:9102) → Spring backend(:8081) 로
+    이관하면서 옛 어댑터를 삭제했다 (2026-08-30) — 기본값이 따라가야 한다."""
     monkeypatch.delenv("MAINTQ_A2A_INSUQ_BASE_URL", raising=False)
     captured: dict = {}
 
@@ -109,7 +113,7 @@ def test_base_url_defaults_to_localhost_9102(monkeypatch: pytest.MonkeyPatch, cl
 
     client.post("/api/a2a/lookup-clause", json={"question": "질문"})
 
-    assert captured["base_url"] == "http://localhost:9102"
+    assert captured["base_url"] == "http://localhost:8081"
 
 
 def test_base_url_reads_env_override(monkeypatch: pytest.MonkeyPatch, client: TestClient):

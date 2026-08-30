@@ -96,7 +96,10 @@ class LookupClauseRequest(BaseModel):
 @router.post("/lookup-clause")
 async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
     """InsuQ A2A lookup-clause 스킬을 호출해 약관 근거와 답변을 조회한다."""
-    base_url = os.environ.get("MAINTQ_A2A_INSUQ_BASE_URL") or "http://localhost:9102"
+    # InsuQ 가 lookup-clause 를 FastAPI 어댑터(:9102)에서 Spring backend(:8081) 로
+    # 이관하면서 `a2a_adapter/` 와 compose 서비스 정의를 지웠다 — **:9102 는 이제
+    # 존재하지 않는다**(2026-08-30). 경로·헤더 규격은 그대로라 바뀌는 건 포트뿐이다.
+    base_url = os.environ.get("MAINTQ_A2A_INSUQ_BASE_URL") or "http://localhost:8081"
     chain_id = req.request_chain_id or f"CHAIN-CLAUSE-{uuid.uuid4().hex[:8]}"
 
     payload = build_lookup_clause_payload(question=req.question, request_chain_id=chain_id)
