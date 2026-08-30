@@ -2492,8 +2492,13 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     sys.path.insert(0, str(ROOT.parent))
     from backend.services.po import display_name  # noqa: PLC0415
 
-    dn = display_name("tech-01", db_path=db_path)
-    unknown = display_name("ghost-99", db_path=db_path)
+    # ⚠ `db_path` 는 SQLite 시절의 파일 경로(Path)다. Postgres 에서는 `backend/db.py::
+    #   connect()` 가 DSN 문자열만 존중하므로 이 Path 는 **조용히 무시되고 DATABASE_URL
+    #   로 갔다** — 마침 검증 대상과 같은 DB 라 우연히 맞아 왔다(2026-08-29 가드 도입으로
+    #   드러남). 의도를 명시한다: Postgres 면 None 을 넘겨 DATABASE_URL 을 쓰게 한다.
+    backend_db = None if dbcompat.USE_POSTGRES else db_path
+    dn = display_name("tech-01", db_path=backend_db)
+    unknown = display_name("ghost-99", db_path=backend_db)
     check(
         "⑪ display_name 이 users 조회로 동작",
         dn == "김OO" and unknown == "ghost-99",
