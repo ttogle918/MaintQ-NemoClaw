@@ -590,6 +590,34 @@ POST /api/a2a/assess-loan            # FinAllQ assess-loan 스킬 중계 (기존
   → FinAllQ 응답 그대로(+ request_chain_id 강제 주입) — 200
   → 504(timeout) · 502(unavailable) · exc.status_code(그 외)
 
+POST /api/a2a/assess-used-equipment-loan   # FinAllQ 중고 설비 담보 심사 (신규 2026-08-30, S13)
+  body: { asset_id, loan_amount, session_id?, request_chain_id? }
+  #   호출자는 asset_id 와 금액만 준다 — 담보 건물·연식·점검 이력은 빌더가
+  #   assets·ownership_checks 에서 파생한다(build_request_withdrawal_payload 관례).
+  #   ⚠ equipment_year 는 계약상 제조연도지만 MaintQ 는 그걸 저장하지 않는다 —
+  #     acquired_at 의 연도를 보내고 inspection_data.equipment_year_basis 로 그 사실을 알린다.
+  → FinAllQ 응답 그대로(+ request_chain_id 강제 주입) — 200
+  → 400(없는 asset_id — **발신 전에** 끊는다) · 504 · 502 · exc.status_code
+
+POST /api/a2a/request-settlement     # FinAllQ 매각대금 정산·근저당 말소 (신규 2026-08-30, S12)
+  body: { decision_id, sale_amount, outstanding_loan, approved_by,
+          prepayment_fee?, session_id?, request_chain_id? }
+  #   decision_id 는 **미서명 draft** 를 가리킨다 — 담보 자산은 LIEN-CONSENT(BLOCKING)로
+  #   서명이 막혀 있고 그 담보를 푸는 수단이 이 스킬 자신이라, 정산이 서명보다 먼저다.
+  #   approved_by 는 **정산 요청 승인자**이지 처분 서명자가 아니다.
+  → FinAllQ 응답 + maintq_lien_consent_updated?(해소했을 때만) — 200
+  → 400(없는 decision_id · 담보 없는 자산) · 504 · 502 · exc.status_code
+
+  🔴 **이 레포에서 유일하게 A2A 응답이 MaintQ 상태를 바꾸는 경로다.**
+     `lien_released` 가 **명시적으로 true** 일 때만 `assets.lien_consent_ref` 에
+     `A2A-SETTLE-<chain_id>` 를 쓴다(`backend/services/lien.py`). truthy 검사가 아니라
+     `is True` 인 이유는 `"true"` 문자열·`1` 같은 계약 밖 값이 담보를 푸는 걸 막기 위해서다.
+     ⛔ **결정을 서명하지 않는다** — 담보만 풀고 서명은 사람이 한다("서명 없는 처분 확정
+     0건" 을 A2A 로 우회하지 않는다). ⛔ **빈 문자열을 쓰지 않는다** — `''` 는 `is_null` 을
+     False 로 만들어 BLOCKING 룰을 조용히 미발화시킨다(seed 검사 ⑱).
+     ⚠ 응답 `remaining_balance` 는 장부 반영 잔액이 아니라 산술 결과다(FinAllQ
+     `decide_settlement` 는 DB 조회 0인 순수 함수) — trace 에만 남기고 소비하지 않는다.
+
 GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
   query: skill? · po_id? · building_id? · chain_id? · limit?(기본 50)
   → { count, items: [{ request_chain_id, skill, session_id, status, request, response, ts }] }
