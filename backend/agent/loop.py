@@ -457,6 +457,22 @@ async def run_turn(
             store.append(session_id, {"role": "assistant", "content": "".join(assistant_text)})
 
         if not pending:
+            # 🔴 텍스트도 도구도 없이 끝났다면 그건 정상 종료가 아니라 **빈 응답**이다.
+            #   추론 모델이 본문을 `reasoning` 에만 쏟고 `content` 를 비운 채
+            #   `finish_reason=stop` 으로 끝내는 실패 모드가 실제로 있다
+            #   (`elice_chunk_delta` 는 `delta.content` 만 읽는다). `TRUNCATION_REASONS`
+            #   는 MAX_TOKENS/LENGTH 만 보므로 이 경우 경고조차 안 뜬다 —
+            #   09_RUNTIME §3 "확인하지 못했다를 명시한다" 원칙대로 사실을 말한다.
+            #   ⛔ 부분 스트림을 이어 붙이거나 재시도하지 않는다(스트림 실패와 같은 태도).
+            if not assistant_text:
+                logger.warning(
+                    "빈 응답 — 세션 %s, LLM 호출 %d회차, 종료사유 %s. 텍스트·도구 호출이 "
+                    "모두 없다(모델이 본문 대신 reasoning 에만 출력했을 수 있다).",
+                    session_id,
+                    store.llm_calls(session_id),
+                    normalize_finish_reason(finish_raw) if saw_end else "NO_END_MARKER",
+                )
+                yield sse.token("응답을 받지 못했습니다. 다시 시도해 주세요.")
             break  # 도구 호출 없이 텍스트만 → 턴 종료 (09_RUNTIME 종료 조건)
 
         for tu in pending:

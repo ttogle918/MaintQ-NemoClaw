@@ -143,6 +143,24 @@ async def run_all(db: Path) -> None:
         f"calls={fake.call_log}",
     )
 
+    # ── ②-b 빈 본문 + 도구 0건 + stop → **조용히 끝나지 않는다**
+    #
+    # ⚠ 이것이 ② 의 음성 쌍이다. ② 는 "텍스트가 있고 도구가 없으면 턴이 끝난다"를 보지만,
+    #   **텍스트도 없고 도구도 없을 때**는 아무도 안 보고 있었다. 추론 모델이 본문을
+    #   `reasoning` 에만 쏟고 `content` 를 비운 채 `finish_reason=stop` 으로 끝내면
+    #   (`elice_chunk_delta` 는 `delta.content` 만 읽는다) 루프의 `if not pending: break`
+    #   가 그대로 턴을 끝내 **사용자에게 빈 응답이 간다.** TRUNCATION_REASONS 는
+    #   MAX_TOKENS/LENGTH 만 보므로 경고도 안 뜬다.
+    #   InsuQ 는 같은 상황에서 예외로 터져 그 모델을 기각할 수 있었는데, MaintQ 는
+    #   터지지 않아서 **탐지 관점에서는 더 나쁘다** (docs/07_BACKLOG.md 「알려진 결함」).
+    ev, fake, _ = await drive([[("end", "stop")]], {}, db=db, session="T2B")
+    toks = [e for e in ev if e.event == "token"]
+    check(
+        "②-b 빈 본문+도구 0건+stop → 빈 응답으로 끝내지 않는다 (사용자에게 사실을 말한다)",
+        bool(toks) and fake.call_log == [],
+        f"token {len(toks)}건={[e.data.get('text', '')[:24] for e in toks]} · calls={fake.call_log}",
+    )
+
     # ── ③ 동일 도구·동일 입력 연속 → 두 번째는 실행 안 됨
     ev, fake, _ = await drive(
         [
