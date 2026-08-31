@@ -183,6 +183,13 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
 
+- 🟢 **`lien_consent_ref` 값에 접두사가 겹친다** (2026-08-31 발견, 기능 영향 없음).
+  `backend/routers/a2a.py` 가 `f"A2A-SETTLE-{chain_id}"` 로 조립하는데 `chain_id` 자체가
+  `CHAIN-SETTLE-` 로 시작해 실제 값이 `A2A-SETTLE-CHAIN-SETTLE-e1281b75` 가 된다.
+  유일성·추적성(`traces` 로 되짚기)은 온전해 **기능상 문제는 없다.** 다만 사람이 읽을 때
+  중복이 눈에 띈다. 고칠 때 주의: 이미 저장된 값이 있는 DB 에서 형식을 바꾸면 과거 값과
+  새 값이 섞이므로, 되짚기 규약을 먼저 정하고 손댈 것.
+
 - ✅ ~~**본문이 빈 응답이 조용히 정상 종료된다**~~ (2026-08-29 발견 → **2026-08-31 해소**).
   `elice_chunk_delta` 는 `delta.content` 만 읽고 `reasoning`/`reasoning_content` 는
   버린다. 추론 모델이 본문을 안 내면 텍스트 0글자가 되는데, `backend/agent/loop.py` 의
