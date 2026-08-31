@@ -229,9 +229,20 @@ NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌
   → **해소 (2026-08-29, `714b900`).** `TraceWriter.__init__` 에 런타임 가드를 넣어
   DSN 아닌 값은 `TypeError` 로 즉시 실패시키고, 두 테스트를 `data.pg_isolation` 격리
   스키마로 옮겼다. 낡은 docstring 도 정정. 가드 회귀 2건 추가.
-  ⚠ **남은 일반화**: 같은 조용한 유출이 `backend/db.py::connect()` 를 직접 부르는
-  다른 호출부에도 성립한다 — 근본 차단은 `connect()` 자체에 같은 가드를 두는 것이지만,
-  호출부 전수 영향을 확인해야 해서 이번엔 `TraceWriter` 한 곳만 막았다.
+  → **일반화 완료 (2026-08-29, `d0ffc96`)**: `connect()` 인자 경로에 같은 가드를 세웠다.
+  그 즉시 실제 유출 2건을 더 잡았다(`write_tool_contract` 가 격리 스키마 튜플을
+  언패킹 없이 넘겨 **공유 DB 를 stamp** 하고 있었고, `approvals_contract ④` 는 D119
+  이후 FAIL 중이었다). 이후 `data/seed.py::verify()` 의 `Path` 유출도 같은 가드가 드러냈다.
+  🔵 **`DB_PATH` 전역은 가드하지 않기로 확정한다 (2026-08-31 재검토).** 근거:
+  ㉠ `backend/db.py:28` 의 기본값이 **`Path`** 라 전역을 조이면 평상시 호출이 전부 터진다 —
+  기본값부터 바꿔야 하고 그건 `disposal.py` 의 잔존 SQLite 분기까지 번진다.
+  ㉡ 그런데 그 `Path` 기본값은 **무해하다**: `connect()` 도 `disposal.py` 도
+  `isinstance(dbp, str) and startswith("postgresql://")` 로 걸러 `DATABASE_URL` 로 간다.
+  ㉢ **실제 사고 4건이 전부 인자 경로였다**(`test_llm_cache`·`write_tool_contract`·
+  `seed.py`·Sprint 16 의 `payloads.py`/`trace.py`). 전역으로 들어온 사고는 **0건**이고
+  스파이크 8곳은 전부 DSN 을 넣는다.
+  → 이미 있는 인자 가드가 실제 발생 지점을 전부 덮는다. 전역 가드는 가설적 위험을 막으려고
+  회귀 전체를 한 줄에 인질로 잡는 거래다. **하지 않는다.**
 
 - 🔴 **pytest 는 `DATABASE_URL` 없이는 매단다.** pytest 실행 경로에는 `load_dotenv` 가 없어
   (`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값 `postgresql://localhost/maintq`
