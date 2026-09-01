@@ -28,11 +28,10 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from typing import Any
 
-from data import maint_value
+from data import repair_record
 
 from ..db import read_only, repair_writer
 
@@ -157,117 +156,35 @@ def create_repair_record(
     실패는 예외가 아니라 `status` 로 돌려준다 (D9).
     """
     # ── ① 입력 검증 (DB 를 열기 전) — 거부할 입력으로 DB 를 열지 않는다 ────────────
-    if not isinstance(equipment_id, str) or not equipment_id.strip():
-        return _fail("invalid_input", f"equipment_id 는 비어 있지 않은 문자열입니다: {equipment_id!r}")
-    equipment_id = equipment_id.strip()
-
-    if work_type not in WORK_TYPES:
-        return _fail(
-            "invalid_input",
-            f"work_type 은 {' | '.join(WORK_TYPES)} 중 하나여야 합니다 (미기재 거부, 12 §7): {work_type!r}",
-        )
-
-    if repair_scope not in maint_value.REPAIR_SCOPES:
-        return _fail(
-            "invalid_input",
-            f"repair_scope 는 {' | '.join(maint_value.REPAIR_SCOPES)} 중 하나여야 합니다"
-            f" (폴백 금지): {repair_scope!r}",
-        )
-
-    cost_int = _as_positive_int(cost)
-    if cost_int is None or cost_int <= 0:
-        return _fail("invalid_input", f"cost 는 0보다 큰 정수(원)입니다: {cost!r}")
-
-    downtime: float | None = None
-    if downtime_hours is not None:
-        downtime = _as_float(downtime_hours)
-        if downtime is None or downtime < 0:
-            return _fail(
-                "invalid_input", f"downtime_hours 는 0 이상의 숫자입니다: {downtime_hours!r}"
-            )
-
-    parts_list, parts_err = _validate_parts(parts)
-    if parts_err is not None:
-        return parts_err
-
-    if (model is None) != (error_code is None):
-        return _fail(
-            "model_code_pair", "model 과 error_code 는 둘 다 있거나 둘 다 없어야 합니다 (D33)."
-        )
-    if model is not None and model not in VALID_MODELS:
-        return _fail("invalid_model", f"model 은 {' | '.join(VALID_MODELS)} 이어야 합니다: {model!r}")
-    code = error_code.strip().upper() if error_code else None  # 저장은 대문자 canonical (D25)
-
-    if note is not None and not isinstance(note, str):
-        return _fail("invalid_input", f"note 는 문자열입니다: {note!r}")
-    note_text = note.strip() if isinstance(note, str) and note.strip() else None
+    #    산출 로직은 `data/repair_record.py` 공유 계층이 갖는다 (P39 — 화면 REST 와
+    #    같은 판정을 두 곳에 복제하지 않는다). 이 파일에 남는 것은 **MCP 진입점의 책임**
+    #    뿐이다: 커넥션 종류 선택(D10 — `repair_writer()` 의 TEMP TRIGGER)·D9 실패 표현.
+    vals, err = repair_record.validate_input(
+        equipment_id=equipment_id,
+        work_type=work_type,
+        repair_scope=repair_scope,
+        cost=cost,
+        parts=parts,
+        downtime_hours=downtime_hours,
+        model=model,
+        error_code=error_code,
+        note=note,
+    )
+    if err is not None:
+        return err
 
     # ── ② 조회 — 설비·부품 실재 확인 + 지출 산출 ─────────────────────────────────
     try:
         with read_only() as con:
-            eq = con.execute(
-                "SELECT equipment_id FROM equipment WHERE equipment_id = ?", (equipment_id,)
-            ).fetchone()
-            if eq is None:
-                return _fail(
-                    "unknown_equipment",
-                    f"등록되지 않은 설비입니다: {equipment_id}",
-                    status="not_found",
-                )
-
-            distinct_part_nos = {item["part_no"] for item in parts_list}
-            found_class: dict[str, str | None] = {}
-            for part_no in distinct_part_nos:
-                row = con.execute(
-                    "SELECT part_class FROM parts WHERE part_no = ?", (part_no,)
-                ).fetchone()
-                if row is not None:
-                    found_class[part_no] = row["part_class"]
-            missing = sorted(distinct_part_nos - set(found_class))
-            if missing:
-                # LLM 이 지어낸 품번이 정비 이력에 남을 경로를 막는다 — D33 이 에러코드에
-                # 건 방어를 부품에도 건다.
-                return _fail(
-                    "unknown_part",
-                    f"등록되지 않은 부품 번호가 있습니다: {', '.join(missing)}",
-                    status="not_found",
-                    missing=missing,
-                )
-
-            # ── part_class 산출 — 하나라도 CRITICAL 이면 CRITICAL, 값이 없는 부품이
-            #    섞이면 NULL, 전부 CONSUMABLE 이면 CONSUMABLE (0·임의값으로 메우지 않는다)
-            classes: set[str] = set()
-            unset_parts: list[str] = []
-            for part_no in sorted(distinct_part_nos):
-                raw = (found_class.get(part_no) or "").strip().upper()
-                if raw in maint_value.PART_CLASSES:
-                    classes.add(raw)
-                else:
-                    unset_parts.append(part_no)
-
-            if "CRITICAL" in classes:
-                part_class: str | None = "CRITICAL"
-            elif unset_parts:
-                part_class = None
-            else:
-                part_class = "CONSUMABLE"
-
-            expenditure_class: str | None = None
-            if part_class is None:
-                expenditure_reason = (
-                    "일부 부품의 등급(part_class)이 등록돼 있지 않아 지출 성격(자본적/수익적)을 "
-                    f"판정하지 않았다 — 등급 미상 부품: {', '.join(unset_parts)}. "
-                    "등급을 추정하지 않는다 (D12)."
-                )
-            else:
-                exp = maint_value.expenditure(
-                    con, part_class=part_class, repair_scope=repair_scope, amount=cost_int
-                )
-                if exp.get("status") != "ok":
-                    # 하위 산출 실패를 삼키지 않는다 — 없는 근거로 회계 판정을 지어내지 않는다.
-                    return exp
-                expenditure_class = exp["verdict"]  # HOLD 도 실패가 아니라 판정이다
-                expenditure_reason = exp["reasoning"]
+            calc, calc_err = repair_record.classify(
+                con,
+                equipment_id=vals["equipment_id"],
+                parts_list=vals["parts_list"],
+                repair_scope=vals["repair_scope"],
+                cost=vals["cost"],
+            )
+            if calc_err is not None:
+                return calc_err
     except sqlite3.Error as e:
         return _fail("db_error", str(e))
     except FileNotFoundError as e:
@@ -275,31 +192,26 @@ def create_repair_record(
     except Exception as e:  # noqa: BLE001 — 예외를 밖으로 던지지 않는다 (D9)
         return _fail("internal_error", f"{type(e).__name__}: {e}")
 
-    parts_json = json.dumps(parts_list, ensure_ascii=False)
-
-    # ── ③ INSERT — draft 만. 서명·신원 필드는 전부 NULL 리터럴 (D23·D37·D80) ──────
+    # ── ③ INSERT — draft 만. 서명·신원 필드는 전부 NULL (D23·D37·D80) ──────────────
+    #    ⛔ `repair_writer()` 는 TEMP TRIGGER 로 INSERT 만 허용된 커넥션이다 (D10·D98).
+    #      공유 계층의 `update_draft()` 를 여기서 부르지 않는다 — 부를 수 없어서가 아니라
+    #      **도구는 draft INSERT 만 한다**는 계약이기 때문이다.
     try:
         with repair_writer() as con:
-            repair_id = _next_repair_id(con)
-            con.execute(
-                "INSERT INTO repair_records (repair_id, equipment_id, model, error_code,"
-                " part_class, work_type, expenditure_class, cost, downtime_hours, parts,"
-                " performed_by, verified_by, signed_at, record_hash, state,"
-                " requested_by, session_id, note)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?, NULL, NULL, NULL, NULL, 'draft', NULL, NULL, ?)",
-                (
-                    repair_id,
-                    equipment_id,
-                    model,
-                    code,
-                    part_class,
-                    work_type,
-                    expenditure_class,
-                    cost_int,
-                    downtime,
-                    parts_json,
-                    note_text,
-                ),
+            repair_id = repair_record.next_repair_id(con)
+            repair_record.insert_draft(
+                con,
+                repair_id=repair_id,
+                equipment_id=vals["equipment_id"],
+                model=vals["model"],
+                error_code=vals["error_code"],
+                part_class=calc["part_class"],
+                work_type=vals["work_type"],
+                expenditure_class=calc["expenditure_class"],
+                cost=vals["cost"],
+                downtime_hours=vals["downtime_hours"],
+                parts_list=vals["parts_list"],
+                note=vals["note"],
             )
     except sqlite3.IntegrityError as e:
         # FK((model,error_code))·CHECK 위반은 계약 위반이므로 그대로 드러낸다.
@@ -316,13 +228,13 @@ def create_repair_record(
         "status": "ok",
         "repair_id": repair_id,
         "state": "draft",
-        "equipment_id": equipment_id,
-        "work_type": work_type,
-        "part_class": part_class,
-        "expenditure_class": expenditure_class,
-        "expenditure_reason": expenditure_reason,
-        "cost": cost_int,
-        "downtime_hours": downtime,
+        "equipment_id": vals["equipment_id"],
+        "work_type": vals["work_type"],
+        "part_class": calc["part_class"],
+        "expenditure_class": calc["expenditure_class"],
+        "expenditure_reason": calc["expenditure_reason"],
+        "cost": vals["cost"],
+        "downtime_hours": vals["downtime_hours"],
         "record_hash": None,
         "next_step": NEXT_STEP,
         "disclaimer": DISCLAIMER,
