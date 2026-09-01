@@ -148,11 +148,55 @@ class SessionStore:
     def history(self, session_id: str) -> list[dict]:
         return list(self._history.get(session_id, []))
 
+    #: 절삭 우선순위 — **먼저 버릴 것부터**. 사용자 메시지가 맨 뒤인 것이 핵심이다.
+    #: 도구 결과는 재호출로 되살릴 수 있지만 **사용자가 한 말은 되살릴 방법이 없다**.
+    _EVICT_ORDER: tuple[str, ...] = ("tool", "assistant", "user")
+
     def append(self, session_id: str, msg: dict) -> None:
+        """이력에 한 건 추가하고, 상한을 넘으면 **역할을 보고** 골라 버린다.
+
+        ⛔ 예전에는 `del h[: len(h) - HISTORY_LIMIT]` 로 **무조건 앞에서** 잘랐다.
+        이력에는 셋이 쌓이는데(사용자 메시지 · 어시스턴트 응답 · 도구 결과 D76), 처분·발주
+        흐름은 턴당 도구를 2~3개 부르므로 몇 턴 만에 상한을 넘고 **1턴의 사용자 메시지가
+        가장 먼저 사라졌다** — 하필 사용자가 처음 말한 핵심 사실(자산 ID 등)이다.
+        2026-08-31 촬영에서 "2턴에서 1턴의 자산 ID를 잊는" 증상으로 드러났다.
+
+        ⚠️ **같은 계열 사고의 재발이다.** `HISTORY_MAX_ITEMS` 주석(위)이 기록한
+        "견적 2건 중 A사만 남으면 다음 턴 발주가 틀어진다"와 같은 함정이 한 단계 위에서
+        다시 났다. 상한을 키우는 건 답이 아니다 — 토큰·비용을 밀어올릴 뿐 순서가 그대로면
+        같은 것이 또 사라진다. **무엇을 먼저 버리느냐**가 문제였다.
+
+        절삭은 조용히 하지 않는다 — 사용자·어시스턴트 메시지를 버리게 되면 경고를 남긴다.
+        """
         h = self._history.setdefault(session_id, [])
         h.append(msg)
-        if len(h) > HISTORY_LIMIT:  # 초과분은 앞에서 절삭
-            del h[: len(h) - HISTORY_LIMIT]
+        over = len(h) - HISTORY_LIMIT
+        if over <= 0:
+            return
+
+        dropped: dict[str, int] = {}
+        for role in self._EVICT_ORDER:
+            i = 0
+            while over > 0 and i < len(h):
+                if h[i].get("role") == role:
+                    del h[i]
+                    over -= 1
+                    dropped[role] = dropped.get(role, 0) + 1
+                else:
+                    i += 1
+            if over <= 0:
+                break
+
+        # 도구 결과만 버렸으면 정상 운영이다(재호출로 되살릴 수 있다). 사용자·어시스턴트
+        # 메시지까지 버렸다면 대화가 실제로 짧아진 것이므로 그 사실을 남긴다.
+        if dropped.get("user") or dropped.get("assistant"):
+            logger.warning(
+                "대화 이력 절삭 — 세션 %s, 버린 것 %s (상한 %d). 사용자 메시지가 사라지면 "
+                "에이전트가 앞서 받은 사실을 다시 묻게 된다.",
+                session_id,
+                dropped,
+                HISTORY_LIMIT,
+            )
 
     def llm_calls(self, session_id: str) -> int:
         return self._llm_calls.get(session_id, 0)

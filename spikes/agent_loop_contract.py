@@ -161,6 +161,31 @@ async def run_all(db: Path) -> None:
         f"token {len(toks)}건={[e.data.get('text', '')[:24] for e in toks]} · calls={fake.call_log}",
     )
 
+    # ── ②-c 이력 절삭이 **사용자 메시지를 마지막에** 버린다 (2026-08-31 촬영 중 발견)
+    #
+    # 이력에는 셋이 쌓인다 — 사용자 메시지·어시스턴트 응답·도구 결과(D76). 상한을 넘으면
+    # 예전 구현은 **무조건 앞에서** 잘라내서, 도구를 여러 개 부르는 흐름(처분·발주)에서
+    # **1턴의 사용자 메시지가 가장 먼저 사라졌다** — 하필 사용자가 처음 말한 핵심 사실
+    # (자산 ID 등)이다. 실제로 촬영 중 "2턴에서 1턴의 자산 ID를 잊는" 증상으로 드러났다.
+    # ⚠ `HISTORY_MAX_ITEMS` 주석(loop.py:63-65)이 기록한 **같은 계열 사고의 재발**이다.
+    from backend.agent.loop import HISTORY_LIMIT, SessionStore  # noqa: PLC0415
+
+    st_trim = SessionStore()
+    st_trim.append("T2C", {"role": "user", "content": "자산은 AST-L3-CONV 입니다"})
+    # 도구 결과로 상한을 넉넉히 넘긴다 — 처분 흐름이 턴당 2~3개씩 쌓는 그 형태다
+    for i in range(HISTORY_LIMIT + 5):
+        st_trim.append("T2C", {"role": "tool", "name": "check_disposal_blockers",
+                               "content": f"{{\"i\": {i}}}"})
+    hist = st_trim.history("T2C")
+    users = [m for m in hist if m.get("role") == "user"]
+    check(
+        "②-c 이력 절삭 — 도구 결과를 먼저 버리고 **사용자 메시지는 남긴다**",
+        len(hist) <= HISTORY_LIMIT
+        and any("AST-L3-CONV" in m.get("content", "") for m in users),
+        f"이력 {len(hist)}건(상한 {HISTORY_LIMIT}) · user {len(users)}건 · "
+        f"자산ID 생존={any('AST-L3-CONV' in m.get('content','') for m in users)}",
+    )
+
     # ── ③ 동일 도구·동일 입력 연속 → 두 번째는 실행 안 됨
     ev, fake, _ = await drive(
         [
