@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AssetHeader } from "@/components/asset/AssetHeader";
 import { DisposalPanel } from "@/components/asset/DisposalPanel";
+import { DisposalDraftForm } from "@/components/asset/DisposalDraftForm";
 import { ConsoleFrame, ScreenStack } from "@/components/layout/ConsoleFrame";
 import { StatusBanner } from "@/components/layout/StatusBanner";
 import { StateBadge } from "@/components/ui/Badge";
@@ -41,6 +42,8 @@ export default function AssetDisposalPage({ params }: { params: { assetId: strin
   const assetId = decodeURIComponent(params.assetId);
 
   const [asset, setAsset] = useState<ApiAsset | null>(null);
+  // 초안을 만들면 아래 목록을 다시 그린다(생성 직후 안 보이면 만든 줄 모른다)
+  const [draftsKey, setDraftsKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,7 +125,8 @@ export default function AssetDisposalPage({ params }: { params: { assetId: strin
           }
         />
         <DisposalPanel asset={asset} />
-        <DraftsForAsset assetId={asset.asset_id} />
+        <NewDraftSection assetId={asset.asset_id} onCreated={() => setDraftsKey((k) => k + 1)} />
+        <DraftsForAsset assetId={asset.asset_id} key={draftsKey} />
       </ConsoleFrame>
     </ScreenStack>
   );
@@ -265,6 +269,52 @@ function Empty({ children }: { children: React.ReactNode }) {
       )}
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * 처분서 초안 **생성** 자리 (P39, 2026-09-03).
+ *
+ * 이 화면 docstring 이 *"초안은 에이전트가 `generate_disposal_document` 로 만든다"* 고
+ * 적어둔 그 구멍을 메운다 — 채팅 없이도 화면에서 직접 만들 수 있게 한다(D111 이 발주서에
+ * 연 경로의 마지막 확장). 사전판정(`DisposalPanel`) 바로 **아래**에 두는 이유는 순서가
+ * 그대로 판단 흐름이기 때문이다: 무엇이 막혀 있는지 보고 → 그 상태로 초안을 만든다.
+ */
+function NewDraftSection({
+  assetId,
+  onCreated,
+}: {
+  assetId: string;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [made, setMade] = useState<ApiDecision | null>(null);
+
+  if (made) {
+    return (
+      <div style={sx("padding:14px 18px;border-top:1px solid var(--line)")}>
+        <StatusBanner tone="info">
+          처분서 초안 {made.decision_id} 을 만들었습니다 — 아래 목록에서 승인 큐에 올릴 수
+          있습니다. 판정: {made.verdict_at_signing ?? "확인되지 않음"}
+        </StatusBanner>
+      </div>
+    );
+  }
+
+  return (
+    <div style={sx("padding:14px 18px;border-top:1px solid var(--line)")}>
+      {!open ? (
+        <Button onClick={() => setOpen(true)}>처분서 초안 만들기</Button>
+      ) : (
+        <DisposalDraftForm
+          assetId={assetId}
+          onDone={(d) => {
+            setMade(d);
+            onCreated(); // 아래 목록을 다시 그린다
+          }}
+        />
+      )}
     </div>
   );
 }

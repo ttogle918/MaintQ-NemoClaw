@@ -361,6 +361,9 @@ export interface ApiDecision {
   disposal_mode: string | null;
   disposal_date: string | null;
   verdict_at_signing: string | null;
+  /** 처분 사유 (D5). 백엔드는 `dict(row)` 로 늘 실어 보냈는데 이 타입에만 빠져 있었다
+   *  — P39 화면 직접 생성 작업(2026-09-03)에서 tsc 가 `{}` 추론으로 잡아냈다. */
+  reason?: string | null;
   /** 서명 시점 판정이 차단 어휘인가 = 우회 없이는 서명 불가인가 */
   requires_override: boolean;
   override: boolean;
@@ -386,6 +389,32 @@ export const getDecisions = (role: Role, state?: string) =>
 
 export const getDecision = (role: Role, id: string) =>
   apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(id)}`, role);
+
+/**
+ * 화면이 직접 만드는 처분 초안의 입력 (P39, `POST/PATCH /api/decisions`).
+ *
+ * ⛔ `override`·`override_reason`·`reviewed_by` 는 **여기 없다** (D81) — 예외 적용은
+ *   서명 화면 전용이다. `verdict_at_signing`·`bundle_hash` 도 없다: 서버가 **재판정으로**
+ *   산출한다(`disposal_mode`·`disposal_date` 가 룰 입력이라 바뀌면 판정이 달라진다).
+ */
+export interface DisposalDraftInput {
+  asset_id: string;
+  disposal_mode: string;
+  disposal_date?: string | null;
+  reason: string;
+}
+
+export const createDecision = (body: DisposalDraftInput) =>
+  apiFetch<ApiDecision>("/api/decisions", "technician", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const updateDecision = (decisionId: string, body: DisposalDraftInput) =>
+  apiFetch<ApiDecision>(`/api/decisions/${encodeURIComponent(decisionId)}`, "technician", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 
 /** draft → pending. **정비사만** — 팀장이 부르면 403 (403 은 양방향이다). */
 export const submitDecision = (id: string) =>
