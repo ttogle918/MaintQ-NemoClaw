@@ -381,6 +381,113 @@ def run_repair_flow_rest_axis(db: Path) -> None:
         )
 
 
+
+def run_screen_create_axis(db: Path) -> None:
+    """P39 — 화면이 수리 증빙 초안을 **직접 생성·수정**한다 (`POST/PATCH /api/repairs`).
+
+    D111(발주서)이 연 경로를 수리 증빙에 확장한 것이다. 채팅(MCP 도구)을 거치지 않고
+    화면이 직접 만든다 — ⛔ 이건 D10 대상이 아니다: MCP 도구가 아니라 **백엔드 쓰기**라
+    처음부터 UPDATE 권한이 있다(D111 이 정리한 경계).
+
+    `expenditure_class` 가 D31 의 `unit_price` 와 같은 자리다 — **입력에 없으므로**
+    사용자가 못 건드리고, 입력이 바뀌면 서버가 재산출한다.
+    """
+    if dbcompat.USE_POSTGRES:
+        import backend.db as backend_db  # noqa: PLC0415
+        backend_db.DB_PATH = db
+    else:
+        os.environ["MAINTQ_DB"] = str(db)
+
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+
+    from backend.main import app  # noqa: PLC0415
+
+    tech = {"X-Role": "technician", "X-User": "tech-01"}
+    mgr = {"X-Role": "manager", "X-User": "mgr-01"}
+    body = {
+        "equipment_id": EQUIPMENT_ID,
+        "work_type": "UNPLANNED",
+        "repair_scope": "RESTORE",
+        "cost": 250000,
+        "parts": [{"part_no": PART_NO, "qty": 1}],
+        "note": "화면 직접 생성 (P39)",
+    }
+
+    with TestClient(app) as client:
+        r_create = client.post("/api/repairs", json=body, headers=tech)
+        created = r_create.json() if r_create.status_code == 200 else {}
+        check(
+            "㉠ 정비사 화면 직접 생성 → 200 · draft · performed_by 즉시 stamp (D37)",
+            r_create.status_code == 200
+            and created.get("state") == "draft"
+            and created.get("performed_by") == "tech-01",
+            f"{r_create.status_code} · state={created.get('state')} · "
+            f"performed_by={created.get('performed_by')}",
+        )
+
+        check(
+            "㉡ expenditure_class 는 서버 산출 — 입력에 없고 응답에 실린다 (D101·D31 자리)",
+            "expenditure_class" not in body and created.get("expenditure_class") is not None,
+            f"입력에 없음={'expenditure_class' not in body} · "
+            f"응답={created.get('expenditure_class')}",
+        )
+
+        r_mgr = client.post("/api/repairs", json=body, headers=mgr)
+        check(
+            "㉢ 팀장이 화면 생성 호출 → 403 (역할 분리)",
+            r_mgr.status_code == 403,
+            f"{r_mgr.status_code}",
+        )
+
+        rid = created.get("repair_id", "RPR-NONE")
+        r_patch = client.patch(
+            f"/api/repairs/{rid}", json={**body, "cost": 410000, "note": "수량 정정"}, headers=tech
+        )
+        patched = r_patch.json() if r_patch.status_code == 200 else {}
+        check(
+            "㉣ draft 수정 → 200 · cost 반영 · expenditure_class 재산출",
+            r_patch.status_code == 200 and patched.get("cost") == 410000,
+            f"{r_patch.status_code} · cost={patched.get('cost')} · "
+            f"expenditure_class={patched.get('expenditure_class')}",
+        )
+
+        r_patch_mgr = client.patch(f"/api/repairs/{rid}", json=body, headers=mgr)
+        check(
+            "㉤ 팀장이 PATCH 호출 → 403",
+            r_patch_mgr.status_code == 403,
+            f"{r_patch_mgr.status_code}",
+        )
+
+        r_bad_part = client.post(
+            "/api/repairs", json={**body, "parts": [{"part_no": "NOPE-999"}]}, headers=tech
+        )
+        check(
+            "㉥ 등록되지 않은 부품 → 404 (지어낸 품번이 이력에 남지 않는다)",
+            r_bad_part.status_code == 404,
+            f"{r_bad_part.status_code}",
+        )
+
+        r_bad_scope = client.post(
+            "/api/repairs", json={**body, "repair_scope": "NOPE"}, headers=tech
+        )
+        check(
+            "㉦ repair_scope enum 밖 → 422 (폴백 금지)",
+            r_bad_scope.status_code == 422,
+            f"{r_bad_scope.status_code}",
+        )
+
+        client.post(f"/api/repairs/{rid}/submit", headers=tech)
+        r_after = client.patch(f"/api/repairs/{rid}", json=body, headers=tech)
+        check(
+            "㉧ 제출 후 PATCH → 409 (draft 아님)",
+            r_after.status_code == 409,
+            f"{r_after.status_code}",
+        )
+
+        r_404 = client.patch("/api/repairs/RPR-9999", json=body, headers=tech)
+        check("㉨ 없는 수리 증빙 PATCH → 404", r_404.status_code == 404, f"{r_404.status_code}")
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
@@ -416,6 +523,7 @@ def main() -> None:
             run_tool_axis(db)
             run_rest_axis(db)
             run_repair_flow_rest_axis(db)
+            run_screen_create_axis(db)
         finally:
             if schema:
                 pg_isolation.drop_isolated_schema(schema)

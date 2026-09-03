@@ -25,6 +25,7 @@ import sqlite3
 from backend.db import connect
 from backend.services.decisions import now_utc_sql
 from backend.services.po import iso_utc
+from data import repair_record
 from data.repair_hash import HASHED_KEYS, compute_record_hash
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태 (`services/po.ALLOWED_FROM`·
@@ -113,6 +114,108 @@ def _locked_row(con: sqlite3.Connection, repair_id: str) -> sqlite3.Row:
     if r is None:
         raise KeyError(repair_id)
     return r
+
+
+class NotEditableError(Exception):
+    """draft 가 아닌 증빙을 수정하려 함 → 409. `services/po.NotEditableError` 와 같은 패턴."""
+
+    def __init__(self, repair_id: str, state: str) -> None:
+        super().__init__(
+            f"{repair_id} 는 지금 '{state}' 상태라 수정할 수 없습니다 (draft 만 수정 가능)"
+        )
+
+
+def _build(con: sqlite3.Connection, body: dict) -> tuple[dict | None, dict | None]:
+    """입력 검증 + 산출. 공유 계층(`data/repair_record.py`)이 **판정의 단일 출처**다 —
+    MCP 도구(`create_repair_record`)와 같은 함수를 쓴다(D73·P39)."""
+    vals, err = repair_record.validate_input(
+        equipment_id=body.get("equipment_id"),
+        work_type=body.get("work_type"),
+        repair_scope=body.get("repair_scope"),
+        cost=body.get("cost"),
+        parts=body.get("parts"),
+        downtime_hours=body.get("downtime_hours"),
+        model=body.get("model"),
+        error_code=body.get("error_code"),
+        note=body.get("note"),
+    )
+    if err is not None:
+        return None, err
+    calc, calc_err = repair_record.classify(
+        con,
+        equipment_id=vals["equipment_id"],
+        parts_list=vals["parts_list"],
+        repair_scope=vals["repair_scope"],
+        cost=vals["cost"],
+    )
+    if calc_err is not None:
+        return None, calc_err
+    return {**vals, **calc}, None
+
+
+def create(body: dict, *, performed_by: str, db_path: str | None = None) -> dict:
+    """화면이 수리 증빙 초안을 **직접 생성**한다 (P39 — D111 이 발주서에 연 경로의 확장).
+
+    ⛔ **D10 대상이 아니다.** MCP 도구가 아니라 백엔드 쓰기라 처음부터 UPDATE 권한이 있다
+    (D111 이 정리한 경계). 산출 로직은 도구와 **같은 공유 계층**을 지나므로 두 경로의
+    판정이 갈릴 수 없다.
+
+    `performed_by` 는 **생성 즉시** stamp 한다 — 화면은 신원이 검증된 헤더에서 오므로
+    도구 경로의 사후 stamp(D37)를 기다릴 이유가 없다(D111 의 `requested_by` 선례).
+    실패는 예외가 아니라 `status` dict 로 돌려준다 (D9) — 라우터가 HTTP 로 옮긴다.
+    """
+    with connect(db_path) as con:
+        built, err = _build(con, body)
+        if err is not None:
+            return err
+        repair_id = repair_record.next_repair_id(con)
+        repair_record.insert_draft(
+            con,
+            repair_id=repair_id,
+            equipment_id=built["equipment_id"],
+            model=built["model"],
+            error_code=built["error_code"],
+            part_class=built["part_class"],
+            work_type=built["work_type"],
+            expenditure_class=built["expenditure_class"],
+            cost=built["cost"],
+            downtime_hours=built["downtime_hours"],
+            parts_list=built["parts_list"],
+            note=built["note"],
+            performed_by=performed_by,
+        )
+    return get_repair(repair_id, db_path) or {}
+
+
+def update(repair_id: str, body: dict, db_path: str | None = None) -> dict:
+    """draft 상태 수리 증빙을 수정한다. draft 가 아니면 `NotEditableError` → 409.
+
+    ⛔ **서명 필드는 건드리지 않는다** — 공유 계층의 `update_draft()` SET 절에 아예 없다.
+    `expenditure_class` 는 입력이 아니라 **재산출**된다(D101·D31 과 같은 태도 — 서버가
+    계산한 값을 사용자가 덮어쓸 수 있으면 그 계산의 존재 이유가 사라진다).
+    """
+    with connect(db_path) as con:
+        row = _locked_row(con, repair_id)
+        if row["state"] != "draft":
+            raise NotEditableError(repair_id, row["state"])
+        built, err = _build(con, body)
+        if err is not None:
+            return err
+        repair_record.update_draft(
+            con,
+            repair_id=repair_id,
+            equipment_id=built["equipment_id"],
+            model=built["model"],
+            error_code=built["error_code"],
+            part_class=built["part_class"],
+            work_type=built["work_type"],
+            expenditure_class=built["expenditure_class"],
+            cost=built["cost"],
+            downtime_hours=built["downtime_hours"],
+            parts_list=built["parts_list"],
+            note=built["note"],
+        )
+    return get_repair(repair_id, db_path) or {}
 
 
 def submit(

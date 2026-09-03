@@ -31,6 +31,74 @@ from backend.services import repairs as svc
 router = APIRouter(prefix="/api/repairs", tags=["repairs"])
 
 
+#: 공유 계층(`data/repair_record.py`)의 실패 `reason` → HTTP. `routers/po.py` 와 같은 형태다.
+#: ⛔ 여기 없는 reason 은 500 이다 — 모르는 실패를 4xx 로 반올림하지 않는다(사용자 잘못이
+#:   아닌 것을 사용자 잘못처럼 보이게 하면 원인 추적이 끊긴다).
+_REASON_HTTP: dict[str, int] = {
+    "invalid_input": 422,
+    "model_code_pair": 422,
+    "invalid_model": 422,
+    "integrity": 422,
+}
+
+
+def _status_code(result: dict) -> int:
+    """성공(`get_repair()` 셰이프 — `status` 키 자체가 없다)도 200 으로 본다.
+    `routers/po.py::_status_code` 와 같은 규약이다."""
+    status = result.get("status")
+    if status in (None, "ok"):
+        return 200
+    if status == "not_found":
+        return 404
+    return _REASON_HTTP.get(result.get("reason"), 500)
+
+
+class RepairBody(BaseModel):
+    """화면이 직접 생성·수정할 때 받는 9필드 (P39).
+
+    ⛔ `expenditure_class`·`part_class`·서명 필드는 **여기 없다** — 서버가 산출하거나
+    사람이 서명으로 채운다. D31 이 `unit_price` 를 입력에서 뺀 것과 같은 이유다:
+    입력으로 받는 순간 사용자가 서버 계산을 덮어쓸 수 있고, 그러면 그 계산의 존재 이유가
+    사라진다. 타입을 좁히지 않는 것도 의도다(D9) — 문자열 숫자도 공유 계층이 받아준다.
+    """
+
+    equipment_id: str = Field(..., min_length=1)
+    work_type: str = Field(..., description="PLANNED | UNPLANNED (미기재 거부, 12 §7)")
+    repair_scope: str = Field(..., description="폴백 금지 — enum 밖이면 422")
+    cost: object = Field(..., description="0보다 큰 정수(원)")
+    parts: list = Field(..., description="1건 이상. 각 항목 part_no 필수")
+    downtime_hours: object | None = None
+    model: str | None = None
+    error_code: str | None = None
+    note: str | None = None
+
+
+@router.post("")
+def create_repair(body: RepairBody, c: Caller = Depends(caller)) -> JSONResponse:
+    """화면에서 수리 증빙 초안을 직접 생성한다 (P39). 정비사 전용.
+
+    응답은 `GET /api/repairs/{id}` 와 같은 상세 셰이프다 — 화면이 생성 직후 바로 그릴 수
+    있게 별도 조회 없이 준다(D111 의 `POST /api/po` 선례).
+    """
+    require(c, "technician", "수리 증빙 생성")
+    result = svc.create(body.model_dump(), performed_by=c.user_id)
+    return JSONResponse(status_code=_status_code(result), content=result)
+
+
+@router.patch("/{repair_id}")
+def update_repair(repair_id: str, body: RepairBody, c: Caller = Depends(caller)) -> JSONResponse:
+    """draft 상태 수리 증빙을 수정한다. draft 가 아니면 409, 없으면 404. 정비사 전용."""
+    require(c, "technician", "수리 증빙 수정")
+    try:
+        result = svc.update(repair_id, body.model_dump())
+    except KeyError as e:
+        raise HTTPException(404, f"수리 증빙을 찾을 수 없습니다: {repair_id}") from e
+    except svc.NotEditableError as e:
+        # 권한은 맞지만 상태가 틀린 경우 — 403 과 구분해서 409
+        raise HTTPException(409, str(e)) from e
+    return JSONResponse(status_code=_status_code(result), content=result)
+
+
 class RejectBody(BaseModel):
     # 사유 없는 반려는 요청자가 뭘 고쳐야 할지 알 수 없다 (D38)
     reason: str = Field(min_length=1)
