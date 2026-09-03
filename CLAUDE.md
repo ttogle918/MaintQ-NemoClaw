@@ -153,7 +153,11 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **33스위트 / 1,075건**(전 33스위트 실제 Postgres 위에서 실측, `bundle_integrity` 포함 —
+spikes **33스위트 / 1,104건**(2026-09-03 갱신 — 아래 표 합산과 일치. 직전 1,075 에서 +29:
+`agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
+`repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
+(P39 신규 파일 3개 × 6항목). 그 전 값은 아래 문단 참고 —
+`bundle_integrity` 포함 —
 1,052 에서 `api_contract`(+11, Sprint 17 D119 재무부 승인·doc3 계약)·`ui_honesty_contract`
 (+12, Sprint 18 대시보드 신규 파일 2건×6 — `EquipmentCard.tsx`·`manager/finance/page.tsx`)
 반영해 2026-08-24 재계산).
@@ -171,7 +175,7 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 `error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **22개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
+프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이
 다르다**. '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라
 재실행 불필요**, Sprint 10 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence`
@@ -180,19 +184,23 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 격리 확인, 2026-08-21)이 `/v2/manager/po/[poId]` 를 신설했으나 이 문서에는 반영이 안 돼 있었다 —
 D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함께 정정한다. **19→21**: D111이
 `/technician/po/new`·`/technician/po/[poId]` 2개를 더했다(P39 축소판). 18→21. **21→22**(2026-08-24,
-"빠른 정리" 세션): 계정 선택 화면 작업이 `/manager/finance`(재무담당 전용 랜딩)를 신설했다,
-이후 불변). spikes 스위트별 건수:
+"빠른 정리" 세션): 계정 선택 화면 작업이 `/manager/finance`(재무담당 전용 랜딩)를 신설했다.
+**22→25**(2026-09-03, P39 수리증빙): `/technician/repair/new`·`/technician/repair/[repairId]`
+2개를 더했다 — 그런데 22+2=24 인데 실측이 **25** 다. 차이 1은 **`22` 를 적을 때 이미
+`/v2/manager/po/[poId]` 가 빠져 있었기 때문**이다(P40 v2 가 신설한 그 파일 — 이 문단이
+"19→21" 로 한 번 정정한 바로 그 누락이 **또** 났다). 소스 파일 수로 교차 확인했다:
+`find frontend/app -name page.tsx` = 24, 빌드 출력 25(차이 1은 `/_not-found`). spikes 스위트별 건수:
 `a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
-`agent_loop_contract 35` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
+`agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 26` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
-`prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 19` · `rules_db_load 25` · `s10_smoke 17` ·
+`prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 303` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 321` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**

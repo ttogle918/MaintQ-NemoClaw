@@ -515,15 +515,44 @@ GET /api/approvals?state=pending&kind=disposal
 - 정렬은 `created_at DESC`. `/api/po` 의 긴급 우선 정렬을 여기로 옮기지 않는다 — 통합 큐에 발주 전용
   정렬을 끌어오면 처분서가 항상 뒤로 밀린다. **두 목록은 정렬 기준이 다른 게 정상이다.**
 
-### 2.8 수리 증빙 — 제출·서명·반려 (S29 · D85·D98, Sprint 9 신설)
+### 2.8 수리 증빙 — 생성·수정·제출·서명·반려 (S29 · D85·D98, Sprint 9 신설 · **P39 확장**)
 
 ```
 GET  /api/repairs?state=pending      # 목록. **역할 무관 조회** — 정비사도 자기 요청 상태를 봐야 한다
 GET  /api/repairs/{id}               # 상세. hash_verified 로 서명 해시 재계산 대조 결과를 싣는다(D84 태도)
+
+POST  /api/repairs                   # 화면 직접 생성 (**technician만**, P39 — 2026-09-03)
+  body: { equipment_id, work_type, repair_scope, cost, parts[],
+          downtime_hours?, model?, error_code?, note? }
+  → GET /api/repairs/{id} 와 같은 상세 셰이프. performed_by 는 **생성 즉시** stamp(D37)
+  → 404(unknown_equipment · unknown_part) · 422(invalid_input · model_code_pair ·
+    invalid_model · integrity) · 403(technician 아님)
+
+PATCH /api/repairs/{id}              # draft 수정 (**technician만**, P39)
+  body: POST 와 동일한 9필드
+  → 409(draft 아님) · 404(없음) · 그 외 POST 와 같은 매핑
+
 POST /api/repairs/{id}/submit        # draft → pending    (**technician만**)
 POST /api/repairs/{id}/sign          # pending → signed   (**manager만**)
 POST /api/repairs/{id}/reject        # pending → rejected (**manager만**, body: {reason} 필수 — D38)
 ```
+
+**🔵 POST·PATCH 는 D10 대상이 아니다** (D111 이 `POST /api/po` 에서 정리한 경계와 같다) —
+MCP 도구가 아니라 백엔드 쓰기라 처음부터 UPDATE 권한이 있다. 산출 로직은
+`data/repair_record.py` 공유 계층에서 `create_repair_record`(MCP)와 **동일하게** 검증된다
+(`data/po_draft.py` 선례) — 두 경로의 판정이 갈릴 수 없다.
+
+⛔ **`expenditure_class`·`part_class`·서명 필드는 body 에 없다.** 서버가 산출하거나 사람이
+서명으로 채운다 — D31 이 `unit_price` 를 `create_po_draft` 스키마에서 뺀 것과 같은 이유다:
+입력으로 받는 순간 사용자가 서버 계산을 덮어쓸 수 있고, 그러면 그 계산의 존재 이유가 사라진다.
+PATCH 에서도 **재산출**되며, `update_draft()` 의 SET 절에 서명 필드가 아예 없어 수정으로
+서명이 지워지거나 채워지는 경로가 없다.
+
+⚠️ **`_REASON_HTTP` 에 없는 `reason` 은 500 이다.** 모르는 실패를 4xx 로 반올림하지 않는다 —
+사용자 잘못이 아닌 것을 사용자 잘못처럼 보이게 하면 원인 추적이 끊긴다.
+
+화면: `/technician/repair/new` · `/technician/repair/{repairId}`(draft 면 수정 폼, 아니면
+읽기 전용) · `components/asset/RepairForm.tsx`.
 
 **상태 전이 = 권한** (`routers/po.py`·`routers/decisions.py` 와 같은 태도). MCP 도구
 `create_repair_record`(`04 §16`)는 `state='draft'` INSERT 만 하고(D10·D98), 전이는 전부 여기를 통한다.
