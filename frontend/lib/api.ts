@@ -922,6 +922,36 @@ export const getRepair = (role: Role, repairId: string) =>
   apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}`, role);
 
 /** draft → pending. **정비사만** — `submitPo`·`submitDecision` 과 같은 패턴. 본문 없음. */
+/**
+ * 화면이 직접 만드는 수리 증빙 초안의 입력 (P39, `POST/PATCH /api/repairs`).
+ *
+ * ⛔ `expenditure_class`·`part_class`·서명 필드는 **여기 없다** — 서버가 산출하거나
+ *   사람이 서명으로 채운다. D31 이 `unit_price` 를 입력에서 뺀 것과 같은 이유다.
+ */
+export interface RepairDraftInput {
+  equipment_id: string;
+  work_type: string;
+  repair_scope: string;
+  cost: number;
+  parts: { part_no: string; serial?: string; qty?: number }[];
+  downtime_hours?: number | null;
+  model?: string | null;
+  error_code?: string | null;
+  note?: string | null;
+}
+
+export const createRepair = (body: RepairDraftInput) =>
+  apiFetch<ApiRepair>("/api/repairs", "technician", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const updateRepair = (repairId: string, body: RepairDraftInput) =>
+  apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}`, "technician", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+
 export const submitRepair = (repairId: string) =>
   apiFetch<ApiRepair>(`/api/repairs/${encodeURIComponent(repairId)}/submit`, "technician", {
     method: "POST",
