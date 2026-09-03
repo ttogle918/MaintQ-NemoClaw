@@ -371,6 +371,90 @@ def run_static_checks(captured: dict) -> None:
     )
 
 
+
+def run_screen_create_axis(client, db: Path, probe: dict[str, str]) -> None:
+    """P39 — 화면이 처분 초안을 **직접 생성·수정**한다 (`POST/PATCH /api/decisions`).
+
+    발주(D111)·수리(P39)와 같은 경로지만 **처분에만 있는 문제**가 하나 있다:
+    입력을 고치면 **재판정**이 필요하다(`disposal_mode`·`disposal_date` 가 룰 입력이라
+    바뀌면 판정도 근거 번들도 달라진다). 그래서 PATCH 는 `rebuild_bundle()` 을 다시 돌려
+    `evidence_bundle`·`bundle_hash`·`verdict_at_signing` 을 **새 값으로 덮는다** —
+    `sign()` 이 서명 시점에 하는 일(⑥ "재산출 값으로 덮는다")을 draft 단계에서 하는 것이다.
+
+    ⛔ **D81 경계는 그대로다** — override·override_reason·reviewed_by 는 body 에 없다.
+    """
+    body = {
+        "asset_id": "AST-L3-CONV",
+        "disposal_mode": "SALE",
+        # `probe` 는 자산별로 룰이 발화하는 처분일을 미리 계산해 둔 것이다
+        "disposal_date": probe["AST-L3-CONV"],
+        "reason": "노후 컨베이어 매각 — 화면 직접 생성(P39)",
+    }
+
+    r_create = client.post("/api/decisions", json=body, headers=TECH)
+    created = r_create.json() if r_create.status_code == 200 else {}
+    check(
+        "㉠ 정비사 화면 직접 생성 → 200 · draft · requested_by 즉시 stamp (D37)",
+        r_create.status_code == 200
+        and created.get("state") == "draft"
+        and created.get("requested_by") == TECH["X-User"],
+        f"{r_create.status_code} · state={created.get('state')} · "
+        f"requested_by={created.get('requested_by')}",
+    )
+
+    check(
+        "㉡ D81 — override·override_reason·reviewed_by 가 요청 스키마에 없다",
+        not ({"override", "override_reason", "reviewed_by"} & set(body)),
+        f"body 키={sorted(body)}",
+    )
+
+    did = created.get("decision_id", "DEC-NONE")
+    first_hash = created.get("bundle_hash")
+
+    # 처분 방식을 바꾸면 룰 입력이 바뀌므로 **판정과 해시가 함께 바뀌어야** 한다
+    r_patch = client.patch(
+        f"/api/decisions/{did}", json={**body, "disposal_mode": "SCRAP"}, headers=TECH
+    )
+    patched = r_patch.json() if r_patch.status_code == 200 else {}
+    check(
+        "㉢ PATCH → 200 · 재판정 · bundle_hash 가 바뀐다 (근거가 입력을 따라간다)",
+        r_patch.status_code == 200
+        and patched.get("disposal_mode") == "SCRAP"
+        and patched.get("bundle_hash") not in (None, first_hash),
+        f"{r_patch.status_code} · mode={patched.get('disposal_mode')} · "
+        f"hash {str(first_hash)[:18]}… → {str(patched.get('bundle_hash'))[:18]}…",
+    )
+
+    check(
+        "㉣ 재판정 결과가 verdict_at_signing 에 반영된다 (컬럼 이름이 말하는 것)",
+        patched.get("verdict_at_signing") is not None,
+        f"verdict_at_signing={patched.get('verdict_at_signing')}",
+    )
+
+    r_mgr = client.post("/api/decisions", json=body, headers=MGR)
+    check("㉤ 팀장이 화면 생성 호출 → 403", r_mgr.status_code == 403, f"{r_mgr.status_code}")
+
+    r_patch_mgr = client.patch(f"/api/decisions/{did}", json=body, headers=MGR)
+    check("㉥ 팀장이 PATCH 호출 → 403", r_patch_mgr.status_code == 403, f"{r_patch_mgr.status_code}")
+
+    r_no_reason = client.post("/api/decisions", json={**body, "reason": "   "}, headers=TECH)
+    check(
+        "㉦ 사유 공백 → 422 (D5 — 사유 대필 금지)",
+        r_no_reason.status_code == 422,
+        f"{r_no_reason.status_code}",
+    )
+
+    r_bad_asset = client.post("/api/decisions", json={**body, "asset_id": "AST-NOPE"}, headers=TECH)
+    check("㉧ 없는 자산 → 404", r_bad_asset.status_code == 404, f"{r_bad_asset.status_code}")
+
+    client.post(f"/api/decisions/{did}/submit", headers=TECH)
+    r_after = client.patch(f"/api/decisions/{did}", json=body, headers=TECH)
+    check("㉨ 제출 후 PATCH → 409 (draft 아님)", r_after.status_code == 409, f"{r_after.status_code}")
+
+    r_404 = client.patch("/api/decisions/DEC-9999", json=body, headers=TECH)
+    check("㉩ 없는 결정 PATCH → 404", r_404.status_code == 404, f"{r_404.status_code}")
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
@@ -413,6 +497,7 @@ def main() -> None:
         try:
             with TestClient(app) as client:
                 run(client, db, probe, captured)
+                run_screen_create_axis(client, db, probe)
                 run_catalog_outage(client, empty)
             run_static_checks(captured)
         finally:

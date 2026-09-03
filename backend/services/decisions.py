@@ -696,6 +696,119 @@ def _locked_row(con: sqlite3.Connection, decision_id: str) -> sqlite3.Row:
     return r
 
 
+class NotEditableError(Exception):
+    """draft 가 아닌 결정을 수정하려 함 → 409. `services/po`·`services/repairs` 와 같은 패턴."""
+
+    def __init__(self, decision_id: str, state: str) -> None:
+        super().__init__(
+            f"{decision_id} 는 지금 '{state}' 상태라 수정할 수 없습니다 (draft 만 수정 가능)"
+        )
+
+
+def _next_decision_id(con: sqlite3.Connection) -> str:
+    row = con.execute(
+        "SELECT decision_id FROM decisions WHERE decision_id LIKE 'DEC-%'"
+        " ORDER BY decision_id DESC LIMIT 1"
+    ).fetchone()
+    n = int(row["decision_id"].split("-")[1]) + 1 if row else 1
+    return f"DEC-{n:04d}"
+
+
+def _adjudicate(
+    con: sqlite3.Connection, *, asset_id: str, disposal_mode: str, disposal_date: str | None
+) -> tuple[dict, str, str]:
+    """재판정 — `(bundle, bundle_hash, verdict)`.
+
+    `sign()` 이 서명 시점에 하는 일(③ 근거 재산출·해시 대조)과 **같은 함수**를 쓴다
+    (`rebuild_bundle`). 화면 경로가 독자적인 판정 로직을 갖지 않는다는 뜻이다 —
+    갈리면 "화면에서 본 판정"과 "서명 때 나온 판정"이 달라진다.
+    """
+    bundle, bundle_hash, judgment = rebuild_bundle(con, asset_id, disposal_mode, disposal_date)
+    return bundle, bundle_hash, judgment["verdict"]
+
+
+def create(
+    *,
+    asset_id: str,
+    disposal_mode: str,
+    disposal_date: str | None,
+    reason: str,
+    requested_by: str,
+    db_path: str | None = None,
+) -> dict:
+    """화면이 처분 초안을 **직접 생성**한다 (P39 — D111 이 발주서에 연 경로의 확장).
+
+    ⛔ **D10 대상이 아니다.** MCP 도구가 아니라 백엔드 쓰기다(D111 이 정리한 경계).
+    판정은 `generate_disposal_document`(MCP)와 **같은 `rebuild_bundle()`** 을 지난다.
+
+    ⛔ **D63 — BLOCKED 여도 막지 않는다.** 차단 사실이 초안에 기록된 채 결재에 올라가고,
+    예외 적용은 서명 화면에서만 한다(D81). 그래서 `override`·`override_reason`·
+    `reviewed_by` 는 이 함수의 파라미터가 **아니다**.
+    """
+    if not (reason or "").strip():
+        return {"status": "error", "reason": "reason_required", "message": "처분 사유는 필수입니다 (D5)."}
+    with connect(db_path) as con:
+        bundle, bundle_hash, verdict = _adjudicate(
+            con, asset_id=asset_id, disposal_mode=disposal_mode, disposal_date=disposal_date
+        )
+        decision_id = _next_decision_id(con)
+        con.execute(
+            "INSERT INTO decisions (decision_id, asset_id, decision_type, evidence_bundle,"
+            " bundle_hash, verdict_at_signing, override, override_reason, reviewed_by,"
+            " signed_at, state, reason, requested_by)"
+            " VALUES (?,?,'DISPOSAL',?,?,?, false, NULL, NULL, NULL, 'draft', ?, ?)",
+            (
+                decision_id,
+                asset_id,
+                canonical_json(bundle),
+                bundle_hash,
+                verdict,
+                reason.strip(),
+                requested_by,
+            ),
+        )
+    return get_decision(decision_id, db_path) or {}
+
+
+def update(
+    decision_id: str,
+    *,
+    asset_id: str,
+    disposal_mode: str,
+    disposal_date: str | None,
+    reason: str,
+    db_path: str | None = None,
+) -> dict:
+    """draft 상태 처분 초안을 수정한다. draft 가 아니면 `NotEditableError` → 409.
+
+    🔴 **처분에만 있는 문제 — 수정은 재판정을 부른다.** `disposal_mode`·`disposal_date` 는
+    룰 입력이라 바뀌면 판정도 근거 번들도 달라진다. 그래서 `evidence_bundle`·`bundle_hash`·
+    `verdict_at_signing` 을 **새 값으로 덮는다** — 발주의 `unit_price`, 수리의
+    `expenditure_class` 재산출과 같은 자리다.
+
+    이것이 안전한 이유: `sign()` 이 서명 시점에 **다시** 재산출·대조한다(D84). 수정으로
+    해시가 바뀌어도 서명 게이트는 그대로 산다. `verdict_at_signing` 을 재산출 값으로 덮는
+    것도 `sign()` 이 이미 하는 일이다 — 이 함수는 그걸 draft 단계에서 할 뿐이다.
+
+    ⛔ 서명 필드(`override`·`override_reason`·`reviewed_by`·`signed_at`)는 SET 절에 없다.
+    """
+    if not (reason or "").strip():
+        return {"status": "error", "reason": "reason_required", "message": "처분 사유는 필수입니다 (D5)."}
+    with connect(db_path) as con:
+        row = _locked_row(con, decision_id)
+        if row["state"] != "draft":
+            raise NotEditableError(decision_id, row["state"])
+        bundle, bundle_hash, verdict = _adjudicate(
+            con, asset_id=asset_id, disposal_mode=disposal_mode, disposal_date=disposal_date
+        )
+        con.execute(
+            "UPDATE decisions SET asset_id=?, evidence_bundle=?, bundle_hash=?,"
+            " verdict_at_signing=?, reason=? WHERE decision_id=? AND state='draft'",
+            (asset_id, canonical_json(bundle), bundle_hash, verdict, reason.strip(), decision_id),
+        )
+    return get_decision(decision_id, db_path) or {}
+
+
 def submit(decision_id: str, *, requested_by: str, db_path: str | None = None) -> dict:
     """draft → pending. 정비사의 '팀장 승인 요청' (A3 — 에이전트 루프 밖).
 

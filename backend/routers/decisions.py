@@ -47,6 +47,85 @@ from backend.services.disposal import RuleCatalogError
 router = APIRouter(prefix="/api/decisions", tags=["decisions"])
 
 
+class DisposalDraftBody(BaseModel):
+    """화면이 직접 생성·수정할 때 받는 4필드 (P39).
+
+    ⛔ **`override`·`override_reason`·`reviewed_by` 는 여기 없다** (D81). 예외 적용은
+    서명 화면 전용이고, 초안 생성·수정 경로가 그걸 받으면 D81 이 막으려던 우회가 그대로
+    열린다. `verdict_at_signing`·`bundle_hash` 도 없다 — 서버가 **재판정으로** 산출한다.
+    """
+
+    asset_id: str = Field(..., min_length=1)
+    disposal_mode: str = Field("SALE", description="SALE | SCRAP | TRANSFER 등 — 룰 입력")
+    disposal_date: str | None = Field(None, description="YYYY-MM-DD. 룰 입력이라 판정을 바꾼다")
+    reason: str = Field(..., min_length=1, description="처분 사유 (D5 — 대필 금지)")
+
+
+def _draft_result(result: dict) -> JSONResponse:
+    """성공(`get_decision()` 셰이프 — `status` 키가 없다)은 200. 실패는 reason 으로 매핑."""
+    if result.get("status") == "error":
+        code = 422 if result.get("reason") == "reason_required" else 500
+        raise HTTPException(code, result.get("message") or result.get("reason") or "실패")
+    return JSONResponse(status_code=200, content=result)
+
+
+@router.post("")
+def create_decision(body: DisposalDraftBody, c: Caller = Depends(caller)) -> JSONResponse:
+    """화면에서 처분 초안을 직접 생성한다 (P39). 정비사 전용.
+
+    ⛔ **BLOCKED 여도 생성한다** (D63) — 차단 사실이 초안에 기록된 채 결재에 올라간다.
+    막는 것은 서명이지 초안 생성이 아니다.
+    """
+    require(c, "technician", "처분 초안 생성")
+    try:
+        result = svc.create(
+            asset_id=body.asset_id,
+            disposal_mode=body.disposal_mode,
+            disposal_date=body.disposal_date,
+            reason=body.reason,
+            requested_by=c.user_id,
+        )
+    except KeyError as e:
+        raise HTTPException(404, f"자산을 찾을 수 없습니다: {body.asset_id}") from e
+    except svc.CitedRuleMissing as e:
+        raise HTTPException(409, str(e)) from e
+    except RuleCatalogError as e:
+        # 룰 카탈로그 미적재 — 판정할 근거가 없다 (D71, precheck 와 같은 게이트)
+        raise HTTPException(503, str(e)) from e
+    return _draft_result(result)
+
+
+@router.patch("/{decision_id}")
+def update_decision(
+    decision_id: str, body: DisposalDraftBody, c: Caller = Depends(caller)
+) -> JSONResponse:
+    """draft 상태 처분 초안을 수정한다. draft 가 아니면 409, 없으면 404. 정비사 전용.
+
+    🔴 수정은 **재판정**을 부른다 — `disposal_mode`·`disposal_date` 가 룰 입력이라
+    `evidence_bundle`·`bundle_hash`·`verdict_at_signing` 이 함께 바뀐다. 서명 시점의
+    재대조(D84)는 그대로 살아 있으므로 이 갱신이 서명 게이트를 약화시키지 않는다.
+    """
+    require(c, "technician", "처분 초안 수정")
+    try:
+        result = svc.update(
+            decision_id,
+            asset_id=body.asset_id,
+            disposal_mode=body.disposal_mode,
+            disposal_date=body.disposal_date,
+            reason=body.reason,
+        )
+    except svc.NotEditableError as e:
+        raise HTTPException(409, str(e)) from e
+    except KeyError as e:
+        # 결정이 없거나(_locked_row) 자산이 없다(rebuild_bundle) — 둘 다 404 다
+        raise HTTPException(404, f"찾을 수 없습니다: {e}") from e
+    except svc.CitedRuleMissing as e:
+        raise HTTPException(409, str(e)) from e
+    except RuleCatalogError as e:
+        raise HTTPException(503, str(e)) from e
+    return _draft_result(result)
+
+
 class SignBody(BaseModel):
     """서명 본문. `override` 는 **사람만** 넣을 수 있다 — 도구 스키마에는 이 키가 없다(D81)."""
 
