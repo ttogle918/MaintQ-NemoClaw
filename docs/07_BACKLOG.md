@@ -183,6 +183,21 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
 
+- 🔴 **`bundle_integrity ⑫` 가 FK 하나를 놓쳐 FAIL 한다** (2026-09-03 발견, 미수정).
+  `N2 — 판정 직후 자산 행 DELETE → error/asset_disappeared` 가 `DELETE 0행 ·
+  reason=db_error` 로 떨어진다. **자산이 안 지워져서** `asset_disappeared` 대신 다른
+  실패가 나는 것이다.
+  원인: `assets` 를 참조하는 FK 가 **둘**인데(`equipment.asset_id`·**`decisions.asset_id`**)
+  스파이크는 `equipment` 만 NULL 로 비운다(`spikes/bundle_integrity.py:505`). 그 사이
+  판정이 `decisions` 행을 만들어 두 번째 FK 가 DELETE 를 막는다.
+  ⚠️ **Sprint 16 Postgres 포팅 때 절반만 고친 것이다.** CLAUDE.md 가 이 검사를 두고
+  *"SQLite 는 `foreign_keys` 기본 OFF 라 자산 행을 그냥 지울 수 있었지만 Postgres 는
+  `equipment.asset_id → assets.asset_id` FK 를 강제해 DELETE 전에 비워야 했다"* 고
+  적었는데, **`decisions` FK 는 그 목록에 없었다.**
+  🔵 **P39 처분서 작업과 무관하다** — 그 변경을 `git stash` 로 걷어낸 상태에서도 동일하게
+  재현된다(2026-09-03 실측). 고치려면 DELETE 전에 해당 자산의 `decisions` 행도 정리하거나,
+  픽스처가 판정 전에 자산을 지우도록 순서를 바꾼다.
+
 - 🟢 **`calls` 표기가 화면마다 의미가 다르다** (2026-09-01 발견, 기능 문제 아님 — 오독 유발).
   `frontend/lib/trace.ts::toTraceSession()` 의 `calls`(:104 `let calls = 0`)는 **받은 이벤트
   묶음 안의 `tool_call` 수**다. 그런데 그 함수를 두 화면이 쓴다:
