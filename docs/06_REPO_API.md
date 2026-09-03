@@ -455,6 +455,30 @@ GET  /api/decisions?state=pending    # 목록. **역할 무관 조회** — 정�
 GET  /api/decisions/{id}             # 상세 + 렌더된 문서·증빙 패키지
                                      #   ★ 저장본이 아니다 (D86) — 응답 조립 시점에 번들에서 렌더한다.
                                      #     저장하면 템플릿이 바뀔 때 저장본이 조용히 낡는다 (D57 선례)
+POST  /api/decisions                 # 화면 직접 생성 (**technician만**, P39 — 2026-09-03)
+  body: { asset_id, disposal_mode, disposal_date?, reason }
+  → GET /api/decisions/{id} 와 같은 상세 셰이프. requested_by 는 **생성 즉시** stamp(D37)
+  → 404(없는 자산) · 422(사유 공백 — D5) · 409(인용 룰 소실) · 503(룰 카탈로그 미적재, D71)
+
+PATCH /api/decisions/{id}            # draft 수정 (**technician만**, P39)
+  body: POST 와 동일한 4필드
+  → 409(draft 아님) · 404(없음) · 그 외 POST 와 같은 매핑
+
+  🔴 **수정은 재판정을 부른다 — 처분에만 있는 성질이다.** `disposal_mode`·`disposal_date` 는
+     룰 입력이라 바뀌면 판정도 근거도 달라진다. 그래서 `evidence_bundle`·`bundle_hash`·
+     `verdict_at_signing` 을 **새 값으로 덮는다**(발주의 `unit_price`, 수리의
+     `expenditure_class` 재산출과 같은 자리).
+     판정은 MCP 도구와 **같은 `rebuild_bundle()`** 을 지난다 — 화면이 독자 판정 로직을
+     갖지 않는다(갈리면 "화면에서 본 판정"과 "서명 때 나온 판정"이 달라진다).
+  ✅ **이것이 서명 게이트를 약화시키지 않는다.** `sign()` 이 서명 시점에 **다시** 재산출·
+     대조하기 때문이다(D84 — ③ 이 override 판정보다 **먼저**다). 저장된 해시가 무엇이든
+     서명 순간의 사실과 다르면 `EvidenceChanged` 로 막힌다.
+     실측: `disposal_sign_contract` 26/26(27조합 전수 BLOCKING 우회 0 · 서명 없는 확정 0) ·
+     `approvals_contract` 26/26 무변화.
+  ⛔ **`override`·`override_reason`·`reviewed_by` 는 body 에 없다** (D81) — 예외 적용은
+     서명 화면 전용이다. 초안 경로가 그걸 받으면 D81 이 막으려던 우회가 그대로 열린다.
+  ⛔ **BLOCKED 여도 생성·수정된다** (D63) — 막는 것은 서명이지 초안이 아니다.
+
 POST /api/decisions/{id}/submit      # draft → pending    (**technician만**)
 POST /api/decisions/{id}/sign        # pending → signed   (**manager만**)
                                      #   body: { override?: bool, override_reason?: str, note?: str }

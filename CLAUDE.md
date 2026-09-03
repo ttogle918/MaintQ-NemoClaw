@@ -153,10 +153,12 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **33스위트 / 1,104건**(2026-09-03 갱신 — 아래 표 합산과 일치. 직전 1,075 에서 +29:
+🔴 **2026-09-03 현재 `bundle_integrity ⑫` 1건이 FAIL 한다** — `assets` 를 참조하는 FK 가 둘인데(`equipment`·`decisions`) 스파이크가 `equipment` 만 비워서 자산 DELETE 가 막힌다. **Sprint 16 Postgres 포팅 때 절반만 고친 것**이고 P39 와 무관하다(`git stash` 로 확인). 상세·수정 방향은 `docs/07_BACKLOG.md` 「알려진 결함」. **아래 건수는 그 1건을 포함한 수치다** — "전건 PASS" 가 아니다.
+
+spikes **33스위트 / 1,120건**(2026-09-03 갱신 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
 `repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
-(P39 신규 파일 3개 × 6항목). 그 전 값은 아래 문단 참고 —
+(P39 수리증빙 신규 파일 3개 × 6항목). **처분서까지 마치며 +16 더**: `disposal_api_contract` 26→36(화면 직접 생성 축) · `ui_honesty_contract` 321→327(`DisposalDraftForm` 1파일 × 6). **프론트 라우트는 25 그대로다** — 처분은 새 라우트 없이 기존 `/technician/asset/[assetId]/disposal` 에 붙였다. 그 전 값은 아래 문단 참고 —
 `bundle_integrity` 포함 —
 1,052 에서 `api_contract`(+11, Sprint 17 D119 재무부 승인·doc3 계약)·`ui_honesty_contract`
 (+12, Sprint 18 대시보드 신규 파일 2건×6 — `EquipmentCard.tsx`·`manager/finance/page.tsx`)
@@ -194,13 +196,13 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
-`disposal_api_contract 26` ·
+`disposal_api_contract 36` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 321` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 327` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**
