@@ -491,8 +491,13 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
 
         # ── ⑫ 판정 직후 자산 DELETE → asset_disappeared ──────────────────────
         #    Postgres 는 FK 를 기본으로 강제한다(SQLite 시절 원본 주석 "foreign_keys 는
-        #    기본 OFF 라 자산 DELETE 도 가능하다"가 더 이상 성립하지 않는다) — `equipment.
-        #    asset_id` 가 이 자산을 참조하므로 먼저 그 참조를 끊어야 DELETE 가 통과한다.
+        #    기본 OFF 라 자산 DELETE 도 가능하다"가 더 이상 성립하지 않는다) — 이 자산을
+        #    참조하는 FK 를 **전부** 끊어야 DELETE 가 통과한다.
+        #    ⚠ 참조는 **둘**이다: `equipment.asset_id` 와 **`decisions.asset_id`**.
+        #      Sprint 16 포팅이 `equipment` 만 끊어서 2026-09-03 까지 이 검사가 FAIL 했다
+        #      (DELETE 0행 → 자산이 살아 있으니 asset_disappeared 가 아니라 db_error).
+        #      `decisions` 는 이 스파이크가 직접 만들지 않아도 **판정 경로가 만들 수 있다** —
+        #      그래서 "지금 픽스처에 없으니 괜찮다"가 아니라 항상 끊는다.
         #    `removed` 는 여전히 **DELETE 문 하나의** rowcount 만 기록한다(검사 의미 불변).
         gone_dsn = all_fetched("bundle_asset_gone")
         removed: list[int] = []
@@ -503,6 +508,7 @@ def main() -> None:  # noqa: PLR0915 — 검사 나열이라 분할하면 오히
                 gone_dsn,
                 [
                     ("UPDATE equipment SET asset_id = NULL WHERE asset_id = ?", ("AST-L3-CONV",)),
+                    ("DELETE FROM decisions WHERE asset_id = ?", ("AST-L3-CONV",)),
                     ("DELETE FROM assets WHERE asset_id = ?", ("AST-L3-CONV",)),
                 ],
             )

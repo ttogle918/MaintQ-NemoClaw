@@ -183,7 +183,7 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
 
-- 🔴 **`bundle_integrity ⑫` 가 FK 하나를 놓쳐 FAIL 한다** (2026-09-03 발견, 미수정).
+- ✅ ~~**`bundle_integrity ⑫` 가 FK 하나를 놓쳐 FAIL 한다**~~ (2026-09-03 발견 → **같은 날 해소**).
   `N2 — 판정 직후 자산 행 DELETE → error/asset_disappeared` 가 `DELETE 0행 ·
   reason=db_error` 로 떨어진다. **자산이 안 지워져서** `asset_disappeared` 대신 다른
   실패가 나는 것이다.
@@ -195,8 +195,12 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   `equipment.asset_id → assets.asset_id` FK 를 강제해 DELETE 전에 비워야 했다"* 고
   적었는데, **`decisions` FK 는 그 목록에 없었다.**
   🔵 **P39 처분서 작업과 무관하다** — 그 변경을 `git stash` 로 걷어낸 상태에서도 동일하게
-  재현된다(2026-09-03 실측). 고치려면 DELETE 전에 해당 자산의 `decisions` 행도 정리하거나,
-  픽스처가 판정 전에 자산을 지우도록 순서를 바꾼다.
+  재현된다(2026-09-03 실측). 고쳤다: DELETE 전에 `decisions` 행도 지운다(`spikes/bundle_integrity.py:505`).~~
+  → **해소.** 26/26 복구. **뮤턴트로 실증했다** — 자산 DELETE 문을 no-op 으로 바꾸면
+  정확히 ⑫ 만 FAIL 한다. 즉 이 수정은 검사를 무력화한 것이 아니라 **막혀 있던 전제를
+  푼 것**이다(검사는 여전히 "자산이 사라지면 asset_disappeared" 를 판정한다).
+  주석에 참조가 **둘**임을 명시했다 — `decisions` 행은 이 스파이크가 직접 만들지 않아도
+  **판정 경로가 만들 수 있으므로**, "지금 픽스처에 없으니 괜찮다"가 아니라 항상 끊는다.
 
 - 🟢 **`calls` 표기가 화면마다 의미가 다르다** (2026-09-01 발견, 기능 문제 아님 — 오독 유발).
   `frontend/lib/trace.ts::toTraceSession()` 의 `calls`(:104 `let calls = 0`)는 **받은 이벤트

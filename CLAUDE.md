@@ -153,8 +153,6 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-🔴 **2026-09-03 현재 `bundle_integrity ⑫` 1건이 FAIL 한다** — `assets` 를 참조하는 FK 가 둘인데(`equipment`·`decisions`) 스파이크가 `equipment` 만 비워서 자산 DELETE 가 막힌다. **Sprint 16 Postgres 포팅 때 절반만 고친 것**이고 P39 와 무관하다(`git stash` 로 확인). 상세·수정 방향은 `docs/07_BACKLOG.md` 「알려진 결함」. **아래 건수는 그 1건을 포함한 수치다** — "전건 PASS" 가 아니다.
-
 spikes **33스위트 / 1,120건**(2026-09-03 갱신 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
 `repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
