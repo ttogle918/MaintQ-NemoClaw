@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import inspect
 import logging
+import os
 import shutil
 import sqlite3
 import sys
@@ -96,8 +97,8 @@ def hold_write_lock(db: Path, bdb, hold_s: float, seq: int, started, errors: lis
         with bdb.connect(db) as con:
             con.execute(
                 "INSERT INTO traces (session_id, seq, event_type, payload)"
-                " VALUES ('MQ-313', ?, 'tool_call', '{}')",
-                (seq,),
+                " VALUES (?, ?, 'tool_call', '{}')",
+                (_PROBE_SESSION, seq),
             )
             started.set()  # 이 시점에 쓰기 잠금 보유
             time.sleep(hold_s)
@@ -309,14 +310,20 @@ def run(db: Path) -> None:
     )
 
 
+#: ④' 프로브의 세션 마커. **실행마다 다르게** 만든다 — 고정 키(`MQ-313`)를 쓰면 격리가
+#: 한 번이라도 실패해 공유 `public.traces` 에 행이 남는 순간, 이후 모든 실행이 그 행을
+#: 클론해 와서 `traces_session_id_seq_key` 중복으로 **영구히 FAIL** 한다(실측으로 겪었다).
+_PROBE_SESSION = f"MQ-313-{os.getpid()}-{int(time.time())}"
+
+
 def hold_write_lock_pg(bdb, hold_s: float, seq: int, started, errors: list) -> None:
     """`hold_write_lock` 의 Postgres 판 — `db` 인자가 없다(전역 DATABASE_URL/DB_PATH 를 본다)."""
     try:
         with bdb.connect() as con:
             con.execute(
                 "INSERT INTO traces (session_id, seq, event_type, payload)"
-                " VALUES ('MQ-313', %s, 'tool_call', '{}')",
-                (seq,),
+                " VALUES (%s, %s, 'tool_call', '{}')",
+                (_PROBE_SESSION, seq),
             )
             started.set()
             time.sleep(hold_s)
@@ -459,6 +466,145 @@ def run_pg(dsn: str) -> None:
         ok, detail = _lock_blocks_second_reader(bdb, table, pk)
         check(f"{mark} D126: {table} locked_row() 가 두 번째 읽기를 대기시킨다", ok, detail)
 
+    # ── ⑰⑱ D127: 풀은 기본 대상만 태운다 — 격리 DSN 이 섞이면 회귀가 통째로 무의미해진다
+    ok, detail = _pool_scope(bdb, dsn)
+    check("⑰ D127: 기본 대상은 풀을 쓴다 (양성 축)", ok[0], detail[0])
+    check("⑱ D127: 격리 DSN 3경로가 풀 크기를 늘리지 않는다", ok[1], detail[1])
+
+    # ── ⑲ D130: DATABASE_URL 이 없으면 세 경로가 **전부** 예외를 던진다 (조용한 폴백 금지)
+    ok, detail = _no_silent_fallback()
+    check("⑲ D130: 접속 대상 미상이면 3경로가 명시적으로 실패한다", ok, detail)
+
+    # ── ⑳ D130: `MAINTQ_DB` 는 소스에서 사라졌다 (설정도 조회도 0건)
+    ok, detail = _maintq_db_absent()
+    check("⑳ D130: MAINTQ_DB 설정·조회 0건 (스캐너 생존 확인 포함)", ok, detail)
+
+
+def _pool_scope(bdb, iso_dsn: str):
+    """풀이 **기본 대상만** 태우는지 (D127).
+
+    양성 축(⑰)과 부재 축(⑱)을 나눈다 — ⑱만 두면 "풀이 아예 안 만들어졌다"와 "격리가
+    풀을 안 탄다"를 구분하지 못한다(CLAUDE.md 부재검사 규칙).
+    """
+    from data import pg_isolation  # noqa: PLC0415
+
+    def size():
+        st = bdb._pool.get_stats() if bdb._pool is not None else {}
+        return st.get("pool_size", -1)
+
+    prev_dbpath = bdb.DB_PATH
+    bdb.close_pool()
+    try:
+        # ⑰ 기본 대상 → 풀이 만들어지고 커넥션을 내준다
+        bdb.DB_PATH = None
+        with bdb.connect() as con:
+            con.execute("SELECT 1").fetchone()
+        made = bdb._pool is not None
+        n0 = size()
+        pos_ok = made and n0 > 0
+        pos_detail = f"풀 생성={made} · pool_size={n0}"
+
+        # ⑱ 격리 DSN 3경로(명시 인자 · DB_PATH 전역) → 풀 크기 불변
+        with bdb.connect(iso_dsn) as con:
+            sp1 = con.execute("SHOW search_path").fetchone()[0]
+        n1 = size()
+        bdb.DB_PATH = iso_dsn
+        with bdb.connect() as con:
+            sp2 = con.execute("SHOW search_path").fetchone()[0]
+        n2 = size()
+        bdb.DB_PATH = None
+
+        schema = pg_isolation.schema_from_dsn(iso_dsn) or ""
+        reached = bool(schema) and schema in sp1 and schema in sp2
+        neg_ok = reached and n0 == n1 == n2
+        neg_detail = (
+            f"pool_size {n0}→{n1}→{n2} (불변이어야 함) · "
+            f"격리 스키마 실제 도달={reached} (search_path={sp1.split(',')[0]})"
+        )
+        return (pos_ok, neg_ok), (pos_detail, neg_detail)
+    finally:
+        bdb.DB_PATH = prev_dbpath
+        bdb.close_pool()
+
+
+def _no_silent_fallback():
+    """`DATABASE_URL` 부재 시 세 경로가 전부 예외를 던지는가 (D130).
+
+    예전에는 `dbcompat` 은 SQLite 로, `backend/db.py` 는 localhost 로 조용히 갈렸다.
+    전역을 임시로 비워 재현하고 **반드시 복원**한다.
+    """
+    import backend.db as bdb  # noqa: PLC0415
+    from backend.services import disposal  # noqa: PLC0415
+    from data import dbcompat  # noqa: PLC0415
+
+    saved = (bdb.DATABASE_URL, bdb.DB_PATH, dbcompat.USE_POSTGRES)
+    outcomes = {}
+    try:
+        bdb.DATABASE_URL, bdb.DB_PATH, dbcompat.USE_POSTGRES = "", None, False
+        for name, fn in (
+            ("backend.db.connect", lambda: bdb.connect().__enter__()),
+            ("dbcompat.connect", lambda: dbcompat.connect("x.db")),
+            ("disposal.read_only", lambda: disposal.read_only().__enter__()),
+        ):
+            try:
+                fn()
+                outcomes[name] = "조용히 통과"
+            except Exception as exc:  # noqa: BLE001 — 예외가 기대 동작이다
+                outcomes[name] = type(exc).__name__
+    finally:
+        bdb.DATABASE_URL, bdb.DB_PATH, dbcompat.USE_POSTGRES = saved
+    ok = all(v != "조용히 통과" for v in outcomes.values()) and len(outcomes) == 3
+    return ok, " · ".join(f"{k}→{v}" for k, v in outcomes.items())
+
+
+def _maintq_db_absent():
+    """`MAINTQ_DB` 설정·조회가 소스에 없는가 (D130).
+
+    ⚠ 순수 **부재 검사**라 스캐너가 눈이 멀어도 통과한다 — 그래서 판정에 **양성 축**을
+    함께 넣는다: ⓐ 실제로 파일을 읽었는가(개수) ⓑ 탐지기가 살아 있는가(알려진 픽스처
+    문자열을 실제로 잡아내는가). detail 에는 결론이 아니라 **실측값**을 찍는다.
+    """
+    import re  # noqa: PLC0415
+
+    # ⚠ 토큰을 **런타임에 조립**한다 — 소스에 그대로 적으면 이 스캐너가 자기 자신을
+    #   잡는다(실측: 자기 정규식·probes 4줄이 "잔존"으로 나왔다).
+    KEY = "MAINTQ" + "_DB"
+    # 🔴 오라클 토큰은 KEY 와 **독립적으로** 조립한다(쪼개는 지점이 다르다).
+    #   probes 를 KEY 로 만들면 KEY 가 망가져도 정규식과 probes 가 **함께** 바뀌어
+    #   오라클이 자기충족적으로 통과한다 — 실제로 뮤턴트(KEY 를 엉뚱한 값으로)가
+    #   이 검사를 **뚫었다**. 그게 CLAUDE.md 가 경고하는 "눈먼 스캐너"다.
+    PROBE_KEY = "MAINT" + "Q_DB"
+    _Q = '["\']'
+    pat = re.compile(
+        rf"{_Q}{KEY}{_Q}\s*(?:\]\s*=|:)"
+        # ↑ 설정:  env[...] = ...   ·   {{...: ...}}
+        rf"|environ\.get\(\s*{_Q}{KEY}{_Q}"
+        # ↑ 조회. **닫는 따옴표가 필수다** — 없으면 `MAINTQ_DB_POOL_MIN`(D127 의
+        #   정상 변수)까지 오탐한다(실측으로 잡았다).
+    )
+    targets = []
+    for d in ("spikes", "eval", "backend", "data", "mcp_server"):
+        targets += [q for q in (ROOT / d).rglob("*.py") if "__pycache__" not in str(q)]
+
+    hits = []
+    for q in targets:
+        for i, line in enumerate(q.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue          # 주석의 회고 서술은 대상이 아니다
+            if pat.search(line):
+                hits.append(f"{q.relative_to(ROOT)}:{i}")
+
+    # 탐지기 생존 오라클 — 알려진 픽스처를 실제로 잡는가
+    probes = [f'os.environ["{PROBE_KEY}"] = str(db)', f'env["{PROBE_KEY}"] = x',
+              '{"' + PROBE_KEY + '": str(db)}', f'os.environ.get("{PROBE_KEY}")']
+    alive = sum(1 for t in probes if pat.search(t))
+
+    ok = not hits and len(targets) > 0 and alive == len(probes)
+    return ok, (
+        f"스캔 {len(targets)}파일 · 잔존 {len(hits)}건{' ' + str(hits[:3]) if hits else ''} · "
+        f"탐지기 생존 {alive}/{len(probes)}"
+    )
+
 
 def _lock_blocks_second_reader(bdb, table: str, pk: str):
     """`txn.locked_row()` 가 행을 실제로 잠그는지 **대기 시간으로** 판정한다.
@@ -517,11 +663,35 @@ def _lock_blocks_second_reader(bdb, table: str, pk: str):
 
 
 def _pick_existing_id(bdb, table: str, pk: str):
-    """격리 스키마에 이미 복제돼 있는 행 하나. 새로 INSERT 하지 않는다 —
-    테이블마다 NOT NULL·CHECK 가 달라 픽스처가 검사보다 커진다."""
+    """잠금 검사에 쓸 행 하나. 없으면 **최소 픽스처를 만든다**.
+
+    ⚠ 예전에는 "없으면 None"으로 끝냈다가 재시드 직후 `decisions` 가 0행이 되며
+    검사가 **무효**가 됐다(liveness 축이 그걸 잡아 FAIL 로 보고했다 — 조용히 통과하지
+    않은 것이 이 설계의 요점이다). 잠금은 행이 있어야 검증되므로 없으면 만든다.
+    """
     with bdb.connect() as con:
         r = con.execute(f"SELECT {pk} AS v FROM {table} LIMIT 1").fetchone()
-    return r["v"] if r else None
+        if r is not None:
+            return r["v"]
+        made = _make_lock_fixture(con, table, pk)
+    return made
+
+
+def _make_lock_fixture(con, table: str, pk: str):
+    """잠금 검사 전용 최소 행. NOT NULL·CHECK 를 만족하는 만큼만 채운다."""
+    rid = "LOCKPROBE"
+    if table == "decisions":
+        asset = con.execute("SELECT asset_id FROM assets LIMIT 1").fetchone()
+        if asset is None:
+            return None
+        con.execute(
+            "INSERT INTO decisions (decision_id, asset_id, decision_type, evidence_bundle,"
+            " bundle_hash, verdict_at_signing, state)"
+            " VALUES (?, ?, 'DISPOSAL', '{}', 'sha256:probe', 'CLEAR', 'draft')",
+            (rid, asset["asset_id"]),
+        )
+        return rid
+    return None  # 다른 테이블은 시드가 항상 행을 갖는다 (po_drafts 8 · repair_records 12)
 
 
 def main() -> None:

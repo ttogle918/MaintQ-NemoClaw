@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shutil
 import sqlite3
 import sys
 import tempfile
@@ -342,10 +341,7 @@ def check_risk_grade(db: Path) -> None:
 async def _list_tool_names(profile: str, db: Path) -> set[str]:
     env = {k: v for k, v in os.environ.items() if v is not None}
     env["MAINTQ_TOOLS_PROFILE"] = profile
-    if dbcompat.USE_POSTGRES:
-        env["DATABASE_URL"] = db
-    else:
-        env["MAINTQ_DB"] = str(db)
+    env["DATABASE_URL"] = db   # SQLite 분기 제거 (MAINTQ_DB 는 아무도 읽지 않는다, D130)
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -431,7 +427,7 @@ def main() -> None:
         raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
 
     schema = None
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory():
         if dbcompat.USE_POSTGRES:
             import backend.db as backend_db  # noqa: PLC0415
             import mcp_server.db as mcp_db  # noqa: PLC0415
@@ -443,11 +439,6 @@ def main() -> None:
             # 전역이 격리 스키마를 가리켜야 같은 데이터를 본다.
             backend_db.DB_PATH = db
             mcp_db.DB_PATH = db
-        else:
-            db = Path(td) / "deadline_risk.db"
-            shutil.copy2(SOURCE_DB, db)
-            # backend·mcp_server 둘 다 이 경로를 **import 시점에** 읽는다 — 실 DB 를 건드리지 않는다
-            os.environ["MAINTQ_DB"] = str(db)
 
         try:
             check_ddl(db)

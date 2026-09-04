@@ -21,11 +21,13 @@ DB 격리 (D50 승인 게이트 대비):
   - 사본 두 개로 작업한다: **loaded**(정상 코드 iG5A/OHT 1건 INSERT) 와 **empty**(0행 유지).
     loaded 가 있어야 "정상은 ok / 미지는 not_found" 대비가 성립해 위양성이 사라지고,
     empty 가 D50(⑨)을 재현한다.
-  - MCP stdio 자식에는 `env={"MAINTQ_DB": <사본>}` 을 명시 전달한다 (SDK 화이트리스트가
-    MAINTQ_DB 를 안 넘기므로 — mcp_client_contract.py ⑨ 참조).
+  - MCP stdio 자식에는 격리 스키마 DSN 을 `DATABASE_URL` 로 명시 전달한다 (SDK
+    화이트리스트가 임의 env 를 안 넘기므로 — mcp_client_contract.py ⑨ 참조).
+    ⚠ 예전에는 `MAINTQ_DB` 를 넘겼는데 **Postgres 코드는 그 변수를 읽지 않는다** —
+    자식이 공유 public 으로 새던 경로다 (D130 에서 제거).
 
-DB 격리 보강 (MQ-704):
-  - `os.environ["MAINTQ_DB"]` 를 **backend import 전에** 사본으로 심는다. `backend/db.py:19`
+DB 격리 보강 (MQ-704 → D130 으로 갱신):
+  - 격리는 `DATABASE_URL`(격리 스키마 DSN)과 `backend.db.DB_PATH` 가 한다. `backend/db.py`
     는 import 시점에 이 값을 읽으므로, 심어두면 in-process 쪽에서 DB_PATH 로 새는 경로가
     남아도 실 DB 가 아니라 사본을 연다 (안전망 — TraceWriter 등은 여전히 명시 경로를 쓴다).
   - 임시 디렉터리 정리 실패는 **경고로 끝난다** (`ignore_cleanup_errors=True`). Windows 는
@@ -349,9 +351,6 @@ def main() -> None:
         db_loaded = make_loaded(Path(td))
         db_empty = make_empty(Path(td))
         prev = os.environ.get(_ENV_KEY)
-        if not dbcompat.USE_POSTGRES:
-            # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
-            os.environ["MAINTQ_DB"] = str(db_loaded)
         print(f"[격리] {_ENV_KEY}(loaded) = {db_loaded}")
         print(f"[격리] {_ENV_KEY}(empty)  = {db_empty}\n")
         try:

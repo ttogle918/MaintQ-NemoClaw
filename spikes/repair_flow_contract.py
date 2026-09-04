@@ -187,11 +187,10 @@ def run_tool_axis(db: Path) -> str:
 
 def run_rest_axis(db: Path) -> None:
     """MQ-908 5경로 — `core` 프로파일(기본값)에서 실제로 200 을 확인 (D73)."""
-    if dbcompat.USE_POSTGRES:
-        import backend.db as backend_db  # noqa: PLC0415
-        backend_db.DB_PATH = db
-    else:
-        os.environ["MAINTQ_DB"] = str(db)
+    import backend.db as backend_db  # noqa: PLC0415
+
+    # SQLite 분기 제거 (MAINTQ_DB 는 아무도 읽지 않는다, D130)
+    backend_db.DB_PATH = db
 
     from fastapi.testclient import TestClient  # noqa: PLC0415
 
@@ -253,11 +252,10 @@ def run_rest_axis(db: Path) -> None:
 def run_repair_flow_rest_axis(db: Path) -> None:
     """`/api/repairs/*` REST 왕복 (MQ-909) — draft→submit→sign, self_sign 409, 재서명 409,
     reject 사유 필수, 서명 후 `n_repairs_signed` +1."""
-    if dbcompat.USE_POSTGRES:
-        import backend.db as backend_db  # noqa: PLC0415
-        backend_db.DB_PATH = db
-    else:
-        os.environ["MAINTQ_DB"] = str(db)
+    import backend.db as backend_db  # noqa: PLC0415
+
+    # SQLite 분기 제거 (MAINTQ_DB 는 아무도 읽지 않는다, D130)
+    backend_db.DB_PATH = db
 
     import mcp_server.db as mcp_db  # noqa: PLC0415
 
@@ -392,11 +390,10 @@ def run_screen_create_axis(db: Path) -> None:
     `expenditure_class` 가 D31 의 `unit_price` 와 같은 자리다 — **입력에 없으므로**
     사용자가 못 건드리고, 입력이 바뀌면 서버가 재산출한다.
     """
-    if dbcompat.USE_POSTGRES:
-        import backend.db as backend_db  # noqa: PLC0415
-        backend_db.DB_PATH = db
-    else:
-        os.environ["MAINTQ_DB"] = str(db)
+    import backend.db as backend_db  # noqa: PLC0415
+
+    # SQLite 분기 제거 (MAINTQ_DB 는 아무도 읽지 않는다, D130)
+    backend_db.DB_PATH = db
 
     from fastapi.testclient import TestClient  # noqa: PLC0415
 
