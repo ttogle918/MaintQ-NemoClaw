@@ -137,7 +137,7 @@ def render_po_request_document(po: dict) -> str:
 ※ {_doc_review.po_request_template_review_notice()}"""
 
 
-_SEVERITY_LABEL = {"warning": "경고", "fault": "고장", "critical": "위험"}
+_SEVERITY_LABEL = _df.SEVERITY_LABEL  # 정본은 data/doc_fields.py (D124)
 
 
 def _causes_lines(causes: list[str]) -> str:
@@ -152,14 +152,7 @@ def _actions_lines(actions: list[str]) -> str:
     return "\n".join(f"     · {a}" for a in actions)
 
 
-def _basis_entry_summary(entry: dict) -> str:
-    """`evidence.basis[]` 항목 하나를 사람이 읽을 한 줄로. 알려진 도구별 필드만 뽑는다 —
-    모르는 도구 이름이 와도 예외를 던지지 않고 남은 필드를 그대로 나열한다."""
-    tool = entry.get("tool")
-    rest = {k: v for k, v in entry.items() if k not in ("tool", "manual_page")}
-    if tool == "search_inventory":
-        return f'{rest.get("part_no", _UNKNOWN)} 재고 {rest.get("qty", _UNKNOWN)} / 안전재고 {rest.get("safety_stock", _UNKNOWN)}'
-    return ", ".join(f"{k}={v}" for k, v in rest.items()) or _UNKNOWN
+_basis_entry_summary = _df.basis_entry_summary  # 정본은 data/doc_fields.py (D124)
 
 
 def _evidence_lines(po: dict, ecd: dict) -> str:
@@ -167,19 +160,13 @@ def _evidence_lines(po: dict, ecd: dict) -> str:
         f'        · 매뉴얼(에러코드 정의) — {po["model"]} 매뉴얼 p.{ecd["manual_page"]}'
         f" — 원문 인용: {_UNKNOWN} (인용 좌표만 남고 원문 텍스트는 저장되지 않는다)"
     ]
-    for entry in (po.get("evidence") or {}).get("basis") or []:
-        # evidence는 LLM이 create_po_draft 호출 시 자유 형식으로 채운다(D34, 스키마
-        # 강제 없음) — basis가 리스트가 아니라 통짜 문자열로 오면 문자 하나하나가
-        # entry로 들어온다(실측: PO-0121). 이 함수의 "모르는 도구 이름도 던지지
-        # 않는다"는 관용은 dict 항목 안에서만 성립하므로 dict가 아닌 항목은 건너뛴다.
-        if not isinstance(entry, dict):
-            continue
-        tool = entry.get("tool")
-        if tool == "lookup_error_code":
-            continue  # 위 매뉴얼 인용과 중복
+    # 어떤 항목을 싣는가(비-dict 제외 · lookup_error_code 중복 제외)의 규칙은
+    # `data/doc_fields.basis_entries()` 가 정본이다 — 템플릿의 근거 표도 같은 규칙을
+    # 써야 서류와 화면이 다른 근거를 말하지 않는다 (D124).
+    for entry in _df.basis_entries(po):
         page = entry.get("manual_page")
         loc = f"p.{page}" if page else "-"
-        lines.append(f"        · {tool} — {loc} — {_basis_entry_summary(entry)}")
+        lines.append(f'        · {entry.get("tool")} — {loc} — {_basis_entry_summary(entry)}')
     return "\n".join(lines)
 
 
@@ -190,58 +177,51 @@ def render_diagnosis_document(po: dict) -> str:
     호출부(`get_po`)가 이미 그 조건일 때만 이 함수를 부른다.
     """
     ecd = po["error_code_def"]
-    evidence = po.get("evidence") or {}
-    symptoms = evidence.get("symptoms") or []
-    symptom_summary = ", ".join(symptoms) if symptoms else ecd["error_name"]
-    severity_label = _SEVERITY_LABEL.get(ecd["severity"], ecd["severity"])
-    is_dangerous = ecd["severity"] in ("fault", "critical")
+    f = _df.fields_01(po)
 
-    doc_status = _DOC_STATUS_LABEL.get(po["state"], po["state"])
     manager_signed_at = (
-        _UNKNOWN
-        if po["state"] in ("approved", "rejected", "finance_approved", "finance_rejected")
-        else "(미기재 — 검토 전)"
+        _UNKNOWN if po["state"] in _df.DECIDED_STATES else "(미기재 — 검토 전)"
     )
 
-    return f"""[설비 이상 진단 보고서 — {doc_status}]
-문서번호: DIAG-{po["po_id"]} (이 시스템은 진단 세션을 별도 저장하지 않아 연계 발주 ID로 채번한다)
-작성일시: {_val(po.get("created_at"))}
-설비 ID: {_UNKNOWN} (po_drafts는 특정 설비 인스턴스를 별도로 기록하지 않는다)
-설비명 / 설치 위치: {_UNKNOWN} / {_UNKNOWN}
+    return f"""[설비 이상 진단 보고서 — {f["DOC_STATUS"]}]
+문서번호: {f["DOC_NO"]} (이 시스템은 진단 세션을 별도 저장하지 않아 연계 발주 ID로 채번한다)
+작성일시: {f["ISSUED_AT"]}
+설비 ID: {f["EQUIPMENT_ID"]} (po_drafts는 특정 설비 인스턴스를 별도로 기록하지 않는다)
+설비명 / 설치 위치: {f["EQUIPMENT_NAME"]} / {f["LOCATION"]}
 담당 정비사: {_val(po.get("requested_by_name"))}
-진단 세션: {_val(po.get("session_id"))}
+진단 세션: {f["TRACE_ID"]}
 
 1. 이상 감지 내역
-     · 에러코드: {po["error_code"]} ({ecd["error_name"]}) — 기종: {po["model"]}
-     · 증상 요약: {symptom_summary}
-     · 심각도: {severity_label}
-     · 반복 고장 여부: {_UNKNOWN} (설비 인스턴스 ID가 없어 이력 조회 불가 — get_error_history 는 대화 시점에만 호출된다)
+     · 에러코드: {f["ERROR_CODE"]} ({ecd["error_name"]}) — 기종: {po["model"]}
+     · 증상 요약: {f["SYMPTOM_SUMMARY"]}
+     · 심각도: {f["SEVERITY"]}
+     · 반복 고장 여부: {f["REPEAT_FAULT_FLAG"]} (설비 인스턴스 ID가 없어 이력 조회 불가 — get_error_history 는 대화 시점에만 호출된다)
 
 2. 진단 결과 및 근거
-     · 진단 결론: {po["reason"]}
+     · 진단 결론: {f["DIAGNOSIS_CONCLUSION"]}
      · 근거 자료
 {_evidence_lines(po, ecd)}
      · 근거가 확보되지 않은 항목은 「확인되지 않음」으로 표기하며, 추정으로 채우지 않는다.
 
 3. 안전 경고
-     · 위험 작업 해당: {"예" if is_dangerous else "확인되지 않음"}
-     · 경고 내용: {_UNKNOWN} (안전 문구는 대화 트레이스에서 실시간 생성되며 발주서에는 저장되지 않는다)
-     · 필수 선행 조치: {_UNKNOWN}
+     · 위험 작업 해당: {f["SAFETY_FLAG"]}
+     · 경고 내용: {f["SAFETY_WARNING"]} (안전 문구는 대화 트레이스에서 실시간 생성되며 발주서에는 저장되지 않는다)
+     · 필수 선행 조치: {f["SAFETY_PRECONDITION"]}
 
 4. 조치 권고 (매뉴얼 정의 기준, {po["model"]} p.{ecd["manual_page"]})
 {_actions_lines(ecd["actions"])}
      · 발생 원인 후보
 {_causes_lines(ecd["causes"])}
-     · 판정 (수리/교체/매각): {_UNKNOWN} (assess_repair_value 결과는 대화 시점에만 산출되며 저장되지 않는다)
-     · 판정 근거: {po["reason"]}
+     · 판정 (수리/교체/매각): {f["REPAIR_REPLACE_VERDICT"]} (assess_repair_value 결과는 대화 시점에만 산출되며 저장되지 않는다)
+     · 판정 근거: {f["VERDICT_RATIONALE"]}
 
 5. 확인
-     · 작성(정비사): {_val(po.get("requested_by_name"))} / {_val(po.get("created_at"))}
+     · 작성(정비사): {_val(po.get("requested_by_name"))} / {f["ISSUED_AT"]}
      · 검토(정비팀장): {_val(po.get("decided_by_name"))} / {manager_signed_at}
 
 본 보고서는 AI 에이전트가 근거를 수집·정리하여 작성한 초안이며, 최종 확인과 서명은 사람이 수행합니다.
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
-문서 상태: {doc_status} | 생성 시스템: MaintQ | 서명 시점 해시: {_UNKNOWN}
+문서 상태: {f["DOC_STATUS"]} | 생성 시스템: MaintQ | 서명 시점 해시: {_UNKNOWN}
 ※ {_doc_review.diagnosis_template_review_notice()}"""
 
 

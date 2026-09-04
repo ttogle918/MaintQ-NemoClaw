@@ -196,3 +196,124 @@ def fields_02(ctx: dict) -> dict[str, str]:
         f[f"QUOTE_AMOUNT_{i}"] = won(q["unit_price"] * qty)
         f[f"SELECTED_{i}"] = "선정" if q["supplier_id"] == ctx["supplier_id"] else ""
     return f
+
+
+# ── 01 설비이상진단보고서 ──────────────────────────────────────────────────────
+def basis_entries(ctx: dict) -> list[dict]:
+    """`evidence.basis` 중 문서에 실을 항목.
+
+    규칙이 **두 소비자에게 걸려 있어** 여기 한 곳에 둔다 — 미리보기의 근거 블록
+    (`po_documents._evidence_lines`)과 템플릿의 근거 표(`EVIDENCE_*`)다. 두 벌로 두면
+    한쪽만 고쳐져 서류와 화면이 다른 근거를 말하게 된다(D90 유형).
+
+    ⛔ `lookup_error_code` 는 뺀다 — 매뉴얼 인용 항목과 중복이다.
+    ⛔ dict 가 아닌 항목도 뺀다 — evidence 는 LLM 이 자유 형식으로 채우므로(D34) basis 가
+      통짜 문자열로 오면 문자 하나하나가 항목으로 들어온다(실측: PO-0121).
+    """
+    out = []
+    for entry in (ctx.get("evidence") or {}).get("basis") or []:
+        if not isinstance(entry, dict) or entry.get("tool") == "lookup_error_code":
+            continue
+        out.append(entry)
+    return out
+
+
+def basis_entry_summary(entry: dict) -> str:
+    """`evidence.basis[]` 항목 하나를 사람이 읽을 한 줄로. 알려진 도구별 필드만 뽑는다 —
+    모르는 도구 이름이 와도 예외를 던지지 않고 남은 필드를 그대로 나열한다."""
+    tool = entry.get("tool")
+    rest = {k: v for k, v in entry.items() if k not in ("tool", "manual_page")}
+    if tool == "search_inventory":
+        return (
+            f'{rest.get("part_no", UNKNOWN)} 재고 {rest.get("qty", UNKNOWN)}'
+            f' / 안전재고 {rest.get("safety_stock", UNKNOWN)}'
+        )
+    return ", ".join(f"{k}={v}" for k, v in rest.items()) or UNKNOWN
+
+
+def _evidence_rows(ctx: dict) -> list[tuple[str, str, str, str]]:
+    """(유형, 출처, 위치, 인용) 표 행. 1행은 매뉴얼 인용, 2행부터 도구 근거."""
+    ecd = ctx["error_code_def"]
+    rows = [
+        (
+            "매뉴얼(에러코드 정의)",
+            f'{ctx["model"]} 매뉴얼',
+            f'p.{ecd["manual_page"]}',
+            # 인용 좌표만 남고 원문 텍스트는 저장되지 않는다
+            UNKNOWN,
+        )
+    ]
+    for entry in basis_entries(ctx):
+        page = entry.get("manual_page")
+        rows.append(
+            (
+                "도구 조회",
+                val(entry.get("tool")),
+                f"p.{page}" if page else "-",
+                basis_entry_summary(entry),
+            )
+        )
+    return rows
+
+
+def drop_rows_01(ctx: dict) -> set[str]:
+    """`po_drafts` 는 에러코드 1건짜리 발주라 감지 내역 2행은 **항상** 삭제한다."""
+    dropped = {"DETECTED_AT_2", "ERROR_CODE_2", "SYMPTOM_SUMMARY_2", "SEVERITY_2"}
+    if len(_evidence_rows(ctx)) < 2:
+        dropped |= {"EVIDENCE_TYPE_2", "EVIDENCE_SOURCE_2", "EVIDENCE_LOC_2", "EVIDENCE_QUOTE_2"}
+    if len((ctx["error_code_def"]["actions"]) or []) < 2:
+        dropped |= {"ACTION_TYPE_2", "ACTION_DESC_2", "ACTION_DURATION_2", "ACTION_COST_2"}
+    return dropped
+
+
+def fields_01(ctx: dict) -> dict[str, str]:
+    """01 설비이상진단보고서 — 템플릿 자리 − WITHHELD − drop_rows_01.
+
+    ⚠ 호출 전에 `ctx["error_code_def"]` 가 있는지 확인할 것. 없으면 이 문서 자체가
+    성립하지 않는다 — 미리보기도 그 조건에서만 렌더한다(`get_po()`).
+    """
+    ecd = ctx["error_code_def"]
+    symptoms = (ctx.get("evidence") or {}).get("symptoms") or []
+    actions = ecd["actions"] or []
+    causes = ecd["causes"] or []
+
+    f: dict[str, str] = {
+        # 이 시스템은 진단 세션을 별도 저장하지 않아 연계 발주 ID 로 채번한다
+        "DOC_NO": f'DIAG-{ctx["po_id"]}',
+        "ISSUED_AT": val(ctx.get("created_at")),
+        "DOC_STATUS": doc_status(ctx),
+        # po_drafts 는 특정 설비 인스턴스를 별도로 기록하지 않는다
+        "EQUIPMENT_ID": UNKNOWN,
+        "EQUIPMENT_NAME": UNKNOWN,
+        "LOCATION": UNKNOWN,
+        "REQUEST_CHAIN_ID": UNKNOWN,
+        "TRACE_ID": val(ctx.get("session_id")),
+        "DETECTED_AT": UNKNOWN,
+        "ERROR_CODE": ctx["error_code"],
+        "SYMPTOM_SUMMARY": ", ".join(symptoms) if symptoms else ecd["error_name"],
+        "SEVERITY": SEVERITY_LABEL.get(ecd["severity"], ecd["severity"]),
+        # 설비 인스턴스 ID 가 없어 이력 조회 불가 — get_error_history 는 대화 시점에만 돈다
+        "REPEAT_FAULT_FLAG": UNKNOWN,
+        "REPEAT_COUNT": UNKNOWN,
+        "ROOT_CAUSE_MODE": ", ".join(causes) if causes else UNKNOWN,
+        "SAFETY_FLAG": "예" if ecd["severity"] in ("fault", "critical") else UNKNOWN,
+        # 안전 문구는 대화 트레이스에서 실시간 생성되며 발주서에 저장되지 않는다
+        "SAFETY_WARNING": UNKNOWN,
+        "SAFETY_PRECONDITION": UNKNOWN,
+        # assess_repair_value 결과는 대화 시점에만 산출되며 저장되지 않는다
+        "REPAIR_REPLACE_VERDICT": UNKNOWN,
+        "VERDICT_RATIONALE": ctx["reason"],
+        "DIAGNOSIS_CONCLUSION": ctx["reason"],
+    }
+    for i, (etype, source, loc, quote) in enumerate(_evidence_rows(ctx)[:2], start=1):
+        f[f"EVIDENCE_TYPE_{i}"] = etype
+        f[f"EVIDENCE_SOURCE_{i}"] = source
+        f[f"EVIDENCE_LOC_{i}"] = loc
+        f[f"EVIDENCE_QUOTE_{i}"] = quote
+    for i, action in enumerate(actions[:2], start=1):
+        # error_codes 는 조치의 유형·소요시간·비용을 분류하지 않는다 — 지어내지 않는다(D62)
+        f[f"ACTION_TYPE_{i}"] = UNKNOWN
+        f[f"ACTION_DESC_{i}"] = action
+        f[f"ACTION_DURATION_{i}"] = UNKNOWN
+        f[f"ACTION_COST_{i}"] = UNKNOWN
+    return f
