@@ -13,14 +13,13 @@
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 **23절(문서에 24개, 실제 DB 는 25개)** + 시드 케이스 맵
-  🔴 **2026-09-04 실측 정정**: 실제 Postgres 에는 **25개** 테이블이 있다. 차이 1은
-  **`manual_chunks`**(dense 임베딩, D117) — `scripts/postgres_schema.sql` 에 **§24 로
-  정식 정의**돼 있고 `mcp_server/rag.py`·`dense_scorer.py` 가 쓰는데
-  **`docs/05_DB_SCHEMA.md` 에는 한 줄도 없다.** 스키마 문서화가 D117 에서 빠졌다
-  — 다음에 이 문서를 손볼 때 §24 절을 추가할 것
+- `docs/05_DB_SCHEMA.md` — 테이블 **24절(실제 25개)** + 시드 케이스 맵
+  (2026-09-04: `§24 manual_chunks`(dense 임베딩, D117) 절을 추가해 문서와 실제 DB 를
+  맞췄다 — D117 에서 스키마 문서화가 빠져 있었다. 절 수보다 테이블이 1개 많은 것은
+  `§7` 이 `suppliers`·`supplier_parts` 둘을 함께 다루기 때문이다)
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
-   **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블) 을 더한다**
+   **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블),
+   D117 이 `§24`(`manual_chunks`) 를 더한다**
    — **`§10` 은 존재하지 않는다**.
    `§7` 이 `suppliers`·`supplier_parts` 두 테이블을 함께 다뤄 절 수보다 테이블이 1개 많다)
 - `docs/06_REPO_API.md` — 폴더 구조·API·SSE 이벤트 규격

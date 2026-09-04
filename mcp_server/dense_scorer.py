@@ -8,7 +8,7 @@
 
 ## 코퍼스 임베딩은 Postgres 에서, 질의 임베딩은 매 호출마다 API로
 
-- **코퍼스(passage) 임베딩**은 `scripts/embed_manual_chunks.py` 가 미리 계산해
+- **코퍼스(passage) 임베딩**은 `scripts/migrate_vectors.py` 가 미리 계산해
   `manual_chunks.embedding` 에 저장해 둔 것을 읽기만 한다 — 이 모듈은 임베딩을 계산하지 않는다.
 - **질의(query) 임베딩**은 검색할 때마다 필요해서 매번 NVIDIA API 를 부른다(캐시는
   `data/external/nvidia_embed.py` 가 처리 — 같은 질의를 반복하면 네트워크가 안 탄다).
