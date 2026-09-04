@@ -243,12 +243,57 @@ def run_golden() -> None:
         )
 
 
+# ── B. 필드맵 ──────────────────────────────────────────────────────────────────
+def _field_cases() -> list[tuple[str, str, dict, set[str]]]:
+    """(태그, 템플릿 파일명, 필드맵, drop_rows). 태스크가 진행되며 5종으로 늘어난다."""
+    from data import doc_fields as df
+
+    return [
+        ("02", "02_정비부품발주요청서.docx", df.fields_02(FIXTURE_PO), df.drop_rows_02(FIXTURE_PO)),
+    ]
+
+
+def run_fields() -> None:
+    from backend.services.docx_render import template_placeholders
+    from data import doc_fields as df
+
+    for tag, template, fields, dropped in _field_cases():
+        slots = template_placeholders(template)
+        expected = slots - df.WITHHELD_KEYS - dropped
+        missing, extra = expected - set(fields), set(fields) - expected
+        check(
+            f"B① {tag} 필드맵이 템플릿 자리를 빠짐없이 만든다",
+            not missing and not extra,
+            f"템플릿 {len(slots)}자리 − withheld {len(slots & df.WITHHELD_KEYS)}"
+            f" − 삭제행 {len(dropped)} = 기대 {len(expected)} / 실제 {len(fields)}"
+            + (f" · 부족 {sorted(missing)}" if missing else "")
+            + (f" · 초과 {sorted(extra)}" if extra else ""),
+        )
+        # ⚠ 부재검사 — `fields` 가 비면 유출도 0이라 조용히 통과한다. 양성 축을 함께 건다.
+        leaked = sorted(set(fields) & df.WITHHELD_KEYS)
+        check(
+            f"B② {tag} 신원·서명 필드를 만들지 않는다 (D23)",
+            not leaked and bool(fields),
+            f"필드 {len(fields)}개 중 유출 {len(leaked)}개"
+            + (f" {leaked}" if leaked else "")
+            + f" · 이 템플릿의 withheld 자리 {len(slots & df.WITHHELD_KEYS)}개",
+        )
+        non_str = sorted(k for k, v in fields.items() if not isinstance(v, str))
+        check(
+            f"B③ {tag} 모든 값이 문자열이다",
+            bool(fields) and not non_str,
+            f"문자열 {len(fields) - len(non_str)}/{len(fields)}"
+            + (f" · 비문자열 {non_str}" if non_str else ""),
+        )
+
+
 def main() -> None:
     if os.environ.get("DOCX_CONTRACT_REGOLD"):
         regold()
         return
 
     run_golden()
+    run_fields()
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 34))
@@ -259,7 +304,10 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
-    print(f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 대조")
+    print(
+        f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
+        f"필드맵 {len(_field_cases())}문서"
+    )
 
 
 if __name__ == "__main__":

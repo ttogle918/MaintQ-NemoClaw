@@ -25,44 +25,20 @@ LLM 서술 텍스트(token 이벤트)는 애초에 영속화되지 않으므로(
 
 from __future__ import annotations
 
-from typing import Any
 
+import data.doc_fields as _df
 import data.doc_review as _doc_review
 from data.korean_number import amount_to_korean
 
-_UNKNOWN = "확인되지 않음"
-
-_URGENCY_LABEL = {"urgent": "긴급", "normal": "보통"}
-
-_DOC_STATUS_LABEL = {
-    "draft": "초안 (미제출)",
-    "pending": "결재 대기",
-    "approved": "승인 완료",
-    "rejected": "반려",
-    "finance_approved": "재무 승인 완료",
-    "finance_rejected": "재무 반려",
-}
-
-_APPROVAL_RESULT_LABEL = {
-    "draft": "미제출",
-    "pending": "결재 대기 중",
-    "approved": "승인",
-    "rejected": "반려",
-    "finance_approved": "재무 승인",
-    "finance_rejected": "재무 반려",
-}
-
-
-def _val(v: Any) -> str:
-    if v is None or (isinstance(v, str) and not v.strip()):
-        return _UNKNOWN
-    return str(v)
-
-
-def _won(v: int | None) -> str:
-    if v is None:
-        return _UNKNOWN
-    return f"{v:,}"
+# 상수·헬퍼는 `data/doc_fields.py` 가 정본이다 (D124) — 미리보기와 docx 가 같은 값을
+# 쓰게 하려면 두 벌이 있어서는 안 된다. 이름을 그대로 둔 것은 이 파일의 블록 헬퍼
+# (`_stock_section` 등)가 계속 쓰기 때문이다.
+_UNKNOWN = _df.UNKNOWN
+_URGENCY_LABEL = _df.URGENCY_LABEL
+_DOC_STATUS_LABEL = _df.DOC_STATUS_LABEL
+_APPROVAL_RESULT_LABEL = _df.APPROVAL_RESULT_LABEL
+_val = _df.val
+_won = _df.won
 
 
 def _stock_section(po: dict) -> str:
@@ -113,44 +89,32 @@ def render_po_request_document(po: dict) -> str:
     입력 `po` 는 `backend/services/po.py::get_po()` 의 반환값(quotes·inventory·
     alternatives 가 이미 붙어 있는 상태)이어야 한다.
     """
-    qty = po["qty"]
-    unit_price = po["unit_price"]
-    subtotal = unit_price * qty
-    vat = round(subtotal * 0.1)
-    total = subtotal + vat
-
-    diagnosis_doc_no = f"DIAG-{po['session_id']}" if po.get("session_id") else _UNKNOWN
-    urgency_label = _URGENCY_LABEL.get(po.get("urgency"), _val(po.get("urgency")))
-    doc_status = _DOC_STATUS_LABEL.get(po["state"], po["state"])
-    approval_result = _APPROVAL_RESULT_LABEL.get(po["state"], po["state"])
+    f = _df.fields_02(po)
 
     approver_signed_at = (
-        _UNKNOWN
-        if po["state"] in ("approved", "rejected", "finance_approved", "finance_rejected")
-        else "(미기재 — 결재 전)"
+        _UNKNOWN if po["state"] in _df.DECIDED_STATES else "(미기재 — 결재 전)"
     )
-    approval_comment = _val(po.get("decision_note"))
 
-    return f"""[정비 · 부품 발주 요청서 — {doc_status}]
-요청번호: {po["po_id"]}
-요청일시: {_val(po.get("created_at"))}
-연계 진단서: {diagnosis_doc_no}
-설비 ID: {_UNKNOWN} (po_drafts는 특정 설비 인스턴스를 별도로 기록하지 않는다)
+    return f"""[정비 · 부품 발주 요청서 — {f["DOC_STATUS"]}]
+요청번호: {f["PO_REQUEST_NO"]}
+요청일시: {f["REQUESTED_AT"]}
+연계 진단서: {f["DIAGNOSIS_DOC_NO"]}
+설비 ID: {f["EQUIPMENT_ID"]} (po_drafts는 특정 설비 인스턴스를 별도로 기록하지 않는다)
 요청자: {_val(po.get("requested_by_name"))} / 소속: {_val(po.get("requested_by_department"))}
-긴급도: {urgency_label}
+긴급도: {f["URGENCY"]}
 
 1. 요청 사유
-     · {po["reason"]}
-     · 미조치 시 예상 영향: {_UNKNOWN}
-     · 희망 조치 완료일: {_UNKNOWN}
+     · {f["REQUEST_REASON"]}
+     · 미조치 시 예상 영향: {f["IMPACT_IF_DEFERRED"]}
+     · 희망 조치 완료일: {f["TARGET_COMPLETION_DATE"]}
 
 2. 요청 품목
-     · 품번: {po["part_no"]} ({po["part_name"]})
-     · 수량: {qty}
-     · 단가: {_won(unit_price)}원 (발주 시점 스냅샷 — 이후 가격 변동과 무관)
-     · 공급가액: {_won(subtotal)}원
-     · 부가세(10%): {_won(vat)}원
-     · 합계 금액: {_won(total)}원 ({amount_to_korean(total)})
+     · 품번: {f["PART_NO_1"]} ({f["PART_NAME_1"]})
+     · 수량: {f["QTY_1"]}
+     · 단가: {f["UNIT_PRICE_1"]}원 (발주 시점 스냅샷 — 이후 가격 변동과 무관)
+     · 공급가액: {f["SUBTOTAL"]}원
+     · 부가세(10%): {f["VAT"]}원
+     · 합계 금액: {f["TOTAL_AMOUNT"]}원 ({f["TOTAL_AMOUNT_KOREAN"]})
 
 3. 재고 · 대체품 확인
 {_stock_section(po)}
@@ -158,18 +122,18 @@ def render_po_request_document(po: dict) -> str:
 4. 공급사 견적
 {_quotes_section(po)}
      · 선정 공급사: {po["supplier_name"]}
-     · 선정 사유: {_UNKNOWN} (선정 사유는 시스템이 별도로 기록하지 않는다)
+     · 선정 사유: {f["VENDOR_SELECTION_REASON"]} (선정 사유는 시스템이 별도로 기록하지 않는다)
 
 5. 승인
-     · 기안(정비사): {_val(po.get("requested_by_name"))} / {_val(po.get("created_at"))}
+     · 기안(정비사): {_val(po.get("requested_by_name"))} / {f["REQUESTED_AT"]}
      · 승인(정비팀장): {_val(po.get("decided_by_name"))} / {approver_signed_at}
-     · 승인 결과: {approval_result}
-     · 승인 의견 / 반려 사유: {approval_comment}
+     · 승인 결과: {f["APPROVAL_RESULT"]}
+     · 승인 의견 / 반려 사유: {f["APPROVAL_COMMENT"]}
 
 ※ 본 요청서는 정비팀장 승인 전에는 발주가 확정되지 않으며, 승인 이력은 위 5번 항목에 기록됩니다.
 ※ 기안자는 자신의 요청을 승인할 수 없습니다 (자기결재 금지).
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
-문서 상태: {doc_status} | 생성 시스템: MaintQ
+문서 상태: {f["DOC_STATUS"]} | 생성 시스템: MaintQ
 ※ {_doc_review.po_request_template_review_notice()}"""
 
 
