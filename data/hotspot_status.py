@@ -10,8 +10,9 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import json
-import sqlite3
 from datetime import date
 
 # 최근 수리로 볼 기간(일) · 곧 점검으로 볼 기간(일). spec §4-5 제안값.
@@ -25,7 +26,7 @@ MODEL_HOTSPOT_PARTS: dict[str, list[str]] = {
 }
 
 
-def hotspot_status(con: sqlite3.Connection, *, asset_id: str, today: date) -> dict:
+def hotspot_status(con: DbConnection, *, asset_id: str, today: date) -> dict:
     eq = con.execute(
         "SELECT equipment_id, model FROM equipment WHERE asset_id = ? ORDER BY equipment_id",
         (asset_id,),
@@ -64,7 +65,7 @@ def hotspot_status(con: sqlite3.Connection, *, asset_id: str, today: date) -> di
 
 
 def _latest_diagnosis_by_part(
-    con: sqlite3.Connection, equipment_id: str, model: str, part_nos: list[str]
+    con: DbConnection, equipment_id: str, model: str, part_nos: list[str]
 ) -> dict[str, dict]:
     """부품별 마지막 진단 이벤트. `occurred_at` 오름차순으로 훑어 마지막 값이 남게 한다."""
     rows = con.execute(
@@ -89,7 +90,7 @@ def _latest_diagnosis_by_part(
 
 
 def _latest_signed_repair_by_part(
-    con: sqlite3.Connection, equipment_id: str, part_nos: list[str]
+    con: DbConnection, equipment_id: str, part_nos: list[str]
 ) -> dict[str, dict]:
     """부품별 마지막 **서명된** 수리 기록. draft/pending 은 세지 않는다(spec §4-5 — "서명된")."""
     rows = con.execute(
@@ -113,7 +114,7 @@ def _latest_signed_repair_by_part(
 
 
 def _lifecycle_due_by_part(
-    con: sqlite3.Connection, equipment_id: str, part_nos: list[str]
+    con: DbConnection, equipment_id: str, part_nos: list[str]
 ) -> dict[str, date]:
     rows = con.execute(
         "SELECT part_no, next_maintenance_due FROM part_lifecycle_mock WHERE equipment_id = ?",

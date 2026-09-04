@@ -28,6 +28,8 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import sqlite3
 from typing import Any
 
@@ -89,7 +91,7 @@ def _as_float(value: object) -> float | None:
     return None
 
 
-def _next_repair_id(con: sqlite3.Connection) -> str:
+def _next_repair_id(con: DbConnection) -> str:
     """`RPR-%04d`. `create_po_draft._next_po_id` 와 같은 패턴 — 채번 규약을 갈라 두지 않는다.
 
     동시성 방어는 새로 만들지 않는다 — 단일 사용자 데모 전제(P19 그대로, D98).

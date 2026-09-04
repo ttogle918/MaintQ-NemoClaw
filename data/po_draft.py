@@ -25,19 +25,20 @@ SQL을 실행할 뿐이다.
 
 from __future__ import annotations
 
-import sqlite3
+from data.dbcompat import DbConnection
+
 
 from data import txn
 
 
-def next_po_id(con: sqlite3.Connection) -> str:
+def next_po_id(con: DbConnection) -> str:
     """`PO-%04d` 채번. 경쟁 없는 발급은 `data/txn.py` 가 소유한다 (D126) —
     같은 규약을 쓰는 `repair_record.next_repair_id` 와 한 곳에서 갈린다."""
     return txn.next_sequential_id(con, "po_drafts", "po_id", "PO")
 
 
 def validate_and_price(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     part_no: str,
     qty: int,
@@ -89,7 +90,7 @@ def validate_and_price(
 
 
 def insert_draft(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     po_id: str,
     part_no: str,
@@ -119,7 +120,7 @@ def insert_draft(
 
 
 def update_draft(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     po_id: str,
     part_no: str,
@@ -145,7 +146,7 @@ def update_draft(
     )
 
 
-def list_quotes(con: sqlite3.Connection, *, part_no: str) -> list[dict]:
+def list_quotes(con: DbConnection, *, part_no: str) -> list[dict]:
     """부품의 공급사별 견적(리드타임·단가·MOQ). `backend/services/po.py`의 `get_po()`
     (상세의 `quotes` 필드)와 `quotes_for_part()`(화면이 발주 전 공급사를 고르기 위한
     사전 조회, `GET /api/po/quotes/{part_no}`)가 같은 쿼리를 쓴다 — 세 번째 사본을

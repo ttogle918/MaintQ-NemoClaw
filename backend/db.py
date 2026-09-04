@@ -197,7 +197,7 @@ def connect(db_path: str | None = None) -> Iterator[psycopg.Connection]:
 
     con = None
     try:
-        # row_factory: backend/services/* 다수가 sqlite3.Row 관행(row["col"]) 을 그대로 쓴다 —
+        # row_factory: backend/services/* 다수가 DbRow 관행(row["col"]) 을 그대로 쓴다 —
         # psycopg 기본 tuple_row 로는 그 접근이 깨진다 (Sprint 16 MQ-1614 에서 발견).
         con = psycopg.connect(target, **_connect_kwargs())
         # 외래키 제약 활성화 (Postgres는 기본이지만 명시)

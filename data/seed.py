@@ -47,6 +47,7 @@ if str(ROOT) not in sys.path:
 if str(ROOT.parent) not in sys.path:
     sys.path.insert(0, str(ROOT.parent))
 from data import dbcompat  # noqa: E402
+from data.dbcompat import DbConnection, DbRow  # noqa: E402
 EXTRACTED = ROOT / "extracted"
 ERROR_CODES_JSON = EXTRACTED / "error_codes.json"
 RELATED_PARTS_JSON = ROOT / "related_parts.seed.json"
@@ -733,7 +734,7 @@ PART_LIFECYCLE_MOCK: list[tuple[str, str, int]] = [
 ]
 
 
-def seed_part_lifecycle_mock(con: sqlite3.Connection, today: date) -> int:
+def seed_part_lifecycle_mock(con: DbConnection, today: date) -> int:
     """§19 part_lifecycle_mock 적재. `today`(--today 인자)기준 상대 오프셋 — 데모 날짜가
 
     밀려도 임박/여유 분포가 유지된다.
@@ -1296,12 +1297,16 @@ PARTNER_LINKS_MOCK: bool = True
 # ────────────────────────────────────────────────────────────── 적재
 
 
-def create_schema(con: sqlite3.Connection) -> None:
+def create_schema(con: DbConnection) -> None:
     # 전역 dbcompat.USE_POSTGRES(=DATABASE_URL 설정 여부)가 아니라 **이 커넥션 자체의
     # 타입**으로 분기한다 — rules_db_load.py 같은 스파이크는 Postgres 타겟에서 실행 중일
     # 때도 `sqlite3.connect()` 로 직접 연 격리 fixture DB(loose/broken 스키마 등, 무결성
     # 게이트를 sqlite3 로 직접 흔든다)에 이 함수를 그대로 재사용한다 — 전역 플래그로
-    # 분기하면 그 sqlite3.Connection 에 Postgres DDL 을 시도해 즉시 깨진다.
+    # 분기하면 그 DbConnection 에 Postgres DDL 을 시도해 즉시 깨진다.
+    # ⛔ 여기는 **런타임 isinstance 검사**다 — 타입 힌트가 아니다. `sqlite3.Connection`
+    # 을 `DbConnection`(D129 타입 별칭)으로 바꾸면 안 된다: 그 별칭은 런타임에 `object`
+    # 라 `isinstance(con, object)` 가 **항상 True** 가 되고, Postgres 타겟에서도 아래
+    # `else` 의 SQLite SCHEMA 를 실행해 `NOT GLOB` 문법 오류로 죽는다(2026-09-04 실측).
     if not isinstance(con, sqlite3.Connection):
         # Postgres 타겟은 raw SCHEMA(SQLite 문법) 대신 convert_ddl.py 가 미리 변환해 둔
         # scripts/postgres_schema.sql + D10 가드(scripts/postgres_guards.sql)를 적용한다.
@@ -1313,7 +1318,7 @@ def create_schema(con: sqlite3.Connection) -> None:
         con.executescript(SCHEMA)
 
 
-def seed_users(con: sqlite3.Connection) -> None:
+def seed_users(con: DbConnection) -> None:
     """**가장 먼저** 적재한다 — po_drafts.requested_by/decided_by 와 error_history.recorded_by 가
     FK 로 이 테이블을 참조한다 (D41). `PRAGMA foreign_keys=ON` 상태라 순서가 틀리면 즉시 실패한다.
     """
@@ -1324,7 +1329,7 @@ def seed_users(con: sqlite3.Connection) -> None:
     )
 
 
-def seed_masters(con: sqlite3.Connection) -> None:
+def seed_masters(con: DbConnection) -> None:
     """⚠ `seed_assets` 보다 **뒤에** 호출한다 — equipment.asset_id 가 assets 를 참조한다 (D68)."""
     missing = [p for p, *_ in PARTS if p not in PART_CLASS]
     if missing:
@@ -1383,7 +1388,7 @@ BOOK_VALUE_LIFE_YEARS = 12
 BOOK_VALUE_FLOOR_RATIO = 0.05
 
 
-def seed_assets(con: sqlite3.Connection, today: date) -> dict[str, str]:
+def seed_assets(con: DbConnection, today: date) -> dict[str, str]:
     """assets 9건. `equipment` 보다 **먼저** 적재한다 (FK).
 
     반환: asset_id → acquired_at (검증·출력용)
@@ -1466,7 +1471,7 @@ def seed_assets(con: sqlite3.Connection, today: date) -> dict[str, str]:
     return acquired
 
 
-def seed_partner_links(con: sqlite3.Connection, now_utc: datetime) -> int:
+def seed_partner_links(con: DbConnection, now_utc: datetime) -> int:
     """partner_links 5행 (D92 A안). `seed_assets` **직후** 호출한다.
 
     FK 는 없지만 `subject_ref` 가 `assets.building_id` 를 참조하는 결(grain)이라
@@ -1530,7 +1535,7 @@ INCIDENTS: list[dict] = [
 ]
 
 
-def seed_incidents(con: sqlite3.Connection, today: date) -> int:
+def seed_incidents(con: DbConnection, today: date) -> int:
     """§21 incidents 적재. MCP 쓰기 도구는 이 테이블에 쓰지 않는다(D10) — 시드만이 채운다."""
     rows = [
         (
@@ -1595,7 +1600,7 @@ OWNERSHIP_CHECKS_LIFT: list[tuple[str, str, str, str | None, str | None]] = [
 ]
 
 
-def seed_ownership_checks(con: sqlite3.Connection, today: date) -> int:
+def seed_ownership_checks(con: DbConnection, today: date) -> int:
     """§22 ownership_checks — `AST-L3-LIFT` 실사 스냅샷 38행. `checked_at` ≈ 1개월 전.
 
     verify_ownership 은 읽기 전용이라(D10) 이 테이블에 쓰지 않는다 — 채우는 건 시드뿐이다.
@@ -1658,7 +1663,7 @@ def _risk_grade_from_score(score: int) -> str:
     return "HIGH"
 
 
-def seed_risk_profile(con: sqlite3.Connection, today: date) -> int:
+def seed_risk_profile(con: DbConnection, today: date) -> int:
     """§23 risk_profile 4행. `building_id` 는 `assets.building_id` 재사용 — FK 없음(참조 테이블 없음)."""
     rows = [
         (
@@ -1680,7 +1685,7 @@ def seed_risk_profile(con: sqlite3.Connection, today: date) -> int:
     return len(rows)
 
 
-def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) -> None:
+def seed_repair_records(con: DbConnection, with_codes: bool, today: date) -> None:
     """수리 증빙 12건. 쓰기 경로는 Sprint 9 (MQ-909) 이고 여기서는 시드만 넣는다.
 
     `--with-error-codes` 없이 실행하면 `error_codes` 가 0행이라 `(model, error_code)`
@@ -1786,7 +1791,7 @@ def seed_repair_records(con: sqlite3.Connection, with_codes: bool, today: date) 
     )
 
 
-def seed_rule_catalog(con: sqlite3.Connection) -> tuple[int, int]:
+def seed_rule_catalog(con: DbConnection) -> tuple[int, int]:
     """근거 계층 1·2 를 DB **사본**으로 적재한다. 정본은 파일이다 (D60).
 
     ★ 반드시 `engine.load_laws()` → `engine.load_rules(laws)` 를 경유한다.
@@ -1852,7 +1857,7 @@ def seed_rule_catalog(con: sqlite3.Connection) -> tuple[int, int]:
     return len(laws), len(rules)
 
 
-def seed_residual_curve(con: sqlite3.Connection) -> tuple[int, str]:
+def seed_residual_curve(con: DbConnection) -> tuple[int, str]:
     """잔가곡선 적재. 정본은 `data/extracted/residual_curve.json` (D60·D74).
 
     파일이 없으면 0행 + 경고이고 **시드는 성공한다** — 곡선이 없으면 소비 측 도구가
@@ -1878,7 +1883,7 @@ def seed_residual_curve(con: sqlite3.Connection) -> tuple[int, str]:
     return len(rows), doc.get("_status", "")
 
 
-def seed_inventory(con: sqlite3.Connection, rng: random.Random) -> None:
+def seed_inventory(con: DbConnection, rng: random.Random) -> None:
     rows = []
     zones = ["자재창고 A", "자재창고 B", "자재창고 C"]
     for i, (part_no, *_rest) in enumerate(PARTS):
@@ -1893,7 +1898,7 @@ def seed_inventory(con: sqlite3.Connection, rng: random.Random) -> None:
     con.executemany("INSERT INTO inventory VALUES (?,?,?,?)", rows)
 
 
-def seed_supplier_parts(con: sqlite3.Connection, rng: random.Random) -> None:
+def seed_supplier_parts(con: DbConnection, rng: random.Random) -> None:
     rows = list(SUPPLIER_PARTS_FIXED)
     # 케이스 맵이 고정한 부품은 랜덤 견적을 붙이지 않는다 —
     # 냉각팬은 "A사 3일/비쌈 vs B사 14일/쌈(MOQ 10)" 2건 비교가 정확히 보여야 한다
@@ -1916,7 +1921,7 @@ def seed_supplier_parts(con: sqlite3.Connection, rng: random.Random) -> None:
     con.executemany("INSERT INTO supplier_parts VALUES (?,?,?,?,?)", rows)
 
 
-def seed_error_history(con: sqlite3.Connection, rng: random.Random, today: date) -> None:
+def seed_error_history(con: DbConnection, rng: random.Random, today: date) -> None:
     """6개월치 이력 ~200건. 대부분 단발, INV-L3-01의 OCT만 30일 내 3건 (S3 트리거).
 
     시각은 **UTC** 로 저장한다 — SQLite 의 datetime('now') 비교가 UTC 기준이라
@@ -1975,7 +1980,7 @@ def seed_error_history(con: sqlite3.Connection, rng: random.Random, today: date)
     )
 
 
-def seed_po_drafts(con: sqlite3.Connection, with_codes: bool) -> None:
+def seed_po_drafts(con: DbConnection, with_codes: bool) -> None:
     """화면 B 승인 큐용.
 
     에러코드 FK는 error_codes 적재 여부에 따라 채운다 (D33).
@@ -2264,7 +2269,7 @@ def partner_links_caveat() -> str:
     return f"✓ partner_links {shape} 사람 연결 승인 확인 완료"
 
 
-def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
+def load_error_codes(con: DbConnection) -> tuple[int, int]:
     """추출 JSON → error_codes. related_parts 는 임시 매핑 파일로 덧씌운다 (검수 전).
 
     ⚠ **명시적 컬럼 목록으로 INSERT 한다** — 위치 인자 INSERT 는 컬럼이 늘어나는 순간
@@ -2311,7 +2316,7 @@ def load_error_codes(con: sqlite3.Connection) -> tuple[int, int]:
 # ────────────────────────────────────────────────────────────── 검증
 
 
-def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
+def _disposal_verdicts(con: DbConnection) -> dict[tuple[str, str], dict]:
     """처분 시나리오 자산 5종을 **실제 판정기에 통과시켜** 결과를 모은다 (⑮).
 
     DB 사본(`load_*_from_db`)으로 로드한다 — 파일 로더로 돌리면 "시드가 적재한 사본이
@@ -2325,7 +2330,7 @@ def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
     from data.rules import engine  # noqa: PLC0415
 
     prev_factory = con.row_factory
-    con.row_factory = sqlite3.Row
+    con.row_factory = DbRow
     probes = {(a, e["mode"]) for a, e in DISPOSAL_EXPECTATIONS.items()}
     probes.add(DISPOSAL_MODE_CONTRAST[:2])
     try:
@@ -2358,7 +2363,7 @@ def _disposal_verdicts(con: sqlite3.Connection) -> dict[tuple[str, str], dict]:
         con.row_factory = prev_factory
 
 
-def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
+def verify(con: DbConnection, with_codes: bool, db_path: Path) -> list[tuple[str, bool, str]]:
     """docs/05_DB_SCHEMA.md 시드 케이스 맵 7종(⑧까지) + D41 스키마 보강(⑨~⑪) 자가 검증.
 
     Sprint 6~7 확장(⑫~㉑) · Sprint 8 partner_links 3건 + A2A 계측 자리 1건(㉒~㉕) ·
@@ -3145,7 +3150,7 @@ def verify(con: sqlite3.Connection, with_codes: bool, db_path: Path) -> list[tup
     from data.ownership import verify as own_verify  # noqa: PLC0415
 
     prev_factory = con.row_factory
-    con.row_factory = sqlite3.Row
+    con.row_factory = DbRow
     try:
         live = own_verify(con, asset_id="AST-L3-LIFT")
     finally:

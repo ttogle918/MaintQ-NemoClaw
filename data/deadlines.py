@@ -34,7 +34,8 @@ NULL·판독 불가한 날짜는 건너뛰고 `not_considered` 에 사유를 남
 
 from __future__ import annotations
 
-import sqlite3
+from data.dbcompat import DbConnection
+
 from datetime import date
 
 from data.rules import engine
@@ -169,7 +170,7 @@ def _load_catalog() -> tuple[engine.Rule, engine.Rule, list]:
 
 
 def _scan_tax_credit(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: str | None,
     today: date,
@@ -224,7 +225,7 @@ def _scan_tax_credit(
 
 
 def _scan_safety_inspection(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: str | None,
     today: date,
@@ -276,7 +277,7 @@ def _scan_safety_inspection(
 
 
 def track_deadlines(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: str | None = None,
     window_days: int | str = DEFAULT_WINDOW_DAYS,
@@ -290,7 +291,7 @@ def track_deadlines(
 
 
 def _track_deadlines(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: object,
     window_days: object,

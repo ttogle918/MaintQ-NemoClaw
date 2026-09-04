@@ -59,6 +59,8 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import sqlite3
 
 import data.doc_fields as _df  # D124 — 문안·필드맵 정본. backend 를 import 하지 않는다
@@ -103,7 +105,7 @@ _contract_lines = _df.contract_lines
 _open_condition_lines = _df.open_condition_lines
 
 
-def _next_decision_id(con: sqlite3.Connection) -> str:
+def _next_decision_id(con: DbConnection) -> str:
     """`DEC-%04d`. 채번 규약을 갈라 두지 않는다 — `data/txn.py` 한 곳이 소유하고
     백엔드(`services/decisions._next_decision_id`)도 같은 함수를 쓴다 (D126)."""
     return txn.next_sequential_id(con, "decisions", "decision_id", "DEC")

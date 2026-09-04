@@ -19,8 +19,9 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection, DbRow
+
 import json
-import sqlite3
 
 from backend.db import connect
 from backend.services.decisions import now_utc_sql
@@ -76,7 +77,7 @@ _REPAIR_SELECT = (
 FLOW = state_machine.Flow("repair_records", "repair_id", ALLOWED_FROM, RepairTransitionError)
 
 
-def _row_to_repair(r: sqlite3.Row) -> dict:
+def _row_to_repair(r: DbRow) -> dict:
     d = dict(r)
     d["parts"] = json.loads(d["parts"]) if d.get("parts") else []
     # 미등록·NULL 이면 ID 를 그대로 (`services/po._row_to_po` 와 같은 규칙)
@@ -115,7 +116,7 @@ def get_repair(repair_id: str, db_path: str | None = None) -> dict | None:
         return d
 
 
-def _locked_row(con: sqlite3.Connection, repair_id: str) -> sqlite3.Row:
+def _locked_row(con: DbConnection, repair_id: str) -> DbRow:
     """전이 대상 행을 **실제로 잠근 채** 읽는다 (D126, → 404 는 KeyError).
     잠금 구현은 `data/txn.py` 한 곳이 소유한다 — `decisions._locked_row` 와 같다."""
     return txn.locked_row(con, "repair_records", "repair_id", repair_id)
@@ -130,7 +131,7 @@ class NotEditableError(Exception):
         )
 
 
-def _build(con: sqlite3.Connection, body: dict) -> tuple[dict | None, dict | None]:
+def _build(con: DbConnection, body: dict) -> tuple[dict | None, dict | None]:
     """입력 검증 + 산출. 공유 계층(`data/repair_record.py`)이 **판정의 단일 출처**다 —
     MCP 도구(`create_repair_record`)와 같은 함수를 쓴다(D73·P39)."""
     vals, err = repair_record.validate_input(

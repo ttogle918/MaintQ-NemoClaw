@@ -9,9 +9,10 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection, DbRow
+
 import hashlib
 import json
-import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
@@ -93,7 +94,7 @@ LAW_COLUMNS = (
 )
 
 
-def load_laws_from_db(con: sqlite3.Connection) -> dict[str, LawRef]:
+def load_laws_from_db(con: DbConnection) -> dict[str, LawRef]:
     """계층 1 **사본**을 DB에서 읽는다. 정본은 `data/rules/laws/*.json` 이다 (D60).
 
     파일 로더(`load_laws`)와 같은 dataclass 를 만든다 — 두 경로가 어긋나면
@@ -224,7 +225,7 @@ def _json_col(rule_id: str, column: str, value: str | None, default: Any) -> Any
         raise RuleIntegrityError(f"{rule_id}: {column} JSON 파싱 실패 — {exc}") from exc
 
 
-def load_rules_from_db(con: sqlite3.Connection, laws: dict[str, LawRef]) -> dict[str, Rule]:
+def load_rules_from_db(con: DbConnection, laws: dict[str, LawRef]) -> dict[str, Rule]:
     """계층 2 **사본**을 DB에서 읽는다. 정본은 `data/rules/rules/*.json` 이다 (D60).
 
     ★ 파일 로더(`load_rules`)와 **완전히 같은 불변식**을 적용한다 — 근거 없는 룰 거부(D61),
@@ -334,7 +335,7 @@ def _months_between(start: date, end: date) -> int:
 
 
 def build_facts(
-    asset_row: sqlite3.Row | dict,
+    asset_row: DbRow | dict,
     *,
     disposal_mode: str | None = None,
     disposal_date: str | None = None,

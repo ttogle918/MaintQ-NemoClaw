@@ -23,11 +23,12 @@
 
 from __future__ import annotations
 
-import sqlite3
+from data.dbcompat import DbConnection
+
 
 # ── ① 행 잠금 ────────────────────────────────────────────────────────────────
 
-def locked_row(con: sqlite3.Connection, table: str, pk_col: str, pk_value: str):
+def locked_row(con: DbConnection, table: str, pk_col: str, pk_value: str):
     """상태 전이의 대상 행을 **잠근 채** 읽는다.
 
     `SELECT ... FOR UPDATE` 가 이 함수의 존재 이유 전부다. 잠금이 없으면 Postgres 기본
@@ -57,7 +58,7 @@ def locked_row(con: sqlite3.Connection, table: str, pk_col: str, pk_value: str):
 
 # ── ② 순번 채번 ──────────────────────────────────────────────────────────────
 
-def next_sequential_id(con: sqlite3.Connection, table: str, col: str, prefix: str) -> str:
+def next_sequential_id(con: DbConnection, table: str, col: str, prefix: str) -> str:
     """`PO-0042` 형태의 다음 식별자를 **경쟁 없이** 발급한다.
 
     기존 구현은 세 곳(`po_draft`·`repair_record`·`decisions`)에 복제된 `MAX+1` 이었고,

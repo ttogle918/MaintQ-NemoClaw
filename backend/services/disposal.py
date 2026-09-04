@@ -32,7 +32,8 @@ import psycopg
 import backend.db as _backend_db  # DB_PATH 를 **호출 시점에** 읽는다 (아래 read_only 주석)
 from backend.db import BUSY_TIMEOUT_MS
 from backend.services.po import iso_utc
-from data import dbcompat  # Postgres 타겟일 때 read_only() 가 경유한다 (Sprint 16 MQ-1614)
+from data import dbcompat
+from data.dbcompat import DbConnection, DbRow  # Postgres 타겟일 때 read_only() 가 경유한다 (Sprint 16 MQ-1614)
 from data.rules import engine  # D73 — 공유 데이터 계층. mcp_server 는 import 하지 않는다
 
 
@@ -80,7 +81,7 @@ def read_only(db_path: str | None = None):
     path = db_path or _backend_db.DB_PATH
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-    con.row_factory = sqlite3.Row
+    con.row_factory = DbRow
     try:
         yield con
     finally:
@@ -246,7 +247,7 @@ def _checklist(preconditions: list[dict]) -> list[dict]:
     return items
 
 
-def _load_catalog(con: sqlite3.Connection) -> tuple[dict, dict]:
+def _load_catalog(con: DbConnection) -> tuple[dict, dict]:
     """계층 1·2 DB 사본 로드. **엔진이 던지는 예외를 여기서 흡수한다.**
 
     `load_rules_from_db` 는 근거 없는 룰(D61)·미등록 법령 참조·필수 컬럼 NULL 에

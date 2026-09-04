@@ -50,8 +50,9 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection, DbRow
+
 import json
-import sqlite3
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from typing import Any
@@ -316,7 +317,7 @@ def _as_date(value: object) -> date | None:
 # ---------------------------------------------------------------- 카테고리별 판정
 
 
-def _maintenance_items(con: sqlite3.Connection, row: sqlite3.Row, eq_ids: list[str]) -> list[dict]:
+def _maintenance_items(con: DbConnection, row: DbRow, eq_ids: list[str]) -> list[dict]:
     """정비 이력 — **서명된 수리 레코드만** 센다 (`12 §11`).
 
     0행이면 `UNVERIFIED` 다. **빈 이력을 "문제 없음"으로 읽지 않는다** — 정비를 안 한 것인지
@@ -435,7 +436,7 @@ def _maintenance_items(con: sqlite3.Connection, row: sqlite3.Row, eq_ids: list[s
 
 
 def _obsolescence_items(
-    con: sqlite3.Connection, row: sqlite3.Row, models: list[str], fixed: FixedTable
+    con: DbConnection, row: DbRow, models: list[str], fixed: FixedTable
 ) -> list[dict]:
     """기술적 진부화 — 제어기 세대 / 부품 단종(D20)."""
     items: list[dict] = []
@@ -575,7 +576,7 @@ def _statutory_items(facts: dict, today: date, fixed: FixedTable) -> list[dict]:
     return items + _fixed(fixed, "법정 요건")
 
 
-def _finance_items(row: sqlite3.Row, facts: dict, fixed: FixedTable) -> list[dict]:
+def _finance_items(row: DbRow, facts: dict, fixed: FixedTable) -> list[dict]:
     """재무·회계 — 감가상각 명세 / 매도인 세액공제."""
     items: list[dict] = []
     cost, book = row["acquisition_cost"], row["book_value"]
@@ -612,7 +613,7 @@ def _finance_items(row: sqlite3.Row, facts: dict, fixed: FixedTable) -> list[dic
 
 
 def _market_items(
-    con: sqlite3.Connection, row: sqlite3.Row, facts: dict, today: date, fixed: FixedTable
+    con: DbConnection, row: DbRow, facts: dict, today: date, fixed: FixedTable
 ) -> list[dict]:
     """시장·가격 — `residual_curve` 는 **참고치**로만 싣고 상태는 UNVERIFIED 로 남긴다.
 
@@ -727,7 +728,7 @@ def invalid_ref(asset_id: object, equipment_id: object) -> dict | None:
     return None
 
 
-def _resolve_asset(con: sqlite3.Connection, asset_id: str | None, equipment_id: str | None) -> Any:
+def _resolve_asset(con: DbConnection, asset_id: str | None, equipment_id: str | None) -> Any:
     """`asset_id` 우선, 없으면 `equipment.asset_id` 로 해석한다 (공통 규약).
 
     호스트 자산이 없는 인버터(`INV-L1-01` 분전반)는 `no_host_asset` 이다 — 배전 위치이지
@@ -762,7 +763,7 @@ def _resolve_asset(con: sqlite3.Connection, asset_id: str | None, equipment_id: 
 
 
 def verify(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: str | None = None,
     equipment_id: str | None = None,
