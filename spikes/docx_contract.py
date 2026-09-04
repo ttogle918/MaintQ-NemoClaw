@@ -428,6 +428,104 @@ def run_context(con, decision_id: str) -> None:
         )
 
 
+# ── E. 읽기 도구 ───────────────────────────────────────────────────────────────
+def run_read_tool(decision_id: str) -> None:
+    """⚠ 이 도구는 `read_only()` 로 **자기 커넥션을 연다** — 격리 스키마 DSN 은
+    `DATABASE_URL` 로 전달돼 있어야 한다. main() 이 그 env 를 세팅한 뒤 부른다."""
+    from data import doc_fields as df
+    from mcp_server.tools.get_document_facts import get_document_facts
+
+    r = get_document_facts(doc_type="po", ref_id=PO_WITH_ERROR_CODE)
+    fields = r.get("fields") or {}
+    check(
+        "E① po 조회 — 01·02 필드맵",
+        r.get("status") == "ok" and set(fields) == {"01", "02"},
+        f"status={r.get('status')} · 문서 {sorted(fields)}"
+        f" · 01 {len(fields.get('01', {}))}자리 · 02 {len(fields.get('02', {}))}자리",
+    )
+    # ⚠ 부재검사 — fields 가 비면 유출도 0이라 조용히 통과한다. 양성 축을 함께 건다.
+    leaked = sorted(k for doc in fields.values() for k in doc if k in df.WITHHELD_KEYS)
+    check(
+        "E② 신원·서명 필드를 노출하지 않는다 (D23)",
+        not leaked and bool(fields),
+        f"문서 {len(fields)}종 · 자리 {sum(len(d) for d in fields.values())}개"
+        f" · 유출 {len(leaked)}개" + (f" {leaked}" if leaked else "")
+        + f" · withheld 목록 {len(r.get('withheld') or [])}개",
+    )
+    check(
+        "E③ withheld 와 unavailable 이 분리돼 있다 (D62)",
+        len(r.get("withheld") or []) == len(df.WITHHELD_KEYS)
+        and "03" in (r.get("unavailable") or {}),
+        f"withheld {len(r.get('withheld') or [])}/{len(df.WITHHELD_KEYS)}개"
+        f" · unavailable {sorted(r.get('unavailable') or {})}",
+    )
+    check(
+        "E④ 교정 경로를 안내한다 (UPDATE 아님, D10)",
+        "create_po_draft" in (r.get("correction_hint") or ""),
+        repr((r.get("correction_hint") or "")[:56]),
+    )
+
+    d = get_document_facts(doc_type="disposal", ref_id=decision_id)
+    dfields = d.get("fields") or {}
+    check(
+        "E⑤ disposal 조회 — 05·06 필드맵",
+        d.get("status") == "ok" and set(dfields) == {"05", "06"},
+        f"status={d.get('status')} · 문서 {sorted(dfields)}"
+        f" · 05 {len(dfields.get('05', {}))}자리 · 06 {len(dfields.get('06', {}))}자리",
+    )
+    check(
+        "E⑥ 처분 필드맵에도 서명 자리가 없다 (D81)",
+        not [k for doc in dfields.values() for k in doc if k in df.WITHHELD_KEYS]
+        and bool(dfields),
+        f"자리 {sum(len(x) for x in dfields.values())}개 중 SIGNED_BY/OVERRIDE 유출 "
+        f"{len([k for doc in dfields.values() for k in doc if k in df.WITHHELD_KEYS])}개",
+    )
+
+    bad = get_document_facts(doc_type="asset", ref_id="X")
+    check(
+        "E⑦ enum 밖 doc_type → status=error (예외 아님, D9)",
+        bad.get("status") == "error" and bad.get("reason") == "invalid_input",
+        f"{bad.get('status')}/{bad.get('reason')}",
+    )
+    blank = get_document_facts(doc_type="po", ref_id="   ")
+    check(
+        "E⑧ 빈 ref_id → invalid_input",
+        blank.get("status") == "error" and blank.get("reason") == "invalid_input",
+        f"{blank.get('status')}/{blank.get('reason')}",
+    )
+    nf = get_document_facts(doc_type="po", ref_id=PO_MISSING)
+    check(
+        "E⑨ 없는 ref_id → not_found",
+        nf.get("status") == "error" and nf.get("reason") == "not_found",
+        f"{nf.get('status')}/{nf.get('reason')}",
+    )
+
+    # ⚠ 부재검사 — 소스에 쓰기 경로가 없다. 양성 축(read_only 사용 · 소스가 실제로
+    #   읽혔는가)을 판정과 detail 에 함께 넣는다.
+    src = (ROOT / "mcp_server" / "tools" / "get_document_facts.py").read_text(encoding="utf-8")
+    # ⚠ 주석·docstring 을 먼저 걷어낸다 — 이 파일의 docstring 에는 "draft_writer 를
+    #   부르지 않는다", "MCP UPDATE 로 얻는 건" 처럼 **금지 토큰이 설명으로** 들어 있다.
+    #   첫 구현에서 그대로 스캔해 E⑩ 이 FAIL 했다 — 코드가 아니라 스캐너가 틀렸던 것이다.
+    #   AST 로 **실행되는 코드**만 본다(문자열 리터럴 제외).
+    import ast
+
+    tree = ast.parse(src)
+    body = "\n".join(
+        ast.unparse(node)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Call, ast.Attribute, ast.Name))
+    )
+    uses_readonly = "read_only()" in body
+    writers = [w for w in ("draft_writer", "decision_writer", "repair_writer") if w in body]
+    dml = [k for k in ("INSERT ", "UPDATE ", "DELETE ") if k in body.upper()]
+    check(
+        "E⑩ 읽기 전용 — 쓰기 커넥션·DML 이 없다 (D10)",
+        uses_readonly and not writers and not dml,
+        f"소스 {len(src):,}바이트 · read_only()={uses_readonly}"
+        f" · writer {writers or '없음'} · DML {dml or '없음'}",
+    )
+
+
 def main() -> None:
     if os.environ.get("DOCX_CONTRACT_REGOLD"):
         regold()
@@ -454,6 +552,30 @@ def main() -> None:
             run_context(con, decision_id)
         finally:
             con.close()
+        # 읽기 도구는 `read_only()` 로 **자기 커넥션을 연다.**
+        #
+        # ⚠ `os.environ["DATABASE_URL"]` 만 바꾸면 격리되지 않는다 — `mcp_server/db.py:22`
+        #   가 그 값을 **import 시점에** 모듈 상수로 굳히는데, 이 스파이크는 run_golden()
+        #   에서 이미 그 모듈을 import 한 뒤다. 실측으로 확인했다: env 만 바꿨을 때 도구가
+        #   공유 public 을 읽어 E⑤(처분 조회)가 FAIL 했고, E①(발주 조회)은 PO-0117 이
+        #   public 에도 있어서 **가짜로 통과**했다. Sprint 16 의 s10_smoke·sp3_sse_events
+        #   실사고와 같은 계열이다.
+        #   → 모듈 상수를 함께 갈아끼운다. E⑤ 가 격리 앵커 역할을 한다 — DEC-9001 은
+        #     격리 스키마에만 있으므로, 도구가 public 을 읽으면 그 검사가 FAIL 한다.
+        import mcp_server.db as _mcp_db
+
+        prev_env = os.environ.get("DATABASE_URL")
+        prev_const = _mcp_db.DATABASE_URL
+        os.environ["DATABASE_URL"] = dsn
+        _mcp_db.DATABASE_URL = dsn
+        try:
+            run_read_tool(decision_id)
+        finally:
+            _mcp_db.DATABASE_URL = prev_const
+            if prev_env is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_env
     finally:
         if schema:
             pg_isolation.drop_isolated_schema(schema)
@@ -489,7 +611,8 @@ def main() -> None:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
     print(
         f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
-        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종 · DB 컨텍스트"
+        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종 · "
+        f"DB 컨텍스트 · 읽기 도구"
     )
 
 

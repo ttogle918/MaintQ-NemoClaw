@@ -12,7 +12,7 @@
   - get_error_history         반복 고장 판정
   - create_po_draft           발주 초안 (유일한 쓰기 도구)
 
-확장 13종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
+확장 14종 (`MAINTQ_TOOLS_PROFILE=full` 일 때만 등록 — D69):
   - check_disposal_blockers · verify_ownership · classify_part_criticality ·
     get_maintenance_metrics · classify_expenditure · assess_repair_value ·
     build_evidence_bundle · generate_disposal_document (**두 번째 쓰기 도구**) ·
@@ -155,7 +155,7 @@ def create_po_draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 확장 13종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98·D102·D112)
+# 확장 14종 — `MAINTQ_TOOLS_PROFILE=full` 에서만 등록한다 (D69·D98·D102·D112·D125)
 #
 # ★ 파라미터 타입을 좁히지 않는다. `get_error_history.line_id` 주석과 같은 이유다 —
 #   타입을 좁히면 LLM 이 문자열로 넘긴 순간 pydantic 이 본체 진입 전에 예외를 던져
@@ -239,6 +239,10 @@ if TOOLS_PROFILE == "full":
     from mcp_server.tools.assess_equipment_loan import (  # noqa: E402
         DESCRIPTION as EQUIPMENT_LOAN_DESC,
         assess_equipment_loan as _assess_equipment_loan,
+    )
+    from mcp_server.tools.get_document_facts import (  # noqa: E402
+        DESCRIPTION as DOC_FACTS_DESC,
+        get_document_facts as _get_document_facts,
     )
 
     @mcp.tool(description=DISPOSAL_DESC)
@@ -467,6 +471,27 @@ if TOOLS_PROFILE == "full":
         return _assess_equipment_loan(
             loan_amount=loan_amount, purpose=purpose, collateral_building_id=collateral_building_id
         )
+
+    @mcp.tool(description=DOC_FACTS_DESC)
+    def get_document_facts(
+        doc_type: Annotated[
+            str,
+            Field(
+                description=(
+                    "문서 종류 — po(발주: 설비이상진단보고서 01 · 정비부품발주요청서 02) | "
+                    "disposal(처분: 설비처분승인서 05 · 진술및보장서 06)."
+                )
+            ),
+        ],
+        ref_id: Annotated[
+            str, Field(description="발주 ID(예: PO-0117) 또는 처분 결정 ID(예: DEC-0007).")
+        ],
+    ) -> dict:
+        """둘 다 필수 — 기본값을 두지 않는다 (D80).
+
+        **읽기 전용이다** (D10·D125). 이 도구로 초안을 고칠 수 없다 — 교정은
+        `create_po_draft` 새 INSERT 또는 사람의 화면 수정이다."""
+        return _get_document_facts(doc_type=doc_type, ref_id=ref_id)
 
 
 if __name__ == "__main__":
