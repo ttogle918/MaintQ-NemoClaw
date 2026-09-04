@@ -593,3 +593,135 @@ def fields_06(
         }
     )
     return f
+
+
+# ── DB 컨텍스트 ────────────────────────────────────────────────────────────────
+# 커넥션은 **호출자가 열어 넘긴다** — 이 모듈은 DB 경로를 모른다 (data/po_draft.py 규약).
+# backend 는 `connect()`, MCP 는 `read_only()` 로 연다. 권한은 커넥션의 종류가 정한다.
+
+PO_SELECT = (
+    "SELECT p.*, pt.name AS part_name, s.name AS supplier_name,"
+    " ru.display_name AS requested_by_name, ru.department AS requested_by_department,"
+    " du.display_name AS decided_by_name,"
+    " fu.display_name AS finance_decided_by_name"
+    " FROM po_drafts p"
+    " JOIN parts pt ON pt.part_no = p.part_no"
+    " JOIN suppliers s ON s.supplier_id = p.supplier_id"
+    " LEFT JOIN users ru ON ru.user_id = p.requested_by"
+    " LEFT JOIN users du ON du.user_id = p.decided_by"
+    " LEFT JOIN users fu ON fu.user_id = p.finance_decided_by"
+)
+
+
+def iso_utc(ts: str | None) -> str | None:
+    """DB 의 naive 문자열 → 타임존이 명시된 ISO-8601.
+
+    `CURRENT_TIMESTAMP` 는 **UTC** 인데 'YYYY-MM-DD HH:MM:SS' 로만 저장돼 타임존 표기가
+    없다. 그대로 내보내면 브라우저가 로컬 시각으로 해석해 KST 기준 9시간이 어긋난다
+    (실제로 "방금"이 "9시간 전"으로 보였다). 저장은 UTC, 전송은 UTC 명시, 표시는
+    클라이언트가 로컬로 — 경계를 여기서 긋는다 (D39).
+
+    ⚠ `backend/services/po.py` 가 이 함수를 재수출한다 — 기존 import 5곳
+    (`agent/trace.py`·`routers/equipment.py`·`services/decisions.py`·`disposal.py`·
+    `repairs.py`)이 그대로 동작한다. 여기로 옮긴 이유는 `po_context()` 가 backend 를
+    import 할 수 없기 때문이다(D15).
+    """
+    if not ts:
+        return ts
+    return ts.replace(" ", "T") + ("" if ts.endswith("Z") or "+" in ts else "Z")
+
+
+def row_to_po(r) -> dict:
+    import json
+
+    d = dict(r)
+    d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
+    # 미등록·NULL 이면 ID 를 그대로 (display_name() 과 같은 규칙)
+    d["requested_by_name"] = d.get("requested_by_name") or d.get("requested_by") or ""
+    d["decided_by_name"] = d.get("decided_by_name") or d.get("decided_by") or ""
+    d["finance_decided_by_name"] = (
+        d.get("finance_decided_by_name") or d.get("finance_decided_by") or ""
+    )
+    d["created_at"] = iso_utc(d.get("created_at"))
+    return d
+
+
+def po_context(con, po_id: str) -> dict | None:
+    """발주 1건 → 문서 3종(01·02·03)이 쓰는 컨텍스트. 없으면 None (예외 아님).
+
+    `backend/services/po.py::get_po()` 가 하던 SELECT+조인을 그대로 옮긴 것이다.
+    ⛔ `controls`·`a2a_info`·`payee`(03 내부통제·A2A·수취인)는 **여기 없다** — 그 조립은
+      `backend.services.a2a_history` 와 `data.expenditure_limits` 를 함께 쓰는 backend
+      로직이라 MCP 가 재사용할 수 없다(D15). `get_po()` 가 그 위에 얹는다.
+    """
+    import json
+
+    from data import po_draft
+
+    r = con.execute(PO_SELECT + " WHERE p.po_id = ?", (po_id,)).fetchone()
+    if r is None:
+        return None
+    ctx = row_to_po(r)
+
+    ctx["quotes"] = po_draft.list_quotes(con, part_no=ctx["part_no"])
+    inv = con.execute(
+        "SELECT qty, safety_stock, location FROM inventory WHERE part_no = ?",
+        (ctx["part_no"],),
+    ).fetchone()
+    ctx["inventory"] = dict(inv) if inv else None
+    # find_alternative_parts 와 같은 쿼리 (D118 발주요청서 §3 "재고·대체품 확인").
+    # compat_confirmed=false 는 제안 금지 대상이라 여기서도 걸러 낸다.
+    ctx["alternatives"] = [
+        dict(alt)
+        for alt in con.execute(
+            "SELECT a.alt_part_no, pt2.name AS alt_part_name, a.note"
+            " FROM part_alternatives a JOIN parts pt2 ON pt2.part_no = a.alt_part_no"
+            " WHERE a.part_no = ? AND a.compat_confirmed = true"
+            " ORDER BY a.alt_part_no",
+            (ctx["part_no"],),
+        ).fetchall()
+    ]
+    # 설비이상진단보고서(01) 용 — 이미 사람 승인을 거친 error_codes 정본(D33)에서
+    # severity·causes·actions·manual_page 를 그대로 인용한다.
+    ecd = None
+    if ctx.get("model") and ctx.get("error_code"):
+        ecd = con.execute(
+            "SELECT error_name, severity, causes, actions, manual_page"
+            " FROM error_codes WHERE model = ? AND code = ?",
+            (ctx["model"], ctx["error_code"]),
+        ).fetchone()
+    if ecd:
+        ecd = dict(ecd)
+        ecd["causes"] = json.loads(ecd["causes"])
+        ecd["actions"] = json.loads(ecd["actions"])
+    ctx["error_code_def"] = ecd
+    return ctx
+
+
+def disposal_context(con, decision_id: str) -> dict | None:
+    """처분 결정 1건 → 문서 2종(05·06)이 쓰는 컨텍스트. 없으면 None (예외 아님).
+
+    ⛔ `signed_by`·`signed_at`·`override`·`override_reason` 은 **읽지 않는다** — 이 계층이
+      만들지 않는 자리다(WITHHELD_KEYS). 다운로드 엔드포인트가 DB 에서 따로 읽어 얹는다.
+    """
+    import json
+
+    r = con.execute(
+        "SELECT decision_id, asset_id, state, verdict_at_signing, bundle_hash,"
+        " evidence_bundle, reason, created_at"
+        " FROM decisions WHERE decision_id = ?",
+        (decision_id,),
+    ).fetchone()
+    if r is None:
+        return None
+    d = dict(r)
+    return {
+        "decision_id": d["decision_id"],
+        "asset_id": d["asset_id"],
+        "state": d["state"],
+        "verdict": d["verdict_at_signing"],
+        "bundle_hash": d["bundle_hash"],
+        "bundle": json.loads(d["evidence_bundle"]),
+        "reason": val(d.get("reason")),
+        "created_at": iso_utc(d.get("created_at")) or UNKNOWN,
+    }

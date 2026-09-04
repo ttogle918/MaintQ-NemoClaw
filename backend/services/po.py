@@ -23,6 +23,7 @@ import sqlite3
 from backend import manifest
 from backend.db import connect
 from backend.services import po_documents
+from data import doc_fields as _df
 from data import po_draft
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
@@ -62,17 +63,10 @@ def display_name(user_id: str | None, db_path: str | None = None) -> str:
     return r["display_name"] if r else user_id
 
 
-def iso_utc(ts: str | None) -> str | None:
-    """DB 의 naive 문자열 → 타임존이 명시된 ISO-8601.
-
-    SQLite 의 `CURRENT_TIMESTAMP` 는 **UTC** 인데 'YYYY-MM-DD HH:MM:SS' 로만 저장돼
-    타임존 표기가 없다. 그대로 내보내면 브라우저가 로컬 시각으로 해석해
-    KST 기준 9시간이 어긋난다 (실제로 "방금"이 "9시간 전"으로 보였다).
-    저장은 UTC, 전송은 UTC 명시, 표시는 클라이언트가 로컬로 — 경계를 여기서 긋는다.
-    """
-    if not ts:
-        return ts
-    return ts.replace(" ", "T") + ("" if ts.endswith("Z") or "+" in ts else "Z")
+# D39 경계(저장 UTC · 전송 명시)의 정본은 data/doc_fields.py 다 — agent/trace.py ·
+# routers/equipment.py · services/{decisions,disposal,repairs}.py 5곳이 여기서
+# import 하므로 이름을 그대로 재수출한다.
+iso_utc = _df.iso_utc
 
 
 # S5+ 재무부 승인 단계에 들어선 상태 — 이 상태들에서만 자금집행요청서(doc3) 내부통제를
@@ -81,31 +75,12 @@ _FUND_EXECUTION_STATES = ("approved", "finance_approved", "finance_rejected")
 
 # 표시명은 users 조인으로 붙인다 (D41) — 행마다 display_name() 을 부르면 N+1 이 된다.
 # LEFT JOIN 인 이유: requested_by 는 stamp 전 NULL 이고, 미등록 ID 여도 행이 사라지면 안 된다
-_PO_SELECT = (
-    "SELECT p.*, pt.name AS part_name, s.name AS supplier_name,"
-    " ru.display_name AS requested_by_name, ru.department AS requested_by_department,"
-    " du.display_name AS decided_by_name,"
-    " fu.display_name AS finance_decided_by_name"
-    " FROM po_drafts p"
-    " JOIN parts pt ON pt.part_no = p.part_no"
-    " JOIN suppliers s ON s.supplier_id = p.supplier_id"
-    " LEFT JOIN users ru ON ru.user_id = p.requested_by"
-    " LEFT JOIN users du ON du.user_id = p.decided_by"
-    " LEFT JOIN users fu ON fu.user_id = p.finance_decided_by"
-)
+# 조회 SQL·행 매핑의 정본은 data/doc_fields.py 다 (D124) — MCP 읽기 도구가 같은
+# 컨텍스트를 봐야 하는데 그쪽은 backend 를 import 할 수 없다(D15).
+_PO_SELECT = _df.PO_SELECT
 
 
-
-
-def _row_to_po(r: sqlite3.Row) -> dict:
-    d = dict(r)
-    d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
-    # 미등록·NULL 이면 ID 를 그대로 (display_name() 과 같은 규칙)
-    d["requested_by_name"] = d.get("requested_by_name") or d.get("requested_by") or ""
-    d["decided_by_name"] = d.get("decided_by_name") or d.get("decided_by") or ""
-    d["finance_decided_by_name"] = d.get("finance_decided_by_name") or d.get("finance_decided_by") or ""
-    d["created_at"] = iso_utc(d.get("created_at"))
-    return d
+_row_to_po = _df.row_to_po
 
 
 def stamp_identity(
@@ -321,56 +296,13 @@ def _attach_print_pages(po: dict) -> None:
 def get_po(po_id: str, db_path: str | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
-        r = con.execute(_PO_SELECT + " WHERE p.po_id = ?", (po_id,)).fetchone()
-        if r is None:
+        po = _df.po_context(con, po_id)
+        if po is None:
             return None
-        po = _row_to_po(r)
         _attach_print_pages(po)
 
-        po["quotes"] = po_draft.list_quotes(con, part_no=po["part_no"])
-        po["inventory"] = (
-            dict(inv)
-            if (
-                inv := con.execute(
-                    "SELECT qty, safety_stock, location FROM inventory WHERE part_no = ?",
-                    (po["part_no"],),
-                ).fetchone()
-            )
-            else None
-        )
-        # find_alternative_parts 와 같은 쿼리 (D118 발주요청서 §3 "재고·대체품 확인").
-        # compat_confirmed=false 는 제안 금지 대상이라 여기서도 걸러 낸다.
-        po["alternatives"] = [
-            dict(alt)
-            for alt in con.execute(
-                "SELECT a.alt_part_no, pt2.name AS alt_part_name, a.note"
-                " FROM part_alternatives a JOIN parts pt2 ON pt2.part_no = a.alt_part_no"
-                " WHERE a.part_no = ? AND a.compat_confirmed = true"
-                " ORDER BY a.alt_part_no",
-                (po["part_no"],),
-            ).fetchall()
-        ]
         # 화면 B "실행 로그 전체 보기" 링크 (D21)
         po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
-
-        # 설비이상진단보고서(01, D118) §1·§4 용 — 이미 사람 승인을 거친 error_codes
-        # 정본(D33)에서 severity·causes·actions·manual_page 를 그대로 인용한다.
-        po["error_code_def"] = (
-            dict(ecd)
-            if po.get("model")
-            and po.get("error_code")
-            and (
-                ecd := con.execute(
-                    "SELECT error_name, severity, causes, actions, manual_page"
-                    " FROM error_codes WHERE model = ? AND code = ?",
-                    (po["model"], po["error_code"]),
-                ).fetchone()
-            )
-            else None
-        )
-        if po["error_code_def"]:
-            po["error_code_def"]["causes"] = json.loads(po["error_code_def"]["causes"])
-            po["error_code_def"]["actions"] = json.loads(po["error_code_def"]["actions"])
 
         # D119 — 자금집행요청서(03) 내부통제(controls)·A2A 이력(a2a_info)·수취인(payee) 계산.
         # DB 에 쓰지 않고 이 함수 안의 지역 변수로만 조립해 render 인자로 넘긴 뒤 버린다

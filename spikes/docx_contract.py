@@ -331,14 +331,152 @@ def run_fill() -> None:
         )
 
 
+# ── D. DB 컨텍스트 ─────────────────────────────────────────────────────────────
+# 여기부터는 실 DB 가 필요하다. **격리 스키마**를 쓴다 — 공유 public 에 쓰면 다른
+# 스위트의 회귀가 통째로 무의미해진다(Sprint 16 s10_smoke·sp3_sse_events 실사고).
+PO_WITH_ERROR_CODE = "PO-0117"
+PO_MISSING = "PO-9999"
+
+
+def _seed_decision(con) -> str:
+    """05·06 검증용 처분 결정 1건. 시드에는 decisions 가 0행이라 여기서 만든다.
+
+    ⛔ MCP 쓰기 도구를 경유하지 않는다 — 이 스위트가 보려는 건 도구의 INSERT 계약이
+      아니라 필드맵 조회다. 그건 `write_tool_contract` 30건의 몫이다.
+    """
+    import json
+
+    asset_id = con.execute("SELECT asset_id FROM assets ORDER BY asset_id LIMIT 1").fetchone()[0]
+    bundle = dict(FIXTURE_BUNDLE)
+    bundle["facts"] = dict(bundle["facts"], asset_id=asset_id)
+    con.execute(
+        "INSERT INTO decisions (decision_id, asset_id, decision_type, evidence_bundle,"
+        " bundle_hash, verdict_at_signing, state, reason)"
+        " VALUES (?, ?, 'DISPOSAL', ?, ?, ?, 'draft', ?)",
+        (
+            "DEC-9001",
+            asset_id,
+            json.dumps(bundle, ensure_ascii=False),
+            FIXTURE_DISPOSAL_KW["bundle_hash"],
+            FIXTURE_DISPOSAL_KW["verdict"],
+            FIXTURE_DISPOSAL_KW["reason"],
+        ),
+    )
+    con.commit()
+    return "DEC-9001"
+
+
+def run_context(con, decision_id: str) -> None:
+    from data import doc_fields as df
+
+    ctx = df.po_context(con, PO_WITH_ERROR_CODE)
+    check(
+        "D① po_context 가 발주 컨텍스트를 조립한다",
+        ctx is not None
+        and ctx["po_id"] == PO_WITH_ERROR_CODE
+        and "quotes" in ctx
+        and "inventory" in ctx
+        and "alternatives" in ctx
+        and "error_code_def" in ctx,
+        f"po_id={ctx and ctx.get('po_id')} · 견적 {len(ctx.get('quotes') or []) if ctx else 0}건"
+        f" · 재고 {'있음' if ctx and ctx.get('inventory') else '없음'}"
+        f" · error_code_def {'있음' if ctx and ctx.get('error_code_def') else '없음'}",
+    )
+    check(
+        "D② 없는 발주는 None (예외 아님)",
+        df.po_context(con, PO_MISSING) is None,
+        f"{PO_MISSING} → None",
+    )
+
+    dctx = df.disposal_context(con, decision_id)
+    check(
+        "D③ disposal_context 가 처분 컨텍스트를 조립한다",
+        dctx is not None and dctx["decision_id"] == decision_id and "facts" in (dctx["bundle"] or {}),
+        f"decision_id={dctx and dctx.get('decision_id')} · state={dctx and dctx.get('state')}"
+        f" · bundle 키 {sorted((dctx or {}).get('bundle') or {})}",
+    )
+    check(
+        "D④ 없는 결정은 None (예외 아님)",
+        df.disposal_context(con, "DEC-0000") is None,
+        "DEC-0000 → None",
+    )
+    # ⚠ 부재검사 — 서명 필드가 컨텍스트에 실려 오면 안 된다. 양성 축(컨텍스트가 비지
+    #   않았는가)을 함께 건다.
+    signature_keys = {"signed_by", "signed_at", "override", "override_reason", "reviewed_by"}
+    leaked = sorted(set(dctx or {}) & signature_keys)
+    check(
+        "D⑤ disposal_context 가 서명 필드를 읽지 않는다 (D23·D81)",
+        bool(dctx) and not leaked,
+        f"컨텍스트 키 {len(dctx or {})}개 · 서명 유출 {len(leaked)}개"
+        + (f" {leaked}" if leaked else ""),
+    )
+
+    # 실 DB 컨텍스트로도 필드맵이 완결되는가 (픽스처가 아니라 진짜 행으로)
+    from backend.services.docx_render import template_placeholders
+
+    for tag, template, fields, dropped in (
+        ("01", "01_설비이상진단보고서.docx", df.fields_01(ctx), df.drop_rows_01(ctx)),
+        ("02", "02_정비부품발주요청서.docx", df.fields_02(ctx), df.drop_rows_02(ctx)),
+    ):
+        expected = template_placeholders(template) - df.WITHHELD_KEYS - dropped
+        missing = expected - set(fields)
+        check(
+            f"D⑥ {tag} 실 DB 행으로도 필드맵이 완결된다",
+            not missing and bool(fields),
+            f"기대 {len(expected)} / 실제 {len(fields)}"
+            + (f" · 부족 {sorted(missing)}" if missing else " · 부족 0"),
+        )
+
+
 def main() -> None:
     if os.environ.get("DOCX_CONTRACT_REGOLD"):
         regold()
         return
 
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     run_golden()
     run_fields()
     run_fill()
+
+    # D~F 는 실 DB 가 필요하다. 격리 스키마에서만 돈다 — 공유 public 을 건드리면
+    # 다른 스위트의 회귀가 통째로 무의미해진다.
+    from data import dbcompat, pg_isolation
+
+    schema = None
+    try:
+        schema, dsn = pg_isolation.create_isolated_schema("docx_contract")
+        con = dbcompat.connect_dsn(dsn)
+        try:
+            decision_id = _seed_decision(con)
+            run_context(con, decision_id)
+        finally:
+            con.close()
+    finally:
+        if schema:
+            pg_isolation.drop_isolated_schema(schema)
+            # ⚠ "정리됐다" 를 문구로 주장하지 않는다 — Postgres 에 **직접 물어본다**.
+            #   drop 호출을 지웠을 때 이 검사가 FAIL 해야 검사로서 의미가 있다.
+            probe = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
+            try:
+                left = probe.execute(
+                    "SELECT count(*) FROM information_schema.schemata"
+                    " WHERE schema_name = ?",
+                    (schema,),
+                ).fetchone()[0]
+                total = probe.execute(
+                    "SELECT count(*) FROM information_schema.schemata"
+                    " WHERE schema_name LIKE 'docx_contract%'"
+                ).fetchone()[0]
+            finally:
+                probe.close()
+            check(
+                "D⑦ 격리 스키마 잔존 확인",
+                left == 0,
+                f"{schema} 잔존 {left}개 · docx_contract* 전체 잔존 {total}개",
+            )
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 34))
@@ -351,7 +489,7 @@ def main() -> None:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
     print(
         f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
-        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종"
+        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종 · DB 컨텍스트"
     )
 
 
