@@ -27,7 +27,6 @@ from __future__ import annotations
 
 
 import data.doc_fields as _df
-import data.doc_review as _doc_review
 
 # 상수·헬퍼는 `data/doc_fields.py` 가 정본이다 (D124) — 미리보기와 docx 가 같은 값을
 # 쓰게 하려면 두 벌이 있어서는 안 된다. 이름을 그대로 둔 것은 이 파일의 블록 헬퍼
@@ -133,7 +132,7 @@ def render_po_request_document(po: dict) -> str:
 ※ 기안자는 자신의 요청을 승인할 수 없습니다 (자기결재 금지).
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
 문서 상태: {f["DOC_STATUS"]} | 생성 시스템: MaintQ
-※ {_doc_review.po_request_template_review_notice()}"""
+※ {f["TEMPLATE_REVIEW_NOTICE"]}"""
 
 
 _SEVERITY_LABEL = _df.SEVERITY_LABEL  # 정본은 data/doc_fields.py (D124)
@@ -221,7 +220,7 @@ def render_diagnosis_document(po: dict) -> str:
 본 보고서는 AI 에이전트가 근거를 수집·정리하여 작성한 초안이며, 최종 확인과 서명은 사람이 수행합니다.
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
 문서 상태: {f["DOC_STATUS"]} | 생성 시스템: MaintQ | 서명 시점 해시: {_UNKNOWN}
-※ {_doc_review.diagnosis_template_review_notice()}"""
+※ {f["TEMPLATE_REVIEW_NOTICE"]}"""
 
 
 # 고정 상수·헬퍼의 정본은 data/doc_fields.py 다 (D124)
@@ -290,4 +289,4 @@ def render_fund_execution_document(
 
 ※ {_UNKNOWN}으로 적힌 항목은 「해당 없음」이 아니라 시스템에서 확인되지 않았다는 뜻입니다.
 문서 상태: {f["DOC_STATUS"]} | 생성 시스템: MaintQ
-※ {_doc_review.fund_execution_template_review_notice()}"""
+※ {f["TEMPLATE_REVIEW_NOTICE"]}"""

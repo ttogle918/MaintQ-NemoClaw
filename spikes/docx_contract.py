@@ -343,6 +343,20 @@ def run_fill() -> None:
             f"{len(data):,}바이트 · 치환 {len(fields) + len(withheld_here)}자리"
             f" · 삭제행 {len(dropped)}자리 · 잔존 {left}개",
         )
+        # ★ C② — 문안 검수 상태가 **서류 안에** 실제로 실렸는가 (D65·D67 태도).
+        #
+        # 2026-09-04 에 실제로 뚫려 있던 구멍이다: 01·02·03 템플릿에
+        # `{{TEMPLATE_REVIEW_NOTICE}}` 자리가 없어서 **미리보기는 "미검수 초안" 이라고
+        # 말하는데 docx 는 침묵**했다. 검수 안 된 문안이 아무 표시 없이 결재에 올라갔다.
+        # 자리를 더해 해소했지만, 검사가 없으면 다음에 템플릿을 손볼 때 또 빠진다.
+        # 부재검사가 아니라 **양성 검사**다 — 문구가 있어야 통과한다.
+        notice = fields.get("TEMPLATE_REVIEW_NOTICE", "")
+        head = notice[:18]
+        check(
+            f"C② {tag} 문안 검수 고지가 서류에 실린다 (D65·D67)",
+            bool(head) and head in xml,
+            f"고지 {notice[:34]!r} · 서류 내 발견={bool(head) and head in xml}",
+        )
 
 
 # ── D. DB 컨텍스트 ─────────────────────────────────────────────────────────────
@@ -755,7 +769,7 @@ def main() -> None:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
     print(
         f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
-        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종 · "
+        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종(고지 포함) · "
         f"DB 컨텍스트 · 읽기 도구 · 다운로드"
     )
 

@@ -188,6 +188,7 @@ def fields_02(ctx: dict) -> dict[str, str]:
         "VENDOR_SELECTION_REASON": UNKNOWN,
         "APPROVAL_RESULT": approval_result(ctx),
         "APPROVAL_COMMENT": val(ctx.get("decision_note")),
+            "TEMPLATE_REVIEW_NOTICE": review_notice("02"),
     }
     for i, q in enumerate(quotes[:2], start=1):
         f[f"QUOTE_NO_{i}"] = f'Q-{ctx["po_id"]}-{q["supplier_id"]}'
@@ -304,6 +305,7 @@ def fields_01(ctx: dict) -> dict[str, str]:
         "REPAIR_REPLACE_VERDICT": UNKNOWN,
         "VERDICT_RATIONALE": ctx["reason"],
         "DIAGNOSIS_CONCLUSION": ctx["reason"],
+            "TEMPLATE_REVIEW_NOTICE": review_notice("01"),
     }
     for i, (etype, source, loc, quote) in enumerate(_evidence_rows(ctx)[:2], start=1):
         f[f"EVIDENCE_TYPE_{i}"] = etype
@@ -410,6 +412,7 @@ def fields_03(
         "MFA_STATUS": MFA_STATUS_TEXT,
         "A2A_DELEGATED": delegated,
         "A2A_TARGET": target,
+            "TEMPLATE_REVIEW_NOTICE": review_notice("03"),
     }
     f.update({k: NOT_APPLICABLE for k in _COLLATERAL_KEYS})
     return f
@@ -511,6 +514,23 @@ def _disposal_common(bundle: dict, verdict: str, bundle_hash: str, decision_id: 
         "OPEN_CONDITIONS": open_condition_lines(bundle),
         "TEMPLATE_REVIEW_NOTICE": _template_review_notice(),
     }
+
+
+def review_notice(doc: str) -> str:
+    """문서별 문안 검수 고지 한 줄 (`data/doc_review.py` 가 정본).
+
+    ⚠ **검수가 끝나도 줄을 없애지 않는다** — 침묵은 검수 여부를 알려주지 않는다.
+    05·06 은 처음부터 템플릿에 자리가 있었고, 01·02·03 은 2026-09-04 에 같은 자리를
+    더했다. 그전까지 **미리보기는 "미검수 초안" 이라고 말하는데 docx 는 침묵**했다 —
+    검수 안 된 문안이 아무 표시 없이 결재에 올라갔다.
+    """
+    import data.doc_review as _doc_review
+
+    return {
+        "01": _doc_review.diagnosis_template_review_notice,
+        "02": _doc_review.po_request_template_review_notice,
+        "03": _doc_review.fund_execution_template_review_notice,
+    }[doc]()
 
 
 def _template_review_notice() -> str:

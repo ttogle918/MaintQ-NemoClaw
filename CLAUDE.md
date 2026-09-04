@@ -170,7 +170,7 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **34스위트 / 1,178건**(2026-09-04 전수 재실행 — 1,120 + docx_contract 58. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
+spikes **34스위트 / 1,183건**(2026-09-04 전수 재실행 — 1,120 + docx_contract 63. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
 `repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
 (P39 수리증빙 신규 파일 3개 × 6항목). **처분서까지 마치며 +16 더**: `disposal_api_contract` 26→36(화면 직접 생성 축) · `ui_honesty_contract` 321→327(`DisposalDraftForm` 1파일 × 6). **프론트 라우트는 25 그대로다** — 처분은 새 라우트 없이 기존 `/technician/asset/[assetId]/disposal` 에 붙였다. 그 전 값은 아래 문단 참고 —
@@ -211,7 +211,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
-`disposal_api_contract 36` · `docx_contract 58` ·
+`disposal_api_contract 36` · `docx_contract 63` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
@@ -417,8 +417,8 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > Sprint 17·18 반영분)·seed 41건(D119 CHECK 제약 검증 ㊲~㊵ 4건 추가)도 위 스위트별 표·헤드라인에
 > 함께 정정했다 — 실행 결과가 표기와 어긋나 있던 것을 이 세션에서 발견·정리.
 
-> **1,120→1,178 (2026-09-04, D124·D125 docx 배선 + facts 읽기 도구)**: 신설 스위트
-> `docx_contract` **58건**이 델타의 **전부**다 — 기존 33스위트는 건수가 하나도 바뀌지 않았다.
+> **1,120→1,183 (2026-09-04, D124·D125 docx 배선 + facts 읽기 도구)**: 신설 스위트
+> `docx_contract` **63건**이 델타의 **전부**다 — 기존 33스위트는 건수가 하나도 바뀌지 않았다.
 > `prompt_rules`(24) · `tools_profile_contract`(7) · `s10_smoke`(17) 은 **기대값만** 고쳤고
 > 검사 개수는 그대로다(도구 20→21종 반영).
 >
