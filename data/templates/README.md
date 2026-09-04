@@ -50,11 +50,36 @@
 2. "'확인되지 않음' 은 '해당 없음'이 아니다 …" (`_UNKNOWN_LINE`)
 3. `{{TEMPLATE_REVIEW_NOTICE}}` — 사람 검수 전임을 밝히는 문구
 
-### ⚠ 아직 하지 않은 것
+### ✅ 구현 상태 (2026-09-04)
 
-**이 템플릿을 실제로 채워 `.docx` 를 만드는 코드는 없다.** 현재
-`render_documents()` 는 **평문 미리보기 문자열**만 돌려준다(D86). 바이너리 생성은
-`docs/07_BACKLOG.md` 「아이디어 주차장」의 "실제 .docx/.pdf 파일 생성" 항목이고,
-**QMesh 프로젝트가 진행 중**이라 이 저장소에서 먼저 착수하지 않는다.
-즉 05·06 은 **그 작업이 왔을 때 쓸 양식**이자, 지금은 "어떤 항목이 서류에 들어가야
-하는가"의 정본이다.
+**이 템플릿을 채워 실제 `.docx` 를 만드는 코드가 있다** (D124).
+
+| 계층 | 파일 |
+|---|---|
+| 필드맵 산출 (템플릿 자리 → 값) | `data/doc_fields.py` — `fields_01`·`02`·`03`·`05`·`06` |
+| 템플릿 채우기 (→ bytes) | `backend/services/docx_render.py::fill_template()` |
+| 신원·서명 주입 + 파일명 | `backend/services/document_download.py` |
+| 다운로드 | `GET /api/po/{id}/documents/{doc}.docx` · `GET /api/decisions/{id}/documents/{doc}.docx` |
+| 조회 (MCP) | `mcp_server/tools/get_document_facts.py` — 01·02·05·06 (D125) |
+
+**저장하지 않는다** (D86). `io.BytesIO` 로만 만들어 스트림하며 디스크·DB 에 아무것도
+남기지 않는다 — 임시 파일조차 만들지 않는다. 회귀 `spikes/docx_contract.py` F⑬ 이
+다운로드 **후** 이 폴더를 실제로 훑어 산출물이 안 생겼음을 확인한다.
+
+⛔ **이 폴더의 `.docx` 는 읽기만 한다.** 생성 코드가 원본을 건드리지 않는 것을
+`backend/services/test_docx_render.py::test_template_is_not_modified` 가 바이트로 단언한다.
+
+📌 **`{{OVERRIDE}}`·`{{SIGNED_*}}`·`{{REQUESTER_*}}` 등 신원·서명 16키는
+`data/doc_fields.py` 가 아예 만들지 않는다** — 다운로드 엔드포인트만 DB 에서 읽어 얹는다.
+만든 뒤 빼면 규율이지만 애초에 만들지 않으면 구조다(D23·D37·D81·D124 ⓔ).
+
+📌 **04 는 여전히 렌더 대상이 아니다** (D118 — FinAllQ 소관). 파일은 여기 있지만
+채우는 코드는 없고, `PO_DOCS`·`DECISION_DOCS` 어느 쪽에도 등록돼 있지 않다.
+
+🔴 **이 절에 오래 있던 두 문장은 둘 다 거짓이었다 — 기록해 둔다.**
+*"이 템플릿을 실제로 채워 .docx 를 만드는 코드는 없다"* 는 이 작업이 해소했고,
+*"QMesh 프로젝트가 진행 중이라 이 저장소에서 먼저 착수하지 않는다"* 는
+**2026-09-03 에 이미 거짓으로 확정됐다** — QMesh 는 A2A_Q 자신이고, 거기서 docx 는
+한 줄도 진행된 적이 없다. 경위는 `docs/07_BACKLOG.md` 「아이디어 주차장」참고.
+**검증되지 않은 차단 문구는 없는 것보다 나쁘다** — 근거 없는 "대기" 는 아무도 다시
+확인하지 않는다. 실제로 그 한 문장이 며칠간 착수를 막았다.

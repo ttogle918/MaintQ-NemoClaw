@@ -9,9 +9,9 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D123**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D125**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 13종** §8~§20, 총 20종 —
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
@@ -26,6 +26,10 @@
 1. **MCP 도구는 `po_drafts`·`decisions`·`repair_records` 에 draft INSERT만 가능.** UPDATE 코드를 도구에 추가하지 말 것.
    상태 전이는 사람 전용 API만 — `backend/routers/po.py`(발주) · `backend/routers/decisions.py`(처분) ·
    `backend/routers/repairs.py`(수리, D98) (D10·D81)
+   - 🔵 **`get_document_facts` 는 읽기 전용이다** (D125) — 결재 문서에 찍힐 값을 조회만 한다.
+     교정은 UPDATE 가 아니라 `create_po_draft` **새 draft INSERT** 또는 사람의 화면 수정
+     (`PATCH /api/po`·`/api/repairs`·`/api/decisions`)이다. 같은 요구가 다시 오면
+     `docs/07_BACKLOG.md` 「아이디어 주차장」의 거부 경위를 볼 것
    - 쓰기 도구는 **3종**: `create_po_draft` · `generate_disposal_document` · `create_repair_record`.
      커넥션도 분리한다(`db.draft_writer()` / `db.decision_writer()` / `db.repair_writer()`) —
      섞으면 TEMP TRIGGER 잠금이 사라진다
@@ -55,7 +59,7 @@
 - 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **13종**(코어 7 + 확장 13 = 20종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
+  - 확장 **14종**(코어 7 + 확장 14 = 21종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
     **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
@@ -88,11 +92,24 @@
   (D104 — 키·값 직렬화·`CachingClient`·`stats_line()`) + **Elice 지출 가드**(D105 — 캐시 우선·
   네트워크 전 예외·가격 상수) + **내부통제 판정**(Sprint 17 MQ-1703 — 예산 한도·1일 누적 한도·
   FDS·SoD 4종 순수 함수, D119)
-  ⚠ 실행 커맨드(**4파일 합산**): **`DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
+  ⚠ 실행 커맨드(**7파일 합산**): **`DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
   uv run --with pytest python -m pytest data/rules/test_rules.py
-  backend/agent/test_llm_cache.py data/external/test_elice_docvision.py
-  data/test_expenditure_limits.py -q`** → **114건**(99 + `test_llm_fallback.py` 15, 2026-08-29)
+  backend/agent/test_llm_cache.py backend/agent/test_llm_fallback.py
+  data/external/test_elice_docvision.py data/test_expenditure_limits.py
+  backend/services/test_docx_render.py backend/services/test_po_documents.py -q`** → **128건**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
+
+  🔴 **정정 (2026-09-04 실측)**: 이 커맨드는 오래 **"4파일 합산 → 114건"** 으로 적혀 있었는데
+  **두 가지가 함께 틀렸다.**
+  ㉠ **`test_llm_fallback.py`(15건)가 합계에만 더해지고 커맨드에는 없었다** —
+     *"114건(99 + `test_llm_fallback.py` 15)"* 이라고 적으면서 정작 실행 목록에 그 파일을
+     넣지 않았다. 그대로 복붙해 돌리면 **영원히 114 가 나오지 않는다.**
+  ㉡ **기준값 99 도 낡았다** — 실측은 101 이다(`test_llm_cache.py` 가 24→26.
+     `docs/07_BACKLOG.md` 가 기록한 `TraceWriter` 가드 회귀 2건이 늘어난 것).
+  파일별 실측: `test_rules` 46 · `test_llm_cache` 26 · `test_llm_fallback` 15 ·
+  `test_elice_docvision` 13 · `test_expenditure_limits` 16 · **`test_docx_render` 9**(신규,
+  D124) · **`test_po_documents` 3**(기존인데 목록 밖이었다) = **128**.
+  실제로 도는 파일을 전부 커맨드에 넣었다 — **합계만 고치면 같은 함정이 재발한다.**
   🔴 **`DATABASE_URL` 을 반드시 실어야 한다** (2026-08-29 실측). pytest 실행 경로에는
   `load_dotenv` 가 없어(`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값
   `postgresql://localhost/maintq` = **포트 5432** 로 떨어지는데 컨테이너는 **5434** 다.
@@ -117,7 +134,7 @@
   (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
-- `spikes/` — **33종**(`ls spikes/*.py` 는 37개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
+- `spikes/` — **34종**(`ls spikes/*.py` 는 38개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
   `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
@@ -132,7 +149,7 @@
   deadline_risk_contract ·
   external_store_contract ·
   ie5_extract_contract ·
-  **a2a_partner_tools_contract**
+  **a2a_partner_tools_contract** · **docx_contract**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -153,7 +170,7 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **33스위트 / 1,120건**(2026-09-03 갱신 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
+spikes **34스위트 / 1,178건**(2026-09-04 전수 재실행 — 1,120 + docx_contract 58. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
 `repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
 (P39 수리증빙 신규 파일 3개 × 6항목). **처분서까지 마치며 +16 더**: `disposal_api_contract` 26→36(화면 직접 생성 축) · `ui_honesty_contract` 321→327(`DisposalDraftForm` 1파일 × 6). **프론트 라우트는 25 그대로다** — 처분은 새 라우트 없이 기존 `/technician/asset/[assetId]/disposal` 에 붙였다. 그 전 값은 아래 문단 참고 —
@@ -172,7 +189,7 @@ spikes **33스위트 / 1,120건**(2026-09-03 갱신 — 아래 표 합산과 일
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
-`error_codes` IE5 5건 병합 검증(D109)) · pytest **83건**
+`error_codes` IE5 5건 병합 검증(D109)) · pytest **128건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
 프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
@@ -194,7 +211,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
-`disposal_api_contract 36` ·
+`disposal_api_contract 36` · `docx_contract 58` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
@@ -399,6 +416,25 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 > 같은 세션에서 이미 실측 확정돼 있던 spikes(`api_contract` 52·`ui_honesty_contract` 303,
 > Sprint 17·18 반영분)·seed 41건(D119 CHECK 제약 검증 ㊲~㊵ 4건 추가)도 위 스위트별 표·헤드라인에
 > 함께 정정했다 — 실행 결과가 표기와 어긋나 있던 것을 이 세션에서 발견·정리.
+
+> **1,120→1,178 (2026-09-04, D124·D125 docx 배선 + facts 읽기 도구)**: 신설 스위트
+> `docx_contract` **58건**이 델타의 **전부**다 — 기존 33스위트는 건수가 하나도 바뀌지 않았다.
+> `prompt_rules`(24) · `tools_profile_contract`(7) · `s10_smoke`(17) 은 **기대값만** 고쳤고
+> 검사 개수는 그대로다(도구 20→21종 반영).
+>
+> 🔴 **기존 스위트 2개가 진짜 회귀를 잡았다 — 기록해 둔다.** 도구를 `server.py` 에 등록하고
+> `backend/agent/prompts.py` 의 `EXT_TOOLS` 에 올리지 않아 `prompt_rules ㉔` 가 FAIL 했다.
+> 그 검사는 *"Sprint 11 이 `track_deadlines`·`assess_risk_grade` 로 똑같이 한 적이 있다"* 는
+> 이유로 만들어진 것이고, **이번에 같은 실수가 실제로 재발했다.** `s10_smoke ②` 는 `/health`
+> 의 도구 수 20 을 하드코딩해 함께 걸렸다. 둘 다 같은 세션에서 해소.
+>
+> 🟡 **`a2a_partner_tools_contract ⑤-a` 는 이 브랜치와 무관한 기존 오염이다** — 공유 `public`
+> 스키마의 `traces` 에 `CHAIN-LOAN-verify0903`(세션 `S-verify-0903`, 2026-09-03 05:42 UTC)
+> 4번째 a2a 체인이 남아 있어 *"필터 없음 → 3스킬"* 이 `count=4` 로 떨어진다. 이 브랜치 첫
+> 커밋(21:56 KST)보다 7시간 앞서고, 이 브랜치는 a2a·trace 파일을 한 줄도 건드리지 않았다.
+> **근본 원인은 그 스파이크가 `MAINTQ_DB` 를 쓴다는 것**이다 — Postgres 는 그 변수를 읽지
+> 않으므로 격리가 안 되고 공유 `public` 을 본다(CLAUDE.md 가 이미 기록한 함정). 고치려면
+> `DATABASE_URL` 격리 DSN 으로 바꾸거나 재시드해야 한다 — **이 작업 범위 밖이라 손대지 않았다.**
 
 > ⚠ **러너 신뢰성 — 재시도가 필요할 수 있다 (Windows).** 29스위트를 연속 실행하면 **소켓 고갈**로
 > 매번 **다른** 스위트가 1건 실패하는 일이 있다(`OSError: [WinError 10014]`, `socket.socketpair()`).
