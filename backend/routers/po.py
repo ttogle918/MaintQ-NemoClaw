@@ -10,11 +10,13 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from backend.deps import Caller, caller, require
+from backend.services import document_download as dl
 from backend.services import po as svc
+from backend.services.docx_render import DOCX_MIME
 
 router = APIRouter(prefix="/api/po", tags=["po"])
 logger = logging.getLogger(__name__)
@@ -88,6 +90,36 @@ def _status_code(result: dict) -> int:
     if status == "not_found":
         return 404
     return _REASON_HTTP.get(result.get("reason"), 500)
+
+
+@router.get("/{po_id}/documents/{doc}.docx")
+def download_po_document(po_id: str, doc: str, c: Caller = Depends(caller)) -> Response:
+    """결재 문서 docx — **저장하지 않고** 여기서 조립해 스트림한다 (D86·D124).
+
+    가용성 규칙은 `documents_preview` 와 **같은 조건**을 쓴다(`document_download` 가
+    같은 판정을 한다) — 두 곳에 다른 조건을 두면 화면엔 안 보이는데 URL 로는 받아지는
+    문서가 생긴다.
+
+    권한은 조회와 같다 — 미리보기를 이미 볼 수 있는 사람이면 다운로드도 된다.
+    새 권한 경계를 만들지 않는다(D38 지표를 오염시키지 않기 위해서다).
+    """
+    if doc not in dl.PO_DOCS:
+        raise HTTPException(404, f"알 수 없는 문서: {doc}")
+    po = svc.get_po(po_id)
+    if po is None:
+        raise HTTPException(404, f"발주서를 찾을 수 없습니다: {po_id}")
+
+    fund_inputs = svc.get_fund_execution_inputs(po) if doc == "fund_execution" else None
+    try:
+        data, filename = dl.build_po_docx(po, doc, fund_inputs)
+    except dl.DocumentUnavailable as e:
+        raise HTTPException(404, str(e)) from e
+
+    return Response(
+        content=data,
+        media_type=DOCX_MIME,
+        headers={"Content-Disposition": dl.content_disposition(filename)},
+    )
 
 
 @router.get("/quotes/{part_no}")

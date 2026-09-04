@@ -13,7 +13,7 @@
 
 ## 무엇을 보는가
 
-  ① `full` 기동 → 도구 **20종**(코어 7 + 확장 13). 부분집합이 아니라 **집합 동일**
+  ① `full` 기동 → 도구 **21종**(코어 7 + 확장 14). 부분집합이 아니라 **집합 동일**
   ② D80 — `classify_expenditure`·`assess_repair_value`·`generate_disposal_document` 의
      `inputSchema.required` 집합. 기본값을 두는 순간 optional 로 노출되어 LLM 이 인자 없이
      호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다.
@@ -76,6 +76,7 @@ EXT_TOOLS = {
     "assess_risk_grade",
     "search_insurance_clause",
     "assess_equipment_loan",
+    "get_document_facts",  # D125 — 읽기 전용 필드맵 조회
 }
 
 # D80 — 필수 파라미터에 기본값을 두지 않는다. 이 집합이 **정확히** 일치해야 한다:
@@ -89,6 +90,9 @@ EXPECTED_REQUIRED = {
     "generate_disposal_document": {"reason"},
     # D98 — downtime_hours·model·error_code·note 만 optional. 나머지 5개가 required.
     "create_repair_record": {"equipment_id", "work_type", "repair_scope", "cost", "parts"},
+    # D125 — 둘 다 필수다. 기본값을 두면 LLM 이 인자 없이 불러 invalid_input 재시도
+    # 루프가 생긴다(D80). either-or 가 아니므로 공백 없이 2개 전부 required 다.
+    "get_document_facts": {"doc_type", "ref_id"},
 }
 
 # D81 — 이 키들이 **어느 도구 스키마에도 없어야** 한다. LLM 이 BLOCKING 우회를 요청하거나
@@ -154,7 +158,7 @@ async def run(db: Path) -> None:
     # ─ ① 집합 동일 — 부분집합이 아니다 (이 스위트의 존재 이유)
     names = set(full)
     check(
-        "full 프로파일 → 도구 20종 (코어 7 + 확장 13, 집합 동일)",
+        "full 프로파일 → 도구 21종 (코어 7 + 확장 14, 집합 동일)",
         names == CORE_TOOLS | EXT_TOOLS,
         f"{len(names)}종 · 누락={sorted((CORE_TOOLS | EXT_TOOLS) - names) or '없음'} "
         f"· 초과={sorted(names - (CORE_TOOLS | EXT_TOOLS)) or '없음'}",
@@ -198,7 +202,7 @@ async def run(db: Path) -> None:
         "; ".join(narrowed) or "amount·repair_cost·window_months·cost·downtime_hours 전부 유니온",
     )
 
-    # ─ 확장 13종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
+    # ─ 확장 14종 description — 오케스트레이션의 절반 (04_MCP_TOOLS 공통 원칙 1)
     empty_desc = sorted(t for t in EXT_TOOLS if not full.get(t, ({}, ""))[1].strip())
     # 처분 판정은 `disposal_date` 없이 부르면 늘 INSUFFICIENT_FACTS 로 수렴하므로(D62),
     # 도구 DESCRIPTION 이 말하지 않는 몫을 **파라미터 스키마 설명**이 유도해야 한다.
@@ -211,7 +215,7 @@ async def run(db: Path) -> None:
         for t in ("check_disposal_blockers", "build_evidence_bundle", "generate_disposal_document")
     }
     check(
-        "확장 13종 description 존재 · disposal_date 파라미터에 유도 문구 (S9·S10 데모 방어)",
+        "확장 14종 description 존재 · disposal_date 파라미터에 유도 문구 (S9·S10 데모 방어)",
         not empty_desc and all(hinted.values()),
         f"빈 description={empty_desc or '없음'} · disposal_date 설명={hinted}",
     )

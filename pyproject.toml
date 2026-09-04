@@ -16,6 +16,8 @@ dependencies = [
     # 전이 의존성으로 이미 설치돼 있었으나 직접 선언으로 승격 — pdfplumber 가 의존성을
     # 바꾸면 조용히 깨지는 것을 막는다.
     "pypdfium2>=5.9.0",
+    # 결재 문서 docx 생성 (D124). 순수 pip — pandoc 같은 시스템 바이너리를 늘리지 않는다.
+    "python-docx>=1.1",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.51.0",
     # Postgres

@@ -599,6 +599,38 @@ PATCH 에서도 **재산출**되며, `update_draft()` 의 SET 절에 서명 필�
 - `verified_by` 컬럼은 서명자뿐 아니라 **반려자도 함께 쓴다** — 별도 `reviewed_by` 컬럼이 없고,
   반려도 "manager 가 그 증빙을 검토했다"는 같은 성격의 사건이다.
 
+### 2.10 결재 문서 docx 다운로드 (D124·D86, 2026-09-04 신설)
+
+```
+GET /api/po/{po_id}/documents/{doc}.docx
+      doc ∈ diagnosis | po_request | fund_execution        # 01 · 02 · 03
+GET /api/decisions/{decision_id}/documents/{doc}.docx
+      doc ∈ approval | representation_warranty              # 05 · 06
+```
+
+- 응답 `200`: `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+  · `Content-Disposition: attachment; filename="..."; filename*=UTF-8''...`
+  (한글 파일명은 RFC 5987 `filename*`, ASCII `filename` 은 구형 클라이언트 폴백)
+- **저장하지 않는다** (D86) — `data/templates/*.docx` 를 읽어 `io.BytesIO` 로만 조립해 스트림한다.
+  디스크에도 DB 에도 남기지 않으며 임시 파일도 만들지 않는다.
+- **가용성 규칙은 `documents_preview` 와 같은 조건**을 쓴다 — 두 곳에 다른 조건을 두면
+  화면엔 안 보이는데 URL 로는 받아지는 문서가 생긴다:
+  - `diagnosis` → `error_code_def` 가 없으면 **404** (미리보기가 `null` 인 바로 그 조건)
+  - `fund_execution` → `state ∉ (approved, finance_approved, finance_rejected)` 면 **404**
+  - 화이트리스트 밖 `doc`, 없는 `po_id`·`decision_id` → **404**
+- **403 이 없다.** 미리보기를 이미 볼 수 있는 사람이면 다운로드도 된다 — 읽기에 새 역할
+  게이트를 만들면 D38 지표가 오염된다(`2.7` 통합 승인 큐와 같은 태도).
+- ⛔ **04(담보대출심사회신서)는 대상이 아니다** (D118 — FinAllQ 소관).
+
+**신원·서명은 이 엔드포인트만 얹는다** (D23·D37·D81). 필드맵을 만드는 `data/doc_fields.py` 는
+`WITHHELD_KEYS` 16키를 **아예 만들지 않으므로**, MCP 도구 경로(`get_document_facts`,
+`04 §21`)에는 신원이 흐를 코드 경로 자체가 없다. 서명 전에는 `확인되지 않음` 이 아니라
+`(미기재 — 서명 시 기록된다)` 로 남는다 — *"원천이 없다"*(D62)와 *"아직 그 단계가 아니다"* 는
+다른 사실이다.
+
+**교정 경로**: 이 엔드포인트는 조회다. 값을 고치려면 `PATCH /api/po`(D111) ·
+`/api/repairs` · `/api/decisions`(P39) 또는 `create_po_draft` 새 초안이다 (D10·D125).
+
 ### 2.4 상태 전이 다이어그램
 
 ```

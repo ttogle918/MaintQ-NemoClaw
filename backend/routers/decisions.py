@@ -37,12 +37,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from backend.deps import Caller, caller, require
 from backend.services import decisions as svc
-from backend.services.disposal import RuleCatalogError
+from backend.services import document_download as dl
+from backend.services.disposal import RuleCatalogError, read_only
+from backend.services.docx_render import DOCX_MIME
+from data import doc_fields as _df
 
 router = APIRouter(prefix="/api/decisions", tags=["decisions"])
 
@@ -166,6 +169,33 @@ def get_decision(decision_id: str, c: Caller = Depends(caller)) -> dict:
     if d is None:
         raise _not_found(decision_id)
     return d
+
+
+@router.get("/{decision_id}/documents/{doc}.docx")
+def download_decision_document(decision_id: str, doc: str, c: Caller = Depends(caller)) -> Response:
+    """처분 승인서(05)·진술및보장서(06) docx — **저장하지 않고** 조립해 스트림한다 (D86·D124).
+
+    서명·예외 자리는 여기서만 채운다 — `data/doc_fields.py` 는 그 값을 만들지 않는다
+    (D23·D81). 서명 전에는 `(미기재 — 서명 시 기록된다)` 로 남는다.
+    """
+    if doc not in dl.DECISION_DOCS:
+        raise HTTPException(404, f"알 수 없는 문서: {doc}")
+    with read_only() as con:
+        ctx = _df.disposal_context(con, decision_id)
+    if ctx is None:
+        raise _not_found(decision_id)
+    row = svc.get_decision_identity(decision_id) or {}
+
+    try:
+        data, filename = dl.build_decision_docx(ctx, doc, row)
+    except dl.DocumentUnavailable as e:
+        raise HTTPException(404, str(e)) from e
+
+    return Response(
+        content=data,
+        media_type=DOCX_MIME,
+        headers={"Content-Disposition": dl.content_disposition(filename)},
+    )
 
 
 @router.post("/{decision_id}/submit")

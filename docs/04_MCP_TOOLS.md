@@ -1,5 +1,5 @@
 # MCP 도구 스키마 v0.3
-설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 13종(읽기 11 + 쓰기 2) = 총 20종**
+설비보전 AI 에이전트 · **코어 7종(읽기 6 + 쓰기 1) + 확장 14종(읽기 12 + 쓰기 2) = 총 21종**
 
 - 코어 읽기 도구는 D8로 7→6종 — `get_lead_time`을 `get_supplier_quotes`에 흡수. 쓰기 1종을 더해 코어 총계는 7종.
 - 확장 도구 §8~§18(11종)은 자산 생애주기(처분·취득·자산가치·수리 증빙·기한/위험 감시) 담당이며 대상이
@@ -23,7 +23,7 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 13 = 20종 (§1~§20) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 14 = 21종 (§1~§21) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
 
 > **실측** — `mcp_server/server.py` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
 > **13개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
@@ -1221,6 +1221,74 @@ D69·D88(프로파일)
 
 **지켜야 할 결정**: D15·D93(§19 와 동일) · D9(status 반환) · D80(필수 파라미터 기본값 없음) ·
 D69·D88(`full` 전용) · D113·D114(§19 와 동일)
+
+---
+
+## 21. get_document_facts — 결재 문서 필드 조회 (읽기 전용, D125)
+
+**결재 문서에 실제로 찍힐 값을 문서 양식의 자리 이름 그대로** 돌려준다. 에이전트가
+"이 발주서에 뭐라고 적혀 있나" · "어느 항목이 비었나" 를 **짚어서** 말할 수 있게 하는 것이
+목적이다 — 그래서 업무 값이 아니라 **템플릿 자리**를 준다.
+
+⛔ **이 도구는 아무것도 쓰지 않는다** (절대규칙 1 · D10). `read_only()` 만 쓰고
+`draft_writer()`·`decision_writer()`·`repair_writer()` 를 부르지 않는다.
+
+### 입력
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `doc_type` | `str` | ✅ | `po` (발주: 01·02) \| `disposal` (처분: 05·06) |
+| `ref_id` | `str` | ✅ | 발주 ID(`PO-0117`) 또는 처분 결정 ID(`DEC-0007`) |
+
+둘 다 **기본값이 없다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다.
+
+### 출력
+
+```jsonc
+{
+  "status": "ok",
+  "doc_type": "po",
+  "ref_id": "PO-0117",
+  "fields": {                     // 템플릿 자리 이름 → 값 (문자열)
+    "01": { "DOC_NO": "DIAG-PO-0117", "ERROR_CODE": "E-011", ... },   // 37자리
+    "02": { "PO_REQUEST_NO": "PO-0117", "TOTAL_AMOUNT": "158,400", ... }  // 36자리
+  },
+  "withheld": ["APPROVER_NAME", "MANAGER_NAME", "OVERRIDE", "SIGNED_BY", ...],  // 16키
+  "unavailable": { "03": "내부통제 판정(D119)은 재무 승인 경로에서만 산출됩니다..." },
+  "correction_hint": "이 도구는 조회만 합니다. 값이 틀렸다면 create_po_draft 로 ..."
+}
+```
+
+실패: `{"status":"error", "reason":"invalid_input"|"not_found"|"db_error"|"db_missing", "message":"..."}` (D9)
+
+### `withheld` 와 `unavailable` 은 다른 사실이다 (D62)
+
+| 키 | 뜻 |
+|---|---|
+| `withheld` | 값은 **있지만 도구에 주지 않는다** — 신원·서명 16키 (D23·D37·D81) |
+| `unavailable` | 값의 **원천이 없다** — 그 문서가 성립하지 않는다 |
+
+합치면 에이전트가 *"요청자 이름이 시스템에 없다"* 고 말하게 되는데 **그건 거짓이다.**
+`data/doc_fields.py` 는 `withheld` 자리를 애초에 **만들지 않고**, docx 다운로드
+엔드포인트만 DB 에서 읽어 얹는다.
+
+`unavailable` 에 들어가는 경우:
+- **`03`** — 항상. 내부통제 판정(D119)은 재무 승인 경로에서만 산출되고, `create_po_draft`
+  로 새 draft 를 넣어도 달라지지 않는 **교정 경로가 없는 값**이다
+- **`01`** — 그 발주에 `error_code_def` 가 없을 때(에러코드 진단에서 시작하지 않은 발주).
+  빈 칸투성이 문서를 만들지 않는다 — 미리보기도 같은 조건에서 `null` 이다
+
+### 교정은 이 도구가 아니다 (D10·D125)
+
+```
+읽기      get_document_facts        ← 현재 값 조회 (UPDATE 없음)
+교정      create_po_draft           ← 새 draft INSERT (원래 열려 있다)
+사람      PATCH /api/po · /api/repairs · /api/decisions   ← 화면에서 직접 수정 (P39·D111)
+docx      GET .../documents/{doc}.docx                     ← 다운로드 시점 렌더 (D86·D124)
+```
+
+**지켜야 할 결정**: D10(쓰기 금지) · D23·D37·D81(신원·서명 비노출) · D62(withheld ≠ unavailable) ·
+D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full` 전용) · D124(필드맵 공유 계층)
 
 ---
 

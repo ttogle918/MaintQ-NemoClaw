@@ -407,6 +407,31 @@ def list_decisions(state: str | None = None, db_path: str | None = None) -> list
         return [_row_to_decision(r) for r in con.execute(sql, args).fetchall()]
 
 
+def get_decision_identity(decision_id: str, db_path: str | None = None) -> dict | None:
+    """docx 다운로드가 얹을 신원·서명 값 (D23·D37·D81).
+
+    `data/doc_fields.py` 는 이 자리를 **만들지 않는다** — 여기서만 DB 에서 읽는다.
+    서명자는 `signed_by` 가 아니라 **`reviewed_by`** 다(`05_DB_SCHEMA §12`).
+    부서는 `users` 에 조인해 가져온다.
+    """
+    with read_only(db_path) as con:
+        r = con.execute(
+            "SELECT d.decision_id, d.signed_at, d.override, d.override_reason, d.session_id,"
+            " rv.display_name AS signed_by_name,"
+            " ru.display_name AS requested_by_name, ru.department AS requested_by_department"
+            " FROM decisions d"
+            " LEFT JOIN users rv ON rv.user_id = d.reviewed_by"
+            " LEFT JOIN users ru ON ru.user_id = d.requested_by"
+            " WHERE d.decision_id = ?",
+            (decision_id,),
+        ).fetchone()
+    if r is None:
+        return None
+    d = dict(r)
+    d["signed_at"] = iso_utc(d.get("signed_at"))
+    return d
+
+
 def get_decision(decision_id: str, db_path: str | None = None) -> dict | None:
     """상세 + 렌더된 문서·증빙 패키지 (D86). **저장하지 않는다.**"""
     with read_only(db_path) as con:

@@ -60,8 +60,8 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
 
+import data.doc_fields as _df  # D124 — 문안·필드맵 정본. backend 를 import 하지 않는다
 import data.doc_review as _doc_review  # D73 — 공유 데이터 계층. backend 를 import 하지 않는다
 
 from ..db import decision_writer
@@ -88,28 +88,18 @@ DECISION_TYPE = "DISPOSAL"
 
 _UNKNOWN = "확인되지 않음"
 
-# 자산 단위 verdict 5종의 뜻. **판정하지 않는다** — 엔진이 낸 값을 문서용 한 줄로 옮길 뿐이다.
-# 없는 키는 `.get` 으로 흘려 원문 verdict 를 그대로 적는다 (모르는 판정을 통과로 포장 금지).
-_VERDICT_LINES: dict[str, str] = {
-    "BLOCKED": "법정 차단 조건이 발화했다. 해소 없이 처분하면 법령 위반·추징 위험이 있다.",
-    "HOLD": "경계 구간이라 사람의 검토가 필요하다. 조건 미해당이라는 뜻이 아니다.",
-    "INSUFFICIENT_FACTS": "확인되지 않은 사실이 있어 판정을 확정할 수 없다. 문제 없음이 아니다.",
-    "CONDITIONAL": "선행 조건을 이행하면 처분할 수 있다.",
-    "CLEAR": "확인된 범위에서 처분을 막는 조건이 발견되지 않았다.",
-}
-
-_VERDICT_UNKNOWN = "시스템이 정의하지 않은 판정값이다. 통과로 해석하지 말 것."
-
-# 문서에 그대로 실리는 고정 문장. **verdict 와 무관하게 붙는다** (D63).
-_NO_AUTO_BLOCK_LINE = (
-    "이 판정은 처분을 자동으로 차단하지 않는다. 차단 사실이 이 초안에 기록된 채 결재에 "
-    "올라가며, 예외 적용 여부와 그 사유는 승인자가 서명 시 기록한다."
-)
-
-_UNKNOWN_LINE = (
-    f"'{_UNKNOWN}' 으로 적힌 항목은 '해당 없음'이 아니라 시스템에서 확인되지 않았다는 뜻이다 — "
-    "매도인이 별도로 확인해 보완해야 한다."
-)
+# 문안 상수·근거 블록 헬퍼의 정본은 `data/doc_fields.py` 다 (D124) — 미리보기(이 도구)와
+# docx(다운로드 엔드포인트)가 같은 문장을 써야 하므로 두 벌을 두지 않는다.
+_VERDICT_LINES = _df.VERDICT_LINES
+_VERDICT_UNKNOWN = _df.VERDICT_UNKNOWN
+_NO_AUTO_BLOCK_LINE = _df.NO_AUTO_BLOCK_LINE
+_UNKNOWN_LINE = _df.UNKNOWN_LINE
+_val = _df.fact
+_yn = _df.yn
+_law_lines = _df.law_lines
+_rule_lines = _df.rule_lines
+_contract_lines = _df.contract_lines
+_open_condition_lines = _df.open_condition_lines
 
 
 def _next_decision_id(con: sqlite3.Connection) -> str:
@@ -122,64 +112,6 @@ def _next_decision_id(con: sqlite3.Connection) -> str:
     return f"DEC-{n:04d}"
 
 
-def _yn(facts: dict, key: str) -> str:
-    """불리언 사실 → 예/아니오. **키가 없으면 '확인되지 않음'** (D62 — 빈칸은 '아니오'로 읽힌다)."""
-    if key not in facts:
-        return _UNKNOWN
-    value = facts[key]
-    if isinstance(value, bool):
-        return "예" if value else "아니오"
-    return str(value)
-
-
-def _val(facts: dict, key: str) -> str:
-    """값 사실. 키가 없거나 빈 문자열이면 '확인되지 않음'."""
-    value = facts.get(key)
-    if value is None or (isinstance(value, str) and not value.strip()):
-        return _UNKNOWN
-    return str(value)
-
-
-def _law_lines(bundle: dict) -> str:
-    laws = bundle.get("laws") or []
-    if not laws:
-        return "        · 인용된 법령 조문 없음 (발화한 조건이 없거나 계약 근거만 인용됨)"
-    return "\n".join(
-        f"        · {law.get('law_ref_id')} (시행 {law.get('effective_from') or _UNKNOWN})"
-        f" {law.get('text_hash') or _UNKNOWN}"
-        for law in laws
-    )
-
-
-def _rule_lines(bundle: dict) -> str:
-    rules = bundle.get("rules") or []
-    if not rules:
-        return "        · 인용된 해석 룰 없음"
-    return "\n".join(
-        f"        · {r.get('rule_id')} v{r.get('rule_version')} {r.get('rule_hash') or _UNKNOWN}"
-        for r in rules
-    )
-
-
-def _contract_lines(bundle: dict) -> str:
-    contracts = bundle.get("contracts") or []
-    if not contracts:
-        return "        · 인용된 계약 근거 없음"
-    return "\n".join(f"        · {c.get('contract_ref')}" for c in contracts)
-
-
-def _open_condition_lines(bundle: dict) -> str:
-    """발화·보류·사실부족으로 남은 룰. **재판정이 아니라 번들 `evaluated[]` 의 전재**다."""
-    rows = [e for e in (bundle.get("evaluated") or []) if e.get("verdict") != "CLEAR"]
-    if not rows:
-        return "        · 미해소 항목 없음 (평가한 룰이 전부 CLEAR)"
-    return "\n".join(
-        f"        · {e.get('rule_id')} v{e.get('rule_version')} — {e.get('verdict')}"
-        f" (근거 조문: {', '.join(e.get('law_refs') or []) or '없음'})"
-        for e in rows
-    )
-
-
 def render_documents(
     bundle: dict, *, verdict: str, bundle_hash: str, reason: str, decision_id: str
 ) -> dict:
@@ -188,39 +120,45 @@ def render_documents(
     입력은 번들과 판정값뿐이다 — 여기서 DB 를 다시 읽지 않는다. 다시 읽으면 문서가
     번들과 다른 사실을 말할 수 있고, 그러면 해시가 가리키는 근거와 서류가 갈린다.
     """
-    facts: dict[str, Any] = bundle.get("facts") or {}
-    evaluated = bundle.get("evaluated") or []
-    fired = [e for e in evaluated if e.get("verdict") != "CLEAR"]
-    verdict_line = _VERDICT_LINES.get(verdict, _VERDICT_UNKNOWN)
+    a = _df.fields_05(
+        bundle,
+        verdict=verdict,
+        bundle_hash=bundle_hash,
+        reason=reason,
+        decision_id=decision_id,
+    )
+    w = _df.fields_06(
+        bundle, verdict=verdict, bundle_hash=bundle_hash, decision_id=decision_id
+    )
 
     approval = f"""[설비 처분 승인서 — 초안]
-문서번호: {decision_id} (초안 · 확정 아님)
+문서번호: {a["DECISION_ID"]} (초안 · 확정 아님)
 
 1. 처분 대상
-     · 자산 ID: {_val(facts, "asset_id")}
-     · 자산 상태: {_val(facts, "status")}
-     · 취득일: {_val(facts, "acquired_at")}
-     · 설치 건물: {_val(facts, "building_id")}
+     · 자산 ID: {a["ASSET_ID"]}
+     · 자산 상태: {a["ASSET_STATUS"]}
+     · 취득일: {a["ACQUIRED_AT"]}
+     · 설치 건물: {a["BUILDING_ID"]}
 
 2. 처분 개요
-     · 처분 방식: {_val(facts, "disposal_mode")}
-     · 처분 예정일: {_val(facts, "disposal_date")}
-     · 요청 사유: {reason}
+     · 처분 방식: {a["DISPOSAL_MODE"]}
+     · 처분 예정일: {a["DISPOSAL_DATE"]}
+     · 요청 사유: {a["REASON"]}
 
 3. 시스템 판정
-     · 판정: {verdict} — {verdict_line}
+     · 판정: {a["VERDICT"]} — {a["VERDICT_LINE"]}
      · {_NO_AUTO_BLOCK_LINE}
-     · 평가한 룰 {len(evaluated)}건 중 미해소 {len(fired)}건
-{_open_condition_lines(bundle)}
+     · 평가한 룰 {a["RULES_EVALUATED"]}건 중 미해소 {a["RULES_OPEN"]}건
+{a["OPEN_CONDITIONS"]}
 
 4. 근거 (해시 고정)
-     · 근거 번들 해시: {bundle_hash}
-     · 법령 조문 {len(bundle.get("laws") or [])}건
-{_law_lines(bundle)}
-     · 해석 룰 {len(bundle.get("rules") or [])}건
-{_rule_lines(bundle)}
-     · 계약 근거 {len(bundle.get("contracts") or [])}건 — 원문 원천이 저장소에 없어 해시로 고정되지 않음
-{_contract_lines(bundle)}
+     · 근거 번들 해시: {a["BUNDLE_HASH"]}
+     · 법령 조문 {a["LAW_COUNT"]}건
+{a["LAW_LINES"]}
+     · 해석 룰 {a["RULE_COUNT"]}건
+{a["RULE_LINES"]}
+     · 계약 근거 {a["CONTRACT_COUNT"]}건 — 원문 원천이 저장소에 없어 해시로 고정되지 않음
+{a["CONTRACT_LINES"]}
 
 5. 결재
      · 상태: 초안(draft) — 확정 아님
@@ -231,41 +169,41 @@ def render_documents(
 ※ {TEMPLATE_REVIEW_NOTICE}"""
 
     warranty = f"""[진술 및 보장서 — 초안]
-문서번호: {decision_id} (초안 · 확정 아님)
+문서번호: {w["DECISION_ID"]} (초안 · 확정 아님)
 
-매도인은 아래 자산의 처분({_val(facts, "disposal_mode")},
-예정일 {_val(facts, "disposal_date")})과 관련하여 다음 사실을 진술하고 보장한다.
+매도인은 아래 자산의 처분({w["DISPOSAL_MODE"]},
+예정일 {w["DISPOSAL_DATE"]})과 관련하여 다음 사실을 진술하고 보장한다.
 아래 항목은 시스템이 보유한 자산 정보에서 그대로 옮긴 것이며, 매도인의 확인으로 확정된다.
 
 1. 대상 자산
-     · 자산 ID: {_val(facts, "asset_id")}
-     · 취득일: {_val(facts, "acquired_at")}
-     · 자산 상태: {_val(facts, "status")}
+     · 자산 ID: {w["ASSET_ID"]}
+     · 취득일: {w["ACQUIRED_AT"]}
+     · 자산 상태: {w["ASSET_STATUS"]}
 
 2. 권리관계
-     · 담보권 설정: {_yn(facts, "has_lien")}
-     · 담보권자: {_val(facts, "lien_creditor")}
-     · 담보권자 동의서: {_val(facts, "lien_consent_ref")}
+     · 담보권 설정: {w["HAS_LIEN"]}
+     · 담보권자: {w["LIEN_CREDITOR"]}
+     · 담보권자 동의서: {w["LIEN_CONSENT_REF"]}
 
 3. 보험
-     · 부보 여부: {_yn(facts, "insured")}
-     · 증권 식별자: {_val(facts, "policy_id")}
+     · 부보 여부: {w["INSURED"]}
+     · 증권 식별자: {w["POLICY_ID"]}
 
 4. 안전검사
-     · 안전검사 대상: {_yn(facts, "safety_inspection_target")}
-     · 최근 검사일: {_val(facts, "last_inspection_date")}
-     · 검사 유효기한: {_val(facts, "inspection_valid_until")}
+     · 안전검사 대상: {w["SAFETY_INSPECTION_TARGET"]}
+     · 최근 검사일: {w["LAST_INSPECTION_DATE"]}
+     · 검사 유효기한: {w["INSPECTION_VALID_UNTIL"]}
 
 5. 세제
-     · 세액공제 적용: {_yn(facts, "tax_credit_applied")}
-     · 취득 후 경과(개월): {_val(facts, "months_since_acquisition")}
-     · 세금계산서 발급: {_yn(facts, "vat_invoice_issued")} (거래 성립 전 시점 기준)
+     · 세액공제 적용: {w["TAX_CREDIT_APPLIED"]}
+     · 취득 후 경과(개월): {w["MONTHS_SINCE_ACQUISITION"]}
+     · 세금계산서 발급: {w["VAT_INVOICE_ISSUED"]} (거래 성립 전 시점 기준)
 
-6. 미해소 조건 (시스템 판정 {verdict})
-{_open_condition_lines(bundle)}
+6. 미해소 조건 (시스템 판정 {w["VERDICT"]})
+{w["OPEN_CONDITIONS"]}
      · {_NO_AUTO_BLOCK_LINE}
 
-7. 근거 번들 해시: {bundle_hash}
+7. 근거 번들 해시: {w["BUNDLE_HASH"]}
 
 {_UNKNOWN_LINE}
 ※ {TEMPLATE_REVIEW_NOTICE}"""

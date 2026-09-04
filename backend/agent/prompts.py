@@ -363,6 +363,7 @@ _EXT_TOOL_LINES: dict[str, str] = {
     "assess_risk_grade": "- `assess_risk_grade`  — 건물 단위 위험등급 산출 (`current_grade`·`changed` 조회, `risk_profile` 은 갱신하지 않는다)",
     "search_insurance_clause": "- `search_insurance_clause` — 보험 약관 보장 여부를 InsuQ(외부 파트너)에 문의 (MaintQ 매뉴얼이 아니다)",
     "assess_equipment_loan": "- `assess_equipment_loan` — 설비 담보 대출 사전판정을 FinAllQ(외부 파트너)에 문의 (2차홉 InsuQ 미비로 현재 실패가 정상)",
+    "get_document_facts": "- `get_document_facts` — 결재 문서(01·02·05·06)에 찍힐 값을 **조회만** 한다. 고칠 수는 없다 — 교정은 `create_po_draft` 새 초안이거나 사람의 화면 수정이다",
 }
 
 CORE_TOOLS: tuple[str, ...] = tuple(_CORE_TOOL_LINES)

@@ -23,6 +23,7 @@ import sqlite3
 from backend import manifest
 from backend.db import connect
 from backend.services import po_documents
+from data import doc_fields as _df
 from data import po_draft
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태
@@ -62,17 +63,10 @@ def display_name(user_id: str | None, db_path: str | None = None) -> str:
     return r["display_name"] if r else user_id
 
 
-def iso_utc(ts: str | None) -> str | None:
-    """DB 의 naive 문자열 → 타임존이 명시된 ISO-8601.
-
-    SQLite 의 `CURRENT_TIMESTAMP` 는 **UTC** 인데 'YYYY-MM-DD HH:MM:SS' 로만 저장돼
-    타임존 표기가 없다. 그대로 내보내면 브라우저가 로컬 시각으로 해석해
-    KST 기준 9시간이 어긋난다 (실제로 "방금"이 "9시간 전"으로 보였다).
-    저장은 UTC, 전송은 UTC 명시, 표시는 클라이언트가 로컬로 — 경계를 여기서 긋는다.
-    """
-    if not ts:
-        return ts
-    return ts.replace(" ", "T") + ("" if ts.endswith("Z") or "+" in ts else "Z")
+# D39 경계(저장 UTC · 전송 명시)의 정본은 data/doc_fields.py 다 — agent/trace.py ·
+# routers/equipment.py · services/{decisions,disposal,repairs}.py 5곳이 여기서
+# import 하므로 이름을 그대로 재수출한다.
+iso_utc = _df.iso_utc
 
 
 # S5+ 재무부 승인 단계에 들어선 상태 — 이 상태들에서만 자금집행요청서(doc3) 내부통제를
@@ -81,31 +75,12 @@ _FUND_EXECUTION_STATES = ("approved", "finance_approved", "finance_rejected")
 
 # 표시명은 users 조인으로 붙인다 (D41) — 행마다 display_name() 을 부르면 N+1 이 된다.
 # LEFT JOIN 인 이유: requested_by 는 stamp 전 NULL 이고, 미등록 ID 여도 행이 사라지면 안 된다
-_PO_SELECT = (
-    "SELECT p.*, pt.name AS part_name, s.name AS supplier_name,"
-    " ru.display_name AS requested_by_name, ru.department AS requested_by_department,"
-    " du.display_name AS decided_by_name,"
-    " fu.display_name AS finance_decided_by_name"
-    " FROM po_drafts p"
-    " JOIN parts pt ON pt.part_no = p.part_no"
-    " JOIN suppliers s ON s.supplier_id = p.supplier_id"
-    " LEFT JOIN users ru ON ru.user_id = p.requested_by"
-    " LEFT JOIN users du ON du.user_id = p.decided_by"
-    " LEFT JOIN users fu ON fu.user_id = p.finance_decided_by"
-)
+# 조회 SQL·행 매핑의 정본은 data/doc_fields.py 다 (D124) — MCP 읽기 도구가 같은
+# 컨텍스트를 봐야 하는데 그쪽은 backend 를 import 할 수 없다(D15).
+_PO_SELECT = _df.PO_SELECT
 
 
-
-
-def _row_to_po(r: sqlite3.Row) -> dict:
-    d = dict(r)
-    d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else None
-    # 미등록·NULL 이면 ID 를 그대로 (display_name() 과 같은 규칙)
-    d["requested_by_name"] = d.get("requested_by_name") or d.get("requested_by") or ""
-    d["decided_by_name"] = d.get("decided_by_name") or d.get("decided_by") or ""
-    d["finance_decided_by_name"] = d.get("finance_decided_by_name") or d.get("finance_decided_by") or ""
-    d["created_at"] = iso_utc(d.get("created_at"))
-    return d
+_row_to_po = _df.row_to_po
 
 
 def stamp_identity(
@@ -318,107 +293,86 @@ def _attach_print_pages(po: dict) -> None:
             entry["print_page"] = manifest.to_print_page(model, page)
 
 
+def fund_execution_inputs(con, po: dict, db_path: str | None = None) -> tuple | None:
+    """03 자금집행요청서가 필요로 하는 `(controls, a2a_info, payee)`. 대상 상태가 아니면 None.
+
+    `get_po()` 안에 인라인으로 있던 블록을 그대로 꺼낸 것이다 — docx 다운로드
+    (`backend/services/document_download.py`)가 **같은 값**을 써야 하기 때문이다.
+    두 벌로 두면 화면 미리보기와 docx 가 다른 내부통제 판정을 말하게 된다
+    (D119·D121 이 걸려 있는 계산이다).
+
+    ⛔ DB 에 쓰지 않는다 — 호출자의 지역 변수로만 조립돼 렌더에 쓰이고 버려진다(D86).
+    approved 이전(draft·pending)에는 재무부 승인 대상이 아직 아니므로 None —
+    빈 칸투성이 문서 대신 null 을 준다(D62).
+    """
+    if po["state"] not in _FUND_EXECUTION_STATES:
+        return None
+
+    from backend.services import a2a_history
+    from data import expenditure_limits as limits
+
+    po_id = po["po_id"]
+    amount = po["unit_price"] * po["qty"]
+    # po_id != ? — 이미 finance_approved 로 확정된 발주를 재조회할 때 자기 금액이
+    # "오늘 누적"에 중복 산입되는 것을 막는다(스펙 원문에는 없던 조건, 자기중복 버그
+    # 방지를 위해 이 프로젝트에서 추가 — D121).
+    today_total = con.execute(
+        "SELECT COALESCE(SUM(unit_price * qty), 0) FROM po_drafts"
+        " WHERE state = 'finance_approved' AND po_id != ?"
+        " AND DATE(finance_decided_at) = CURRENT_DATE",
+        (po_id,),
+    ).fetchone()[0]
+    controls = {
+        "budget": limits.budget_check(amount),
+        "daily_limit": limits.daily_limit_check(amount, today_total),
+        "fds": limits.fds_verdict(amount),
+        "sod": (
+            limits.sod_check(po["requested_by"], po["decided_by"], po["finance_decided_by"])
+            if po.get("requested_by") and po.get("decided_by") and po.get("finance_decided_by")
+            # 신원 3종(요청자·팀장·재무 담당) 중 하나라도 없으면 SOD 를 지어내지
+            # 않는다(D62) — 함수 자체를 부르지 않는다. `finance_decided_by` 만 보던
+            # 원래 가드는 `requested_by`가 NULL 인 정상 상태(D23·D37 — 챗봇 경유
+            # draft 가 아직 stamp 안 된 경우)에서 sod_check() 내부 `sorted({...})`가
+            # None 과 str 을 비교해 TypeError 로 죽는 버그가 있었다(실측: Stage 3
+            # 회귀에서 backend/routers/test_po_a2a_trigger.py 4건 FAIL 로 발견).
+            else (None, "확인 전 — 요청자·팀장·재무 승인자 중 아직 지정되지 않은 신원이 있습니다")
+        ),
+    }
+    # A2A 이력은 이 한 곳(list_a2a_history)만 재사용한다 — SQL 을 여기 복제하지
+    # 않는다(D114, W2/W5 드리프트 재발 방지).
+    a2a_result = a2a_history.list_a2a_history(
+        po_id=po_id, skill="request-withdrawal", limit=1, db_path=db_path
+    )
+    a2a_info = a2a_result["items"][0] if a2a_result["items"] else None
+    payee_row = con.execute(
+        "SELECT account_number, bank_code FROM suppliers WHERE supplier_id = ?",
+        (po["supplier_id"],),
+    ).fetchone()
+    payee = dict(payee_row) if payee_row else None
+    return controls, a2a_info, payee
+
+
+def get_fund_execution_inputs(po: dict, db_path: str | None = None) -> tuple | None:
+    """커넥션을 직접 여는 얇은 래퍼 — docx 다운로드 엔드포인트용."""
+    with connect(db_path) as con:
+        return fund_execution_inputs(con, po, db_path)
+
+
 def get_po(po_id: str, db_path: str | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
-        r = con.execute(_PO_SELECT + " WHERE p.po_id = ?", (po_id,)).fetchone()
-        if r is None:
+        po = _df.po_context(con, po_id)
+        if po is None:
             return None
-        po = _row_to_po(r)
         _attach_print_pages(po)
 
-        po["quotes"] = po_draft.list_quotes(con, part_no=po["part_no"])
-        po["inventory"] = (
-            dict(inv)
-            if (
-                inv := con.execute(
-                    "SELECT qty, safety_stock, location FROM inventory WHERE part_no = ?",
-                    (po["part_no"],),
-                ).fetchone()
-            )
-            else None
-        )
-        # find_alternative_parts 와 같은 쿼리 (D118 발주요청서 §3 "재고·대체품 확인").
-        # compat_confirmed=false 는 제안 금지 대상이라 여기서도 걸러 낸다.
-        po["alternatives"] = [
-            dict(alt)
-            for alt in con.execute(
-                "SELECT a.alt_part_no, pt2.name AS alt_part_name, a.note"
-                " FROM part_alternatives a JOIN parts pt2 ON pt2.part_no = a.alt_part_no"
-                " WHERE a.part_no = ? AND a.compat_confirmed = true"
-                " ORDER BY a.alt_part_no",
-                (po["part_no"],),
-            ).fetchall()
-        ]
         # 화면 B "실행 로그 전체 보기" 링크 (D21)
         po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
 
-        # 설비이상진단보고서(01, D118) §1·§4 용 — 이미 사람 승인을 거친 error_codes
-        # 정본(D33)에서 severity·causes·actions·manual_page 를 그대로 인용한다.
-        po["error_code_def"] = (
-            dict(ecd)
-            if po.get("model")
-            and po.get("error_code")
-            and (
-                ecd := con.execute(
-                    "SELECT error_name, severity, causes, actions, manual_page"
-                    " FROM error_codes WHERE model = ? AND code = ?",
-                    (po["model"], po["error_code"]),
-                ).fetchone()
-            )
-            else None
-        )
-        if po["error_code_def"]:
-            po["error_code_def"]["causes"] = json.loads(po["error_code_def"]["causes"])
-            po["error_code_def"]["actions"] = json.loads(po["error_code_def"]["actions"])
-
-        # D119 — 자금집행요청서(03) 내부통제(controls)·A2A 이력(a2a_info)·수취인(payee) 계산.
-        # DB 에 쓰지 않고 이 함수 안의 지역 변수로만 조립해 render 인자로 넘긴 뒤 버린다
-        # (D86 정신). approved 이전(draft·pending)에는 재무부 승인 대상이 아직 아니므로
-        # None — 빈 칸투성이 문서 대신 null 을 준다(D62).
+        # D118·D119 — 자금집행요청서(03) 미리보기. 저장하지 않고 조회 시점에 렌더한다(D86).
         fund_execution = None
-        if po["state"] in _FUND_EXECUTION_STATES:
-            from data import expenditure_limits as limits
-            from backend.services import a2a_history
-
-            amount = po["unit_price"] * po["qty"]
-            # po_id != ? — 이미 finance_approved 로 확정된 발주를 재조회할 때 자기 금액이
-            # "오늘 누적"에 중복 산입되는 것을 막는다(스펙 원문에는 없던 조건, 자기중복 버그
-            # 방지를 위해 이 프로젝트에서 추가).
-            today_total = con.execute(
-                "SELECT COALESCE(SUM(unit_price * qty), 0) FROM po_drafts"
-                " WHERE state = 'finance_approved' AND po_id != ?"
-                " AND DATE(finance_decided_at) = CURRENT_DATE",
-                (po_id,),
-            ).fetchone()[0]
-            controls = {
-                "budget": limits.budget_check(amount),
-                "daily_limit": limits.daily_limit_check(amount, today_total),
-                "fds": limits.fds_verdict(amount),
-                "sod": (
-                    limits.sod_check(po["requested_by"], po["decided_by"], po["finance_decided_by"])
-                    if po.get("requested_by") and po.get("decided_by") and po.get("finance_decided_by")
-                    # 신원 3종(요청자·팀장·재무 담당) 중 하나라도 없으면 SOD 를 지어내지
-                    # 않는다(D62) — 함수 자체를 부르지 않는다. `finance_decided_by` 만 보던
-                    # 원래 가드는 `requested_by`가 NULL 인 정상 상태(D23·D37 — 챗봇 경유
-                    # draft 가 아직 stamp 안 된 경우)에서 sod_check() 내부 `sorted({...})`가
-                    # None 과 str 을 비교해 TypeError 로 죽는 버그가 있었다(실측: Stage 3
-                    # 회귀에서 backend/routers/test_po_a2a_trigger.py 4건 FAIL 로 발견).
-                    else (None, "확인 전 — 요청자·팀장·재무 승인자 중 아직 지정되지 않은 신원이 있습니다")
-                ),
-            }
-            # A2A 이력은 이 한 곳(list_a2a_history)만 재사용한다 — SQL 을 여기 복제하지
-            # 않는다(D114, W2/W5 드리프트 재발 방지).
-            a2a_result = a2a_history.list_a2a_history(
-                po_id=po_id, skill="request-withdrawal", limit=1, db_path=db_path
-            )
-            a2a_info = a2a_result["items"][0] if a2a_result["items"] else None
-            payee_row = con.execute(
-                "SELECT account_number, bank_code FROM suppliers WHERE supplier_id = ?",
-                (po["supplier_id"],),
-            ).fetchone()
-            payee = dict(payee_row) if payee_row else None
-            fund_execution = po_documents.render_fund_execution_document(po, controls, a2a_info, payee)
+        if (fund_inputs := fund_execution_inputs(con, po, db_path)) is not None:
+            fund_execution = po_documents.render_fund_execution_document(po, *fund_inputs)
 
         # D118 — 발주요청서(02)·진단보고서(01)·자금집행요청서(03) 미리보기. 저장하지 않고
         # 조회 시점에 렌더한다(D86 과 같은 이유: 문안이 바뀌면 저장본이 조용히 낡는다).
