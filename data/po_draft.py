@@ -27,13 +27,13 @@ from __future__ import annotations
 
 import sqlite3
 
+from data import txn
+
 
 def next_po_id(con: sqlite3.Connection) -> str:
-    row = con.execute(
-        "SELECT po_id FROM po_drafts WHERE po_id LIKE 'PO-%' ORDER BY po_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["po_id"].split("-")[1]) + 1 if row else 1
-    return f"PO-{n:04d}"
+    """`PO-%04d` 채번. 경쟁 없는 발급은 `data/txn.py` 가 소유한다 (D126) —
+    같은 규약을 쓰는 `repair_record.next_repair_id` 와 한 곳에서 갈린다."""
+    return txn.next_sequential_id(con, "po_drafts", "po_id", "PO")
 
 
 def validate_and_price(

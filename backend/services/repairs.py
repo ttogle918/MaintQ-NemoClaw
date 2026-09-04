@@ -25,7 +25,9 @@ import sqlite3
 from backend.db import connect
 from backend.services.decisions import now_utc_sql
 from backend.services.po import iso_utc
+from backend.services import state_machine
 from data import repair_record
+from data import txn
 from data.repair_hash import HASHED_KEYS, compute_record_hash
 
 # 전이 규칙: 목표 상태 → 허용되는 현재 상태 (`services/po.ALLOWED_FROM`·
@@ -70,6 +72,10 @@ _REPAIR_SELECT = (
 )
 
 
+#: 전이 골격(연결·잠금·404·409)은 `state_machine.Flow` 가 소유한다 (D126).
+FLOW = state_machine.Flow("repair_records", "repair_id", ALLOWED_FROM, RepairTransitionError)
+
+
 def _row_to_repair(r: sqlite3.Row) -> dict:
     d = dict(r)
     d["parts"] = json.loads(d["parts"]) if d.get("parts") else []
@@ -110,10 +116,9 @@ def get_repair(repair_id: str, db_path: str | None = None) -> dict | None:
 
 
 def _locked_row(con: sqlite3.Connection, repair_id: str) -> sqlite3.Row:
-    r = con.execute("SELECT * FROM repair_records WHERE repair_id = ?", (repair_id,)).fetchone()
-    if r is None:
-        raise KeyError(repair_id)
-    return r
+    """전이 대상 행을 **실제로 잠근 채** 읽는다 (D126, → 404 는 KeyError).
+    잠금 구현은 `data/txn.py` 한 곳이 소유한다 — `decisions._locked_row` 와 같다."""
+    return txn.locked_row(con, "repair_records", "repair_id", repair_id)
 
 
 class NotEditableError(Exception):
@@ -233,10 +238,7 @@ def submit(
     (현재 REST 경로는 세션 문맥이 없어 항상 `None` 을 넘긴다 — 호출자가 언젠가 세션 문맥과
     함께 부르게 되어도 계약이 바뀌지 않도록 파라미터를 미리 둔다).
     """
-    with connect(db_path) as con:
-        row = _locked_row(con, repair_id)
-        if row["state"] != ALLOWED_FROM["pending"]:
-            raise RepairTransitionError(repair_id, row["state"], "pending")
+    with FLOW.transition(repair_id, "pending", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE repair_records SET state='pending',"
             " requested_by = COALESCE(requested_by, ?),"
@@ -256,10 +258,7 @@ def sign(repair_id: str, *, verified_by: str, db_path: str | None = None) -> dic
     DDL CHECK(신설 ②)가 하나라도 빠지면 거부한다. ⓓ `performed_by == verified_by` 면
     `SelfSignError` → 409 `self_sign` (D4).
     """
-    with connect(db_path) as con:
-        row = _locked_row(con, repair_id)
-        if row["state"] != ALLOWED_FROM["signed"]:
-            raise RepairTransitionError(repair_id, row["state"], "signed")
+    with FLOW.transition(repair_id, "signed", db_path=db_path) as (con, row):
         if row["performed_by"] is not None and row["performed_by"] == verified_by:
             raise SelfSignError(repair_id, verified_by)
 
@@ -282,10 +281,7 @@ def reject(repair_id: str, *, verified_by: str, reason: str, db_path: str | None
 
     라우터의 pydantic 이 공백을 먼저 막는다(422) — 여기서는 값을 그대로 받아 저장한다.
     """
-    with connect(db_path) as con:
-        row = _locked_row(con, repair_id)
-        if row["state"] != ALLOWED_FROM["rejected"]:
-            raise RepairTransitionError(repair_id, row["state"], "rejected")
+    with FLOW.transition(repair_id, "rejected", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE repair_records SET state='rejected', verified_by=?, note=?"
             " WHERE repair_id = ?",

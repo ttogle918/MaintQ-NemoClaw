@@ -66,8 +66,10 @@ from typing import Any
 from backend.db import connect
 from backend.services.disposal import RuleCatalogError, _load_catalog, read_only
 from backend.services.po import iso_utc
+from backend.services import state_machine
 import data.doc_review as _doc_review  # D73 — 공유 데이터 계층 (mcp_server 와 같은 문구를 읽는다)
 from data import maint_value  # D73·D101 — 보전지표 산식의 단일 출처 (MQ-908 위임)
+from data import txn
 from data.rules import engine  # D73 — 공유 데이터 계층
 
 # ── 판정 어휘 ────────────────────────────────────────────────────────────────
@@ -136,6 +138,10 @@ class DecisionTransitionError(Exception):
             f"{decision_id} 는 지금 '{current}' 상태라 '{target}' 로 전이할 수 없습니다 "
             f"('{ALLOWED_FROM[target]}' 에서만 가능)"
         )
+
+
+#: 전이 골격(연결·잠금·404·409)은 `state_machine.Flow` 가 소유한다 (D126).
+FLOW = state_machine.Flow("decisions", "decision_id", ALLOWED_FROM, DecisionTransitionError)
 
 
 class EvidenceChanged(Exception):
@@ -713,12 +719,11 @@ def render_documents(bundle: dict, con: sqlite3.Connection, *, asset_id: str) ->
 
 # ── 상태 전이 ───────────────────────────────────────────────────────────────────
 def _locked_row(con: sqlite3.Connection, decision_id: str) -> sqlite3.Row:
-    r = con.execute(
-        "SELECT * FROM decisions WHERE decision_id = ?", (decision_id,)
-    ).fetchone()
-    if r is None:
-        raise KeyError(decision_id)  # → 404
-    return r
+    """전이 대상 행을 **실제로 잠근 채** 읽는다 (D126, → 404 는 KeyError).
+
+    이전 구현은 이 이름을 달고도 평범한 SELECT 였다 — 두 결재자가 동시에 서명/반려하면
+    둘 다 통과했다. 잠금 구현은 `data/txn.py` 한 곳이 소유한다."""
+    return txn.locked_row(con, "decisions", "decision_id", decision_id)
 
 
 class NotEditableError(Exception):
@@ -731,12 +736,9 @@ class NotEditableError(Exception):
 
 
 def _next_decision_id(con: sqlite3.Connection) -> str:
-    row = con.execute(
-        "SELECT decision_id FROM decisions WHERE decision_id LIKE 'DEC-%'"
-        " ORDER BY decision_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["decision_id"].split("-")[1]) + 1 if row else 1
-    return f"DEC-{n:04d}"
+    """`DEC-%04d` 채번. 경쟁 없는 발급은 `data/txn.py` 가 소유한다 (D126) —
+    `mcp_server/tools/generate_disposal_document.py` 도 같은 함수를 쓴다."""
+    return txn.next_sequential_id(con, "decisions", "decision_id", "DEC")
 
 
 def _adjudicate(
@@ -840,10 +842,7 @@ def submit(decision_id: str, *, requested_by: str, db_path: str | None = None) -
     신원 stamp 를 여기서 한다 (D23·D37) — 도구는 `requested_by` 를 채우지 않는다.
     이미 stamp 돼 있으면 덮지 않는다: 요청자를 나중에 바꿀 수 있으면 감사 추적이 무너진다.
     """
-    with connect(db_path) as con:
-        row = _locked_row(con, decision_id)
-        if row["state"] != ALLOWED_FROM["pending"]:
-            raise DecisionTransitionError(decision_id, row["state"], "pending")
+    with FLOW.transition(decision_id, "pending", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE decisions SET state='pending',"
             " requested_by = COALESCE(requested_by, ?) WHERE decision_id = ?",
@@ -856,10 +855,7 @@ def reject(
     decision_id: str, *, reviewed_by: str, reason: str, db_path: str | None = None
 ) -> dict:
     """pending → rejected. 사유 필수 (D38) — 라우터의 pydantic 이 공백을 먼저 막는다."""
-    with connect(db_path) as con:
-        row = _locked_row(con, decision_id)
-        if row["state"] != ALLOWED_FROM["rejected"]:
-            raise DecisionTransitionError(decision_id, row["state"], "rejected")
+    with FLOW.transition(decision_id, "rejected", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE decisions SET state='rejected', reviewed_by=?, decision_note=?"
             " WHERE decision_id = ?",
@@ -882,14 +878,9 @@ def sign(
     반환은 `get_decision()` 형태. 실패는 예외로 올리고 라우터가 HTTP 로 매핑한다 —
     이건 사람용 REST 라 D9(도구는 status 로 반환)의 대상이 아니다.
     """
-    with connect(db_path) as con:
-        # ① 존재
-        row = _locked_row(con, decision_id)
-
-        # ② 전이 가능 상태인가 (이미 signed 인 건 재서명 → 409)
-        if row["state"] != ALLOWED_FROM["signed"]:
-            raise DecisionTransitionError(decision_id, row["state"], "signed")
-
+    # ①존재 ②전이 가능 상태 — 골격은 `state_machine.Flow` 가 소유한다 (D126).
+    # ③~⑥ 은 이 흐름 고유의 계약이라 여기 그대로 남는다 (D84 — 순서가 계약이다).
+    with FLOW.transition(decision_id, "signed", db_path=db_path) as (con, row):
         # ③ 근거 재산출·해시 대조. **override 판정보다 먼저다** (D84)
         stored = _stored_bundle(row)
         mode, disposal_date = _replay_args(stored)

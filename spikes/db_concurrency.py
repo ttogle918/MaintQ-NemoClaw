@@ -439,6 +439,92 @@ def run_pg(dsn: str) -> None:
     )
 
 
+    # ── ⑭⑮⑯ D126: locked_row() 가 실제로 행을 잠그는가 (두 번째 읽기가 대기하는가)
+    #
+    # **이 축이 없어서 이중 승인 사고가 안 잡혔다** (docs/14_CONCURRENCY.md).
+    # 기존 ④' 는 서로 **다른 테이블**에 대한 INSERT 끼리만 봤다 — 같은 행을 두고 다투는
+    # 경우를 세우는 검사가 34스위트 어디에도 없었다.
+    #
+    # ⚠ **두 스레드를 경쟁시켜 "둘 다 성공하는가"를 보는 방식은 쓰지 않는다.** 실제로
+    #   그렇게 짰다가 뮤턴트(`FOR UPDATE` 제거)를 **놓치는 것을 실측했다** — SELECT→UPDATE
+    #   간격이 짧아 잠금이 없어도 두 스레드가 우연히 어긋나면 그냥 통과한다. 경쟁 검사는
+    #   실패를 **가끔** 잡으므로 회귀 가드로 쓸 수 없다.
+    #   대신 잠금의 **정의**를 직접 측정한다: 한 트랜잭션이 행을 잡고 있는 동안 두 번째
+    #   `locked_row()` 가 **대기하는가**. 잠그면 대기하고, 안 잠그면 즉시 돌아온다 —
+    #   타이밍 운이 개입하지 않는다.
+    for mark, table, pk in (
+        ("⑭", "po_drafts", "po_id"),
+        ("⑮", "decisions", "decision_id"),
+        ("⑯", "repair_records", "repair_id"),
+    ):
+        ok, detail = _lock_blocks_second_reader(bdb, table, pk)
+        check(f"{mark} D126: {table} locked_row() 가 두 번째 읽기를 대기시킨다", ok, detail)
+
+
+def _lock_blocks_second_reader(bdb, table: str, pk: str):
+    """`txn.locked_row()` 가 행을 실제로 잠그는지 **대기 시간으로** 판정한다.
+
+    T1 이 행을 잡고 `HOLD` 초 버티는 동안 T2 가 같은 행에 `locked_row()` 를 건다.
+    - 잠긴다  → T2 는 T1 의 COMMIT 까지 막힌다 (대기 ≈ HOLD)
+    - 안 잠긴다 → T2 는 즉시 돌아온다 (대기 ≈ 0)
+
+    판정에 **양성 축**을 함께 건다(CLAUDE.md 부재검사 규칙) — T1 이 실제로 잠금을
+    잡았고 T2 가 행을 받아왔음을 함께 확인한다. 그러지 않으면 "T2 가 예외로 죽어서
+    빨리 끝난 것"과 "잠금이 없어서 빨리 끝난 것"을 구분하지 못한다.
+    """
+    from data import txn  # noqa: PLC0415
+
+    HOLD = 0.8
+    row_id = _pick_existing_id(bdb, table, pk)
+    if row_id is None:
+        return False, f"{table} 에 대상 행이 없다 (픽스처 부재 — 검사 무효)"
+
+    holding, release, held_ok = threading.Event(), threading.Event(), []
+
+    def hold_lock() -> None:
+        try:
+            with bdb.connect() as con:
+                r = txn.locked_row(con, table, pk, row_id)
+                held_ok.append(r is not None)
+                holding.set()
+                release.wait(HOLD)      # 트랜잭션을 연 채로 버틴다
+        except Exception as exc:        # noqa: BLE001
+            held_ok.append(f"T1 실패: {type(exc).__name__}: {exc}")
+            holding.set()
+
+    t = threading.Thread(target=hold_lock, daemon=True)
+    t.start()
+    if not holding.wait(5):
+        return False, "T1 이 잠금을 잡지 못했다 (검사 무효)"
+
+    t0 = time.perf_counter()
+    try:
+        with bdb.connect() as con:
+            second = txn.locked_row(con, table, pk, row_id)
+        got_row, err = second is not None, ""
+    except Exception as exc:            # noqa: BLE001
+        got_row, err = False, f"{type(exc).__name__}: {exc}"
+    waited = time.perf_counter() - t0
+    release.set()
+    t.join(5)
+
+    blocked = waited >= HOLD * 0.4
+    t1_ok = held_ok == [True]
+    return (
+        blocked and t1_ok and got_row,
+        f"두 번째 읽기 대기 {waited:.2f}s (보유 {HOLD}s · 기준 ≥{HOLD * 0.4:.2f}s) · "
+        f"T1={held_ok} · T2 행수신={got_row}{' / ' + err if err else ''}",
+    )
+
+
+def _pick_existing_id(bdb, table: str, pk: str):
+    """격리 스키마에 이미 복제돼 있는 행 하나. 새로 INSERT 하지 않는다 —
+    테이블마다 NOT NULL·CHECK 가 달라 픽스처가 검사보다 커진다."""
+    with bdb.connect() as con:
+        r = con.execute(f"SELECT {pk} AS v FROM {table} LIMIT 1").fetchone()
+    return r["v"] if r else None
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):

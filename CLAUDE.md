@@ -9,11 +9,16 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D125**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D126**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 **23절(실제 24개)** + 시드 케이스 맵
+- `docs/05_DB_SCHEMA.md` — 테이블 **23절(문서에 24개, 실제 DB 는 25개)** + 시드 케이스 맵
+  🔴 **2026-09-04 실측 정정**: 실제 Postgres 에는 **25개** 테이블이 있다. 차이 1은
+  **`manual_chunks`**(dense 임베딩, D117) — `scripts/postgres_schema.sql` 에 **§24 로
+  정식 정의**돼 있고 `mcp_server/rag.py`·`dense_scorer.py` 가 쓰는데
+  **`docs/05_DB_SCHEMA.md` 에는 한 줄도 없다.** 스키마 문서화가 D117 에서 빠졌다
+  — 다음에 이 문서를 손볼 때 §24 절을 추가할 것
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
    **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블) 을 더한다**
    — **`§10` 은 존재하지 않는다**.
@@ -119,13 +124,21 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` — **8파일 88건**(러너 출력 기준. 오래 **86**
-  으로 적혀 있었는데 그건 `def test_` 개수였다 — `test_client.py:213` 의
-  `@pytest.mark.parametrize("status_code", [502, 503, 504])` 가 함수 1개를 3건으로 편다.
-  이 문서 아래 "건수는 러너 출력이 기준이다" 규칙에 맞춰 2026-08-29 정정), A2A 아웃바운드(FinAllQ 출금·
-  InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약. 커밋 `5895c2e`
-  가 신설했지만 이 문서엔 반영이 안 돼 있다가 Sprint 16 4차 체크포인트에서 발견·정리(공식
-  목록 편입 시 위 3파일과 합쳐 "4파일군 169건"이 된다).
+  `backend/services/test_po_a2a_dispatch.py` — **8파일 107건**, A2A 아웃바운드(FinAllQ 출금·
+  InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
+  파일별 실측: `test_auth_header` 5 · `test_client` 16 · `test_credentials` 12 ·
+  `test_payloads` 25 · `test_trace` 8 · `routers/test_a2a` 28 · `test_po_a2a_trigger` 8 ·
+  `test_po_a2a_dispatch` 5 = **107**.
+
+  🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
+  이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
+  *"건수는 러너 출력이 기준이다"* 를 지키지 못한 자리가 또 나온 것이다(2026-08-29 에
+  86→88 로 한 번 고친 바로 그 줄이다). 파일별 합과 합산 실행이 **둘 다 107** 로 일치하는
+  것을 확인했다.
+
+  ⚠ **측정할 때 `N passed` 만 grep 하지 말 것.** 이 세션에서 실제로 그렇게 재다가
+  `test_po_a2a_dispatch` 를 4건으로 잘못 읽었다(실제 5건). skip·error 가 붙은 요약 줄에서
+  앞부분만 잘라 오기 때문이다 — **요약 줄 전체**를 보거나 `--collect-only` 로 교차 확인한다.
   ⚠ 실행 커맨드(**pytest-asyncio 추가 필요**): **`uv run --with pytest --with pytest-asyncio
   python -m pytest backend/a2a/test_auth_header.py backend/a2a/test_client.py
   backend/a2a/test_credentials.py backend/a2a/test_payloads.py backend/a2a/test_trace.py
@@ -134,6 +147,26 @@
   (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
+- `backend/services/test_a2a_history.py` · `test_lien.py` · `test_po.py` — **3파일 20건**
+  (A2A 이력 조회 D114 · 유치권 판정 · 발주 서비스). 🔴 **2026-09-04 신규 편입** — 레포에
+  존재하고 통과하는데 **이 목록 어디에도 없었다.** 위 두 파일군과 같은 계열의 누락이다
+  (`5895c2e` 의 8파일이 그랬듯 커밋은 됐는데 목록에 안 실렸다).
+  ⚠ 실행 커맨드: **`uv run --with pytest --with pytest-asyncio python -m pytest
+  backend/services/test_a2a_history.py backend/services/test_lien.py
+  backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
+
+  🟡 **알아 둘 함정 — `manual_chunks` 는 격리 스키마에 데이터가 복제되지 않는다.**
+  `data/pg_isolation.py` 의 `_CLONE_TABLES` 는 **24개**뿐이라 `manual_chunks` 가 빠져 있다.
+  테이블 자체는 `_SCHEMA_SQL` 로 만들어지므로 **에러 없이 조용히 0행**이 된다. 지금은
+  `public` 도 0행이라 차이가 없지만, 배포 절차 4단계(코퍼스 임베딩, `13_DEPLOYMENT §5-2`)를
+  실행한 뒤에는 **격리 스파이크만 dense 검색 결과가 비는** 상태가 된다 — 실패가 아니라
+  "검색 결과 없음"으로 보이므로 알아채기 어렵다. 그때 `_CLONE_TABLES` 에 추가할 것.
+
+  📌 **pytest 총계는 이제 18파일 255건이다** (7파일군 128 + A2A 8파일군 107 + 이 3파일 20).
+  목록이 맞는지 보려면 `find backend data -name 'test_*.py' -not -path '*__pycache__*'`
+  가 반환하는 파일이 전부 위 세 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
+  누락이 반복된다(이번까지 **세 번째**다).
+
 - `spikes/` — **34종**(`ls spikes/*.py` 는 38개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
   `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
@@ -170,7 +203,8 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **34스위트 / 1,183건**(2026-09-04 전수 재실행 — 1,120 + docx_contract 63. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
+spikes **34스위트 / 1,186건**(2026-09-04 — 1,183 + `db_concurrency` D126 3건(⑭⑮⑯).
+직전 값 1,183 = 1,120 + docx_contract 63. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
 `repair_flow_contract` 19→28(P39 화면 직접 생성 축) · `ui_honesty_contract` 303→321
 (P39 수리증빙 신규 파일 3개 × 6항목). **처분서까지 마치며 +16 더**: `disposal_api_contract` 26→36(화면 직접 생성 축) · `ui_honesty_contract` 321→327(`DisposalDraftForm` 1파일 × 6). **프론트 라우트는 25 그대로다** — 처분은 새 라우트 없이 기존 `/technician/asset/[assetId]/disposal` 에 붙였다. 그 전 값은 아래 문단 참고 —
@@ -210,7 +244,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
-`citation_render 19` · `db_concurrency 7`(Postgres 재설계 — 아래 참고) · `deadline_risk_contract 18` ·
+`citation_render 19` · `db_concurrency 10`(Postgres 재설계 + D126 동시 전이 축 3건 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 36` · `docx_contract 63` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
