@@ -317,3 +317,99 @@ def fields_01(ctx: dict) -> dict[str, str]:
         f[f"ACTION_DURATION_{i}"] = UNKNOWN
         f[f"ACTION_COST_{i}"] = UNKNOWN
     return f
+
+
+# ── 03 자금집행요청서 (D118·D119) ──────────────────────────────────────────────
+# 고정 상수. `backend/services/po_documents.py` 에서 그대로 옮겼다.
+FUND_TYPE = "부품 구매대금"  # S1/S2 발주 전용 문서라 항상 이 값 (담보/대출 아님)
+FUNDING_METHOD = "계좌이체"  # A2A request-withdrawal 전제
+MFA_STATUS_TEXT = "미구현 (MaintQ 에 MFA 시스템 없음)"  # D118 이 이미 확정한 문구
+
+# 담보·대출 자리. **UNKNOWN 이 아니다** — 이 문서 종류가 담보 거래가 아니라는 것은
+# 모르는 게 아니라 확정 사실이다(D77 의 vat_invoice_issued=False 와 같은 성질).
+# 미리보기도 §3 을 "해당 없음 — 본 문서는 일반 부품 발주(S1/S2) 전용" 으로 적는다.
+NOT_APPLICABLE = "해당 없음"
+_COLLATERAL_KEYS = (
+    "COLLATERAL_TYPE",
+    "COLLATERAL_ID",
+    "COLLATERAL_VALUE",
+    "LOAN_AMOUNT",
+    "LTV",
+    "REPAYMENT_PLAN",
+)
+
+
+def mask_account(acct: str | None) -> str:
+    if not acct:
+        return UNKNOWN
+    return acct[-4:].rjust(len(acct), "*") if len(acct) > 4 else acct
+
+
+def fund_a2a_lines(a2a_info: dict | None) -> tuple[str, str, str]:
+    """(A2A_DELEGATED, A2A_TARGET, REQUEST_CHAIN_ID) 3필드."""
+    if a2a_info is None:
+        return "아니오 (아직 전송되지 않음)", UNKNOWN, UNKNOWN
+    delegated = "예" if a2a_info.get("status") == "ok" else "예 (전송 실패 또는 처리 중)"
+    return delegated, "FinAllQ", a2a_info["request_chain_id"]
+
+
+def drop_rows_03(ctx: dict) -> set[str]:
+    """03 에는 반복 표 행이 없다 — 담보·대출 자리는 지우지 않고 '해당 없음' 으로 채운다.
+
+    지우면 "담보 항목을 검토조차 안 했다" 로 읽힌다. 채우면 "검토했고 해당 없음" 이다.
+    반복 품목 행(02 의 `_2`·`_3`)과 성질이 다르다.
+    """
+    return set()
+
+
+def fields_03(
+    ctx: dict, controls: dict[str, tuple], a2a_info: dict | None, payee: dict | None
+) -> dict[str, str]:
+    """03 자금집행요청서 — 템플릿 자리 − WITHHELD.
+
+    `controls`·`a2a_info`·`payee` 는 backend 가 조립해 넘긴다 — 내부통제 판정(D119)은
+    재무 승인 경로에서만 산출되므로 MCP 읽기 도구는 이 문서를 만들지 않는다(D125).
+    """
+    from data.korean_number import amount_to_korean
+
+    _, _, total = amounts(ctx)
+    budget_ok, budget_evidence = controls["budget"]
+    daily_ok, daily_evidence = controls["daily_limit"]
+    fds_verdict, fds_evidence = controls["fds"]
+    sod_ok, sod_evidence = controls["sod"]
+    delegated, target, chain_id = fund_a2a_lines(a2a_info)
+
+    f: dict[str, str] = {
+        "FUND_REQUEST_NO": f'FUND-{ctx["po_id"]}',
+        "REQUESTED_AT": val(ctx.get("decided_at")),
+        "PO_REQUEST_NO": ctx["po_id"],
+        "DIAGNOSIS_DOC_NO": f'DIAG-{ctx["po_id"]}' if ctx.get("error_code_def") else UNKNOWN,
+        "REQUEST_CHAIN_ID": chain_id,
+        "FUND_TYPE": FUND_TYPE,
+        "DOC_STATUS": doc_status(ctx),
+        "PURPOSE": ctx["reason"],
+        "AMOUNT": won(total),
+        "AMOUNT_KOREAN": amount_to_korean(total),
+        # 시스템이 별도로 기록하지 않음
+        "EXECUTION_DATE": UNKNOWN,
+        "FUNDING_METHOD": FUNDING_METHOD,
+        "PAYEE_NAME": ctx["supplier_name"],
+        # suppliers 테이블에 없음
+        "PAYEE_BIZ_NO": UNKNOWN,
+        "PAYEE_BANK": val(payee.get("bank_code")) if payee else UNKNOWN,
+        "PAYEE_ACCOUNT_MASKED": mask_account(payee.get("account_number")) if payee else UNKNOWN,
+        "BUDGET_CHECK": "통과" if budget_ok else "초과",
+        "BUDGET_EVIDENCE": budget_evidence,
+        "DAILY_LIMIT_CHECK": "통과" if daily_ok else "초과",
+        "DAILY_LIMIT_EVIDENCE": daily_evidence,
+        "FDS_VERDICT": fds_verdict,
+        "FDS_EVIDENCE": fds_evidence,
+        "SOD_CHECK": sod_evidence if sod_ok is None else ("통과" if sod_ok else "위반"),
+        "SOD_EVIDENCE": sod_evidence,
+        "APPROVAL_RESULT": approval_result(ctx),
+        "MFA_STATUS": MFA_STATUS_TEXT,
+        "A2A_DELEGATED": delegated,
+        "A2A_TARGET": target,
+    }
+    f.update({k: NOT_APPLICABLE for k in _COLLATERAL_KEYS})
+    return f

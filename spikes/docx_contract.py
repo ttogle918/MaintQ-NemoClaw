@@ -251,6 +251,12 @@ def _field_cases() -> list[tuple[str, str, dict, set[str]]]:
     return [
         ("01", "01_설비이상진단보고서.docx", df.fields_01(FIXTURE_PO), df.drop_rows_01(FIXTURE_PO)),
         ("02", "02_정비부품발주요청서.docx", df.fields_02(FIXTURE_PO), df.drop_rows_02(FIXTURE_PO)),
+        (
+            "03",
+            "03_자금집행요청서.docx",
+            df.fields_03(FIXTURE_PO, FIXTURE_CONTROLS, FIXTURE_A2A, FIXTURE_PAYEE),
+            df.drop_rows_03(FIXTURE_PO),
+        ),
     ]
 
 
