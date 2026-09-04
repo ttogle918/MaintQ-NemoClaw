@@ -257,6 +257,18 @@ def _field_cases() -> list[tuple[str, str, dict, set[str]]]:
             df.fields_03(FIXTURE_PO, FIXTURE_CONTROLS, FIXTURE_A2A, FIXTURE_PAYEE),
             df.drop_rows_03(FIXTURE_PO),
         ),
+        ("05", "05_설비처분승인서.docx", df.fields_05(FIXTURE_BUNDLE, **FIXTURE_DISPOSAL_KW), set()),
+        (
+            "06",
+            "06_진술및보장서.docx",
+            df.fields_06(
+                FIXTURE_BUNDLE,
+                verdict=FIXTURE_DISPOSAL_KW["verdict"],
+                bundle_hash=FIXTURE_DISPOSAL_KW["bundle_hash"],
+                decision_id=FIXTURE_DISPOSAL_KW["decision_id"],
+            ),
+            set(),
+        ),
     ]
 
 
@@ -294,6 +306,31 @@ def run_fields() -> None:
         )
 
 
+# ── C. 채우기 ──────────────────────────────────────────────────────────────────
+def run_fill() -> None:
+    import io
+    import zipfile
+
+    from backend.services.docx_render import fill_template, template_placeholders
+    from data import doc_fields as df
+
+    for tag, template, fields, dropped in _field_cases():
+        # 신원 자리는 이 계층이 만들지 않으므로 다운로드 엔드포인트를 흉내 내 채운다.
+        withheld_here = template_placeholders(template) & df.WITHHELD_KEYS
+        data = fill_template(
+            template, dict(fields) | {k: "(미기재)" for k in withheld_here}, drop_rows=dropped
+        )
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            xml = z.read("word/document.xml").decode("utf-8")
+        left = xml.count("{{")
+        check(
+            f"C① {tag} 채운 docx 에 미치환 자리가 없다",
+            data[:2] == b"PK" and left == 0,
+            f"{len(data):,}바이트 · 치환 {len(fields) + len(withheld_here)}자리"
+            f" · 삭제행 {len(dropped)}자리 · 잔존 {left}개",
+        )
+
+
 def main() -> None:
     if os.environ.get("DOCX_CONTRACT_REGOLD"):
         regold()
@@ -301,6 +338,7 @@ def main() -> None:
 
     run_golden()
     run_fields()
+    run_fill()
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 34))
@@ -313,7 +351,7 @@ def main() -> None:
         raise SystemExit(f"\n[실패] {len(failed)}건:\n  - " + "\n  - ".join(failed))
     print(
         f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
-        f"필드맵 {len(_field_cases())}문서"
+        f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종"
     )
 
 

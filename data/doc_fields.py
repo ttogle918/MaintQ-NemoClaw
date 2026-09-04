@@ -413,3 +413,183 @@ def fields_03(
     }
     f.update({k: NOT_APPLICABLE for k in _COLLATERAL_KEYS})
     return f
+
+
+# ── 05 설비처분승인서 · 06 진술및보장서 ────────────────────────────────────────
+# 문안 상수는 `mcp_server/tools/generate_disposal_document.py` 에서 그대로 옮겼다.
+# 미리보기(도구)와 docx(다운로드)가 같은 문장을 써야 하므로 정본을 여기 둔다 (D124).
+
+# 자산 단위 verdict 5종의 뜻. **판정하지 않는다** — 엔진이 낸 값을 문서용 한 줄로 옮길 뿐이다.
+# 없는 키는 `.get` 으로 흘려 원문 verdict 를 그대로 적는다 (모르는 판정을 통과로 포장 금지).
+VERDICT_LINES: dict[str, str] = {
+    "BLOCKED": "법정 차단 조건이 발화했다. 해소 없이 처분하면 법령 위반·추징 위험이 있다.",
+    "HOLD": "경계 구간이라 사람의 검토가 필요하다. 조건 미해당이라는 뜻이 아니다.",
+    "INSUFFICIENT_FACTS": "확인되지 않은 사실이 있어 판정을 확정할 수 없다. 문제 없음이 아니다.",
+    "CONDITIONAL": "선행 조건을 이행하면 처분할 수 있다.",
+    "CLEAR": "확인된 범위에서 처분을 막는 조건이 발견되지 않았다.",
+}
+
+VERDICT_UNKNOWN = "시스템이 정의하지 않은 판정값이다. 통과로 해석하지 말 것."
+
+# 문서에 그대로 실리는 고정 문장. **verdict 와 무관하게 붙는다** (D63).
+NO_AUTO_BLOCK_LINE = (
+    "이 판정은 처분을 자동으로 차단하지 않는다. 차단 사실이 이 초안에 기록된 채 결재에 "
+    "올라가며, 예외 적용 여부와 그 사유는 승인자가 서명 시 기록한다."
+)
+
+UNKNOWN_LINE = (
+    f"'{UNKNOWN}' 으로 적힌 항목은 '해당 없음'이 아니라 시스템에서 확인되지 않았다는 뜻이다 — "
+    "매도인이 별도로 확인해 보완해야 한다."
+)
+
+
+def fact(facts: dict, key: str) -> str:
+    """값 사실. 키가 없거나 빈 문자열이면 '확인되지 않음'."""
+    value = facts.get(key)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return UNKNOWN
+    return str(value)
+
+
+def law_lines(bundle: dict) -> str:
+    laws = bundle.get("laws") or []
+    if not laws:
+        return "        · 인용된 법령 조문 없음 (발화한 조건이 없거나 계약 근거만 인용됨)"
+    return "\n".join(
+        f"        · {law.get('law_ref_id')} (시행 {law.get('effective_from') or UNKNOWN})"
+        f" {law.get('text_hash') or UNKNOWN}"
+        for law in laws
+    )
+
+
+def rule_lines(bundle: dict) -> str:
+    rules = bundle.get("rules") or []
+    if not rules:
+        return "        · 인용된 해석 룰 없음"
+    return "\n".join(
+        f"        · {r.get('rule_id')} v{r.get('rule_version')} {r.get('rule_hash') or UNKNOWN}"
+        for r in rules
+    )
+
+
+def contract_lines(bundle: dict) -> str:
+    contracts = bundle.get("contracts") or []
+    if not contracts:
+        return "        · 인용된 계약 근거 없음"
+    return "\n".join(f"        · {c.get('contract_ref')}" for c in contracts)
+
+
+def open_condition_lines(bundle: dict) -> str:
+    """발화·보류·사실부족으로 남은 룰. **재판정이 아니라 번들 `evaluated[]` 의 전재**다."""
+    rows = [e for e in (bundle.get("evaluated") or []) if e.get("verdict") != "CLEAR"]
+    if not rows:
+        return "        · 미해소 항목 없음 (평가한 룰이 전부 CLEAR)"
+    return "\n".join(
+        f"        · {e.get('rule_id')} v{e.get('rule_version')} — {e.get('verdict')}"
+        f" (근거 조문: {', '.join(e.get('law_refs') or []) or '없음'})"
+        for e in rows
+    )
+
+
+def _disposal_common(bundle: dict, verdict: str, bundle_hash: str, decision_id: str,
+                     doc_state: str, created_at: str, request_chain_id: str) -> dict[str, str]:
+    """05·06 이 함께 쓰는 자리."""
+    facts = bundle.get("facts") or {}
+    return {
+        "DECISION_ID": decision_id,
+        "DOC_STATE": doc_state,
+        "CREATED_AT": created_at,
+        "REQUEST_CHAIN_ID": request_chain_id,
+        "ASSET_ID": fact(facts, "asset_id"),
+        "ASSET_STATUS": fact(facts, "status"),
+        "ACQUIRED_AT": fact(facts, "acquired_at"),
+        "BUILDING_ID": fact(facts, "building_id"),
+        "DISPOSAL_MODE": fact(facts, "disposal_mode"),
+        "DISPOSAL_DATE": fact(facts, "disposal_date"),
+        "VERDICT": verdict,
+        "BUNDLE_HASH": bundle_hash,
+        "OPEN_CONDITIONS": open_condition_lines(bundle),
+        "TEMPLATE_REVIEW_NOTICE": _template_review_notice(),
+    }
+
+
+def _template_review_notice() -> str:
+    # 지연 import — `data/doc_review.py` 는 순수 계층이지만 import 순서를 이 모듈이
+    # 강제하지 않도록 함수 안에서 부른다 (`fields_02` 의 korean_number 와 같은 방식).
+    import data.doc_review as _doc_review
+
+    return _doc_review.template_review_notice()
+
+
+def fields_05(
+    bundle: dict,
+    *,
+    verdict: str,
+    bundle_hash: str,
+    reason: str,
+    decision_id: str,
+    doc_state: str = UNKNOWN,
+    created_at: str = UNKNOWN,
+    request_chain_id: str = UNKNOWN,
+) -> dict[str, str]:
+    """05 설비처분승인서 — 템플릿 자리 − WITHHELD.
+
+    `doc_state`·`created_at`·`request_chain_id` 는 `decisions` **행**에서 오는데
+    `render_documents()` 는 번들과 판정값만 받는다. 도구 경로(초안 생성 직후)에서는 아직
+    알 수 없으므로 기본값 UNKNOWN 이고, 다운로드 엔드포인트가 실제 값을 넘긴다.
+
+    ⛔ SIGNED_BY·SIGNED_AT·OVERRIDE·OVERRIDE_REASON 은 인자로도 받지 않는다 (D81·D23).
+    """
+    evaluated = bundle.get("evaluated") or []
+    fired = [e for e in evaluated if e.get("verdict") != "CLEAR"]
+    f = _disposal_common(
+        bundle, verdict, bundle_hash, decision_id, doc_state, created_at, request_chain_id
+    )
+    f.update(
+        {
+            "REASON": reason,
+            "VERDICT_LINE": VERDICT_LINES.get(verdict, VERDICT_UNKNOWN),
+            "RULES_EVALUATED": str(len(evaluated)),
+            "RULES_OPEN": str(len(fired)),
+            "LAW_COUNT": str(len(bundle.get("laws") or [])),
+            "LAW_LINES": law_lines(bundle),
+            "RULE_COUNT": str(len(bundle.get("rules") or [])),
+            "RULE_LINES": rule_lines(bundle),
+            "CONTRACT_COUNT": str(len(bundle.get("contracts") or [])),
+            "CONTRACT_LINES": contract_lines(bundle),
+        }
+    )
+    return f
+
+
+def fields_06(
+    bundle: dict,
+    *,
+    verdict: str,
+    bundle_hash: str,
+    decision_id: str,
+    doc_state: str = UNKNOWN,
+    created_at: str = UNKNOWN,
+    request_chain_id: str = UNKNOWN,
+) -> dict[str, str]:
+    """06 진술및보장서 — 템플릿 자리 − WITHHELD."""
+    facts = bundle.get("facts") or {}
+    f = _disposal_common(
+        bundle, verdict, bundle_hash, decision_id, doc_state, created_at, request_chain_id
+    )
+    f.update(
+        {
+            "HAS_LIEN": yn(facts, "has_lien"),
+            "LIEN_CREDITOR": fact(facts, "lien_creditor"),
+            "LIEN_CONSENT_REF": fact(facts, "lien_consent_ref"),
+            "INSURED": yn(facts, "insured"),
+            "POLICY_ID": fact(facts, "policy_id"),
+            "SAFETY_INSPECTION_TARGET": yn(facts, "safety_inspection_target"),
+            "LAST_INSPECTION_DATE": fact(facts, "last_inspection_date"),
+            "INSPECTION_VALID_UNTIL": fact(facts, "inspection_valid_until"),
+            "TAX_CREDIT_APPLIED": yn(facts, "tax_credit_applied"),
+            "MONTHS_SINCE_ACQUISITION": fact(facts, "months_since_acquisition"),
+            "VAT_INVOICE_ISSUED": yn(facts, "vat_invoice_issued"),
+        }
+    )
+    return f
