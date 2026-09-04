@@ -56,6 +56,20 @@ def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, bool(ok), detail))
 
 
+def guard(label: str, fn, *args) -> None:
+    """축 하나를 돌리되 예외를 **FAIL 행으로** 바꾼다.
+
+    ⚠ 이게 없으면 뒤쪽 축의 예외가 앞쪽 축의 결과를 통째로 삼킨다. 실측으로 확인했다 —
+    뮤턴트(WITHHELD_KEYS 에서 SIGNED_BY 제거)를 넣으니 B① 이 FAIL 을 이미 기록했는데도
+    C 축의 TemplateFieldMismatch 가 먼저 프로세스를 죽여 **표가 한 줄도 안 나왔다.**
+    표를 읽는 사람에게는 traceback 만 남고 어느 검사가 깨졌는지 알 수 없다.
+    """
+    try:
+        fn(*args)
+    except Exception as e:  # noqa: BLE001 — 축이 죽어도 나머지 표는 인쇄한다
+        check(f"{label} 축이 예외로 중단됨", False, f"{type(e).__name__}: {e}")
+
+
 # ── 픽스처 ─────────────────────────────────────────────────────────────────────
 # DB 를 읽지 않는다. 값은 시드(PO-0117 계열)를 본떴지만 **고정 리터럴**이다 —
 # 시드가 바뀌어도 골든이 흔들리지 않아야 "리팩터가 출력을 바꿨는가" 를 볼 수 있다.
@@ -652,9 +666,9 @@ def main() -> None:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
 
-    run_golden()
-    run_fields()
-    run_fill()
+    guard("A", run_golden)
+    guard("B", run_fields)
+    guard("C", run_fill)
 
     # D~F 는 실 DB 가 필요하다. 격리 스키마에서만 돈다 — 공유 public 을 건드리면
     # 다른 스위트의 회귀가 통째로 무의미해진다.
@@ -666,7 +680,7 @@ def main() -> None:
         con = dbcompat.connect_dsn(dsn)
         try:
             decision_id = _seed_decision(con)
-            run_context(con, decision_id)
+            guard("D", run_context, con, decision_id)
         finally:
             con.close()
         # 읽기 도구는 `read_only()` 로 **자기 커넥션을 연다.**
@@ -690,7 +704,7 @@ def main() -> None:
         prev_bk = _bk_db.DATABASE_URL
         _bk_db.DATABASE_URL = dsn
         try:
-            run_read_tool(decision_id)
+            guard("E", run_read_tool, decision_id)
 
             os.environ["MAINTQ_MCP_AUTOSTART"] = "0"  # 다운로드는 MCP 와 무관하다
             from fastapi.testclient import TestClient  # noqa: PLC0415
@@ -698,7 +712,7 @@ def main() -> None:
             from backend.main import app  # noqa: PLC0415
 
             with TestClient(app) as client:
-                run_download(client, decision_id)
+                guard("F", run_download, client, decision_id)
         finally:
             _bk_db.DATABASE_URL = prev_bk
             _mcp_db.DATABASE_URL = prev_const
