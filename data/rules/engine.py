@@ -9,15 +9,23 @@
 
 from __future__ import annotations
 
-from data.dbcompat import DbConnection, DbRow
-
 import hashlib
 import json
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+# ⛔ **런타임 import 로 두면 안 된다 (D129).** 이 모듈은 `data.rules.engine` 이 아니라
+#    `import engine` 으로 **독립 임포트**되는 경로가 있다 — `data/rules/fetch_laws.py` 와
+#    `spikes/law_fetch_contract.py` 가 `sys.path` 에 `data/rules` 만 넣고 그렇게 연다
+#    (그 스파이크 주석: "data.rules.engine 으로 열면 별개 모듈 객체가 되어 동일성 검사가
+#    무의미해진다"). 그 컨텍스트에는 `data` 패키지가 경로에 없어 `ModuleNotFoundError` 로
+#    죽는다 — 실제로 그렇게 깨뜨렸다가 되돌렸다.
+#    힌트는 `from __future__ import annotations` 덕에 문자열이라 이 가드로 충분하다.
+if TYPE_CHECKING:
+    from data.dbcompat import DbConnection, DbRow
 
 BASE = Path(__file__).parent
 RULES_DIR = BASE / "rules"

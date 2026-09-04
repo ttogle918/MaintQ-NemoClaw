@@ -154,13 +154,6 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  🟡 **알아 둘 함정 — `manual_chunks` 는 격리 스키마에 데이터가 복제되지 않는다.**
-  `data/pg_isolation.py` 의 `_CLONE_TABLES` 는 **24개**뿐이라 `manual_chunks` 가 빠져 있다.
-  테이블 자체는 `_SCHEMA_SQL` 로 만들어지므로 **에러 없이 조용히 0행**이 된다. 지금은
-  `public` 도 0행이라 차이가 없지만, 배포 절차 4단계(코퍼스 임베딩, `13_DEPLOYMENT §5-2`)를
-  실행한 뒤에는 **격리 스파이크만 dense 검색 결과가 비는** 상태가 된다 — 실패가 아니라
-  "검색 결과 없음"으로 보이므로 알아채기 어렵다. 그때 `_CLONE_TABLES` 에 추가할 것.
-
   📌 **pytest 총계는 이제 18파일 255건이다** (7파일군 128 + A2A 8파일군 107 + 이 3파일 20).
   목록이 맞는지 보려면 `find backend data -name 'test_*.py' -not -path '*__pycache__*'`
   가 반환하는 파일이 전부 위 세 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
