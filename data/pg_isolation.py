@@ -43,6 +43,11 @@ _CLONE_TABLES = [
     "part_lifecycle_mock", "residual_curve", "deadlines", "incidents",
     "ownership_checks", "risk_profile", "error_codes",
     "po_drafts", "decisions", "repair_records", "flags", "traces",
+    # `manual_chunks`(§24, D117)는 오래 이 목록에서 빠져 있었다 — 테이블은 `_SCHEMA_SQL` 로
+    # 만들어지므로 **에러 없이 조용히 0행**이 됐다. public 도 0행이던 동안은 차이가 없었지만,
+    # 코퍼스를 임베딩한 뒤에는 격리 스파이크만 dense 결과가 비고 그게 "실패"가 아니라
+    # "검색 결과 없음"으로 보인다(알아채기 어려운 종류). 미리 막는다.
+    "manual_chunks",
 ]
 
 

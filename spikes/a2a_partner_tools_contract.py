@@ -39,7 +39,6 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-import sqlite3
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -109,6 +108,8 @@ CREATE TABLE traces (
 );
 """
 
+from data import pg_isolation  # noqa: E402
+
 results: list[tuple[str, bool, str]] = []
 
 
@@ -148,7 +149,6 @@ async def list_tool_names(profile: str | None, db: Path) -> set[str]:
         env["MAINTQ_TOOLS_PROFILE"] = profile
     else:
         env.pop("MAINTQ_TOOLS_PROFILE", None)
-    env["MAINTQ_DB"] = str(db)
 
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
     async with stdio_client(params) as (read, write):
@@ -300,86 +300,87 @@ def check_sse_byte_identical_keys() -> None:
 
 
 def check_a2a_history_roundtrip() -> None:
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-        db = Path(td) / "a2a_history_spike.db"
-        con = sqlite3.connect(db)
-        con.executescript(_TRACES_SCHEMA)
-        con.commit()
-        con.close()
+    # 🔴 **여기가 공유 public 을 오염시키던 자리다 (D130).** 예전에는 SQLite 파일을 만들고
+    #    `MAINTQ_DB` 로 가리켰는데, `record_a2a_trace()` 는 `backend/db.py` 를 거치고
+    #    그쪽은 **`MAINTQ_DB` 를 읽지 않는다** — 상속받은 `DATABASE_URL` 로 실 DB 에 썼다.
+    #    실측: 이 스파이크 1회 실행마다 `public.traces` 에 **6행**이 쌓였고, 그게
+    #    CLAUDE.md 가 기록한 "⑤-a 가 count=4 로 떨어진다"의 실제 출처였다.
+    #    이제 격리 스키마를 만들고 `backend.db.DB_PATH` 를 그 DSN 으로 갈아끼운다
+    #    (다른 스파이크가 이미 쓰는 검증된 관행).
+    import backend.db as _bdb  # noqa: PLC0415
 
-        prev = os.environ.get("MAINTQ_DB")
-        os.environ["MAINTQ_DB"] = str(db)
-        try:
-            record_a2a_trace(
-                session_id="sess-a2a-spike",
-                skill_id="request-withdrawal",
-                request_payload={"po_id": "PO-SPIKE-1", "amount": 12345},
-                response_payload={"status": "completed", "req_id": "R1"},
-                request_chain_id="CHAIN-SPIKE-PO",
-                status="ok",
-            )
-            record_a2a_trace(
-                session_id="sess-a2a-spike",
-                skill_id="lookup-clause",
-                request_payload={"question": "화재 특약 보장 범위는?"},
-                response_payload={"status": "completed", "answer": "보장됩니다"},
-                request_chain_id="CHAIN-SPIKE-CLAUSE",
-                status="ok",
-            )
-            record_a2a_trace(
-                session_id="sess-a2a-spike",
-                skill_id="assess-loan",
-                request_payload={"collateral_building_id": "BLD-SPIKE-1", "loan_amount": 5000},
-                response_payload={"status": "completed"},
-                request_chain_id="CHAIN-SPIKE-LOAN",
-                status="ok",
-            )
+    schema, dsn = pg_isolation.create_isolated_schema("a2a_hist", clone_data=False)
+    prev_dbpath = _bdb.DB_PATH
+    _bdb.DB_PATH = dsn
+    try:
+        record_a2a_trace(
+            session_id="sess-a2a-spike",
+            skill_id="request-withdrawal",
+            request_payload={"po_id": "PO-SPIKE-1", "amount": 12345},
+            response_payload={"status": "completed", "req_id": "R1"},
+            request_chain_id="CHAIN-SPIKE-PO",
+            status="ok",
+        )
+        record_a2a_trace(
+            session_id="sess-a2a-spike",
+            skill_id="lookup-clause",
+            request_payload={"question": "화재 특약 보장 범위는?"},
+            response_payload={"status": "completed", "answer": "보장됩니다"},
+            request_chain_id="CHAIN-SPIKE-CLAUSE",
+            status="ok",
+        )
+        record_a2a_trace(
+            session_id="sess-a2a-spike",
+            skill_id="assess-loan",
+            request_payload={"collateral_building_id": "BLD-SPIKE-1", "loan_amount": 5000},
+            response_payload={"status": "completed"},
+            request_chain_id="CHAIN-SPIKE-LOAN",
+            status="ok",
+        )
 
-            all_hist = list_a2a_history()
-            check(
-                "⑤-a 필터 없음 → 3스킬 전부 회수(MAINTQ_DB 임시 지정 경유)",
-                all_hist["count"] == 3
-                and {it["skill"] for it in all_hist["items"]}
-                == {"request-withdrawal", "lookup-clause", "assess-loan"},
-                f"count={all_hist['count']} skills={sorted(it['skill'] for it in all_hist['items'])}",
-            )
+        all_hist = list_a2a_history()
+        check(
+            "⑤-a 필터 없음 → 3스킬 전부 회수(MAINTQ_DB 임시 지정 경유)",
+            all_hist["count"] == 3
+            and {it["skill"] for it in all_hist["items"]}
+            == {"request-withdrawal", "lookup-clause", "assess-loan"},
+            f"count={all_hist['count']} skills={sorted(it['skill'] for it in all_hist['items'])}",
+        )
 
-            by_skill = list_a2a_history(skill="lookup-clause")
-            check(
-                "⑤-b skill 필터 정확히 걸림",
-                by_skill["count"] == 1
-                and by_skill["items"][0]["request_chain_id"] == "CHAIN-SPIKE-CLAUSE",
-                f"count={by_skill['count']} chain={[it['request_chain_id'] for it in by_skill['items']]}",
-            )
+        by_skill = list_a2a_history(skill="lookup-clause")
+        check(
+            "⑤-b skill 필터 정확히 걸림",
+            by_skill["count"] == 1
+            and by_skill["items"][0]["request_chain_id"] == "CHAIN-SPIKE-CLAUSE",
+            f"count={by_skill['count']} chain={[it['request_chain_id'] for it in by_skill['items']]}",
+        )
 
-            by_po = list_a2a_history(po_id="PO-SPIKE-1")
-            check(
-                "⑤-c po_id 필터 정확히 걸림",
-                by_po["count"] == 1 and by_po["items"][0]["request_chain_id"] == "CHAIN-SPIKE-PO",
-                f"count={by_po['count']} chain={[it['request_chain_id'] for it in by_po['items']]}",
-            )
+        by_po = list_a2a_history(po_id="PO-SPIKE-1")
+        check(
+            "⑤-c po_id 필터 정확히 걸림",
+            by_po["count"] == 1 and by_po["items"][0]["request_chain_id"] == "CHAIN-SPIKE-PO",
+            f"count={by_po['count']} chain={[it['request_chain_id'] for it in by_po['items']]}",
+        )
 
-            by_building = list_a2a_history(building_id="BLD-SPIKE-1")
-            check(
-                "⑤-d building_id 필터 정확히 걸림",
-                by_building["count"] == 1
-                and by_building["items"][0]["request_chain_id"] == "CHAIN-SPIKE-LOAN",
-                f"count={by_building['count']} "
-                f"chain={[it['request_chain_id'] for it in by_building['items']]}",
-            )
+        by_building = list_a2a_history(building_id="BLD-SPIKE-1")
+        check(
+            "⑤-d building_id 필터 정확히 걸림",
+            by_building["count"] == 1
+            and by_building["items"][0]["request_chain_id"] == "CHAIN-SPIKE-LOAN",
+            f"count={by_building['count']} "
+            f"chain={[it['request_chain_id'] for it in by_building['items']]}",
+        )
 
-            by_chain = list_a2a_history(chain_id="CHAIN-SPIKE-CLAUSE")
-            check(
-                "⑤-e chain_id 정확 매칭(접두어 매칭 아님)",
-                by_chain["count"] == 1
-                and by_chain["items"][0]["request_chain_id"] == "CHAIN-SPIKE-CLAUSE",
-                f"count={by_chain['count']}",
-            )
-        finally:
-            if prev is None:
-                os.environ.pop("MAINTQ_DB", None)
-            else:
-                os.environ["MAINTQ_DB"] = prev
+        by_chain = list_a2a_history(chain_id="CHAIN-SPIKE-CLAUSE")
+        check(
+            "⑤-e chain_id 정확 매칭(접두어 매칭 아님)",
+            by_chain["count"] == 1
+            and by_chain["items"][0]["request_chain_id"] == "CHAIN-SPIKE-CLAUSE",
+            f"count={by_chain['count']}",
+        )
+    finally:
+        _bdb.DB_PATH = prev_dbpath
+        pg_isolation.drop_isolated_schema(schema)
 
 
 # ── main ────────────────────────────────────────────────────────────────────

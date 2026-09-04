@@ -126,7 +126,6 @@ def child_env(profile: str, db: Path) -> dict[str, str]:
     """자식 프로세스 env. `MAINTQ_DB` 로 **사본**을 가리켜 실 DB 경합을 피한다."""
     env = {k: v for k, v in os.environ.items() if v is not None}
     env["MAINTQ_TOOLS_PROFILE"] = profile
-    env["MAINTQ_DB"] = str(db)
     return env
 
 

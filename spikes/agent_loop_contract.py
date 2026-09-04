@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import shutil
 import sqlite3
 import sys
@@ -725,7 +724,6 @@ def main() -> None:
         else:
             db = Path(td) / "loop.db"
             shutil.copy2(SOURCE_DB, db)
-            os.environ["MAINTQ_DB"] = str(db)
         try:
             asyncio.run(run_all(db))
         finally:

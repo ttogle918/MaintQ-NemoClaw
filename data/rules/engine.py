@@ -11,12 +11,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+# ⛔ **런타임 import 로 두면 안 된다 (D129).** 이 모듈은 `data.rules.engine` 이 아니라
+#    `import engine` 으로 **독립 임포트**되는 경로가 있다 — `data/rules/fetch_laws.py` 와
+#    `spikes/law_fetch_contract.py` 가 `sys.path` 에 `data/rules` 만 넣고 그렇게 연다
+#    (그 스파이크 주석: "data.rules.engine 으로 열면 별개 모듈 객체가 되어 동일성 검사가
+#    무의미해진다"). 그 컨텍스트에는 `data` 패키지가 경로에 없어 `ModuleNotFoundError` 로
+#    죽는다 — 실제로 그렇게 깨뜨렸다가 되돌렸다.
+#    힌트는 `from __future__ import annotations` 덕에 문자열이라 이 가드로 충분하다.
+if TYPE_CHECKING:
+    from data.dbcompat import DbConnection, DbRow
 
 BASE = Path(__file__).parent
 RULES_DIR = BASE / "rules"
@@ -93,7 +102,7 @@ LAW_COLUMNS = (
 )
 
 
-def load_laws_from_db(con: sqlite3.Connection) -> dict[str, LawRef]:
+def load_laws_from_db(con: DbConnection) -> dict[str, LawRef]:
     """계층 1 **사본**을 DB에서 읽는다. 정본은 `data/rules/laws/*.json` 이다 (D60).
 
     파일 로더(`load_laws`)와 같은 dataclass 를 만든다 — 두 경로가 어긋나면
@@ -224,7 +233,7 @@ def _json_col(rule_id: str, column: str, value: str | None, default: Any) -> Any
         raise RuleIntegrityError(f"{rule_id}: {column} JSON 파싱 실패 — {exc}") from exc
 
 
-def load_rules_from_db(con: sqlite3.Connection, laws: dict[str, LawRef]) -> dict[str, Rule]:
+def load_rules_from_db(con: DbConnection, laws: dict[str, LawRef]) -> dict[str, Rule]:
     """계층 2 **사본**을 DB에서 읽는다. 정본은 `data/rules/rules/*.json` 이다 (D60).
 
     ★ 파일 로더(`load_rules`)와 **완전히 같은 불변식**을 적용한다 — 근거 없는 룰 거부(D61),
@@ -334,7 +343,7 @@ def _months_between(start: date, end: date) -> int:
 
 
 def build_facts(
-    asset_row: sqlite3.Row | dict,
+    asset_row: DbRow | dict,
     *,
     disposal_mode: str | None = None,
     disposal_date: str | None = None,

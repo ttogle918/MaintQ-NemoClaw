@@ -165,7 +165,7 @@ async def run_all(db) -> None:
         if dbcompat.USE_POSTGRES:
             mcp_env = {"DATABASE_URL": db, "MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
         else:
-            mcp_env = {"MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
+            mcp_env = {"MAINTQ_TOOLS_PROFILE": "full", "MAINTQ_MCP_AUTOSTART": "1"}
         client = McpClient(env=mcp_env)
         started = await client.start()
         tools = {t["name"] for t in await client.list_tools()}
@@ -427,11 +427,9 @@ def main() -> None:
             # ⚠ `env={**os.environ, ...}` — 명시 상속이다. env=None 이면 자식이 실 DB 를 연다.
             env = {
                 **os.environ,
-                "MAINTQ_DB": str(db),
                 "MAINTQ_TOOLS_PROFILE": "full",
                 "MAINTQ_MCP_AUTOSTART": "1",
             }
-            os.environ["MAINTQ_DB"] = str(db)  # in-process 쪽 안전망 (McpClient 는 명시 전달)
             print(f"[격리] MAINTQ_DB = {db}")
         print(f"[격리] MAINTQ_TOOLS_PROFILE = full · 포트 {PORT}\n")
 

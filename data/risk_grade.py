@@ -21,7 +21,8 @@
 
 from __future__ import annotations
 
-import sqlite3
+from data.dbcompat import DbConnection
+
 
 # LOW=1 / MEDIUM=2 / HIGH=3. 이 모듈의 정본 상수 — 다른 모듈이 사본을 두지 않는다.
 GRADE_ORDER: dict[str, int] = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -63,7 +64,7 @@ def _as_date_str(value: object) -> str | None:
 
 
 def risk_grade(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     building_id: str | None = None,
     asset_id: str | None = None,
@@ -78,7 +79,7 @@ def risk_grade(
         return _fail("internal_error", f"위험등급 산출 중 처리 오류: {e}")
 
 
-def _risk_grade(con: sqlite3.Connection, building_id: object, asset_id: object) -> dict:
+def _risk_grade(con: DbConnection, building_id: object, asset_id: object) -> dict:
     # ── 0) 입력 검증 — either-or (D80 예외 패턴) ──────────────────────────────
     for label, value in (("building_id", building_id), ("asset_id", asset_id)):
         if value is not None and not isinstance(value, str):

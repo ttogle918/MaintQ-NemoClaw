@@ -40,7 +40,8 @@ core 7종·full 15종을 단언해 실측으로 잠근다.
 
 from __future__ import annotations
 
-import sqlite3
+from data.dbcompat import DbConnection
+
 from datetime import date
 from typing import Any, NamedTuple
 
@@ -66,7 +67,7 @@ def as_text(value: object) -> object:
 
 
 def resolve_asset_id(
-    con: sqlite3.Connection, asset_id: str | None, equipment_id: str | None
+    con: DbConnection, asset_id: str | None, equipment_id: str | None
 ) -> tuple[str | None, dict | None]:
     """(asset_id, 실패 응답) 중 하나를 채워 돌려준다. `04 §8`·`§14` 가 같은 reason 을 쓴다.
 

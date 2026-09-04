@@ -47,7 +47,6 @@ def main():
     with tempfile.TemporaryDirectory() as td:
         db_path = Path(td) / "maintq_demo.db"
         shutil.copy2(SOURCE_DB, db_path)
-        os.environ["MAINTQ_DB"] = str(db_path)
 
         # ── Adapter Mock Transport
         def mock_adapter_handler(request: httpx.Request) -> httpx.Response:

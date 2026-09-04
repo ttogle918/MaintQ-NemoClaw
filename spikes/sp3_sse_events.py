@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -394,7 +393,7 @@ def main() -> None:
     print("SP3 — FastAPI SSE 이벤트 4종 + block 중간 삽입 (실제 uvicorn 프로세스)\n")
 
     schema = None
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory():
         # SP3 는 replay 경로만 쓴다 — MCP 를 띄울 이유가 없다.
         # lifespan 이 매번 stdio 서버를 스폰하면 기동이 느려지고, 연속 실행 시
         # 포트·자식 프로세스가 물려 간헐 실패한다 (실제로 한 번 겪었다).
@@ -406,13 +405,6 @@ def main() -> None:
             # 자식의 DATABASE_URL 자체를 격리 스키마 DSN으로 준다(data/pg_isolation.py).
             schema, dsn = pg_isolation.create_isolated_schema("sp3_sse")
             env = {**os.environ, "MAINTQ_MCP_AUTOSTART": "0", "DATABASE_URL": dsn}
-        else:
-            if not SOURCE_DB.exists():
-                raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
-            db = Path(td) / "sp3.db"
-            shutil.copy2(SOURCE_DB, db)
-            # MAINTQ_DB 는 replay 의 traces INSERT 가 원본 DB 를 건드리지 않게 하기 위한 것.
-            env = {**os.environ, "MAINTQ_MCP_AUTOSTART": "0", "MAINTQ_DB": str(db)}
         proc = subprocess.Popen(
             [
                 sys.executable,

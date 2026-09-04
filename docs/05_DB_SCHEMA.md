@@ -1080,6 +1080,73 @@ CREATE TABLE risk_profile (
 
 ---
 
+## 24. manual_chunks — 매뉴얼 청크 dense 임베딩 (D117)
+
+> **이 절은 오래 비어 있었다.** 테이블은 `scripts/postgres_schema.sql` 에 `§24` 로 정식
+> 정의돼 있고 `mcp_server/dense_scorer.py` 가 실제로 읽는데, 이 문서에는 한 줄도 없었다
+> (2026-09-04 실측으로 발견 — D130 작업 중 "문서 24개 vs 실제 DB 25개" 차이의 정체).
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;        -- pgvector (D117)
+
+CREATE TABLE manual_chunks (
+  chunk_id    TEXT PRIMARY KEY,               -- jsonl 의 chunk_id 를 그대로 쓴다
+  manual_id   TEXT NOT NULL,
+  model       TEXT NOT NULL,                  -- iG5A | S100 | IE5 (D109)
+  page        INTEGER NOT NULL,               -- 물리 페이지 (D26 — 인쇄 페이지 변환은 manifest 소관)
+  section     TEXT NOT NULL,
+  text        TEXT NOT NULL,                  -- ⚠ 정본이 아니다 (아래 참고)
+  char_len    INTEGER NOT NULL,
+  embedding   vector(2048),                   -- NULL = 아직 임베딩 안 됨
+  embedded_at TIMESTAMP,
+  CHECK (model IN ('iG5A','S100','IE5'))
+);
+
+CREATE INDEX idx_manual_chunks_model ON manual_chunks(model);
+```
+
+### 정본은 이 테이블이 아니라 파일이다 (D48)
+
+| | 정본 | 크기 |
+|---|---|---|
+| 청크 원문·페이지·절 | **`data/extracted/manual_chunks.jsonl`** | 1,229행 / 1.4MB |
+| 임베딩 벡터 | `manual_chunks.embedding` | — |
+
+`mcp_server/rag.py` 의 **키워드 검색은 jsonl 파일만 읽는다** — 이 테이블에 의존하지 않는다.
+그래서 테이블이 비어 있어도 RAG 는 정상 동작한다(dense 가꺼질 뿐). `text`·`page`·`section`
+컬럼을 같이 둔 것은 디버깅 편의이지 두 번째 정본을 만들려는 게 아니다 — **둘이 어긋나면
+jsonl 이 맞다.**
+
+### 채우는 주체는 하나뿐 · 사람이 명시 실행한다
+
+`scripts/migrate_vectors.py` 만 이 테이블에 INSERT 한다. 자동 실행되지 않는다 —
+임베딩은 외부 API 과금이라 `D105`(Elice 지출 가드)와 같은 태도로 **사람이 의도를 밝혀야**
+돈다. 배포 절차의 4단계다(`13_DEPLOYMENT §5-2`).
+
+MCP 쓰기 도구 3종은 이 테이블에 관여하지 않는다 — **D10 대상 밖**이다(판정·발주 흐름이
+아니라 검색 인덱스다).
+
+### 차원 2048 은 모델 고정값이다
+
+`nvidia/nemotron-3-embed-1b` 의 출력 차원이다(D117). **모델을 바꾸면 이 컬럼을 다시
+만들어야 한다** — 벡터공간이 달라 기존 값을 재사용할 수 없다. `embedding` 이 NULL 이면
+그 청크는 dense 후보에서 빠지고 키워드 점수만으로 순위가 정해진다(조용히 틀린 결과가
+아니라 **기능 축소**로 떨어지는 설계).
+
+### 현재 상태 — 0행
+
+`error_codes` 처럼 "사람 승인 전 미적재"가 아니라 **비용 게이트** 때문이다(위 참고).
+`mcp_server/dense_scorer.py` 는 이 상태에서 *"dense 스코어러 비활성"* 을 로그로 남기고
+키워드 검색만으로 동작한다.
+
+✅ **격리 스키마에도 복제된다** — `data/pg_isolation.py` 의 `_CLONE_TABLES` 에 오래
+빠져 있었다(24개). 테이블 자체는 `_SCHEMA_SQL` 로 만들어지므로 **에러 없이 조용히 0행**이
+됐고, `public` 도 0행이던 동안은 차이가 드러나지 않았다. 코퍼스를 임베딩한 뒤에는
+**격리 스파이크만 dense 결과가 비는** 상태가 됐을 것이다 — 실패가 아니라 "검색 결과 없음"
+으로 보여 알아채기 어려운 종류라, 그렇게 되기 전에 목록에 넣었다(2026-09-04, 25개).
+
+---
+
 ## 시드 데이터 전략 — "일부러 꼬아놓은" 케이스 맵
 
 | 케이스 | 시드 | 검증 시나리오 |

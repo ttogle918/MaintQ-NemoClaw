@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import json
 import sqlite3
 
@@ -18,7 +20,7 @@ VALID_MODELS = ("iG5A", "S100", "IE5")
 
 
 def search(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     part_no: str | None = None,
     part_name: str | None = None,

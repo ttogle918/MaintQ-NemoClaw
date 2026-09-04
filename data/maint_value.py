@@ -30,8 +30,9 @@ assess_repair_value}.py` 가 이 모듈로 얇게 위임한다 — `data/ownersh
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import math
-import sqlite3
 from datetime import datetime, date, timedelta
 from fractions import Fraction
 
@@ -144,7 +145,7 @@ def _round(value: float | None, digits: int) -> float | None:
 
 
 def _resolve_metrics_asset(
-    con: sqlite3.Connection, asset_id: str | None, equipment_id: str | None
+    con: DbConnection, asset_id: str | None, equipment_id: str | None
 ) -> tuple[str | None, dict | None]:
     """(asset_id, 실패 응답) — 실패 응답이 None 이 아니면 그대로 반환한다."""
     if asset_id:
@@ -177,7 +178,7 @@ def _resolve_metrics_asset(
 
 
 def _fetch_metrics_data(
-    con: sqlite3.Connection, asset_id: str | None, equipment_id: str | None
+    con: DbConnection, asset_id: str | None, equipment_id: str | None
 ) -> dict | tuple:
     """DB 조회 구간 — 원본의 `with read_only() as con: ... except Exception: db_error` 경계와
     동일한 보호 범위를 유지한다. 실패 dict 또는 조회 결과 튜플을 반환한다."""
@@ -236,7 +237,7 @@ def _fetch_metrics_data(
 
 
 def maintenance_metrics(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     asset_id: str | None = None,
     equipment_id: str | None = None,
@@ -415,7 +416,7 @@ CRITICALITY_DISCLAIMER = (
 )
 
 
-def part_criticality(con: sqlite3.Connection, *, part_no: str) -> dict:
+def part_criticality(con: DbConnection, *, part_no: str) -> dict:
     """공개 진입점 — **얇은 래퍼**.
 
     본체를 통째로 감싸 입력 파싱·응답 조립에서 난 예외까지 status 로 닫는다 (D9·D46).
@@ -428,7 +429,7 @@ def part_criticality(con: sqlite3.Connection, *, part_no: str) -> dict:
         return _fail("internal_error", f"부품 등급 조회 중 처리 오류: {e}")
 
 
-def _part_criticality(con: sqlite3.Connection, part_no: str) -> dict:
+def _part_criticality(con: DbConnection, part_no: str) -> dict:
     if not isinstance(part_no, str) or not part_no.strip():
         return _fail(
             "invalid_input",
@@ -624,7 +625,7 @@ def _materiality(amount: int, acquisition_cost: object, asset_found: bool) -> di
 
 
 def expenditure(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     part_class: str,
     repair_scope: str,
@@ -639,7 +640,7 @@ def expenditure(
 
 
 def _expenditure(
-    con: sqlite3.Connection,
+    con: DbConnection,
     part_class: object,
     repair_scope: object,
     amount: object,
@@ -929,7 +930,7 @@ def _rv_age_bucket(acquired: date, today: date) -> tuple[int, str | None]:
 
 
 def repair_value(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     equipment_id: str,
     failed_part: str,
@@ -956,7 +957,7 @@ def repair_value(
 
 
 def _repair_value(
-    con: sqlite3.Connection,
+    con: DbConnection,
     equipment_id: object,
     failed_part: object,
     repair_cost: object,

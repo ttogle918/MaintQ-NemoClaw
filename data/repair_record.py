@@ -24,11 +24,13 @@ INSERT만 허용된 `repair_writer()`라 `update_draft()`를 부르면 그 자�
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import json
-import sqlite3
 from typing import Any
 
 from data import maint_value
+from data import txn
 
 #: `work_type` 허용값. 미기재는 거부한다(12 §7) — 폴백으로 PLANNED를 고르지 않는다.
 WORK_TYPES: tuple[str, ...] = ("PLANNED", "UNPLANNED")
@@ -189,7 +191,7 @@ def validate_input(
 
 
 def classify(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     equipment_id: str,
     parts_list: list[dict],
@@ -270,17 +272,13 @@ def classify(
     }, None
 
 
-def next_repair_id(con: sqlite3.Connection) -> str:
-    row = con.execute(
-        "SELECT repair_id FROM repair_records WHERE repair_id LIKE 'RPR-%'"
-        " ORDER BY repair_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["repair_id"].split("-")[1]) + 1 if row else 1
-    return f"RPR-{n:04d}"
+def next_repair_id(con: DbConnection) -> str:
+    """`RPR-%04d` 채번. 경쟁 없는 발급은 `data/txn.py` 가 소유한다 (D126)."""
+    return txn.next_sequential_id(con, "repair_records", "repair_id", "RPR")
 
 
 def insert_draft(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     repair_id: str,
     equipment_id: str,
@@ -318,7 +316,7 @@ def insert_draft(
 
 
 def update_draft(
-    con: sqlite3.Connection,
+    con: DbConnection,
     *,
     repair_id: str,
     equipment_id: str,

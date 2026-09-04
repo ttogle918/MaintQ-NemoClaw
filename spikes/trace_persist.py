@@ -18,7 +18,6 @@ DDL 이 갈리면 여기서 먼저 깨지게 한다. data/maintq.db 는 읽지�
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import sys
 import tempfile
@@ -281,8 +280,8 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as td:
         db = make_db(Path(td))
-        if not dbcompat.USE_POSTGRES:
-            os.environ["MAINTQ_DB"] = str(db)
+        # (예전에는 여기서 SQLite 타겟일 때 `MAINTQ_DB` 를 심었다 — 아무도 읽지 않는
+        #  변수라 D130 에서 제거했다. 격리는 `DATABASE_URL`/`DB_PATH` 가 한다.)
         sys.path.insert(0, str(ROOT))
         try:
             run(db)

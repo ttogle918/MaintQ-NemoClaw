@@ -776,7 +776,6 @@ def main() -> None:
                 src = SOURCE_DB.with_name(SOURCE_DB.name + side)
                 if src.exists():
                     shutil.copy2(src, db.with_name(db.name + side))
-            os.environ["MAINTQ_DB"] = str(db)
 
         built = seed_decisions(db)
 

@@ -59,10 +59,13 @@
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection
+
 import sqlite3
 
 import data.doc_fields as _df  # D124 — 문안·필드맵 정본. backend 를 import 하지 않는다
 import data.doc_review as _doc_review  # D73 — 공유 데이터 계층. backend 를 import 하지 않는다
+from data import txn  # D126 — 채번 경쟁 방지. backend 를 import 하지 않는다
 
 from ..db import decision_writer
 from ._asset_ref import NOT_TEXT, as_text, err as _err
@@ -102,14 +105,10 @@ _contract_lines = _df.contract_lines
 _open_condition_lines = _df.open_condition_lines
 
 
-def _next_decision_id(con: sqlite3.Connection) -> str:
-    """`DEC-%04d`. `create_po_draft._next_po_id` 와 같은 패턴 — 채번 규약을 갈라 두지 않는다."""
-    row = con.execute(
-        "SELECT decision_id FROM decisions WHERE decision_id LIKE 'DEC-%'"
-        " ORDER BY decision_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(str(row[0]).split("-")[1]) + 1 if row else 1
-    return f"DEC-{n:04d}"
+def _next_decision_id(con: DbConnection) -> str:
+    """`DEC-%04d`. 채번 규약을 갈라 두지 않는다 — `data/txn.py` 한 곳이 소유하고
+    백엔드(`services/decisions._next_decision_id`)도 같은 함수를 쓴다 (D126)."""
+    return txn.next_sequential_id(con, "decisions", "decision_id", "DEC")
 
 
 def render_documents(

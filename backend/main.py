@@ -35,6 +35,7 @@ load_dotenv(override=False)
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
+from backend import db  # noqa: E402
 from backend.agent.mcp_client import McpClient  # noqa: E402
 from backend.routers import (  # noqa: E402
     approvals,
@@ -81,6 +82,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await client.stop()
+        # 커넥션 풀도 여기서 닫는다 (D127). `atexit` 에도 걸려 있지만, lifespan 이
+        # 정상 경로라 여기서 먼저 닫아야 재기동(reload) 시 커넥션이 새지 않는다.
+        db.close_pool()
 
 
 app = FastAPI(title="MaintQ API", version="0.1.0", lifespan=lifespan)

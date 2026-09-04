@@ -29,7 +29,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -320,22 +319,15 @@ def main() -> None:
 
     # Windows 는 sqlite 커넥션이 하나라도 열려 있으면 파일을 못 지운다 —
     # 정리 실패로 계약 검증 결과가 가려지지 않게 한다 (rules_db_load.py 선례)
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-        db = copy_db(SOURCE_DB, Path(td) / "sp2.db")
-        prev = os.environ.get("MAINTQ_DB")
-        os.environ["MAINTQ_DB"] = str(db)
-        print(f"[격리] MAINTQ_DB = {db}\n")
-        try:
-            asyncio.run(run())
-            check_write_isolation()
-        except Exception as e:  # noqa: BLE001
-            print(f"[중단] {type(e).__name__}: {e}")
-            raise SystemExit(1) from e
-        finally:
-            if prev is None:
-                os.environ.pop("MAINTQ_DB", None)
-            else:
-                os.environ["MAINTQ_DB"] = prev
+    # SQLite 사본(`copy_db`)과 tempdir 을 걷어냈다 (D130) — 그 둘은 `MAINTQ_DB` 가
+    # 가리킬 대상을 만들려고만 존재했고, 그 변수는 아무도 읽지 않는다.
+    # 실제 격리는 `mcp_server.db.DB_PATH` 가 한다(위 [격리] 출력 참고).
+    try:
+        asyncio.run(run())
+        check_write_isolation()
+    except Exception as e:  # noqa: BLE001
+        print(f"[중단] {type(e).__name__}: {e}")
+        raise SystemExit(1) from e
 
     after = (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size)
     print(f"[격리] 실 DB(after)  mtime_ns={after[0]} size={after[1]}\n")

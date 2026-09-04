@@ -103,6 +103,78 @@ Supabase는 **Session pooler**(포트 5432, 세션 고정)와 **Transaction pool
 
 ---
 
+## 3-B. 인덱스 — **지금 추가하지 않는다** (실측 근거, 2026-09-04)
+
+24테이블에 `CREATE INDEX` 가 2개뿐이고 **FK 컬럼 29개가 인덱스 없이** 있다. 리뷰에서
+"성능 위험"으로 지목됐지만, **실측 결과 지금 추가하면 손해다.** 근거를 남긴다 —
+같은 지적이 반복될 자리이기 때문이다.
+
+### 실측 ① 데이터가 작다
+
+| 테이블 | 행 수 | | 테이블 | 행 수 |
+|---|---|---|---|---|
+| `error_history` | 200 | | `error_codes` | 70 |
+| `supplier_parts` | 80 | | `residual_curve` | 42 |
+| `inventory` · `parts` | 40 | | `repair_records` | 12 |
+| `assets` · `equipment` | 9 · 10 | | `po_drafts` · `decisions` | 8 · 4 |
+
+### 실측 ② 플래너가 인덱스를 **거부한다**
+
+`EXPLAIN (ANALYZE)` 로 핫 쿼리 5종을 재보면 전부 **0.03~0.8ms**이고, `error_history` 는
+인덱스(`idx_history_eq_code`)가 **있는데도** Seq Scan 을 고른다 — 200행에서는 그게 실제로
+더 싸기 때문이다.
+
+| 쿼리 | 플랜 | 실행 시간 |
+|---|---|---|
+| `list_pos(state)` 승인 큐 | Sort + Seq Scan | **0.81 ms** |
+| 자금집행 1일 누적(D121) | Aggregate | **0.05 ms** |
+| `error_history` 반복 고장 | **Seq Scan**(인덱스 무시) | **0.04 ms** |
+| `supplier_parts` 견적 | Seq Scan | **0.03 ms** |
+| `repair_records` 설비별 | Seq Scan | **0.09 ms** |
+
+### 실측 ③ 진짜 비용은 다른 데 있다
+
+같은 세션에서 **커넥션 1개 여는 데 ~16ms** 가 든다(풀링 없음). `GET /api/po/{id}` 는
+커넥션을 **2개** 열고, 상태 전이는 **3개** 연다.
+
+> **쿼리 0.03~0.8ms vs 커넥션 16ms — 20~500배 차이다.**
+> 인덱스를 29개 달아도 응답 시간은 측정 가능한 수준으로 바뀌지 않는다. 줄여야 할 것은
+> 커넥션 수이지 스캔 비용이 아니다.
+
+> ✅ **후속 조치 완료 (D127, 2026-09-04)** — 커넥션 풀을 도입했다.
+> `list_pos` 23.1→**7.4ms**(3.1배) · `get_po` 31.0→**16.8ms**(1.8배).
+> 위 "커넥션이 진짜 비용"이라는 진단이 그대로 확인된 셈이다.
+> 남은 항목: `get_po()` 가 커넥션을 2개 여는 것(`a2a_history` 조회가 별도 커넥션)을
+> 하나로 합치는 것 — 풀 도입으로 비용이 16ms→~1ms 로 줄어 **우선순위는 내려갔다**.
+
+### 그래서 언제 다는가 — 임계값
+
+인덱스는 **쓰기 비용과 유지보수 표면**을 늘린다. 근거 없이 미리 달지 않는다(D65·D74 가
+잔가곡선에 대해 취한 태도와 같다 — 추정치를 사실처럼 굳히지 않는다). 아래 조건이
+**실제로 관측되면** 그때 단다.
+
+| 트리거 | 추가할 인덱스 | 근거 쿼리 |
+|---|---|---|
+| `error_history` > **10,000행** | `(equipment_id, code, occurred_at)` — **이미 있다.** 그때부터 실제로 쓰인다 | `get_error_history` 반복 고장 판정 |
+| `po_drafts` > **5,000행** | `(state, created_at DESC)` | `list_pos(state)` 승인 큐 정렬 |
+| `decisions`·`repair_records` > **5,000행** | 각 `(state)` | 승인 큐 3종(D85) |
+| `traces` > **100,000행** | `(session_id, seq)` — **이미 있다** | `GET /api/chat/{id}/trace`(D43) |
+| `repair_records` 설비별 조회가 느려지면 | `(equipment_id)` | 보전지표 산출(D101) |
+| 자산 **삭제/이관**을 실제로 쓰기 시작하면 | FK 컬럼 `asset_id` 5종(`equipment`·`decisions`·`flags`·`incidents`·`ownership_checks`·`deadlines`) | Postgres 는 FK 컬럼을 자동 인덱싱하지 않는다 — 부모 행 DELETE 시 자식 전체를 스캔한다 |
+
+**마지막 줄만 성격이 다르다.** 나머지는 조회 속도지만 이건 **삭제 시 잠금 시간**이라,
+행 수가 아니라 *"그 기능을 쓰는가"* 가 트리거다. 현재 자산 삭제 경로는 없다.
+
+### 재측정 방법
+
+```bash
+DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"   uv run python -c "import os,psycopg; con=psycopg.connect(os.environ['DATABASE_URL']);   [print(r[0]) for r in con.execute('EXPLAIN (ANALYZE) <쿼리>').fetchall()]"
+```
+
+Seq Scan 의 `actual time` 이 **10ms 를 넘기 시작하면** 위 표의 임계값을 앞당겨 볼 것.
+
+---
+
 ## 4. 인스턴스 제약 — Postgres 전환으로 대부분 해소됐다
 
 이전 버전은 "SQLite 쓰기 + MCP stdio + RAG 인덱스" 세 가지가 겹쳐 **단일 인스턴스 강제**라고

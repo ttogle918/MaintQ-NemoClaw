@@ -58,16 +58,19 @@ backend 는 `mcp_server` 를 import 하지 않는다. 그래서 `build_evidence_
 
 from __future__ import annotations
 
+from data.dbcompat import DbConnection, DbRow
+
 import json
-import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
 from backend.db import connect
 from backend.services.disposal import RuleCatalogError, _load_catalog, read_only
 from backend.services.po import iso_utc
+from backend.services import state_machine
 import data.doc_review as _doc_review  # D73 — 공유 데이터 계층 (mcp_server 와 같은 문구를 읽는다)
 from data import maint_value  # D73·D101 — 보전지표 산식의 단일 출처 (MQ-908 위임)
+from data import txn
 from data.rules import engine  # D73 — 공유 데이터 계층
 
 # ── 판정 어휘 ────────────────────────────────────────────────────────────────
@@ -136,6 +139,10 @@ class DecisionTransitionError(Exception):
             f"{decision_id} 는 지금 '{current}' 상태라 '{target}' 로 전이할 수 없습니다 "
             f"('{ALLOWED_FROM[target]}' 에서만 가능)"
         )
+
+
+#: 전이 골격(연결·잠금·404·409)은 `state_machine.Flow` 가 소유한다 (D126).
+FLOW = state_machine.Flow("decisions", "decision_id", ALLOWED_FROM, DecisionTransitionError)
 
 
 class EvidenceChanged(Exception):
@@ -241,7 +248,7 @@ def now_utc_sql() -> str:
 
 # ── 번들 재산출 (D84) ───────────────────────────────────────────────────────────
 def rebuild_bundle(
-    con: sqlite3.Connection, asset_id: str, disposal_mode: str, disposal_date: str | None
+    con: DbConnection, asset_id: str, disposal_mode: str, disposal_date: str | None
 ) -> tuple[dict, str, dict]:
     """`(bundle, bundle_hash, judgment)` — `build_evidence_bundle` 의 조립을 그대로 재현한다.
 
@@ -341,7 +348,7 @@ def rebuild_bundle(
     return bundle, compute_bundle_hash(bundle), judgment
 
 
-def _stored_bundle(row: sqlite3.Row) -> dict:
+def _stored_bundle(row: DbRow) -> dict:
     """저장된 `evidence_bundle` 을 **읽기만** 한다. 다시 직렬화하지 않는다."""
     try:
         parsed = json.loads(row["evidence_bundle"])
@@ -375,7 +382,7 @@ _DECISION_SELECT = (
 )
 
 
-def _row_to_decision(r: sqlite3.Row, *, with_bundle: bool = False) -> dict:
+def _row_to_decision(r: DbRow, *, with_bundle: bool = False) -> dict:
     d = dict(r)
     bundle = _stored_bundle(r)
     if with_bundle:
@@ -446,7 +453,7 @@ def get_decision(decision_id: str, db_path: str | None = None) -> dict | None:
 
 
 # ── 문서 렌더 (D86 — 저장하지 않고 응답 조립 시점에 계산) ────────────────────────
-def _law_footnotes(bundle: dict, con: sqlite3.Connection) -> list[dict]:
+def _law_footnotes(bundle: dict, con: DbConnection) -> list[dict]:
     """인용 조문 각주 — `bundle.laws[].law_ref_id` → `law_refs` 의 `법령명 제N조(제목)`.
 
     문안을 손으로 적지 않는다. 조문 표기를 코드에 박으면 `11 §2` 가 막으려던
@@ -477,7 +484,7 @@ def _law_footnotes(bundle: dict, con: sqlite3.Connection) -> list[dict]:
     return out
 
 
-def _rule_texts(bundle: dict, con: sqlite3.Connection) -> dict[tuple[str, int], dict]:
+def _rule_texts(bundle: dict, con: DbConnection) -> dict[tuple[str, int], dict]:
     """`evaluated[]`·`rules[]` 에 실린 `(rule_id, rule_version)` 의 본문을 DB 사본에서 읽는다.
 
     **버전을 함께 조회하는 이유**: 서명은 *그때 그 버전*에 대해 이뤄진 것이다(D60).
@@ -528,7 +535,7 @@ _METRICS_KEYS: tuple[str, ...] = (
 )
 
 
-def _metrics(con: sqlite3.Connection, asset_id: str) -> dict:
+def _metrics(con: DbConnection, asset_id: str) -> dict:
     """보전지표 — **`data.maint_value.maintenance_metrics()` 로 전량 위임한다** (MQ-908).
 
     이 함수는 예전에 `get_maintenance_metrics`(`04 §11`)와 같은 산식을 backend 에
@@ -554,7 +561,7 @@ def _metrics(con: sqlite3.Connection, asset_id: str) -> dict:
     return {key: result[key] for key in _METRICS_KEYS}
 
 
-def _repair_history(con: sqlite3.Connection, asset_id: str) -> tuple[list[dict], list[dict]]:
+def _repair_history(con: DbConnection, asset_id: str) -> tuple[list[dict], list[dict]]:
     """(정비 이력 요약, 핵심부품 갱신 내역) — **`signed_at IS NOT NULL` 만** (`12 §11`).
 
     서명되지 않은 레코드를 증빙에 실으면 매수자가 검증할 수 없는 주장이 증빙 패키지에 들어간다.
@@ -610,7 +617,7 @@ def _repair_history(con: sqlite3.Connection, asset_id: str) -> tuple[list[dict],
     return history, renewals
 
 
-def render_documents(bundle: dict, con: sqlite3.Connection, *, asset_id: str) -> dict:
+def render_documents(bundle: dict, con: DbConnection, *, asset_id: str) -> dict:
     """처분 승인서 · 진술보장서 · 증빙 패키지(축소판)를 **저장하지 않고** 렌더한다 (D86).
 
     D57 선례(`print_page` 를 저장하지 않고 응답 조립 시점 계산)와 같은 구조다. 저장하면
@@ -712,13 +719,12 @@ def render_documents(bundle: dict, con: sqlite3.Connection, *, asset_id: str) ->
 
 
 # ── 상태 전이 ───────────────────────────────────────────────────────────────────
-def _locked_row(con: sqlite3.Connection, decision_id: str) -> sqlite3.Row:
-    r = con.execute(
-        "SELECT * FROM decisions WHERE decision_id = ?", (decision_id,)
-    ).fetchone()
-    if r is None:
-        raise KeyError(decision_id)  # → 404
-    return r
+def _locked_row(con: DbConnection, decision_id: str) -> DbRow:
+    """전이 대상 행을 **실제로 잠근 채** 읽는다 (D126, → 404 는 KeyError).
+
+    이전 구현은 이 이름을 달고도 평범한 SELECT 였다 — 두 결재자가 동시에 서명/반려하면
+    둘 다 통과했다. 잠금 구현은 `data/txn.py` 한 곳이 소유한다."""
+    return txn.locked_row(con, "decisions", "decision_id", decision_id)
 
 
 class NotEditableError(Exception):
@@ -730,17 +736,14 @@ class NotEditableError(Exception):
         )
 
 
-def _next_decision_id(con: sqlite3.Connection) -> str:
-    row = con.execute(
-        "SELECT decision_id FROM decisions WHERE decision_id LIKE 'DEC-%'"
-        " ORDER BY decision_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["decision_id"].split("-")[1]) + 1 if row else 1
-    return f"DEC-{n:04d}"
+def _next_decision_id(con: DbConnection) -> str:
+    """`DEC-%04d` 채번. 경쟁 없는 발급은 `data/txn.py` 가 소유한다 (D126) —
+    `mcp_server/tools/generate_disposal_document.py` 도 같은 함수를 쓴다."""
+    return txn.next_sequential_id(con, "decisions", "decision_id", "DEC")
 
 
 def _adjudicate(
-    con: sqlite3.Connection, *, asset_id: str, disposal_mode: str, disposal_date: str | None
+    con: DbConnection, *, asset_id: str, disposal_mode: str, disposal_date: str | None
 ) -> tuple[dict, str, str]:
     """재판정 — `(bundle, bundle_hash, verdict)`.
 
@@ -840,10 +843,7 @@ def submit(decision_id: str, *, requested_by: str, db_path: str | None = None) -
     신원 stamp 를 여기서 한다 (D23·D37) — 도구는 `requested_by` 를 채우지 않는다.
     이미 stamp 돼 있으면 덮지 않는다: 요청자를 나중에 바꿀 수 있으면 감사 추적이 무너진다.
     """
-    with connect(db_path) as con:
-        row = _locked_row(con, decision_id)
-        if row["state"] != ALLOWED_FROM["pending"]:
-            raise DecisionTransitionError(decision_id, row["state"], "pending")
+    with FLOW.transition(decision_id, "pending", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE decisions SET state='pending',"
             " requested_by = COALESCE(requested_by, ?) WHERE decision_id = ?",
@@ -856,10 +856,7 @@ def reject(
     decision_id: str, *, reviewed_by: str, reason: str, db_path: str | None = None
 ) -> dict:
     """pending → rejected. 사유 필수 (D38) — 라우터의 pydantic 이 공백을 먼저 막는다."""
-    with connect(db_path) as con:
-        row = _locked_row(con, decision_id)
-        if row["state"] != ALLOWED_FROM["rejected"]:
-            raise DecisionTransitionError(decision_id, row["state"], "rejected")
+    with FLOW.transition(decision_id, "rejected", db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE decisions SET state='rejected', reviewed_by=?, decision_note=?"
             " WHERE decision_id = ?",
@@ -882,14 +879,9 @@ def sign(
     반환은 `get_decision()` 형태. 실패는 예외로 올리고 라우터가 HTTP 로 매핑한다 —
     이건 사람용 REST 라 D9(도구는 status 로 반환)의 대상이 아니다.
     """
-    with connect(db_path) as con:
-        # ① 존재
-        row = _locked_row(con, decision_id)
-
-        # ② 전이 가능 상태인가 (이미 signed 인 건 재서명 → 409)
-        if row["state"] != ALLOWED_FROM["signed"]:
-            raise DecisionTransitionError(decision_id, row["state"], "signed")
-
+    # ①존재 ②전이 가능 상태 — 골격은 `state_machine.Flow` 가 소유한다 (D126).
+    # ③~⑥ 은 이 흐름 고유의 계약이라 여기 그대로 남는다 (D84 — 순서가 계약이다).
+    with FLOW.transition(decision_id, "signed", db_path=db_path) as (con, row):
         # ③ 근거 재산출·해시 대조. **override 판정보다 먼저다** (D84)
         stored = _stored_bundle(row)
         mode, disposal_date = _replay_args(stored)

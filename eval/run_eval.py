@@ -71,9 +71,7 @@ import asyncio
 import json
 import os
 import re
-import shutil
 import socket
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -102,10 +100,30 @@ from backend.agent.loop import (  # noqa: E402 — 마커 형식은 생산자(lo
     LLM_END_MARKER,
     TRUNCATION_REASONS,
 )
+from data import dbcompat, pg_isolation  # noqa: E402
 from eval import score  # noqa: E402 — sys.path 설정 후여야 한다
 from eval.judge import JudgeVerdict, judge_hallucination  # noqa: E402
 
-SOURCE_DB = ROOT / "data" / "maintq.db"
+# 🔴 **SQLite 사본이 아니라 Postgres 격리 스키마를 쓴다 (D130).**
+#
+# 예전에는 `data/maintq.db`(SQLite)를 복사해 자식 서버에 `MAINTQ_DB` 로 넘겼다.
+# 그런데 **Postgres 로 전환된 백엔드는 `MAINTQ_DB` 를 읽지 않는다** — 자식 서버는
+# 상속받은 `DATABASE_URL` 로 **공유 public 스키마**에 traces 를 썼고, 이 스크립트는
+# 아무도 쓰지 않은 SQLite 사본을 읽어 **0행 위에서 지표를 계산**했다.
+# 즉 평가가 조용히 무의미해지면서 동시에 실 데이터를 오염시켰다
+# (`s10_smoke`·`sp3_sse_events` 가 겪고 고친 것과 같은 사고 — CLAUDE.md 기록).
+#
+# 이제 `data/pg_isolation.py` 의 격리 스키마를 만들어 그 DSN 을 자식에게 넘기고,
+# traces 도 같은 스키마에서 읽는다. 끝나면 스키마를 지운다.
+def _require_database_url() -> str:
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        raise SystemExit(
+            "[중단] DATABASE_URL 이 없습니다. 평가는 Postgres 격리 스키마에서 돕니다 (D116·D130). "
+            "실행:  DATABASE_URL=\"$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)\" "
+            "uv run python eval/run_eval.py ..."
+        )
+    return url
 
 #: ⛔ 고정 포트를 쓰지 않는다. `--repeat` 가 회차마다 서버를 새로 띄우는데, Windows 는
 #: `taskkill` 직후 같은 포트를 다시 bind 하는 창에서 실패하거나 **직전 회차의 소켓에 붙는다**
@@ -254,7 +272,7 @@ def estimate_cost(items: list[dict], repeat: int = 1) -> str:
 
 
 def _start_server(
-    db_copy: Path, port: int, stderr_path: Path
+    dsn: str, port: int, stderr_path: Path
 ) -> tuple[subprocess.Popen, IO[bytes]]:
     """`uv run uvicorn backend.main:app` 을 자식 프로세스로 띄운다.
 
@@ -275,7 +293,9 @@ def _start_server(
     전파돼도 로그가 남는다**(직전에는 `communicate()` 전에 죽어 원본이 유실됐다).
     `spikes/eval_score_contract.py` ㉚ 이 이 자리를 잠근다.
     """
-    env = {**os.environ, "MAINTQ_DB": str(db_copy)}
+    # ⛔ `MAINTQ_DB` 가 아니라 `DATABASE_URL` 이다 (D130). Postgres 코드는 `MAINTQ_DB` 를
+    #    읽지 않으므로, 그 변수만 넘기면 자식이 **공유 public 스키마**로 조용히 샌다.
+    env = {**os.environ, "DATABASE_URL": dsn}
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
     fh = stderr_path.open("wb")
     proc = subprocess.Popen(
@@ -473,18 +493,14 @@ def probe_health() -> dict:
     """서버를 임시 포트에 띄워 `/health` 만 읽고 즉시 내린다. **LLM 호출 0회.**
 
     실패하면 빈 dict — `profile_violations` 가 fail-closed 로 받는다.
-    DB 는 `_start_server` 와 같은 방식으로 **사본**을 쓴다(`data/maintq.db` 에 쓰지 않는다).
+    DB 는 `_start_server` 와 같은 방식으로 **격리 스키마**를 쓴다(공유 public 에 쓰지 않는다, D130).
     """
-    if not SOURCE_DB.exists():
-        print(f"[경고] {SOURCE_DB} 가 없어 /health 프로브를 건너뜁니다 — 프로파일 확인 불가")
-        return {}
-
+    _require_database_url()
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
+    schema, dsn = pg_isolation.create_isolated_schema("eval_probe", clone_data=True)
     with tempfile.TemporaryDirectory() as td:
-        db_copy = Path(td) / "probe.db"
-        shutil.copy2(SOURCE_DB, db_copy)
-        proc, fh = _start_server(db_copy, port, Path(td) / "probe.log")
+        proc, fh = _start_server(dsn, port, Path(td) / "probe.log")
         try:
             if not asyncio.run(_wait_ready(base_url, timeout=60.0)):
                 print(f"[경고] /health 프로브 서버가 뜨지 않았습니다 ({base_url})")
@@ -496,6 +512,7 @@ def probe_health() -> dict:
         finally:
             _shutdown_server(proc)
             fh.close()
+            pg_isolation.drop_isolated_schema(schema)
 
 
 def _parse_sse_frame(buf: str, on_event) -> str:
@@ -516,7 +533,7 @@ def _parse_sse_frame(buf: str, on_event) -> str:
 # ────────────────────────────────────────────── traces 덤프 (MQ-713a ①)
 
 
-def dump_traces(db_path: Path, out_path: Path) -> int:
+def dump_traces(dsn: str, out_path: Path) -> int:
     """임시 DB 가 폐기되기 **전에** `traces` 전량을 JSONL 로 결과 옆에 덤프한다. 반환은 행 수.
 
     **왜 필요한가.** `_start_server` 는 실 DB 사본으로 서버를 띄우고 종료 시 사본을 폐기한다.
@@ -528,10 +545,9 @@ def dump_traces(db_path: Path, out_path: Path) -> int:
     `payload`(SSE data 사본)에는 요약만 있다. 값이 전부 NULL 이면 계측이 안 된 것이므로
     호출부가 그 사실을 눈에 띄게 보고한다.
 
-    ⛔ 인자로 받은 사본 DB 만 연다. `data/maintq.db` 는 열지 않는다.
+    ⛔ 인자로 받은 **격리 스키마 DSN** 만 연다. 공유 `public` 은 열지 않는다 (D130).
     """
-    con = sqlite3.connect(db_path)
-    con.row_factory = sqlite3.Row
+    con = dbcompat.connect_dsn(dsn)
     try:
         rows = con.execute(
             "SELECT session_id, seq, event_type, tool, payload, tool_payload, ts"
@@ -1427,11 +1443,11 @@ def _run_round(
     # stderr 는 처음부터 이 파일로 나간다 — 파이프를 두지 않는 것이 정지 사고의 수정이다.
     log_path = out_dir / f"{stamp}{suffix}.server.log"
 
-    with tempfile.TemporaryDirectory() as td:
-        db_copy = Path(td) / "eval.db"
-        shutil.copy2(SOURCE_DB, db_copy)
-
-        proc, fh = _start_server(db_copy, port, log_path)
+    # 회차마다 **새 격리 스키마**를 만든다 (D130). 회차 간 traces 가 섞이면 seq 연속성
+    # 검사와 지표가 흔들린다 — 예전 SQLite 사본이 하던 격리를 스키마가 대신한다.
+    schema, dsn = pg_isolation.create_isolated_schema(f"eval_r{round_idx}", clone_data=True)
+    try:
+        proc, fh = _start_server(dsn, port, log_path)
         try:
             if not asyncio.run(_wait_ready(base_url)):
                 fh.flush()
@@ -1462,7 +1478,7 @@ def _run_round(
             #   덤프 실패로 이미 끝난 문항 결과를 날리지 않는다(집계는 계속한다).
             try:
                 dump_path = out_dir / f"{stamp}{suffix}.traces.jsonl"
-                rows = dump_traces(db_copy, dump_path)
+                rows = dump_traces(dsn, dump_path)
                 tr_rows, tp_rows = count_tool_payloads(dump_path)
                 traces_dump = {
                     "path": str(dump_path),
@@ -1478,6 +1494,9 @@ def _run_round(
                     print("  [주의] traces 가 0행입니다 — 판정 근거를 사후 대조할 수 없습니다.")
             except Exception as exc:  # noqa: BLE001 — 덤프 실패는 평가 실패가 아니다
                 print(f"[경고] traces 덤프 실패: {exc}")
+    finally:
+        # 스키마는 **덤프가 끝난 뒤에** 지운다 — 순서가 바뀌면 판정 근거가 사라진다.
+        pg_isolation.drop_isolated_schema(schema)
 
     stderr_text = _read_log(log_path)
     if stderr_text.strip():
@@ -1644,8 +1663,7 @@ def main() -> None:
         if answer != "y":
             raise SystemExit("[중단] 사용자가 취소했습니다.")
 
-    if not SOURCE_DB.exists():
-        raise SystemExit(f"[중단] {SOURCE_DB} 가 없습니다 — data/seed.py 를 먼저 실행하세요")
+    _require_database_url()
 
     # 리포트·traces 덤프·서버 로그가 **같은 타임스탬프**를 공유해야 짝이 성립한다.
     # 회차별 산출물은 `{stamp}.r{k}.*` 로 갈라지되 stamp 는 공유한다.

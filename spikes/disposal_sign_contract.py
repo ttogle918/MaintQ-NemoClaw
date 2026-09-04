@@ -1112,7 +1112,6 @@ def main() -> None:
                 if src.exists():
                     shutil.copy2(src, db.with_name(db.name + side))
             # backend.db 는 **import 시점**에 이 값을 읽는다 — backend import 전에 심는다
-            os.environ["MAINTQ_DB"] = str(db)
             print(f"[격리] MAINTQ_DB = {db}")
         print(f"[격리] 처분 예정일 고정 = {PROBE_DATE}\n")
 

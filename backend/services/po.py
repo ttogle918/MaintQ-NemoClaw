@@ -22,7 +22,7 @@ import sqlite3
 
 from backend import manifest
 from backend.db import connect
-from backend.services import po_documents
+from backend.services import po_documents, state_machine
 from data import doc_fields as _df
 from data import po_draft
 
@@ -45,6 +45,11 @@ class TransitionError(Exception):
             f"{po_id} 는 지금 '{current}' 상태라 '{target}' 로 전이할 수 없습니다 "
             f"('{ALLOWED_FROM[target]}' 에서만 가능)"
         )
+
+
+#: 전이 골격(연결·잠금·404·409)은 `state_machine.Flow` 가 소유한다 (D126).
+#: 여기 남는 것은 이 흐름 고유의 UPDATE 뿐이다.
+FLOW = state_machine.Flow("po_drafts", "po_id", ALLOWED_FROM, TransitionError)
 
 
 def display_name(user_id: str | None, db_path: str | None = None) -> str:
@@ -405,13 +410,7 @@ def transition(
     """
     from backend.services.decisions import now_utc_sql
 
-    with connect(db_path) as con:
-        r = con.execute("SELECT state FROM po_drafts WHERE po_id = ?", (po_id,)).fetchone()
-        if r is None:
-            raise KeyError(po_id)
-        if r["state"] != ALLOWED_FROM[target]:
-            raise TransitionError(po_id, r["state"], target)
-
+    with FLOW.transition(po_id, target, db_path=db_path) as (con, _row):
         if target == "pending":
             con.execute("UPDATE po_drafts SET state = ? WHERE po_id = ?", (target, po_id))
         else:
@@ -433,12 +432,7 @@ def _finance_transition(
     """재무 승인 전이. 팀장 전용 `decided_by`/`decision_note`와 별도 컬럼 3종을 쓴다."""
     from backend.services.decisions import now_utc_sql
 
-    with connect(db_path) as con:
-        r = con.execute("SELECT state FROM po_drafts WHERE po_id = ?", (po_id,)).fetchone()
-        if r is None:
-            raise KeyError(po_id)
-        if r["state"] != ALLOWED_FROM[target]:
-            raise TransitionError(po_id, r["state"], target)
+    with FLOW.transition(po_id, target, db_path=db_path) as (con, _row):
         con.execute(
             "UPDATE po_drafts SET state = ?, finance_decided_by = ?,"
             " finance_decision_note = ?, finance_decided_at = ? WHERE po_id = ?",

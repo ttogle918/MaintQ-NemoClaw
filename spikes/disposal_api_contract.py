@@ -485,7 +485,6 @@ def main() -> None:
             con.execute("DELETE FROM rules")
             con.commit()
             con.close()
-            os.environ["MAINTQ_DB"] = str(db)
         os.environ["MAINTQ_MCP_AUTOSTART"] = "0"  # 판정은 MCP 와 무관하다 (D73)
 
         from fastapi.testclient import TestClient  # noqa: PLC0415
