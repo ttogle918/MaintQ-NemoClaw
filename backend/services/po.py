@@ -293,6 +293,71 @@ def _attach_print_pages(po: dict) -> None:
             entry["print_page"] = manifest.to_print_page(model, page)
 
 
+def fund_execution_inputs(con, po: dict, db_path: str | None = None) -> tuple | None:
+    """03 자금집행요청서가 필요로 하는 `(controls, a2a_info, payee)`. 대상 상태가 아니면 None.
+
+    `get_po()` 안에 인라인으로 있던 블록을 그대로 꺼낸 것이다 — docx 다운로드
+    (`backend/services/document_download.py`)가 **같은 값**을 써야 하기 때문이다.
+    두 벌로 두면 화면 미리보기와 docx 가 다른 내부통제 판정을 말하게 된다
+    (D119·D121 이 걸려 있는 계산이다).
+
+    ⛔ DB 에 쓰지 않는다 — 호출자의 지역 변수로만 조립돼 렌더에 쓰이고 버려진다(D86).
+    approved 이전(draft·pending)에는 재무부 승인 대상이 아직 아니므로 None —
+    빈 칸투성이 문서 대신 null 을 준다(D62).
+    """
+    if po["state"] not in _FUND_EXECUTION_STATES:
+        return None
+
+    from backend.services import a2a_history
+    from data import expenditure_limits as limits
+
+    po_id = po["po_id"]
+    amount = po["unit_price"] * po["qty"]
+    # po_id != ? — 이미 finance_approved 로 확정된 발주를 재조회할 때 자기 금액이
+    # "오늘 누적"에 중복 산입되는 것을 막는다(스펙 원문에는 없던 조건, 자기중복 버그
+    # 방지를 위해 이 프로젝트에서 추가 — D121).
+    today_total = con.execute(
+        "SELECT COALESCE(SUM(unit_price * qty), 0) FROM po_drafts"
+        " WHERE state = 'finance_approved' AND po_id != ?"
+        " AND DATE(finance_decided_at) = CURRENT_DATE",
+        (po_id,),
+    ).fetchone()[0]
+    controls = {
+        "budget": limits.budget_check(amount),
+        "daily_limit": limits.daily_limit_check(amount, today_total),
+        "fds": limits.fds_verdict(amount),
+        "sod": (
+            limits.sod_check(po["requested_by"], po["decided_by"], po["finance_decided_by"])
+            if po.get("requested_by") and po.get("decided_by") and po.get("finance_decided_by")
+            # 신원 3종(요청자·팀장·재무 담당) 중 하나라도 없으면 SOD 를 지어내지
+            # 않는다(D62) — 함수 자체를 부르지 않는다. `finance_decided_by` 만 보던
+            # 원래 가드는 `requested_by`가 NULL 인 정상 상태(D23·D37 — 챗봇 경유
+            # draft 가 아직 stamp 안 된 경우)에서 sod_check() 내부 `sorted({...})`가
+            # None 과 str 을 비교해 TypeError 로 죽는 버그가 있었다(실측: Stage 3
+            # 회귀에서 backend/routers/test_po_a2a_trigger.py 4건 FAIL 로 발견).
+            else (None, "확인 전 — 요청자·팀장·재무 승인자 중 아직 지정되지 않은 신원이 있습니다")
+        ),
+    }
+    # A2A 이력은 이 한 곳(list_a2a_history)만 재사용한다 — SQL 을 여기 복제하지
+    # 않는다(D114, W2/W5 드리프트 재발 방지).
+    a2a_result = a2a_history.list_a2a_history(
+        po_id=po_id, skill="request-withdrawal", limit=1, db_path=db_path
+    )
+    a2a_info = a2a_result["items"][0] if a2a_result["items"] else None
+    payee_row = con.execute(
+        "SELECT account_number, bank_code FROM suppliers WHERE supplier_id = ?",
+        (po["supplier_id"],),
+    ).fetchone()
+    payee = dict(payee_row) if payee_row else None
+    return controls, a2a_info, payee
+
+
+def get_fund_execution_inputs(po: dict, db_path: str | None = None) -> tuple | None:
+    """커넥션을 직접 여는 얇은 래퍼 — docx 다운로드 엔드포인트용."""
+    with connect(db_path) as con:
+        return fund_execution_inputs(con, po, db_path)
+
+
 def get_po(po_id: str, db_path: str | None = None) -> dict | None:
     """상세 — 근거 카드와 공급사 비교에 필요한 것을 한 번에 준다 (화면 B)."""
     with connect(db_path) as con:
@@ -304,53 +369,10 @@ def get_po(po_id: str, db_path: str | None = None) -> dict | None:
         # 화면 B "실행 로그 전체 보기" 링크 (D21)
         po["trace_url"] = f"/api/chat/{po['session_id']}/trace" if po["session_id"] else None
 
-        # D119 — 자금집행요청서(03) 내부통제(controls)·A2A 이력(a2a_info)·수취인(payee) 계산.
-        # DB 에 쓰지 않고 이 함수 안의 지역 변수로만 조립해 render 인자로 넘긴 뒤 버린다
-        # (D86 정신). approved 이전(draft·pending)에는 재무부 승인 대상이 아직 아니므로
-        # None — 빈 칸투성이 문서 대신 null 을 준다(D62).
+        # D118·D119 — 자금집행요청서(03) 미리보기. 저장하지 않고 조회 시점에 렌더한다(D86).
         fund_execution = None
-        if po["state"] in _FUND_EXECUTION_STATES:
-            from data import expenditure_limits as limits
-            from backend.services import a2a_history
-
-            amount = po["unit_price"] * po["qty"]
-            # po_id != ? — 이미 finance_approved 로 확정된 발주를 재조회할 때 자기 금액이
-            # "오늘 누적"에 중복 산입되는 것을 막는다(스펙 원문에는 없던 조건, 자기중복 버그
-            # 방지를 위해 이 프로젝트에서 추가).
-            today_total = con.execute(
-                "SELECT COALESCE(SUM(unit_price * qty), 0) FROM po_drafts"
-                " WHERE state = 'finance_approved' AND po_id != ?"
-                " AND DATE(finance_decided_at) = CURRENT_DATE",
-                (po_id,),
-            ).fetchone()[0]
-            controls = {
-                "budget": limits.budget_check(amount),
-                "daily_limit": limits.daily_limit_check(amount, today_total),
-                "fds": limits.fds_verdict(amount),
-                "sod": (
-                    limits.sod_check(po["requested_by"], po["decided_by"], po["finance_decided_by"])
-                    if po.get("requested_by") and po.get("decided_by") and po.get("finance_decided_by")
-                    # 신원 3종(요청자·팀장·재무 담당) 중 하나라도 없으면 SOD 를 지어내지
-                    # 않는다(D62) — 함수 자체를 부르지 않는다. `finance_decided_by` 만 보던
-                    # 원래 가드는 `requested_by`가 NULL 인 정상 상태(D23·D37 — 챗봇 경유
-                    # draft 가 아직 stamp 안 된 경우)에서 sod_check() 내부 `sorted({...})`가
-                    # None 과 str 을 비교해 TypeError 로 죽는 버그가 있었다(실측: Stage 3
-                    # 회귀에서 backend/routers/test_po_a2a_trigger.py 4건 FAIL 로 발견).
-                    else (None, "확인 전 — 요청자·팀장·재무 승인자 중 아직 지정되지 않은 신원이 있습니다")
-                ),
-            }
-            # A2A 이력은 이 한 곳(list_a2a_history)만 재사용한다 — SQL 을 여기 복제하지
-            # 않는다(D114, W2/W5 드리프트 재발 방지).
-            a2a_result = a2a_history.list_a2a_history(
-                po_id=po_id, skill="request-withdrawal", limit=1, db_path=db_path
-            )
-            a2a_info = a2a_result["items"][0] if a2a_result["items"] else None
-            payee_row = con.execute(
-                "SELECT account_number, bank_code FROM suppliers WHERE supplier_id = ?",
-                (po["supplier_id"],),
-            ).fetchone()
-            payee = dict(payee_row) if payee_row else None
-            fund_execution = po_documents.render_fund_execution_document(po, controls, a2a_info, payee)
+        if (fund_inputs := fund_execution_inputs(con, po, db_path)) is not None:
+            fund_execution = po_documents.render_fund_execution_document(po, *fund_inputs)
 
         # D118 — 발주요청서(02)·진단보고서(01)·자금집행요청서(03) 미리보기. 저장하지 않고
         # 조회 시점에 렌더한다(D86 과 같은 이유: 문안이 바뀌면 저장본이 조용히 낡는다).

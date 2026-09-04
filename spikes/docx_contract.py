@@ -526,6 +526,123 @@ def run_read_tool(decision_id: str) -> None:
     )
 
 
+# ── F. 다운로드 엔드포인트 ─────────────────────────────────────────────────────
+def _docx_xml(body: bytes) -> str:
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(body)) as z:
+        return z.read("word/document.xml").decode("utf-8")
+
+
+def run_download(client, decision_id: str) -> None:
+    from backend.services.docx_render import DOCX_MIME
+
+    h = {"X-User": "tech-01"}
+    r = client.get(f"/api/po/{PO_WITH_ERROR_CODE}/documents/po_request.docx", headers=h)
+    body = r.content
+    check(
+        "F① 02 발주요청서 다운로드 — 200 · docx MIME",
+        r.status_code == 200 and r.headers.get("content-type", "").startswith(DOCX_MIME),
+        f"{r.status_code} · {r.headers.get('content-type', '')[:46]}… · {len(body):,}바이트",
+    )
+    cd = r.headers.get("content-disposition", "")
+    check(
+        "F② Content-Disposition — attachment + RFC 5987 한글 파일명",
+        "attachment" in cd and "filename*=UTF-8''" in cd and 'filename="' in cd,
+        cd[:96],
+    )
+    xml = _docx_xml(body) if body[:2] == b"PK" else ""
+    check(
+        "F③ 미치환 자리가 없다",
+        body[:2] == b"PK" and xml.count("{{") == 0,
+        f"zip={body[:2] == b'PK'} · xml {len(xml):,}자 · '{{{{' 잔존 {xml.count('{{')}개",
+    )
+    # ⚠ 부재검사가 아니라 **양성** 검사다 — 신원이 실제로 얹혔는지 본다.
+    #   doc_fields 는 이 자리를 만들지 않으므로, 비어 있으면 엔드포인트가 안 얹은 것이다.
+    #   기대값은 **DB 실측에서 파생**한다 — 처음엔 픽스처 값("김정비")을 하드코딩했다가
+    #   FAIL 했다. 실제 시드는 "김OO"(D36 — 표시명은 서버가 매핑)라, 검사가 아니라
+    #   기대값이 틀렸던 것이다. 시드가 바뀌면 기대값도 같이 움직여야 한다.
+    from backend.services.po import get_po  # noqa: PLC0415
+
+    live = get_po(PO_WITH_ERROR_CODE) or {}
+    requester = live.get("requested_by_name") or ""
+    dept = live.get("requested_by_department") or ""
+    check(
+        "F④ 신원이 실제로 채워진다 (엔드포인트만 얹는다, D23)",
+        bool(requester) and requester in xml and bool(dept) and dept in xml,
+        f"요청자 {requester!r} 발견={requester in xml}"
+        f" · 소속 {dept!r} 발견={dept in xml} · xml {len(xml):,}자",
+    )
+    d = client.get(f"/api/po/{PO_WITH_ERROR_CODE}/documents/diagnosis.docx", headers=h)
+    check(
+        "F⑤ 01 진단보고서 — error_code_def 있으면 200",
+        d.status_code == 200 and d.content[:2] == b"PK",
+        f"{d.status_code} · {len(d.content):,}바이트",
+    )
+    f3 = client.get(f"/api/po/{PO_WITH_ERROR_CODE}/documents/fund_execution.docx", headers=h)
+    check(
+        "F⑥ 03 자금집행요청서 — 재무 결정 전이면 404 (미리보기와 같은 조건)",
+        f3.status_code == 404,
+        f"{f3.status_code} · documents_preview.fund_execution 이 None 인 상태와 같다",
+    )
+    check(
+        "F⑦ 없는 문서 키 → 404",
+        client.get(f"/api/po/{PO_WITH_ERROR_CODE}/documents/xxx.docx", headers=h).status_code == 404,
+        "doc 화이트리스트 밖",
+    )
+    check(
+        "F⑧ 없는 발주 → 404",
+        client.get(f"/api/po/{PO_MISSING}/documents/po_request.docx", headers=h).status_code == 404,
+        PO_MISSING,
+    )
+
+    a = client.get(f"/api/decisions/{decision_id}/documents/approval.docx", headers=h)
+    axml = _docx_xml(a.content) if a.content[:2] == b"PK" else ""
+    check(
+        "F⑨ 05 처분승인서 다운로드 — 200 · 미치환 0",
+        a.status_code == 200 and axml.count("{{") == 0,
+        f"{a.status_code} · {len(a.content):,}바이트 · 잔존 {axml.count('{{')}개",
+    )
+    check(
+        "F⑩ 서명 전에는 '(미기재 — 서명 시 기록된다)' (D81)",
+        "미기재" in axml and "적용" in axml,
+        f"미기재 표기={'있음' if '미기재' in axml else '없음'}"
+        f" · OVERRIDE 표기={'있음' if '적용' in axml else '없음'}",
+    )
+    w = client.get(f"/api/decisions/{decision_id}/documents/representation_warranty.docx", headers=h)
+    wxml = _docx_xml(w.content) if w.content[:2] == b"PK" else ""
+    check(
+        "F⑪ 06 진술및보장서 다운로드 — 200 · 미치환 0",
+        w.status_code == 200 and wxml.count("{{") == 0,
+        f"{w.status_code} · {len(w.content):,}바이트 · 잔존 {wxml.count('{{')}개",
+    )
+    check(
+        "F⑫ 없는 결정 → 404",
+        client.get("/api/decisions/DEC-0000/documents/approval.docx", headers=h).status_code == 404,
+        "DEC-0000",
+    )
+
+    # ★ D86 — 생성물이 어디에도 저장되지 않았는가. 다운로드 **후** 파일 시스템을 본다.
+    before = {p.name for p in (ROOT / "data" / "templates").iterdir()}
+    check(
+        "F⑬ 무저장 — 템플릿 폴더에 산출물이 생기지 않는다 (D86)",
+        before == EXPECTED_TEMPLATE_FILES,
+        f"파일 {len(before)}개 · 예상 밖 {sorted(before - EXPECTED_TEMPLATE_FILES) or '없음'}",
+    )
+
+
+EXPECTED_TEMPLATE_FILES = {
+    "01_설비이상진단보고서.docx",
+    "02_정비부품발주요청서.docx",
+    "03_자금집행요청서.docx",
+    "04_담보대출심사회신서.docx",  # D118 — 렌더 대상은 아니지만 파일은 있다
+    "05_설비처분승인서.docx",
+    "06_진술및보장서.docx",
+    "README.md",
+}
+
+
 def main() -> None:
     if os.environ.get("DOCX_CONTRACT_REGOLD"):
         regold()
@@ -568,9 +685,22 @@ def main() -> None:
         prev_const = _mcp_db.DATABASE_URL
         os.environ["DATABASE_URL"] = dsn
         _mcp_db.DATABASE_URL = dsn
+        import backend.db as _bk_db
+
+        prev_bk = _bk_db.DATABASE_URL
+        _bk_db.DATABASE_URL = dsn
         try:
             run_read_tool(decision_id)
+
+            os.environ["MAINTQ_MCP_AUTOSTART"] = "0"  # 다운로드는 MCP 와 무관하다
+            from fastapi.testclient import TestClient  # noqa: PLC0415
+
+            from backend.main import app  # noqa: PLC0415
+
+            with TestClient(app) as client:
+                run_download(client, decision_id)
         finally:
+            _bk_db.DATABASE_URL = prev_bk
             _mcp_db.DATABASE_URL = prev_const
             if prev_env is None:
                 os.environ.pop("DATABASE_URL", None)
@@ -612,7 +742,7 @@ def main() -> None:
     print(
         f"\n통과 ({len(results)}건) — 골든 {EXPECTED_GOLDEN_COUNT}종 · "
         f"필드맵 {len(_field_cases())}문서 · 채우기 {len(_field_cases())}종 · "
-        f"DB 컨텍스트 · 읽기 도구"
+        f"DB 컨텍스트 · 읽기 도구 · 다운로드"
     )
 
 
