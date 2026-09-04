@@ -229,7 +229,6 @@ def main() -> None:
         shutil.copy2(SOURCE_DB, db)
 
         # backend·mcp_server 둘 다 이 경로를 **import 시점에** 읽는다 — 실 DB 를 건드리지 않는다
-        os.environ["MAINTQ_DB"] = str(db)
         os.environ["MAINTQ_MCP_AUTOSTART"] = "0"  # 판정은 MCP 프로세스와 무관하다 (D73)
 
         sys.path.insert(0, str(ROOT))

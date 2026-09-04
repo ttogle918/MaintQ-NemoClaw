@@ -3353,7 +3353,10 @@ def main() -> None:
         args.db.unlink()
         print(f"[백업] 기존 DB → {backup.name}")
 
-    con = dbcompat.connect(args.db)
+    # `allow_sqlite=True` 는 의도 표명이다 (D130) — `DATABASE_URL` 이 있으면 그쪽이
+    # 우선이고 이 인자는 무시된다. 없을 때만 `args.db` 에 SQLite 파일을 만든다:
+    # 시드 스크립트는 **픽스처 DB 를 만드는 것이 기능**이라 폴백이 정당한 유일한 자리다.
+    con = dbcompat.connect(args.db, allow_sqlite=True)
     con.execute("PRAGMA foreign_keys=ON")  # 기본 OFF — 안 켜면 D33 FK가 무력화됨 (Postgres 는 무시됨)
     try:
         create_schema(con)

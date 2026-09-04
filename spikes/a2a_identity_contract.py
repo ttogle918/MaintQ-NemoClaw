@@ -612,7 +612,6 @@ def main() -> None:
         # 타겟과 무관하게 항상 순수 SQLite 사본을 쓴다.
         db = make_db(Path(td))
         # backend.db 는 import 시점에 MAINTQ_DB 를 읽는다 — import 전에 심는다
-        os.environ["MAINTQ_DB"] = str(db)
         sys.path.insert(0, str(ROOT))
         run_schema(db)
 

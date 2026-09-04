@@ -187,7 +187,7 @@ async def run(db) -> tuple[str, str, str]:
         # 격리 스키마가 아니라 공유 Postgres 에 써버린다 — 격리 스키마 DSN 으로 덮어쓴다.
         env = {**os.environ, "DATABASE_URL": db[1], "MAINTQ_TOOLS_PROFILE": "full"}
     else:
-        env = {**os.environ, "MAINTQ_DB": str(db), "MAINTQ_TOOLS_PROFILE": "full"}
+        env = {**os.environ, "MAINTQ_TOOLS_PROFILE": "full"}
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)], env=env)
 
     async with stdio_client(params) as (read, write):

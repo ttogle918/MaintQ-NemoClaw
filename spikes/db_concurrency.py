@@ -21,7 +21,6 @@ from __future__ import annotations
 import ast
 import inspect
 import logging
-import os
 import shutil
 import sqlite3
 import sys
@@ -561,7 +560,6 @@ def main() -> None:
             shutil.copy2(SOURCE_DB, db)
 
             # 두 모듈 모두 import 시점에 MAINTQ_DB 를 읽는다 — import 보다 먼저 세팅
-            os.environ["MAINTQ_DB"] = str(db)
             run(db)
 
         check(

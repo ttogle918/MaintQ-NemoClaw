@@ -739,10 +739,28 @@ class CompatCursor(psycopg.Cursor):
         return super().fetchall()
 
 
-def connect(db_path: str | Path | None = None, *, uri: bool = False):
-    """`sqlite3.connect()` 대체. `DATABASE_URL` 이 있으면 Postgres 로, 없으면 진짜 sqlite3 로."""
+def connect(db_path: str | Path | None = None, *, uri: bool = False, allow_sqlite: bool = False):
+    """`sqlite3.connect()` 대체. `DATABASE_URL` 이 있으면 Postgres, 없으면 SQLite.
+
+    🔴 **SQLite 로 떨어지려면 `allow_sqlite=True` 를 명시해야 한다 (D130).**
+    예전에는 환경변수 유무만으로 조용히 갈렸다 — 같은 코드가 어떤 날은 Postgres 를,
+    어떤 날은 `data/maintq.db` 를 보면서 **아무 말도 하지 않았다.** 그 사이 `backend/db.py`
+    는 같은 상황에서 `localhost:5432`(무응답)로 가서 무한 대기했다. 즉 환경변수 하나가
+    빠지면 두 모듈이 **서로 다른 DB** 를 보는데 어느 쪽도 알려주지 않았다.
+
+    지금은 SQLite 를 쓰겠다는 **의도를 코드에 적어야** 한다. 픽스처 DB 를 만드는
+    `data/seed.py`(`--db` 로 SQLite 파일을 지정하는 경로)와 스파이크가 그 대상이고,
+    애플리케이션 런타임에는 해당 경로가 없다 — 이 프로젝트는 Postgres 전용이다(D116).
+    """
     if USE_POSTGRES:
         return PgConnection(DATABASE_URL)
+    if not allow_sqlite:
+        raise RuntimeError(
+            "DATABASE_URL 이 없습니다. 이 프로젝트는 Postgres 전용입니다 (D116·D130) — "
+            "SQLite 로 조용히 폴백하지 않습니다. 셸에서 "
+            "DATABASE_URL=\"$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)\" 를 실어 주십시오. "
+            "픽스처용 SQLite 파일이 정말 필요하면 connect(..., allow_sqlite=True) 로 의도를 밝히십시오."
+        )
     if uri:
         return sqlite3.connect(str(db_path), uri=True)
     return sqlite3.connect(db_path)

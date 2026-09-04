@@ -13,24 +13,52 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from pathlib import Path
 
 import psycopg
 from psycopg_pool import ConnectionPool
 
 from data.dbcompat import CompatCursor, sqlite_row_factory
 
-# Postgres 연결 문자열 (환경변수에서)
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://localhost/maintq"  # 로컬 개발 기본값
-)
+# Postgres 연결 문자열 (환경변수에서).
+#
+# 🔴 **기본값을 두지 않는다 (D130).** 예전에는 `postgresql://localhost/maintq` 로 떨어졌는데,
+#    그 주소에는 아무도 없어서(컨테이너는 5434) psycopg 가 타임아웃 없이 **무한 대기**했다 —
+#    실패가 아니라 멈춤이라 원인 파악에 오래 걸린다(CLAUDE.md 가 이 함정을 길게 기록한다).
+#    더 나쁜 것은 `data/dbcompat.py` 가 **같은 상황에서 SQLite 로 조용히 폴백**했다는 것이다:
+#    환경변수 하나가 빠지면 두 모듈이 **서로 다른 DB** 를 보면서 둘 다 아무 말도 하지 않았다.
+#    이제는 `_require_url()` 이 첫 사용 시점에 무엇을 어떻게 고쳐야 하는지 말하며 죽는다.
+#
+#    ⚠ import 시점이 아니라 **첫 커넥션 시점**에 죽인다 — 모듈 임포트만으로 예외가 나면
+#    `backend/main.py` 의 D56 임포트 순서 문제와 같은 계열의 사고가 난다(임포트 부작용).
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# SQLite 호환 스텁 (Postgres는 이것들을 사용하지 않지만 기존 코드 호환성을 위해 유지)
-BUSY_TIMEOUT_MS = 5000  # SQLite 타임아웃 설정
-DB_PATH = Path(os.environ.get("MAINTQ_DB", "data/maintq.db"))  # SQLite 경로 (호환용)
+#: SQLite 시절 관행과의 호환 자리. 격리 스키마 DSN 문자열을 넣으면 그 커넥션이 그리로 간다.
+#: (예전에는 `MAINTQ_DB` 를 읽어 SQLite 경로를 담았다 — Postgres 코드는 그 변수를 읽지 않는다.)
+DB_PATH: str | None = None
 
 logger = logging.getLogger(__name__)
+
+
+class DatabaseUrlMissing(RuntimeError):
+    """`DATABASE_URL` 이 없어 접속 대상을 알 수 없다 (D130)."""
+
+
+def _require_url() -> str:
+    """접속 대상 DSN. 없으면 **조용히 추측하지 않고** 즉시 죽는다.
+
+    `DB_PATH`(회귀가 갈아끼우는 격리 DSN)가 있으면 그것으로 충분하므로 통과시킨다.
+    """
+    if DATABASE_URL:
+        return DATABASE_URL
+    if isinstance(DB_PATH, str) and DB_PATH.startswith("postgresql://"):
+        return DB_PATH
+    raise DatabaseUrlMissing(
+        "DATABASE_URL 이 설정되지 않았습니다. 이 프로젝트는 Postgres 전용입니다 (D116·D130) — "
+        "SQLite 로 폴백하거나 localhost 를 추측하지 않습니다.\n"
+        "  셸에서:   DATABASE_URL=\"$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)\" <명령>\n"
+        "  앱에서:   backend/main.py 가 load_dotenv() 로 .env 를 읽습니다 (D56).\n"
+        "  회귀에서: data/pg_isolation.create_isolated_schema() 가 돌려주는 DSN 을 쓰십시오."
+    )
 
 # ── 커넥션 풀 (D127) ─────────────────────────────────────────────────────────
 #
@@ -176,7 +204,7 @@ def connect(db_path: str | None = None) -> Iterator[psycopg.Connection]:
             "격리가 필요하면 data.pg_isolation.create_isolated_schema() 가 돌려주는 DSN 을 "
             "쓰십시오 — DSN 이 아닌 값은 무시되고 공유 DB 로 연결됩니다."
         )
-    target = DATABASE_URL
+    target = _require_url()
     if isinstance(DB_PATH, str) and DB_PATH.startswith("postgresql://"):
         target = DB_PATH
     if isinstance(db_path, str):

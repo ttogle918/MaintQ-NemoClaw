@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import sqlite3
 import sys
@@ -573,7 +572,6 @@ def main() -> None:
             else:
                 db = Path(td) / "api.db"
                 shutil.copy2(SOURCE_DB, db)
-                os.environ["MAINTQ_DB"] = str(db)
             seed_trace_fixture(db)
 
             sys.path.insert(0, str(ROOT))
