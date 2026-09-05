@@ -555,7 +555,7 @@ class FallbackClient:
                     "LLM 제공자 폴백: %s → %s (원인 %s). 유료 경로로 전환됐다.",
                     primary_label,
                     fallback_label,
-                    type(exc).__name__,
+                    fallback_cause(exc),
                 )
                 async for delta in fallback.stream(
                     system=system, messages=messages, tools=tools
@@ -565,7 +565,29 @@ class FallbackClient:
         return gen()
 
 
-PROVIDERS = ("gemini", "anthropic", "elice", "openai", "nvidia")
+PROVIDERS = ("gemini", "anthropic", "elice", "openai", "nvidia", "ollama")
+
+
+def fallback_cause(exc: BaseException) -> str:
+    """폴백 원인을 **고칠 수 있을 만큼만** 적는다 — 예외 타입 + HTTP 상태코드.
+
+    ⚠ 예전에는 `type(exc).__name__` 만 남겼다. 그래서 2026-09-05 평가 실행에서
+    NVIDIA 가 `openai/gpt-oss-120b` 를 EOL 시킨 것(**410 Gone**)을 로그로는 알 수
+    없었다 — 20문항이 전부 빈 응답이 됐는데 로그에는 `원인 APIStatusError` 한 줄뿐이라
+    엔드포인트를 직접 찔러 보고서야 원인이 나왔다. 모델 EOL(410) · 키 만료(401) ·
+    권한(403) · 쿼터 소진(429)이 **전부 같은 타입으로 뭉개진다.** 넷은 조치가 전부 다르다.
+
+    ⛔ **예외 메시지(본문)는 넣지 않는다.** D40·D123 이 고정한 성질이고, D123 은
+    가짜 키 실증에서 *"로그에는 예외 타입 이름만 남고 키·응답 본문은 없다"* 를
+    확인 사항으로 적어 뒀다. 제공자 응답 본문에 무엇이 실려 올지 우리가 통제할 수
+    없으므로 로그로 흘리지 않는다.
+
+    **상태코드는 그 위험이 없다** — 정수 하나이고, 위 넷을 가르는 데는 그것으로
+    충분하다(`410` 하나로 "모델이 사라졌다"까지 좁혀진다). 이 절충이 D131 이다.
+    """
+    name = type(exc).__name__
+    status = getattr(exc, "status_code", None)
+    return f"{name} {status}" if isinstance(status, int) else name
 
 
 def _build_single_client(provider: str, model: str) -> LlmClient:
@@ -609,6 +631,21 @@ def _build_single_client(provider: str, model: str) -> LlmClient:
         api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
         key_label = "NVIDIA_API_KEY"
         base_url = "https://integrate.api.nvidia.com"
+    elif provider == "ollama":
+        # Ollama **Cloud** — 로컬 데몬이 아니라 ollama.com 이 호스팅하는 모델이다.
+        # 로컬 설치는 필요 없다(설치가 필요한 건 `ollama signin` 으로 localhost:11434 를
+        # 프록시로 쓰는 다른 경로다). OpenAI 호환이라 EliceClient 를 그대로 재사용한다.
+        #
+        # ⛔ `nvidia` 와 같은 함정 — base_url 에 `/v1` 을 붙이지 않는다. EliceClient 가
+        #    없으면 붙이므로(L422-424) 여기 박으면 `/v1/v1` 이 된다.
+        #
+        # ⚠ **무료 티어에 모델별 게이트가 있다** (2026-09-05 실측). 카탈로그 19종 중
+        #   6종만 열려 있고 나머지 13종(qwen3.5·kimi-*·glm-5.*·deepseek-v4-*·minimax-*·
+        #   mistral-large-3)은 `"this model requires a subscription"` 로 **HTTP 오류**를
+        #   낸다. 모델 이름이 카탈로그에 있다고 쓸 수 있는 것이 아니다.
+        api_key = os.environ.get("OLLAMA_API_KEY", "").strip()
+        key_label = "OLLAMA_API_KEY"
+        base_url = "https://ollama.com"
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         key_label = "ANTHROPIC_API_KEY"
@@ -625,7 +662,7 @@ def _build_single_client(provider: str, model: str) -> LlmClient:
         )
     if provider == "gemini":
         return GeminiClient(model=model, api_key=api_key)
-    if provider in ("elice", "openai", "nvidia"):
+    if provider in ("elice", "openai", "nvidia", "ollama"):
         return EliceClient(model=model, api_key=api_key, base_url=base_url)
     return AnthropicClient(model=model, api_key=api_key)
 

@@ -33,7 +33,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from eval import score  # noqa: E402 — sys.path 설정 후여야 한다
-from eval.run_eval import _EXEC_FAILED_PREFIX, ItemResult, aggregate  # noqa: E402
+from eval.run_eval import (  # noqa: E402
+    _EXEC_FAILED_PREFIX,
+    ItemResult,
+    aggregate,
+    item_outcomes,
+    mark_stream_failures,
+    stream_failed_sessions,
+)
 
 results: list[tuple[str, bool, str]] = []
 
@@ -143,6 +150,42 @@ def make_item_d() -> ItemResult:
         judge=None,
         elapsed_s=180.0,
     )
+
+
+# ─────────────────────── 픽스처 E — LLM 스트림 실패 문항 (2026-09-05 신설)
+#
+# 🔴 **이 축이 없어서 2026-09-05 실행이 통째로 오독됐다.** NVIDIA 가 모델을 EOL
+#    시키고 폴백 OpenAI 는 크레딧이 소진돼 20문항 전부 빈 응답이 됐는데, 예외가
+#    러너까지 올라온 2건만 "실행 실패"로 빠지고 **나머지 18건은 실질 오답으로 채점**돼
+#    리포트가 `part 53.3% → 0.0% (-53.3pt)` 라는 가짜 회귀를 인쇄했다.
+#
+# 실행 실패(픽스처 D)와 **다른 점이 핵심이다**: 스트림 실패는 HTTP 200 에 빈 본문으로
+# 오므로 `response_text` 에 `_EXEC_FAILED_PREFIX` 가 없다. 러너는 "응답을 받은" 것과
+# 구분하지 못하고, 서버가 남긴 `[LLM_END] reason=` 만이 그 구분을 갖고 있다.
+
+EXPECT_E = {"part_no": None, "expect_hold": True}  # D 와 같은 S3 형
+
+
+def make_item_e() -> ItemResult:
+    empty_events: list[dict] = []
+    return ItemResult(
+        item_id="E1",
+        branch="s3_root_cause",
+        expected=EXPECT_E,
+        events=empty_events,
+        # ⚠ 실행 실패와 달리 **접두어가 없다** — 응답을 0바이트로 받았을 뿐이다.
+        response_text="",
+        verdicts=score.score_session(empty_events, EXPECT_E),
+        judge=None,
+        elapsed_s=2.4,
+        session_id="EVAL-E1",
+    )
+
+
+def _end(session: str, call: int, reason: str) -> dict:
+    """`parse_llm_end()` 가 돌려주는 레코드 모양."""
+    return {"session_id": session, "call": call, "reason": reason,
+            "truncated": False, "mismatch": False}
 
 
 def run() -> None:
@@ -270,6 +313,53 @@ def run() -> None:
         f"excluded_replay={agg_all['excluded_replay']}, excluded_failed={agg_all['excluded_failed']}, "
         f"n_kept={agg_all['n_kept']}",
     )
+    # ── ⑥ LLM 스트림 실패 축 (2026-09-05) ───────────────────────────────────
+    #
+    # ⑥-a 가 이 축의 **정의**다. `all` 을 `any` 로 느슨하게 바꾸면 부분 실패 세션까지
+    # 분모에서 빠져 **지표가 부풀려진다** — 제외는 정직해지는 방향으로만 써야 한다.
+    partial = [_end("EVAL-P1", 1, "TOOL_CALLS"), _end("EVAL-P1", 2, "STREAM_ERROR")]
+    total = [_end("EVAL-E1", 1, "STREAM_ERROR"), _end("EVAL-E1", 2, "STREAM_ERROR")]
+    verdict = stream_failed_sessions([*partial, *total])
+    check(
+        "⑥-a 전 호출 실패만 잡는다 (all 규칙 — 부분 실패는 제외 대상 아님)",
+        verdict == {"EVAL-E1"},
+        f"판정={sorted(verdict)} (기대 ['EVAL-E1'] · P1 은 1회 정상 종료라 제외 아님)",
+    )
+    check(
+        "⑥-b 레코드 0건이면 빈 집합 (계측 불능을 '전부 실패'로 오인하지 않는다)",
+        stream_failed_sessions([]) == set(),
+        f"판정={stream_failed_sessions([])}",
+    )
+
+    item_e = make_item_e()
+    n_marked = mark_stream_failures([item_e], total)
+    agg_ae = aggregate([item_a, item_e])
+    check(
+        "⑥-c mark_stream_failures 로 찍힌 문항은 전 지표 분모에서 빠진다",
+        n_marked == 1 and item_e.llm_stream_failed
+        and agg_ae["metrics"] == agg_a_only["metrics"],
+        f"찍힘={n_marked} · 플래그={item_e.llm_stream_failed} · "
+        f"metrics 동일={agg_ae['metrics'] == agg_a_only['metrics']}",
+    )
+    check(
+        "⑥-d excluded_stream 으로 따로 세고 stream_failed_items 로 노출한다 (감추지 않는다)",
+        agg_ae["excluded_stream"] == 1
+        and agg_ae["excluded_failed"] == 0
+        and agg_ae["stream_failed_items"] == ["E1"]
+        and agg_ae["n_kept"] == 1,
+        f"excluded_stream={agg_ae['excluded_stream']} · "
+        f"excluded_failed={agg_ae['excluded_failed']} · "
+        f"items={agg_ae['stream_failed_items']} · n_kept={agg_ae['n_kept']}",
+    )
+    # `item_outcomes()` 는 흔들림(flip) 집계의 분모다. 여기가 aggregate() 와 갈리면
+    # 같은 문항이 지표에서는 빠지고 흔들림에서는 '실패'로 세어져 수치가 어긋난다 —
+    # 그 함수의 docstring 이 "aggregate() 와 같은 근거로 맞춘다"고 약속하고 있다.
+    outs = item_outcomes(item_e)
+    check(
+        "⑥-e item_outcomes 도 같은 규칙 — 전 지표 None (흔들림이 부풀지 않게)",
+        all(v is None for v in outs.values()),
+        f"outcomes={outs}",
+    )
 
 
 def main() -> None:
@@ -290,7 +380,7 @@ def main() -> None:
     failed = [n for n, ok, _ in results if not ok]
     if failed:
         raise SystemExit(f"\n[실패] {len(failed)}건: {', '.join(failed)}")
-    print(f"\n통과 ({len(results)}건) — replay/실행실패 분모 제외 · 0분모 방어 · 표식 위치 무관 확인")
+    print(f"\n통과 ({len(results)}건) — replay/실행실패/LLM 스트림 실패 분모 제외 · 0분모 방어 · 표식 위치 무관 확인")
 
 
 if __name__ == "__main__":

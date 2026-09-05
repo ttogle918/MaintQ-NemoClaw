@@ -68,6 +68,9 @@ _ENV_KEYS = (
     "MAINTQ_LLM_FALLBACK_PROVIDER",
     "MAINTQ_LLM_FALLBACK_MODEL",
     "NVIDIA_API_KEY",
+    # 2026-09-05 — ollama(Cloud) provider. 위 키들과 같은 이유로 반드시 통제한다:
+    # 목록에서 빠지면 `.env` 의 실제 키가 컨텍스트 안까지 살아남아 판정이 흔들린다.
+    "OLLAMA_API_KEY",
 )
 
 

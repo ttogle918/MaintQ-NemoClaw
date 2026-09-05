@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: 설계 준수 검토 전담 에이전트. 코드 변경 후 docs/10_DECISIONS.md D1~D130와 docs/04_MCP_TOOLS.md 계약 위반 여부를 검토할 때 사용. 읽기 전용 — 코드를 수정하지 않고 위반 목록만 보고한다.
+description: 설계 준수 검토 전담 에이전트. 코드 변경 후 docs/10_DECISIONS.md D1~D132와 docs/04_MCP_TOOLS.md 계약 위반 여부를 검토할 때 사용. 읽기 전용 — 코드를 수정하지 않고 위반 목록만 보고한다.
 tools: Read, Grep, Glob
 ---
 

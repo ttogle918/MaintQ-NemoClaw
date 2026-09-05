@@ -192,6 +192,10 @@ class ItemResult:
     #: 몇 회차의 결과인가 (`--repeat`). 단일 실행이면 항상 1 — 기존 소비자는 무시해도 된다.
     #: 회차를 문항에 실어야 `{stamp}.r{k}.traces.jsonl` 과 문항을 짝지을 수 있다.
     round: int = 1
+    #: LLM 이 이 문항에서 **한 글자도 돌려주지 못했는가** (전 호출이 STREAM_ERROR).
+    #: 서버 stderr 의 `[LLM_END]` 를 읽고 `mark_stream_failures()` 가 사후에 찍는다 —
+    #: 문항 실행 시점에는 알 수 없다(HTTP 는 200 이고 본문만 비어 온다).
+    llm_stream_failed: bool = False
 
 
 def session_id_for(item_id: str) -> str:
@@ -641,6 +645,48 @@ def parse_llm_end(stderr_text: str) -> list[dict]:
     return out
 
 
+#: LLM 이 **아무것도 생산하지 못한** 종료 사유. 이 턴의 결과는 오답이 아니라 **측정 불가**다.
+#:
+#: 🔴 2026-09-05 실행이 이 구분이 없어서 통째로 오독됐다 — NVIDIA 가 모델을 EOL 시키고
+#:    폴백 OpenAI 는 크레딧이 소진돼 20문항 전부 빈 응답이 됐는데, 예외가 러너까지
+#:    올라온 2건(T19·T20)만 "실행 실패"로 분모에서 빠지고 **나머지 18건은 실질 오답으로
+#:    채점**됐다. 리포트가 `part 53.3% → 0.0% (-53.3pt)` 라는 **가짜 회귀**를 인쇄했다.
+#:    스트림 실패는 HTTP 200 에 빈 본문으로 오므로 러너 입장에서는 "응답을 받은" 것과
+#:    구분되지 않는다 — 서버가 남긴 `[LLM_END] reason=` 만이 그 구분을 갖고 있다.
+NO_OUTPUT_REASONS = frozenset({"STREAM_ERROR"})
+
+
+def stream_failed_sessions(records: list[dict]) -> set[str]:
+    """LLM 이 **전 호출에서** 아무것도 못 돌려준 세션.
+
+    한 호출이라도 정상 종료했으면 그 턴은 무언가를 생산한 것이므로 제외 대상이 아니다
+    (부분 생산은 잘림 계측 `truncated` 이 따로 다룬다). 그래서 판정은 `any` 가 아니라
+    **`all`** 이다 — 느슨하게 잡으면 진짜 오답까지 분모에서 빠져 지표가 부풀려진다.
+    """
+    by_session: dict[str, list[str]] = {}
+    for r in records:
+        by_session.setdefault(r["session_id"], []).append(r["reason"])
+    return {
+        sid
+        for sid, reasons in by_session.items()
+        if reasons and all(x in NO_OUTPUT_REASONS for x in reasons)
+    }
+
+
+def mark_stream_failures(results: list, records: list[dict]) -> int:
+    """`stream_failed_sessions()` 결과를 문항에 찍는다. 반환값은 찍힌 문항 수.
+
+    ⚠ **`aggregate()` 보다 먼저** 불러야 한다 — 집계가 이 플래그를 분모 규칙으로 읽는다.
+    """
+    failed = stream_failed_sessions(records)
+    n = 0
+    for r in results:
+        if r.session_id in failed:
+            r.llm_stream_failed = True
+            n += 1
+    return n
+
+
 def summarize_llm_end(records: list[dict]) -> dict:
     """잘림 집계. **0건과 '계측 실패'를 구분한다** — 이번 계측의 목적이 그 구분이다.
 
@@ -689,7 +735,8 @@ def item_outcomes(result) -> dict[str, bool | None]:
 
     `None` 을 실패로 접으면 흔들림이 부풀려진다 — 분모에서 빠진 것과 떨어진 것은 다르다.
     분모 규칙을 `aggregate()` 와 **같은 근거**로 맞춘다:
-      - 실행 실패 문항(`_EXEC_FAILED_PREFIX`)·재생 오염 세션(D55) → 전 지표 `None`
+      - 실행 실패 문항(`_EXEC_FAILED_PREFIX`)·재생 오염 세션(D55)·LLM 스트림 실패
+        (`llm_stream_failed`) → 전 지표 `None`
       - `Verdict.applicable=False` → 그 지표만 `None` (`score.metric_rate` 의 분모 규칙)
       - judge 미실행(S4형이 아닌 문항) → `hallucination` 만 `None`
 
@@ -699,7 +746,11 @@ def item_outcomes(result) -> dict[str, bool | None]:
     """
     out: dict[str, bool | None] = dict.fromkeys(FLIP_METRICS)
 
-    if result.response_text.startswith(_EXEC_FAILED_PREFIX) or score.has_replay(result.events):
+    if (
+        result.response_text.startswith(_EXEC_FAILED_PREFIX)
+        or score.has_replay(result.events)
+        or result.llm_stream_failed
+    ):
         return out
 
     for v in result.verdicts:
@@ -968,14 +1019,28 @@ def aggregate(results: list) -> dict:
     보고"의 역설이 된다 — 이 지표는 애초에 **측정 불가**이지 합격이 아니다. 그래서 replay
     와 같은 방식으로 분모에서 뺀다. 실패 사실 자체는 `failed_items`/문항별 상세에서
     계속 눈에 띄게 보고한다(감추지 않는다) — 집계 수치만 정직해지는 것이다.
+
+    **LLM 스트림 실패(`llm_stream_failed`)도 같은 이유로 뺀다** (2026-09-05 신설).
+    그쪽은 예외가 러너까지 올라오지 않아 `_EXEC_FAILED_PREFIX` 로 잡히지 않는다 —
+    HTTP 는 200 이고 본문만 비어 온다. 판정 근거는 서버가 남긴 `[LLM_END] reason=`
+    이고, 규칙은 `stream_failed_sessions()` 한 곳이 갖는다.
     """
     kept = [
         r
         for r in results
-        if not score.has_replay(r.events) and not r.response_text.startswith(_EXEC_FAILED_PREFIX)
+        if not score.has_replay(r.events)
+        and not r.response_text.startswith(_EXEC_FAILED_PREFIX)
+        and not r.llm_stream_failed
     ]
     excluded_replay = sum(1 for r in results if score.has_replay(r.events))
-    excluded_failed = len(results) - len(kept) - excluded_replay
+    excluded_stream = sum(
+        1
+        for r in results
+        if r.llm_stream_failed
+        and not score.has_replay(r.events)
+        and not r.response_text.startswith(_EXEC_FAILED_PREFIX)
+    )
+    excluded_failed = len(results) - len(kept) - excluded_replay - excluded_stream
 
     metrics: dict[str, dict] = {}
     for metric in ("part", "citation", "safety", "sequence"):
@@ -995,14 +1060,17 @@ def aggregate(results: list) -> dict:
     }
 
     failed_items = [r.item_id for r in results if r.response_text.startswith(_EXEC_FAILED_PREFIX)]
+    stream_failed_items = [r.item_id for r in results if r.llm_stream_failed]
 
     return {
         "n_items": len(results),
         "n_kept": len(kept),
         "excluded_replay": excluded_replay,
         "excluded_failed": excluded_failed,
+        "excluded_stream": excluded_stream,
         "metrics": metrics,
         "failed_items": failed_items,
+        "stream_failed_items": stream_failed_items,
     }
 
 
@@ -1240,10 +1308,17 @@ def write_report(
         "> (`eval/testset_review_notes.md`) 기반일 수 있다 — testset 확정 전 잠정치.",
         "",
         f"완주: {agg['n_items']}문항 (재생 오염으로 분모 제외 {agg['excluded_replay']}건 · "
-        f"실행 실패로 분모 제외 {agg['excluded_failed']}건 — 실행 실패는 아래 문항별 상세 참조)",
+        f"실행 실패로 분모 제외 {agg['excluded_failed']}건 · "
+        f"LLM 스트림 실패로 분모 제외 {agg.get('excluded_stream', 0)}건 "
+        f"— 실패 문항은 아래 상세 참조)",
     ]
     if agg["failed_items"]:
         lines.append(f"실행 실패: {len(agg['failed_items'])}건 — {', '.join(agg['failed_items'])}")
+    if agg.get("stream_failed_items"):
+        lines.append(
+            f"LLM 스트림 실패(응답 0바이트 — 오답이 아니라 **측정 불가**): "
+            f"{len(agg['stream_failed_items'])}건 — {', '.join(agg['stream_failed_items'])}"
+        )
     lines += [
         "",
         "## 5지표",
@@ -1401,6 +1476,12 @@ def _print_summary(agg: dict, perm_result: tuple[bool, str]) -> None:
 
     if agg["excluded_replay"]:
         print(f"  [주의] 재생 세션 {agg['excluded_replay']}건이 분모에서 제외됐습니다(정상은 0).")
+    if agg.get("excluded_stream"):
+        print(
+            f"  [주의] LLM 스트림 실패 {agg['excluded_stream']}건이 전 지표 분모에서 "
+            f"제외됐습니다(정상은 0) — 문항: {', '.join(agg['stream_failed_items'])}. "
+            f"응답이 0바이트라 오답이 아니라 측정 불가입니다."
+        )
     if agg["excluded_failed"]:
         print(
             f"  [주의] 실행 실패 {agg['excluded_failed']}건이 전 지표 분모에서 제외됐습니다"
@@ -1505,6 +1586,14 @@ def _run_round(
     # 잘림 계측 — 서버 stderr 의 [LLM_END] 마커를 집계한다 (loop.py 가 생산자).
     # stderr 회수 자체가 실패하면 `measured: False` 로 떨어져 "0건"과 구분된다.
     records = parse_llm_end(stderr_text)
+    # ⚠ `aggregate()` 보다 **먼저** 찍어야 한다 — 집계가 이 플래그를 분모 규칙으로 읽는다.
+    n_stream_failed = mark_stream_failures(results, records)
+    if n_stream_failed:
+        print(
+            f"  [주의] LLM 스트림 실패 {n_stream_failed}문항 — 응답 0바이트라 "
+            f"전 지표 분모에서 제외합니다(오답 아님).",
+            flush=True,
+        )
     return {
         "round": round_idx,
         "results": results,
