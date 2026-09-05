@@ -182,14 +182,27 @@ def _identified_part(events: list[dict]) -> str | None:
 
       ① `create_po_draft.input.part_no`      — 발주까지 갔으면 그게 결론이다
       ② 마지막 `search_inventory.input.part_no` — 품번을 직접 넘겼으면 에이전트가 고른 것
-      ③ 마지막 `find_alternative_parts` 결과의 `parts` (단일 건) — S2 의 결론
-      ④ 마지막 `search_inventory` 결과의 `parts` (단일 건)
+      ③ 마지막 `get_supplier_quotes.input.part_no` — 견적을 받았으면 그 부품을 사려는 것 (D133)
+      ④ 마지막 `find_alternative_parts` 결과의 `parts` (단일 건) — S2 의 결론
+      ⑤ 마지막 `search_inventory` 결과의 `parts` (단일 건)
 
-    ③④ 를 **정확히 1건일 때만** 채택하는 게 핵심이다. 부품명 조회는 여러 건을
+    ④⑤ 를 **정확히 1건일 때만** 채택하는 게 핵심이다. 부품명 조회는 여러 건을
     돌려주는데(`'냉각팬'` → 3건) 첫 항목을 정답으로 세면 에이전트가 고르지도 않은 부품에
     점수를 준다 — 판정 완화가 아니라 오판이다. 다건이면 "특정하지 못했다"가 사실이다.
 
-    ③ 이 ④ 보다 앞서는 이유: S2 에서 원부품은 단종이고 결론은 **대체품**이다.
+    ④ 가 ⑤ 보다 앞서는 이유: S2 에서 원부품은 단종이고 결론은 **대체품**이다.
+
+    **③ 이 있는 이유 (D133, 2026-09-05).** S2 대체품 흐름은 부품을 *이름*으로 찾는다 —
+    `search_inventory(part_name="제어보드")` 는 인자에 품번이 없어 ②가 안 걸리고,
+    결과는 단종 원부품 + 대체품 **2건**이라 ⑤ 의 "정확히 1건"에도 안 걸린다. 그런데
+    에이전트는 이어서 `get_supplier_quotes(part_no="PCB-S100-CTRL-R2")` 를 부른다 —
+    **견적은 사려는 부품에 대해 받는 것**이므로 이건 모호하지 않은 결론 표명이다.
+    실측(2026-09-05 T13)에서 에이전트가 정확히 그렇게 하고도 `None` 으로 채점됐다.
+
+    ③ 을 ② **뒤**에 두는 이유: 기존 순서를 건드리지 않고 *근거가 없던 자리에만* 더하기
+    위해서다. 저장된 traces 2회분으로 재채점해 ②가 걸리는 문항의 판정이 하나도 바뀌지
+    않음을 확인했다(바뀐 것은 T13 하나, `None` → 정답). ③ 을 ② 앞에 두는 변형도 같이
+    쟀는데 **결과가 동일**했다 — 데이터가 둘을 구분하지 못하므로 변경이 작은 쪽을 골랐다.
     """
     po = _tool_calls(events, "create_po_draft")
     if po:
@@ -200,6 +213,12 @@ def _identified_part(events: list[dict]) -> str | None:
         chosen = (inv[-1].get("input") or {}).get("part_no")
         if chosen:
             return chosen
+
+    quotes = _tool_calls(events, "get_supplier_quotes")
+    if quotes:
+        quoted = (quotes[-1].get("input") or {}).get("part_no")
+        if quoted:
+            return quoted
 
     for tool in ("find_alternative_parts", "search_inventory"):
         found = _result_parts(events, tool)

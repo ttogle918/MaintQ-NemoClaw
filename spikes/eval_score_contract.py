@@ -324,6 +324,59 @@ def run() -> None:
     v_inv = verdict(score_session(inv_only, {"part_no": "FAN-IG5-01"}), "part")
     check("⑫ create_po_draft 없으면 search_inventory 인자로 부품 특정", v_inv.passed, v_inv.detail)
 
+    # ── ⑫-b~⑫-f D133: 견적 조회를 부품 특정 근거로 인정한다 ──────────────
+    #
+    # 🔴 실사고 회귀다. 2026-09-05 평가 T13 에서 에이전트가 부품을 **이름으로** 찾고
+    #    (→ 인자에 품번이 없어 ⑫ 미적용) 결과가 단종 원부품 + 대체품 2건이라
+    #    (→ "정확히 1건" 규칙 미적용) 정답에 도달하고도 `None` 으로 채점됐다.
+    #    이어서 부른 `get_supplier_quotes(part_no=대체품)` 이 결론 표명인데 근거 목록에
+    #    없었다. 아래 ⑫-b 가 그 흐름을 그대로 재현한다.
+    s2_quote_flow = [
+        tc("search_inventory", model="S100", part_name="제어보드"),
+        tr("search_inventory", "ok", parts=["PCB-S100-CTRL", "PCB-S100-CTRL-R2"]),
+        tc("get_supplier_quotes", part_no="PCB-S100-CTRL-R2", qty=1),
+        tr("get_supplier_quotes", "ok"),
+    ]
+    v_q = verdict(score_session(s2_quote_flow, {"part_no": "PCB-S100-CTRL-R2"}), "part")
+    check("⑫-b D133 견적 조회 품번을 부품 특정으로 인정 (이름조회+다건 결과 흐름)",
+          v_q.passed is True, v_q.detail)
+
+    # ★ 음성 — 견적을 근거로 쓰되 **틀린 품번이면 여전히 fail** 이어야 한다.
+    #   양성만 두면 "무조건 통과"로 망가져도 안 잡힌다.
+    v_qw = verdict(score_session(s2_quote_flow, {"part_no": "PCB-S100-CTRL"}), "part")
+    check("⑫-c ★ 음성: 견적 품번이 기대와 다르면 fail (무조건 통과 아님)",
+          v_qw.passed is False, v_qw.detail)
+
+    # 우선순위 — 발주(①)가 견적보다 강하다
+    po_over_quote = [
+        tc("get_supplier_quotes", part_no="WRONG-PART", qty=1),
+        tr("get_supplier_quotes", "ok"),
+        tc("create_po_draft", part_no="FAN-IG5-01", qty=2, supplier_id="SUP-A", reason="x"),
+        tr("create_po_draft", "ok"),
+    ]
+    v_po = verdict(score_session(po_over_quote, {"part_no": "FAN-IG5-01"}), "part")
+    check("⑫-d 우선순위: create_po_draft 가 견적보다 강하다", v_po.passed is True, v_po.detail)
+
+    # 우선순위 — search_inventory 인자(②)가 견적보다 앞선다 (기존 순서 불변 확인)
+    inv_over_quote = [
+        tc("search_inventory", part_no="FAN-IG5-01", model="iG5A"),
+        tr("search_inventory", "ok"),
+        tc("get_supplier_quotes", part_no="OTHER-PART", qty=1),
+        tr("get_supplier_quotes", "ok"),
+    ]
+    v_io = verdict(score_session(inv_over_quote, {"part_no": "FAN-IG5-01"}), "part")
+    check("⑫-e 우선순위: search_inventory 인자가 견적보다 앞선다 (기존 ② 불변)",
+          v_io.passed is True, v_io.detail)
+
+    # 견적을 불렀어도 인자에 품번이 없으면 근거로 쓰지 않는다
+    quote_no_pn = [
+        tc("get_supplier_quotes", qty=1),
+        tr("get_supplier_quotes", "ok"),
+    ]
+    v_qn = verdict(score_session(quote_no_pn, {"part_no": "FAN-IG5-01"}), "part")
+    check("⑫-f 견적 인자에 part_no 가 없으면 근거로 쓰지 않는다",
+          v_qn.passed is False and "None" in v_qn.detail, v_qn.detail)
+
     # ── ⑬ 위험 절차 아님 → safety applicable=False (분모 제외) ──
     v_nsr = verdict(score_session(S1_OK, {"part_no": "FAN-IG5-01"}), "safety")
     check(
