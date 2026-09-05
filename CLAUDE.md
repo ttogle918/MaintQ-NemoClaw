@@ -195,7 +195,8 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **34스위트 / 1,190건**(2026-09-05 — 1,186 + `db_concurrency` D127·D130 가드 4건(⑰⑱⑲⑳).
+spikes **34스위트 / 1,192건**(2026-09-05 — 1,190 + `db_concurrency` D126 채번 사본 정적 검사 2건(㉑㉒).
+직전 1,190 = 1,186 + D127·D130 가드 4건(⑰⑱⑲⑳).
 직전 1,186 = 1,183 + D126 잠금 축 3건(⑭⑮⑯).
 직전 값 1,183 = 1,120 + docx_contract 63. 직전 갱신은 2026-09-03 — 아래 표 합산과 일치. 직전 1,075 에서 +45:
 `agent_loop_contract` 35→37(②-b 빈 응답 · ②-c 이력 절삭, 둘 다 실사고 회귀) ·
@@ -237,7 +238,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `a2a_identity_contract 19` · `a2a_partner_tools_contract 22` ·
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
-`citation_render 19` · `db_concurrency 14`(Postgres 재설계 + D126 잠금 축 3건 + D127·D130 가드 4건 — 아래 참고) · `deadline_risk_contract 18` ·
+`citation_render 19` · `db_concurrency 16`(Postgres 재설계 + D126 잠금 축 3건 + D127·D130 가드 4건 + D126 채번 사본 정적 검사 2건 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 36` · `docx_contract 63` ·
 `disposal_sign_contract 26` · `eval_replay_guard 16` · `eval_score_contract 36` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·

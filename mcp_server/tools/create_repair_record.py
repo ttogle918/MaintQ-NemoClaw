@@ -28,8 +28,6 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 
 from __future__ import annotations
 
-from data.dbcompat import DbConnection
-
 import sqlite3
 from typing import Any
 
@@ -89,19 +87,6 @@ def _as_float(value: object) -> float | None:
         except ValueError:
             return None
     return None
-
-
-def _next_repair_id(con: DbConnection) -> str:
-    """`RPR-%04d`. `create_po_draft._next_po_id` 와 같은 패턴 — 채번 규약을 갈라 두지 않는다.
-
-    동시성 방어는 새로 만들지 않는다 — 단일 사용자 데모 전제(P19 그대로, D98).
-    """
-    row = con.execute(
-        "SELECT repair_id FROM repair_records WHERE repair_id LIKE 'RPR-%'"
-        " ORDER BY repair_id DESC LIMIT 1"
-    ).fetchone()
-    n = int(row["repair_id"].split("-")[1]) + 1 if row else 1
-    return f"RPR-{n:04d}"
 
 
 def _validate_parts(parts: object) -> tuple[list[dict] | None, dict | None]:

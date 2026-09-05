@@ -606,6 +606,278 @@ def _maintq_db_absent():
     )
 
 
+# ── ㉑㉒ D126 ⓑ: `MAX+1` 채번 사본 재발 방지 (정적 검사 — DB 를 열지 않는다) ─────────
+#
+# D126 은 네 벌로 흩어져 있던 `MAX+1` 채번을 `data/txn.py` 한 곳으로 모았다. 그런데
+# **모으는 것만으로는 유지되지 않는다** — 다음 사람이 새 결재 흐름을 붙이면서 옛 패턴을
+# 다시 손으로 쓰면, 그쪽은 자문 잠금 밖에서 같은 번호를 발급하고 아무도 모른다.
+# D126 자신이 그 위험을 적어 뒀다: *"한 곳이라도 옛 MAX+1 을 그대로 쓰면 그쪽이 잠금
+# 밖에서 같은 번호를 발급한다."*
+#
+# 🔴 **이 검사를 세우자마자 실제로 살아남은 사본 하나를 잡았다** —
+#    `mcp_server/tools/create_repair_record.py::_next_repair_id`. 호출부(203행)는 이미
+#    `repair_record.next_repair_id()`(→ txn) 로 옮겨 갔는데 **함수 정의만 남아 있었다**.
+#    D126 이 "네 벌이 한 곳으로 모였다"고 적은 것과 달리 실제로는 셋만 모였다.
+#    죽은 코드라 그 시점에 사고를 내고 있지는 않았지만, 옛 패턴의 두 결함
+#    (① `LIKE 'RPR-%'` 가 비숫자 접미 행까지 잡아 `int()` 가 죽으면 채번이 영구 마비
+#     ② 사전순 `ORDER BY` 라 `RPR-9999` 다음이 `RPR-10000` 으로 되돌아가 PK 충돌 무한반복)
+#    을 그대로 담은 채 **다음 사람이 복사해 갈 자리에** 놓여 있었다.
+#
+# **판정 방식.** 정규식 한 줄로 "MAX+1" 을 찾는 것은 오탐·미탐이 둘 다 심하다
+# (`SELECT MAX(seq)` 는 정상이고, `PO-%04d` 는 설명문에도 나온다). 결함의 **정의**를 두
+# 축의 곱으로 세운다 — 한 함수 안에서
+#   축A  가장 큰 기존 식별자를 SQL 로 읽고        (SELECT + MAX() 또는 ORDER BY…DESC)
+#   축B  `PREFIX-NNNN` 표시 형식을 조립한다       (f"…-{n:04d}" 또는 "…-%04d")
+# 둘 다일 때만 채번이다. 어느 한쪽만으로는 정상 코드가 얼마든지 있다(실측: 축A만 9곳,
+# 축B만 5곳 — 전부 정상).
+#
+# ⚠ **docstring 은 제외한다.** 위임 래퍼들이 형식(`PO-%04d`)을 설명문에 적고 있어서,
+#   안 걷어내면 축B 가 **설명문에서** 켜진다. 검사는 코드를 봐야 한다.
+# ⚠ 판정 단위는 **함수**다. 모듈 단위로 넓히면 `data/seed.py` 처럼 큰 파일에서 무관한 두
+#   구문이 우연히 만나 오탐한다(실측으로 확인했다).
+
+
+_OWNER = ROOT / "data" / "txn.py"          # 채번을 소유하는 유일한 자리 (D126 ⓒ)
+_SCAN_DIRS = ("backend", "data", "mcp_server", "eval")
+
+# 세 결재 흐름과 그 접두어 (D126 ⓓ — 표시 형식은 그대로 둔다)
+_MINT_TABLES = {"po_drafts": "PO", "decisions": "DEC", "repair_records": "RPR"}
+
+
+def _docstring_stmts(tree: ast.AST) -> set[int]:
+    """모듈·클래스·함수의 첫 문장이 문자열이면 그 `Expr` 노드 id. 설명문은 검사 대상이 아니다."""
+    out: set[int] = set()
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            b = getattr(n, "body", None)
+            if (
+                b
+                and isinstance(b[0], ast.Expr)
+                and isinstance(b[0].value, ast.Constant)
+                and isinstance(b[0].value.value, str)
+            ):
+                out.add(id(b[0]))
+    return out
+
+
+def _code_nodes(scope: ast.AST, docs: set[int]) -> list[ast.AST]:
+    """`scope` 아래 노드 — docstring 문은 서브트리째 건너뛴다."""
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = [scope]
+    while stack:
+        for c in ast.iter_child_nodes(stack.pop()):
+            if id(c) in docs:
+                continue
+            out.append(c)
+            stack.append(c)
+    return out
+
+
+def _mint_axes(scope: ast.AST, docs: set[int]) -> tuple[bool, bool]:
+    """(축A: 최대 식별자를 읽는다, 축B: `PREFIX-NNNN` 을 조립한다)."""
+    import re  # noqa: PLC0415
+
+    nodes = _code_nodes(scope, docs)
+    strings = [n.value for n in nodes if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    # SQL 은 인접 리터럴로 쪼개져 있는 경우가 흔하다 — 이어 붙여서 본다
+    sql = " ".join(strings)
+    axis_a = bool(
+        re.search(r"(?i)\bSELECT\b", sql)
+        and (
+            re.search(r"(?i)\bMAX\s*\(", sql)
+            or (re.search(r"(?i)\bORDER\s+BY\b", sql) and re.search(r"(?i)\bDESC\b", sql))
+        )
+    )
+
+    axis_b = False
+    for n in nodes:
+        if isinstance(n, ast.JoinedStr):                # f"...-{n:04d}"
+            prev = ""
+            for part in n.values:
+                if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                    prev = part.value
+                elif isinstance(part, ast.FormattedValue):
+                    spec = "".join(
+                        c.value
+                        for c in (part.format_spec.values if part.format_spec else [])
+                        if isinstance(c, ast.Constant) and isinstance(c.value, str)
+                    )
+                    if prev.endswith("-") and re.fullmatch(r"0\d*d", spec):
+                        axis_b = True
+                    prev = ""
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str):
+            if re.search(r"-%0\d*d", n.value):          # "...-%04d" % n
+                axis_b = True
+    return axis_a, axis_b
+
+
+def _scan_mint_copies():
+    """(사본 목록, 파일 수, 함수 수, txn 위임 호출 목록)."""
+    targets: list[Path] = []
+    for d in _SCAN_DIRS:
+        targets += [q for q in (ROOT / d).rglob("*.py") if "__pycache__" not in str(q)]
+
+    copies: list[str] = []
+    delegations: list[tuple[str, str, str]] = []       # (위치, table, prefix)
+    n_funcs = 0
+    for q in targets:
+        tree = ast.parse(q.read_text(encoding="utf-8", errors="replace"))
+        docs = _docstring_stmts(tree)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                n_funcs += 1
+                a, b = _mint_axes(node, docs)
+                if a and b and q != _OWNER:
+                    copies.append(f"{q.relative_to(ROOT)}:{node.lineno} {node.name}()")
+            elif isinstance(node, ast.Call):
+                fname = (
+                    node.func.attr
+                    if isinstance(node.func, ast.Attribute)
+                    else getattr(node.func, "id", "")
+                )
+                if fname == "next_sequential_id":
+                    lit = [
+                        a.value if isinstance(a, ast.Constant) and isinstance(a.value, str) else "?"
+                        for a in node.args
+                    ]
+                    delegations.append(
+                        (
+                            f"{q.relative_to(ROOT)}:{node.lineno}",
+                            lit[1] if len(lit) > 1 else "?",
+                            lit[3] if len(lit) > 3 else "?",
+                        )
+                    )
+    return copies, len(targets), n_funcs, delegations
+
+
+# 탐지기 생존 오라클 — 알려진 픽스처 3종을 **옳게 분류**하는가.
+#
+# 🔴 오라클은 스캐너의 **토큰과 독립**이어야 한다. ⑳에서 한 번 어겼다 — 탐지 토큰으로
+#    probe 를 조립했더니 토큰을 망가뜨리는 뮤턴트에서 둘이 함께 바뀌며 자기충족적으로
+#    통과했다. 여기서는 probe 를 정규식이 아니라 **실제 파이썬 소스**로 둔다.
+#    ㉠ 은 이번에 삭제한 사본의 원문 그대로다. 네 픽스처가 서로 다른 갈래를 덮는다 —
+#    뮤턴트로 하나씩 실증했다(㉠㉣ 이 축A 의 두 갈래를 나눠 맡는 것이 요점이다):
+#      축A 의 ORDER BY 갈래를 망가뜨리면 → ㉠ 이 안 잡힌다
+#      축A 의 MAX() 갈래를 망가뜨리면    → ㉣ 이 안 잡힌다
+#      축B 의 형식 판정을 망가뜨리면      → ㉠㉣ 이 안 잡힌다
+#      docstring 제외를 걷어내면          → ㉡ 이 오탐한다 (설명문에 옛 SQL+형식이 둘 다 있다)
+#      두 축의 곱을 합으로 바꾸면         → ㉢ 이 오탐한다
+#
+#    ⚠ ㉡ 의 설명문에는 축A·축B 가 **둘 다** 들어 있어야 한다. 형식(`PO-%04d`)만 넣으면
+#      축A 가 꺼져 있어 docstring 을 안 걷어내도 판정이 안 바뀐다 — 실제로 그렇게 짰다가
+#      M3 뮤턴트를 놓쳤다.
+_PROBES: tuple[tuple[str, bool, str], ...] = (
+    (
+        textwrap.dedent(
+            """
+            def _next_repair_id(con):
+                row = con.execute(
+                    "SELECT repair_id FROM repair_records WHERE repair_id LIKE 'RPR-%'"
+                    " ORDER BY repair_id DESC LIMIT 1"
+                ).fetchone()
+                n = int(row["repair_id"].split("-")[1]) + 1 if row else 1
+                return f"RPR-{n:04d}"
+            """
+        ),
+        True,
+        "옛 MAX+1 사본",
+    ),
+    (
+        textwrap.dedent(
+            '''
+            def next_po_id(con):
+                """`PO-%04d` 채번 — 경쟁 없는 발급은 `data/txn.py` 가 소유한다.
+
+                옛 구현은 "SELECT po_id FROM po_drafts ORDER BY po_id DESC LIMIT 1"
+                이었다. 설명문에 옛 SQL 과 형식이 **둘 다** 나오지만 코드는 위임뿐이다.
+                """
+                return txn.next_sequential_id(con, "po_drafts", "po_id", "PO")
+            '''
+        ),
+        False,
+        "위임 래퍼(설명문에 옛 SQL+형식)",
+    ),
+    (
+        textwrap.dedent(
+            """
+            def _next_po_id(con):
+                row = con.execute(
+                    "SELECT MAX(po_id) AS v FROM po_drafts WHERE po_id LIKE 'PO-%'"
+                ).fetchone()
+                n = int(row["v"].split("-")[1]) + 1 if row and row["v"] else 1
+                return "PO-%04d" % n
+            """
+        ),
+        True,
+        "옛 MAX() 사본(%-포맷)",
+    ),
+    (
+        textwrap.dedent(
+            """
+            def _next_seq(con, sid):
+                r = con.execute("SELECT MAX(seq) FROM traces WHERE session_id = ?", (sid,))
+                return (r.fetchone()[0] or 0) + 1
+            """
+        ),
+        False,
+        "MAX(seq) 순번 조회",
+    ),
+)
+
+
+def _probe_verdicts() -> tuple[int, list[str]]:
+    graded, wrong = 0, []
+    for src, want, label in _PROBES:
+        tree = ast.parse(src)
+        a, b = _mint_axes(tree.body[0], _docstring_stmts(tree))
+        graded += 1
+        if (a and b) is not want:
+            wrong.append(f"{label}: 기대={want} 실제={a and b}(A={a},B={b})")
+    return graded, wrong
+
+
+def _no_mint_copies():
+    """㉑ `MAX+1` 채번 사본이 `data/txn.py` 밖에 0건인가 (D126 ⓑ).
+
+    ⚠ 순수 **부재 검사**라 스캐너가 눈이 멀면 조용히 통과한다 — 판정에 **양성 축** 둘을
+    함께 넣는다: ⓐ 실제로 파일·함수를 읽었는가(개수) ⓑ 탐지기가 알려진 픽스처 3종을
+    옳게 분류하는가. detail 에는 결론이 아니라 **실측값**을 찍는다.
+    """
+    copies, n_files, n_funcs, _ = _scan_mint_copies()
+    graded, wrong = _probe_verdicts()
+    ok = not copies and n_files > 0 and n_funcs > 0 and not wrong
+    return ok, (
+        f"스캔 {n_files}파일 · {n_funcs}함수({'/'.join(_SCAN_DIRS)}) · "
+        f"사본 {len(copies)}건{' ' + str(copies[:3]) if copies else ''} · "
+        f"탐지기 {graded - len(wrong)}/{graded}{' ' + str(wrong) if wrong else ''}"
+    )
+
+
+def _mint_delegated():
+    """㉒ 세 결재 흐름이 전부 `txn.next_sequential_id()` 를 거치는가 (양성 축).
+
+    ㉑ 만 두면 *"사본이 없다"* 와 *"채번 코드가 통째로 사라졌다 / 스캐너가 눈이 멀었다"* 를
+    구분하지 못한다(⑰⑱ 이 같은 이유로 나뉘어 있다). 각 흐름이 실제로 소유자 함수를
+    부르고 있는지를 **테이블·접두어까지** 대조한다.
+    """
+    _, _, _, delegations = _scan_mint_copies()
+    seen = {t: p for _, t, p in delegations}
+    missing = [f"{t}({p})" for t, p in _MINT_TABLES.items() if seen.get(t) != p]
+    ok = not missing and len(delegations) >= len(_MINT_TABLES)
+    return ok, (
+        f"위임 {len(delegations)}곳 · 테이블 {sorted(seen.items())}"
+        f"{' / 누락 ' + str(missing) if missing else ''}"
+    )
+
+
+def run_static() -> None:
+    """DB 를 열지 않는 정적 축 (D126 ⓑ) — Postgres/SQLite 분기와 무관하게 항상 돈다."""
+    ok, detail = _no_mint_copies()
+    check("㉑ D126: MAX+1 채번 사본 0건 (data/txn.py 밖 · 탐지기 생존 확인 포함)", ok, detail)
+    ok, detail = _mint_delegated()
+    check("㉒ D126: 세 결재 흐름이 txn.next_sequential_id 를 거친다 (양성 축)", ok, detail)
+
+
 def _lock_blocks_second_reader(bdb, table: str, pk: str):
     """`txn.locked_row()` 가 행을 실제로 잠그는지 **대기 시간으로** 판정한다.
 
@@ -737,6 +1009,8 @@ def main() -> None:
             (SOURCE_DB.stat().st_mtime_ns, SOURCE_DB.stat().st_size) == source_stat,
             f"mtime/size 동일 ({source_stat[1]} bytes)",
         )
+
+    run_static()
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 52))

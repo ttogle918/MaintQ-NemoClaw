@@ -946,7 +946,7 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 4. `expenditure_class` 산출: `data/maint_value.expenditure(con, part_class=…, repair_scope=…, amount=cost)`. **`HOLD` 는 실패가 아니라 판정**이므로 그대로 저장한다(DDL CHECK 가 허용). `part_class` 가 NULL 이면 지출 분류도 **NULL**이고, `expenditure()` 자체가 `status != "ok"` 를 돌려주면 **그대로 전파**하고 INSERT 하지 않는다(§13 이 하위 도구 실패를 삼키지 않는 것과 같은 태도).
 5. `(model, error_code)` 는 짝이거나 둘 다 NULL. `model` 은 enum(`iG5A`|`S100`|`IE5`) 강제(D6·D13·D109). `error_code` 는 대문자 canonical로 저장하되 **사전 조회를 하지 않는다** — `create_po_draft` 와 달리 실재 검증은 INSERT 시점의 FK(`(model, error_code) REFERENCES error_codes(model, code)`)에 맡기고, 위반은 `status:"error", reason:"integrity"` 로 그대로 드러난다.
 6. `db.repair_writer()` 로 **INSERT 만**. `state='draft'`, `performed_by`/`verified_by`/`signed_at`/`record_hash`/`requested_by`/`session_id` 는 **NULL 리터럴**로 박는다(파라미터로 받지 않는다).
-7. `repair_id` 채번: `SELECT max(...)` 로 `RPR-` 접두 4자리 숫자의 최대 + 1. 동시성 방어는 새로 만들지 않는다(단일 사용자 데모 전제, P19 그대로).
+7. `repair_id` 채번: `data/repair_record.next_repair_id()` → `data/txn.next_sequential_id()` **한 곳**만 거친다 (D126). 출력 형식 `RPR-%04d` 는 그대로이고 **경쟁만** 없앴다 — `pg_advisory_xact_lock` 으로 직렬화하고, 후보는 `^RPR-[0-9]+$` 에 맞는 행만, 정렬은 사전순이 아니라 **수치**로 한다. ⛔ 옛 `SELECT max(...)` 사본을 이 도구에 다시 만들지 말 것 — `spikes/db_concurrency.py ㉑` 이 정적 검사로 막는다(초기 서술이었던 *"동시성 방어는 새로 만들지 않는다(P19)"* 는 D126 이 대체했다).
 8. `server.py` 등록은 `if TOOLS_PROFILE == "full":` 블록 안에만.
 
 **status / reason**

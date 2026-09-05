@@ -145,7 +145,10 @@ def run_tool_axis(db: Path) -> str:
             f"응답={res.get('expenditure_class')} · DB={row['expenditure_class'] if row else None}",
         )
 
-        # ── 채번 규약 — 두 번째 호출은 순번이 이어진다 (RPR-%04d, 동시성 방어 없음이 정상, P19)
+        # ── 채번 규약 — 두 번째 호출은 순번이 이어진다 (RPR-%04d)
+        #    D126 이후 채번은 `data/txn.next_sequential_id()` 한 곳이 소유한다 —
+        #    형식(RPR-%04d)은 그대로이고 경쟁만 없앴다. 예전 주석의 "동시성 방어 없음이
+        #    정상(P19)" 은 더 이상 맞지 않는다. 사본 재발은 `db_concurrency ㉑` 이 막는다.
         res2 = create_repair_record(
             equipment_id=EQUIPMENT_ID,
             work_type="PLANNED",
