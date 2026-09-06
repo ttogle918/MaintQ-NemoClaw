@@ -116,7 +116,7 @@ def main():
         print(f"ERROR: SQLite DB가 없습니다: {sqlite_path}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"📊 데이터 마이그레이션 시작")
+    print("📊 데이터 마이그레이션 시작")
     print(f"  SQLite: {sqlite_path}")
     print(f"  Postgres: {args.postgres}")
 
