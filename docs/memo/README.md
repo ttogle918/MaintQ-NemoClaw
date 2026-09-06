@@ -29,4 +29,4 @@
 | [llm-provider-model-map](2026-09-05-llm-provider-model-map.md) | NVIDIA·Ollama Cloud 에서 **실제로 쓸 수 있는 모델**, 도구 호출 가능 여부·지연, 무료/유료 경계, 재는 커맨드 | 2026-09-05 |
 | [eval-harness-debug](2026-09-05-eval-harness-debug.md) | 평가 하네스가 조용히 거짓 수치를 내던 두 경로, 오프라인 재채점 방법, **오진 사례 1건** | 2026-09-05 |
 | [agent-loop-observations](2026-09-05-agent-loop-observations.md) | traces 로 본 에이전트 실패 유형 3종 — 지표만 봐서는 구분되지 않는 것들 | 2026-09-05 |
-| [noise-floor-20rounds](2026-09-06-noise-floor-20rounds.md) | 5문항 흔들림 실측(20b 20회차·120b 10회차) — `part` 합계는 같은데 **문항별로 정반대**, 배치 간 12pt 재현 오차, 죽은 배치 traces 재채점, `WinError 10014` 는 자원 경합 | 2026-09-06 |
+| [noise-floor-20rounds](2026-09-06-noise-floor-20rounds.md) | 5문항 흔들림 실측(20b 20회차·120b 18회차) — `part` 합계는 안 갈리는데 **분기로 묶으면 갈린다**(s1: 8% vs 48%), 배치 간 12pt 재현 오차, **죽은 배치 traces 재채점으로 14회차 회수**, 소표본 극단값에 3번 속은 기록 | 2026-09-06 |
