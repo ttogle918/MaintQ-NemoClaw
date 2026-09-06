@@ -230,6 +230,36 @@ def _identified_part(events: list[dict]) -> str | None:
 # ────────────────────────────────────────────── 지표별 판정
 
 
+#: `part` 실패의 성격 (D135). 값은 리포트·스파이크가 함께 읽는 계약이라 문자열을 고정한다.
+PART_WRONG = "wrong"  # 오특정 — 기대와 **다른 부품**을 특정했다 (틀린 답을 확신)
+PART_NONE = "none"  # 미특정 — 아무것도 특정하지 못했다 (결론을 내지 않음)
+
+
+def part_failure_kind(events: list[dict], expected: dict) -> str | None:
+    """`part` 실패가 «오특정»인가 «미특정»인가 (D135). 통과·분모 밖이면 `None`.
+
+    **둘은 같은 `FAIL` 이 아니다.** «오특정»은 정비사가 **엉뚱한 부품을 발주**하게
+    만들고(비용·설비 정지·재작업), «미특정»은 답을 못 받는 것이다. 위험도가 다르다.
+
+    2026-09-06 측정이 이 구분의 계기다 — 두 모델의 `part` 합계가 45.6% vs 51.0% 로
+    *"차이 없음"* 처럼 보였는데 안을 열면 정반대였다 — 오특정 **120b 32/90(35.6%) ·
+    20b 9/100(9.0%)**, 미특정 **120b 17/90(18.9%) · 20b 40/100(40.0%)**.
+    합계는 두 축을 **상쇄해 지운다** — 그래서
+    **더 위험한 쪽(120b)이 좋아 보였다**. 조치도 갈린다(전자는 근거·결론 규칙,
+    후자는 보고 규칙). `memo/2026-09-06-noise-floor-20rounds.md`
+
+    ⛔ 판정은 `_judge_part` 와 **같은 근거**(`_identified_part`)를 쓴다. 여기서 따로
+    재구현하면 리포트의 `passed` 와 이 분류가 조용히 어긋난다.
+    """
+    want = expected.get("part_no")
+    if want is None:  # 분모 밖 — 실패가 아니다 (`_judge_part` 의 applicable=False 와 같은 자리)
+        return None
+    got = _identified_part(events)
+    if got == want:
+        return None
+    return PART_WRONG if got is not None else PART_NONE
+
+
 def _judge_part(events: list[dict], expected: dict) -> Verdict:
     want = expected.get("part_no")
     if want is None:  # part_no 기대가 없는 문항(S3·S4 등)은 분모 제외 (06_REPO_API §지표)

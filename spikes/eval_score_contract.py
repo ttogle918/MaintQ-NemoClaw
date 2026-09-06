@@ -34,6 +34,8 @@ from eval.judge import JudgeVerdict  # noqa: E402
 from eval.run_eval import (  # noqa: E402
     _EXEC_FAILED_PREFIX,
     ItemResult,
+    _part_failure_lines,
+    aggregate,
     _flip_lines,
     _free_port,
     _llm_end_lines,
@@ -47,6 +49,7 @@ from eval.run_eval import (  # noqa: E402
     profile_violations,
     summarize_llm_end,
 )
+from eval import score  # noqa: E402 — D135 part_failure_kind
 from eval.score import has_replay, metric_rate, score_session  # noqa: E402
 
 DB = ROOT / "data" / "maintq.db"
@@ -93,6 +96,20 @@ def po_card(variant: str, **kw) -> dict:
 
 def verdict(vs, metric):
     return next(v for v in vs if v.metric == metric)
+
+
+def _item(item_id: str, events: list[dict], expected: dict) -> ItemResult:
+    """aggregate() 에 넣을 최소 ItemResult. 채점은 실제 score_session 이 한다."""
+    return ItemResult(
+        item_id=item_id,
+        branch="s1_pipeline",
+        expected=expected,
+        events=events,
+        response_text="응답",
+        verdicts=score_session(events, expected),
+        judge=None,
+        elapsed_s=0.1,
+    )
 
 
 # ────────────────────────────────────────────── 시나리오
@@ -376,6 +393,102 @@ def run() -> None:
     v_qn = verdict(score_session(quote_no_pn, {"part_no": "FAN-IG5-01"}), "part")
     check("⑫-f 견적 인자에 part_no 가 없으면 근거로 쓰지 않는다",
           v_qn.passed is False and "None" in v_qn.detail, v_qn.detail)
+
+    # ── ⑫-g~⑫-l D135: part 실패를 «오특정»과 «미특정»으로 가른다 ────────────
+    #
+    # 🔴 실사고 회귀다. 2026-09-06 측정에서 두 모델의 `part` 합계가 45.6% vs 51.0% 로
+    #    "차이 없음"처럼 보였는데, 안을 열면 오답의 성격이 정반대였다 —
+    #    120b 는 **틀린 부품을 확신**(오특정 35.6%)하고 20b 는 **답을 안 냈다**(미특정 40.0%).
+    #    합계가 두 축을 상쇄해 지운다. 잘못된 부품 발주와 답을 못 받는 것은 위험도가
+    #    다르므로 같은 FAIL 로 접으면 **더 위험한 쪽이 좋아 보인다**(실제로 그랬다).
+    exp_cbl = {"part_no": "MTR-CBL-IG5"}
+
+    # 실사고 그대로 — 케이블이 정답인데 모터를 골랐다(120b T05, 18/18 이 이 모양이었다)
+    wrong_pick = [
+        tc("search_inventory", part_no="MTR-3P-2K2", model="iG5A"),
+        tr("search_inventory", "ok"),
+    ]
+    check(
+        "⑫-g D135 틀린 부품을 특정하면 «오특정»(wrong)",
+        score.part_failure_kind(wrong_pick, exp_cbl) == "wrong",
+        f"kind={score.part_failure_kind(wrong_pick, exp_cbl)}",
+    )
+
+    # 결론을 아예 안 낸 경우 — 다건 결과라 "정확히 1건" 규칙에 안 걸린다
+    no_pick = [
+        tc("search_inventory", model="iG5A", part_name="케이블"),
+        tr("search_inventory", "ok", parts=["MTR-CBL-IG5", "MTR-3P-2K2"]),
+    ]
+    check(
+        "⑫-h D135 결론을 안 내면 «미특정»(none)",
+        score.part_failure_kind(no_pick, exp_cbl) == "none",
+        f"kind={score.part_failure_kind(no_pick, exp_cbl)}",
+    )
+
+    # ★ 양성 축 — 통과한 문항은 실패 성격이 없다(None). 이게 없으면 "전부 wrong"
+    #   으로 망가져도 위 두 검사가 통과한다.
+    right_pick = [
+        tc("search_inventory", part_no="MTR-CBL-IG5", model="iG5A"),
+        tr("search_inventory", "ok"),
+    ]
+    check(
+        "⑫-i ★ 양성: 통과 문항은 실패 성격이 없다 (None)",
+        score.part_failure_kind(right_pick, exp_cbl) is None,
+        f"kind={score.part_failure_kind(right_pick, exp_cbl)}",
+    )
+
+    # 분모 밖(part_no 기대 없음)은 실패로 세지 않는다 — D30 분모 규칙과 같은 근거
+    check(
+        "⑫-j D135 part_no 기대가 없으면 실패 성격도 없다 (분모 밖)",
+        score.part_failure_kind(no_pick, {}) is None,
+        f"kind={score.part_failure_kind(no_pick, {})}",
+    )
+
+    # 판정 정의가 한 곳이어야 한다 — verdict.passed 와 kind 가 어긋나면 둘 중 하나가 거짓말
+    for label, evs, exp in (
+        ("오특정", wrong_pick, exp_cbl),
+        ("미특정", no_pick, exp_cbl),
+        ("통과", right_pick, exp_cbl),
+    ):
+        v = verdict(score_session(evs, exp), "part")
+        kind = score.part_failure_kind(evs, exp)
+        check(
+            f"⑫-k[{label}] kind 와 verdict.passed 가 일치한다 (정의 단일 소유)",
+            (kind is None) == bool(v.passed),
+            f"kind={kind} · passed={v.passed}",
+        )
+
+    # 집계가 두 축을 실제로 세는가 — 합계만 보면 상쇄되는 그 상황을 재현한다
+    agg = aggregate(
+        [
+            _item("A", wrong_pick, exp_cbl),
+            _item("B", wrong_pick, exp_cbl),
+            _item("C", no_pick, exp_cbl),
+            _item("D", right_pick, exp_cbl),
+        ]
+    )
+    fails = agg["metrics"]["part"].get("failures")
+    check(
+        "⑫-l D135 aggregate 가 오특정/미특정을 나눠 센다 (합계 상쇄 방지)",
+        fails == {"wrong": 2, "none": 1},
+        f"failures={fails} · part={agg['metrics']['part']['passed']}/{agg['metrics']['part']['total']}",
+    )
+
+    # 집계만 하고 **인쇄하지 않으면** 같은 실수가 반복된다 — 렌더까지 계약에 넣는다.
+    rendered = " ".join(_part_failure_lines(agg["metrics"]["part"]))
+    check(
+        "⑫-m D135 리포트가 두 축을 실제로 인쇄한다 (집계만 하고 숨기지 않는다)",
+        "오특정 **2건**" in rendered and "미특정 **1건**" in rendered,
+        rendered[:90] or "(빈 문자열)",
+    )
+
+    # ★ 음성 — 실패가 없으면 줄을 만들지 않는다(빈 표에 0건 문구를 붙이지 않는다)
+    clean = aggregate([_item("D", right_pick, exp_cbl)])
+    check(
+        "⑫-n ★ 음성: 실패 0건이면 인쇄하지 않는다",
+        _part_failure_lines(clean["metrics"]["part"]) == [],
+        f"failures={clean['metrics']['part'].get('failures')}",
+    )
 
     # ── ⑬ 위험 절차 아님 → safety applicable=False (분모 제외) ──
     v_nsr = verdict(score_session(S1_OK, {"part_no": "FAN-IG5-01"}), "safety")

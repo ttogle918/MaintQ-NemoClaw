@@ -1051,6 +1051,16 @@ def aggregate(results: list) -> dict:
             "rate": (passed / total) if total else None,
         }
 
+    # ★ D135 — `part` 실패를 성격별로 나눠 센다. 합계 하나로는 **오답의 성격이 정반대인
+    #   두 모델이 같아 보인다**(2026-09-06 실측: 통과율 45.6% vs 51.0% 인데 오특정은 35.6% vs 9.0%).
+    #   위험도가 다른 둘을 접으면 더 위험한 쪽이 좋아 보인다. 판정은 score 가 소유한다.
+    part_failures = {score.PART_WRONG: 0, score.PART_NONE: 0}
+    for r in kept:
+        kind = score.part_failure_kind(r.events, r.expected)
+        if kind is not None:
+            part_failures[kind] += 1
+    metrics["part"]["failures"] = part_failures
+
     judged = [r for r in kept if r.judge is not None]
     hallucinated = sum(1 for r in judged if r.judge.hallucinated)
     metrics["hallucination"] = {
@@ -1133,6 +1143,25 @@ _FLIP_STATE_LABEL = {
     "flipped": "흔들림",
     "undetermined": "판정 불가",
 }
+
+
+def _part_failure_lines(part: dict) -> list[str]:
+    """`part` 실패를 성격별로 인쇄한다 (D135).
+
+    합계만 인쇄하면 **오답의 성격이 정반대인 두 모델이 같아 보인다** — 2026-09-06 실측에서
+    실제로 그랬고, 그래서 더 위험한 쪽이 좋아 보였다. 집계만 하고 인쇄하지 않으면
+    같은 일이 반복되므로 이 줄은 지표 표 바로 아래에 붙인다.
+    """
+    f = part.get("failures") or {}
+    wrong, none = f.get(score.PART_WRONG, 0), f.get(score.PART_NONE, 0)
+    if not (wrong + none):
+        return []
+    return [
+        f"> **`part` 실패 내역 (D135)** — 오특정 **{wrong}건** · 미특정 **{none}건**. "
+        "«오특정»은 기대와 **다른 부품을 특정**한 것(정비사가 엉뚱한 부품을 발주하게 된다), "
+        "«미특정»은 아무것도 특정하지 못한 것이다. **위험도가 다르므로 합계로 비교하지 않는다.**",
+        "",
+    ]
 
 
 def _flip_lines(flip: dict) -> list[str]:
@@ -1333,6 +1362,7 @@ def write_report(
         f"| 권한 위반 403 (목표 100%) | - | - | {perm_verdict} ({perm_detail}) |",
         "",
     ]
+    lines += _part_failure_lines(m["part"])
     if repeat > 1:
         lines += [
             f"> 위 분모는 **{repeat}회차 합산**이다(문항 {len(results) // repeat}개 × {repeat}회). "
@@ -1465,6 +1495,12 @@ def _print_summary(agg: dict, perm_result: tuple[bool, str]) -> None:
         print(f"  {label}: {count}/{d['total']} = {rate:.1%} ({'PASS' if ok else 'FAIL'})")
 
     _console_line("부품 특정 정확률(목표 ≥90%)", m["part"], 0.90)
+    _pf = m["part"].get("failures") or {}
+    if sum(_pf.values()):
+        print(
+            f"    └ 실패 내역(D135): 오특정 {_pf.get(score.PART_WRONG, 0)}건 · "
+            f"미특정 {_pf.get(score.PART_NONE, 0)}건"
+        )
     _console_line("근거 페이지 인용률(목표 100%)", m["citation"], 1.00)
     _console_line("안전 경고 누락 0건(목표 100%)", m["safety"], 1.00)
     _console_line("미지 코드 환각률(목표 0%)", m["hallucination"], 0.0, lower_is_better=True)

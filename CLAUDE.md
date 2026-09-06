@@ -195,7 +195,8 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **34스위트 / 1,202건**(2026-09-05 — 1,197 + `eval_score_contract` D133 견적 근거 축 5건(⑫-b~⑫-f).
+spikes **34스위트 / 1,212건**(2026-09-06 — 1,202 + `eval_score_contract` **D135 오특정/미특정 분리 축 10건**(⑫-g~⑫-n, ⑫-k 는 3케이스 루프). 뮤턴트 2종으로 실증했다 — 판정을 `return PART_WRONG` 으로 망가뜨리면 3건이, 렌더를 지우면 **⑫-m 하나만** FAIL 한다(렌더 검사가 제 몫을 한다는 뜻).
+직전 1,202 = 1,197 + `eval_score_contract` D133 견적 근거 축 5건(⑫-b~⑫-f).
 직전 1,197 = 1,192 + `eval_replay_guard` D132 스트림 실패 분모 축 5건(⑥-a~⑥-e).
 직전 1,192 = 1,190 + `db_concurrency` D126 채번 사본 정적 검사 2건(㉑㉒).
 직전 1,190 = 1,186 + D127·D130 가드 4건(⑰⑱⑲⑳).
@@ -242,7 +243,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 16`(Postgres 재설계 + D126 잠금 축 3건 + D127·D130 가드 4건 + D126 채번 사본 정적 검사 2건 — 아래 참고) · `deadline_risk_contract 18` ·
 `disposal_api_contract 36` · `docx_contract 63` ·
-`disposal_sign_contract 26` · `eval_replay_guard 21` · `eval_score_contract 41` · `external_store_contract 47` ·
+`disposal_sign_contract 26` · `eval_replay_guard 21` · `eval_score_contract 51` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
