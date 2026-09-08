@@ -31,7 +31,14 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 
 ## 데모
 
-<!-- TODO: 촬영 후 삽입 (docs/demo_script.md 큐시트 기준 7컷 GIF/영상) -->
+시나리오 S1~S4 촬영본과 함께, 개별 기능을 짧게 보여주는 GIF 7종을 `docs/demo-captures/` 에 두었다.
+
+| | |
+|---|---|
+| **재고 0 → 호환 대체품 분기** (S2)<br><img src="docs/demo-captures/assets/alternative-parts.gif" width="380"> | **반복 고장 감지 → 발주 보류** (S3)<br><img src="docs/demo-captures/assets/repeat-failure-hold.gif" width="380"> |
+| **미지 에러코드 → 추측 없이 A/S 안내** (S4)<br><img src="docs/demo-captures/assets/unknown-error-code.gif" width="380"> | **자산 처분 사전점검**<br><img src="docs/demo-captures/assets/disposal-precheck.gif" width="380"> |
+| **처분 증빙 번들 생성**<br><img src="docs/demo-captures/assets/disposal-evidence-bundle.gif" width="380"> | **지출 분류 (자본적/수익적)**<br><img src="docs/demo-captures/assets/expenditure-classification.gif" width="380"> |
+| **기한 추적 · 위험등급 산정**<br><img src="docs/demo-captures/assets/deadline-risk-grade.gif" width="380"> | 큐시트는 `docs/demo_script.md`, 촬영 노트는 `docs/demo-captures/README.md` |
 
 ## 아키텍처
 
@@ -46,10 +53,10 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 (도식 원본: `docs/06_REPO_API.md` §0)
 
 - MCP 서버·백엔드 프로세스 분리 (D15) → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨. 단, 개발/데모 시에는 백엔드 `lifespan`이 MCP 서버를 서브프로세스로 **자동 기동**한다(D42) — 별도 터미널로 띄울 필요 없음
-- MCP 도구 **코어 7종 + 확장 13종 = 20종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
+- MCP 도구 **코어 7종 + 확장 14종 = 21종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
   기본 `core`. 도구를 늘린 채 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다.
   **D88** 이 이 기준선을 코드로 잠갔다 — `run_eval.py` 가 `/health` 실측으로 `core` 가 아니면 종료한다)
-  확장 13종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
+  확장 14종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
   `get_maintenance_metrics` `classify_expenditure` `assess_repair_value` `build_evidence_bundle`
   `generate_disposal_document` `create_repair_record`(Sprint 9, D98)
   `track_deadlines` `assess_risk_grade`(Sprint 11, D102)
@@ -136,9 +143,33 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 > 누가 무엇을 판단했는지가 지워지면 승인의 의미가 사라진다(`data/related_parts.seed.json`
 > 의 `_승인_이력`).
 
-**회귀 현황**(2026-08-24 기준, `CLAUDE.md` 실측 기준선): spikes **33스위트 / 1,075건** · pytest **185건**
-(공식 4파일 99건 + Sprint 16에서 발견·수정한 A2A 8파일 86건, `docs/sprints/sprint-16-wip.md` 참고) ·
-seed **41건** · `error_codes` **70건** · 프론트 라우트 **22개**(`npx next build`).
+### 측정 축 재정립 — 합계가 두 실패를 상쇄해 지운다 (D135, 2026-09-06)
+
+두 모델(`gpt-oss:120b` / `20b`)을 비교하다 **비교 축 자체가 잘못돼 있다는 것**을 발견했다.
+
+| | 통과 | **오특정**(틀린 부품 확신) | **미특정**(답 안 냄) | 인용률 | 안전 |
+|---|---|---|---|---|---|
+| `120b` (n=90) | 41 (45.6%) | **32 (35.6%)** | 17 (18.9%) | 100% | 94.4% |
+| `20b` (n=100) | 51 (51.0%) | 9 (9.0%) | **40 (40.0%)** | 86% | 77% |
+
+`part` **합계(45.6% vs 51.0%)는 두 모델을 구분하지 못한다.** 그런데 안을 열면 틀리는 방식이 정반대다 —
+**120b 는 틀린 부품을 확신하고, 20b 는 답을 내지 않는다.** 위험도가 전혀 다르다: 오특정은 정비사가
+엉뚱한 부품을 발주하게 만들지만(비용·설비 정지), 미특정은 답을 못 받는 것이다. 같은 `FAIL` 로 접으면
+**더 위험한 쪽이 더 좋아 보인다** — 실제로 이번에 120b 가 그렇게 보였다.
+
+그래서 실패를 «오특정»/«미특정» 으로 나눠 집계·인쇄하는 규칙을 신설했다(**D135**). 판정은
+`score.part_failure_kind()` 가 단독 소유하고(따로 재구현하면 리포트의 `passed` 와 조용히 어긋난다),
+**렌더까지 계약에 넣었다** — 집계만 하고 인쇄하지 않으면 같은 실수가 반복되기 때문이다.
+회귀 `eval_score_contract` 41 → **51건**, 뮤턴트 2종으로 실증했다.
+
+> ⚠ **노이즈 바닥도 함께 실측했다.** `p≈0.5` 인 문항은 **20회차를 돌려도 95% 신뢰구간 폭이 40pt** 다.
+> 같은 조건 10회차 배치 둘이 인용률에서 **12pt** 어긋난 적도 있다 — **10회차 수치를 인용하면
+> 존재하지 않는 회귀를 보고하게 된다.** 개선을 주장하기 전에 "이 차이가 노이즈보다 큰가"를 먼저 잰다.
+> 원자료는 `docs/memo/2026-09-06-noise-floor-20rounds.md`.
+
+**회귀 현황**(2026-09-06 기준, `CLAUDE.md` 실측 기준선): spikes **34스위트 / 1,212건** · pytest **255건**
+(계약·룰·캐시 7파일 128건 + A2A 8파일 107건 + 서비스 3파일 20건 = 18파일) ·
+seed **41건** · `error_codes` **70건** · 프론트 라우트 **25개**(`npx next build`).
 
 **재현 방법**:
 
@@ -156,7 +187,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 |---|---|
 | [00 MVP_SCOPE](docs/00_MVP_SCOPE.md) | 반드시 구현할 기능 6종 + 인프라 + 완료 기준 |
 | [02 SCENARIOS](docs/02_SCENARIOS.md) | S1~S4 상세 |
-| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 13 = 20종** 입출력·설계 원칙 (계약 임의 변경 금지) |
+| [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 14 = 21종** 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
 | [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D135** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
@@ -170,5 +201,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 
 ## 상태
 
-M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — Sprint 16(D116·D117, SQLite→Postgres 전환 +
-RAG dense 임베딩 검색)까지 M4 범위에서 완료됨. 상세 진행 상태는 [docs/README.md](docs/README.md) 참조
+M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — **Sprint 18 까지 완료**되고, 발표·데모 촬영과
+**평가 축 재정립(D135)** 까지 마쳤다. 남은 것은 오특정 감소(프롬프트 과제)·20문항 전체 재측정,
+그리고 사람 승인 대기 2건(안전 문구 검수 · `partner_links` 확인)이다.
+상세 진행 상태는 [docs/README.md](docs/README.md) 참조
