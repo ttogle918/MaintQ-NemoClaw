@@ -12,12 +12,27 @@ from typing import Any
 import httpx
 import pytest
 
+from backend.a2a.circuit import OPEN, registry
 from backend.a2a.client import (
+    A2ACircuitOpenError,
     A2AClientError,
     A2ATimeoutError,
     A2AUpstreamUnavailableError,
     call_skill,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_circuit():
+    """차단기(P35)는 **프로세스 전역**이라 테스트 사이로 샌다.
+
+    이 픽스처가 없으면 전송 실패를 다루는 테스트 3건이 차단기를 열어 버려,
+    그 뒤 테스트들이 실제 매핑 대신 `A2ACircuitOpenError` 를 받는다
+    (도입 당시 실제로 5건이 그렇게 깨졌다). 격리는 여기서 한 번만 한다.
+    """
+    registry().reset()
+    yield
+    registry().reset()
 
 
 class _FakeResponse:
@@ -269,3 +284,155 @@ async def test_200_with_invalid_json_body_raises_client_error(monkeypatch: pytes
             request_chain_id="CHAIN-1",
             base_url="http://adapter.local",
         )
+
+
+# --- 차단기 연동 (P35) --------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_circuit_opens_after_repeated_transport_failures(monkeypatch: pytest.MonkeyPatch):
+    """연속 3회 도달 불가 → 4번째는 네트워크를 타지 않는다."""
+    _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))
+    for _ in range(3):
+        with pytest.raises(A2AUpstreamUnavailableError):
+            await call_skill(
+                partner="finallq",
+                skill_id="request-withdrawal",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+
+    assert registry().snapshot("finallq")["state"] == OPEN
+
+    captured = _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))
+    with pytest.raises(A2ACircuitOpenError) as excinfo:
+        await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=BASE_PAYLOAD,
+            request_chain_id="CHAIN-1",
+            base_url="http://adapter.local",
+        )
+    assert excinfo.value.failure_count == 3
+    assert excinfo.value.retry_after > 0
+    # 핵심 단언: HTTP 를 **시도조차 하지 않았다** — 이게 타임아웃을 안 무는 이유다
+    assert "post_kwargs" not in captured
+
+
+@pytest.mark.asyncio
+async def test_circuit_open_is_still_an_upstream_unavailable(monkeypatch: pytest.MonkeyPatch):
+    """상속 관계 — 차단기를 모르는 기존 호출부도 안전하게 처리한다."""
+    _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))
+    for _ in range(3):
+        with pytest.raises(A2AUpstreamUnavailableError):
+            await call_skill(
+                partner="finallq",
+                skill_id="request-withdrawal",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+    with pytest.raises(A2AUpstreamUnavailableError):
+        await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=BASE_PAYLOAD,
+            request_chain_id="CHAIN-1",
+            base_url="http://adapter.local",
+        )
+
+
+@pytest.mark.asyncio
+async def test_business_errors_do_not_open_the_circuit(monkeypatch: pytest.MonkeyPatch):
+    """400 이 반복돼도 열지 않는다 — 상대는 살아 있고, 계약이 틀린 것이다.
+
+    2026-08-24 assess-loan 계약 드리프트 때 실제로 400 이 반복됐는데,
+    그때 같은 파트너의 request-withdrawal 은 정상 동작해야 했다.
+    """
+    _patch_client(monkeypatch, response=_FakeResponse(400, text="schema_validation_failed"))
+    for _ in range(5):
+        with pytest.raises(A2AClientError):
+            await call_skill(
+                partner="finallq",
+                skill_id="assess-loan",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+    assert registry().snapshot("finallq")["state"] != OPEN
+
+    # 같은 파트너의 다른 스킬은 계속 나간다
+    _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    res = await call_skill(
+        partner="finallq",
+        skill_id="request-withdrawal",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+    )
+    assert res == {"status": "completed"}
+
+
+@pytest.mark.asyncio
+async def test_one_partner_outage_does_not_block_the_other(monkeypatch: pytest.MonkeyPatch):
+    """finallq 가 죽어도 insuq 약관 조회는 나간다 — 파트너 단위로 여는 이유."""
+    _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))
+    for _ in range(3):
+        with pytest.raises(A2AUpstreamUnavailableError):
+            await call_skill(
+                partner="finallq",
+                skill_id="request-withdrawal",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+
+    _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    res = await call_skill(
+        partner="insuq",
+        skill_id="lookup-clause",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://insuq-adapter.local",
+    )
+    assert res == {"status": "completed"}
+
+
+@pytest.mark.asyncio
+async def test_success_resets_the_failure_streak(monkeypatch: pytest.MonkeyPatch):
+    """연속이 끊기면 다시 센다 — 누적이 아니라 연속이다."""
+    _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))
+    for _ in range(2):
+        with pytest.raises(A2AUpstreamUnavailableError):
+            await call_skill(
+                partner="finallq",
+                skill_id="request-withdrawal",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+
+    _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    await call_skill(
+        partner="finallq",
+        skill_id="request-withdrawal",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+    )
+    assert registry().snapshot("finallq")["failure_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_config_errors_do_not_touch_the_circuit():
+    """base_url 누락은 우리 설정 문제다 — 상대 장애로 세면 안 된다."""
+    with pytest.raises(ValueError):
+        await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=BASE_PAYLOAD,
+            request_chain_id="CHAIN-1",
+            base_url="",
+        )
+    assert registry().snapshot("finallq")["failure_count"] == 0

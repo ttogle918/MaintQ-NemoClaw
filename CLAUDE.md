@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D135**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D136**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
@@ -123,11 +123,11 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` — **8파일 107건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 130건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
-  파일별 실측: `test_auth_header` 5 · `test_client` 16 · `test_credentials` 12 ·
-  `test_payloads` 25 · `test_trace` 8 · `routers/test_a2a` 28 · `test_po_a2a_trigger` 8 ·
-  `test_po_a2a_dispatch` 5 = **107**.
+  파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **22**(16+차단기 연동 6) ·
+  **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` 25 · `test_trace` 8 ·
+  `routers/test_a2a` 28 · `test_po_a2a_trigger` 8 · `test_po_a2a_dispatch` 5 = **130**.
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -140,9 +140,9 @@
   앞부분만 잘라 오기 때문이다 — **요약 줄 전체**를 보거나 `--collect-only` 로 교차 확인한다.
   ⚠ 실행 커맨드(**pytest-asyncio 추가 필요**): **`uv run --with pytest --with pytest-asyncio
   python -m pytest backend/a2a/test_auth_header.py backend/a2a/test_client.py
-  backend/a2a/test_credentials.py backend/a2a/test_payloads.py backend/a2a/test_trace.py
-  backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
-  backend/services/test_po_a2a_dispatch.py -q`**
+  backend/a2a/test_circuit.py backend/a2a/test_credentials.py backend/a2a/test_payloads.py
+  backend/a2a/test_trace.py backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
+  backend/services/test_po_a2a_dispatch.py -q`** (또는 `backend/a2a/` 디렉터리 통째로)
   (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
@@ -154,7 +154,12 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 18파일 255건이다** (7파일군 128 + A2A 8파일군 107 + 이 3파일 20).
+  📌 **pytest 총계는 이제 19파일 278건이다** (7파일군 128 + A2A 9파일군 130 + 이 3파일 20).
+  🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
+  신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 차단기는 **프로세스 전역
+  상태**라 `test_client.py` 에 `registry().reset()` autouse 픽스처가 함께 들어갔다 —
+  **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
+  (도입 즉시 실측으로 드러났다).
   목록이 맞는지 보려면 `find backend data -name 'test_*.py' -not -path '*__pycache__*'`
   가 반환하는 파일이 전부 위 세 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
   누락이 반복된다(이번까지 **세 번째**다).

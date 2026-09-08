@@ -14,7 +14,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError, call_skill
+from backend.a2a.client import (
+    A2ACircuitOpenError,
+    A2AClientError,
+    A2ATimeoutError,
+    A2AUpstreamUnavailableError,
+    call_skill,
+)
 from backend.a2a.payloads import (
     build_assess_loan_payload,
     build_assess_used_equipment_loan_payload,
@@ -74,6 +80,14 @@ async def _dispatch(
         _trace("timeout", {"error": str(exc)})
         raise HTTPException(
             status_code=504, detail=f"{partner_label} A2A adapter timeout"
+        ) from exc
+    except A2ACircuitOpenError as exc:
+        # ⚠ 반드시 A2AUpstreamUnavailableError 보다 **먼저** 잡는다 (하위 타입이다).
+        _trace("circuit_open", {"error": str(exc)})
+        raise HTTPException(
+            status_code=503,
+            detail=f"{partner_label} A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
         ) from exc
     except A2AUpstreamUnavailableError as exc:
         _trace("unavailable", {"error": str(exc)})
@@ -139,6 +153,22 @@ async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
             status="timeout",
         )
         raise HTTPException(status_code=504, detail="InsuQ A2A adapter timeout") from exc
+
+    except A2ACircuitOpenError as exc:
+        # ⚠ A2AUpstreamUnavailableError 의 하위 타입이라 **먼저** 와야 한다.
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="lookup-clause",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="circuit_open",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"InsuQ A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
+        ) from exc
 
     except A2AUpstreamUnavailableError as exc:
         record_a2a_trace(
@@ -236,6 +266,22 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             status="timeout",
         )
         raise HTTPException(status_code=504, detail="FinAllQ A2A adapter timeout") from exc
+
+    except A2ACircuitOpenError as exc:
+        # ⚠ A2AUpstreamUnavailableError 의 하위 타입이라 **먼저** 와야 한다.
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="assess-loan",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="circuit_open",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"FinAllQ A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
+        ) from exc
 
     except A2AUpstreamUnavailableError as exc:
         record_a2a_trace(
