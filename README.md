@@ -60,7 +60,7 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
   `get_maintenance_metrics` `classify_expenditure` `assess_repair_value` `build_evidence_bundle`
   `generate_disposal_document` `create_repair_record`(Sprint 9, D98)
   `track_deadlines` `assess_risk_grade`(Sprint 11, D102)
-  **`search_insurance_clause` `assess_equipment_loan`**(Sprint 16, D112 — A2A 아웃바운드, 상대 서버 미구현으로 현재 실패가 정상)
+  **`search_insurance_clause` `assess_equipment_loan`**(Sprint 16, D112 — A2A 아웃바운드. 상대 어댑터가 구현돼 **실 E2E 검증 완료**, 2026-08-31)
 - 코어 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
 - **쓰기 도구는 3종**(`create_po_draft` · `generate_disposal_document` · `create_repair_record`) — 셋 다
   **draft INSERT 만** 가능하고 UPDATE 권한이 없다. 승인/반려/서명은 사람 전용 API
