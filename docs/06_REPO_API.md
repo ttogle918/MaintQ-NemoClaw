@@ -662,7 +662,14 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
       → 코드 버그·콘솔 SQL·마이그레이션으로도 뚫을 수 없다 (`05 §14`)
 ```
 
-### 2.9 A2A 크로스도메인 호출 (`backend/routers/a2a.py`, Sprint 16, D112~D114)
+### 2.9 A2A 크로스도메인 호출 (`backend/routers/a2a.py`, Sprint 16, D112~D114 · **D136**)
+
+> 🔴 **모든 A2A 엔드포인트에 503 이 추가됐다 (D136, 2026-09-09).** 차단기(circuit breaker)가
+> 열려 있으면 **네트워크를 타지 않고** `503 + Retry-After` 로 즉시 돌려준다.
+> **502 와 구분해서 읽어야 한다** — 502 는 *"닿으려 했는데 못 닿았다"*, 503 은
+> *"우리가 스스로 막았다(연속 실패 N회)"* 다. trace 에도 `unavailable` / `circuit_open` 으로
+> 나뉘어 남는다. 차단기는 **파트너 단위**이고 **도달 불가만** 센다 —
+> 400·422 같은 계약 실패는 상대가 살아 있다는 증거라 오히려 차단기를 닫는다.
 
 ```
 POST /api/a2a/lookup-clause          # InsuQ lookup-clause 스킬 중계 (기존 — Sprint 16 이전 미문서화분 소급 기재)
@@ -702,6 +709,20 @@ POST /api/a2a/request-settlement     # FinAllQ 매각대금 정산·근저당 �
      False 로 만들어 BLOCKING 룰을 조용히 미발화시킨다(seed 검사 ⑱).
      ⚠ 응답 `remaining_balance` 는 장부 반영 잔액이 아니라 산술 결과다(FinAllQ
      `decide_settlement` 는 DB 조회 0인 순수 함수) — trace 에만 남기고 소비하지 않는다.
+
+POST /api/a2a/notify-asset-change    # InsuQ 부보 목적물 변경 통지 (신규 2026-09-09, S11)
+  body: { decision_id, change_type?("REMOVE"|"ADD", 기본 REMOVE), session_id?, request_chain_id? }
+  → InsuQ 응답 그대로(+ request_chain_id 강제 주입) — 200
+  → 504 · 502 · **503**(차단기) · 400
+  ⛔ **조립 단계에서 막힌 요청은 발신하지 않는다** — 아래 넷은 전부 400 이고
+     `call_skill` 이 호출조차 되지 않는다(`routers/test_a2a.py` 가 단언):
+     ㉠ 미서명 결정 — 계약이 "처분 **확정**에 따른" 변경이라 못박는다.
+        **S12 와 정반대다**(S12 는 담보를 푸는 수단이라 서명보다 앞서야 했다)
+     ㉡ 부보 아님(`insured=false` 또는 `policy_id` NULL) — 고칠 증권이 없다
+     ㉢ `building_id` 없음 ㉣ enum 밖 `change_type`
+  ⛔ **응답으로 MaintQ 상태를 바꾸지 않는다** — `receipt_no`·`premium_adjustment` 는
+     trace 에만 남는다. 상태를 바꾸는 경로는 여전히 request-settlement 하나뿐이다
+  📌 `effective_date` 는 오늘이 아니라 **서명일**(`decisions.signed_at`)이다
 
 GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
   query: skill? · po_id? · building_id? · chain_id? · limit?(기본 50)
