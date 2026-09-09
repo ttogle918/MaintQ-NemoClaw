@@ -17,6 +17,7 @@ from backend.a2a.payloads import (
     build_assess_loan_payload,
     build_assess_used_equipment_loan_payload,
     build_lookup_clause_payload,
+    build_notify_asset_change_payload,
     build_request_settlement_payload,
     build_request_withdrawal_payload,
     get_finallq_company_id,
@@ -307,3 +308,86 @@ def test_asset_without_lien_raises(db_path, seed_lien_decisions):
             decision_id="DEC-NOLIEN", sale_amount=1.0, outstanding_loan=1.0,
             approved_by="U", prepayment_fee=None, request_chain_id="C", db_path=db_path,
         )
+
+
+# ---- build_notify_asset_change_payload (S11) --------------------------------
+
+
+def test_notify_asset_change_builds_contract_fields(db_path: str, seed_signed_disposals, link_finallq):
+    link_finallq(external_ref="CMP-MAINTQ-001")
+    p = build_notify_asset_change_payload(
+        decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path
+    )
+    # 계약(notify-asset-change.json) required 8종이 전부 있어야 한다
+    for key in (
+        "requester", "request_chain_id", "building_id", "policy_id",
+        "change_type", "equipment", "effective_date", "decision_id",
+    ):
+        assert key in p, key
+    assert p["building_id"] == "BLD-C"
+    assert p["policy_id"] == "POL-2026-FIRE-01"
+    assert p["change_type"] == "REMOVE"
+    assert p["decision_id"] == "DEC-SIGNED"
+    assert p["requester"]["finallq_company_id"] == "CMP-MAINTQ-001"
+
+
+def test_notify_asset_change_equipment_is_an_array_of_names(db_path: str, seed_signed_disposals):
+    p = build_notify_asset_change_payload(
+        decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path
+    )
+    assert p["equipment"] == ["3라인 금속 컨베이어"]
+
+
+def test_notify_asset_change_effective_date_is_the_signing_date(db_path: str, seed_signed_disposals):
+    """오늘이 아니라 **서명일**이다 — 통지가 늦어도 처분이 확정된 날은 바뀌지 않는다."""
+    p = build_notify_asset_change_payload(
+        decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path
+    )
+    assert p["effective_date"] == "2026-08-15"
+
+
+def test_notify_asset_change_refuses_unsigned_decision(db_path: str, seed_signed_disposals):
+    """S12 와 정반대다 — 확정(서명) 전에는 보내지 않는다."""
+    with pytest.raises(ValueError, match="서명 전"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-DRAFT", request_chain_id="CHAIN-1", db_path=db_path
+        )
+
+
+def test_notify_asset_change_refuses_uninsured_asset(db_path: str, seed_signed_disposals):
+    """부보되지 않은 자산은 InsuQ 에 고칠 증권이 없다 — 빈 policy_id 로 보내지 않는다."""
+    with pytest.raises(ValueError, match="부보 자산이 아니다"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-UNINSURED", request_chain_id="CHAIN-1", db_path=db_path
+        )
+
+
+def test_notify_asset_change_refuses_missing_building(db_path: str, seed_signed_disposals):
+    with pytest.raises(ValueError, match="building_id"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-NOBLDG", request_chain_id="CHAIN-1", db_path=db_path
+        )
+
+
+def test_notify_asset_change_refuses_unknown_decision(db_path: str, seed_signed_disposals):
+    with pytest.raises(ValueError, match="알 수 없는 decision_id"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-NOPE", request_chain_id="CHAIN-1", db_path=db_path
+        )
+
+
+def test_notify_asset_change_rejects_bad_change_type(db_path: str, seed_signed_disposals):
+    """계약 enum 은 REMOVE|ADD 뿐이다 — 조립 단계에서 막는다."""
+    with pytest.raises(ValueError, match="change_type"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-SIGNED", request_chain_id="CHAIN-1",
+            change_type="DELETE", db_path=db_path,
+        )
+
+
+def test_notify_asset_change_accepts_add(db_path: str, seed_signed_disposals):
+    p = build_notify_asset_change_payload(
+        decision_id="DEC-SIGNED", request_chain_id="CHAIN-1",
+        change_type="ADD", db_path=db_path,
+    )
+    assert p["change_type"] == "ADD"

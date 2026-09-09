@@ -123,11 +123,12 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 130건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 144건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
   파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **22**(16+차단기 연동 6) ·
-  **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` 25 · `test_trace` 8 ·
-  `routers/test_a2a` 28 · `test_po_a2a_trigger` 8 · `test_po_a2a_dispatch` 5 = **130**.
+  **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` **34**(25+S11 9) ·
+  `test_trace` 8 · `routers/test_a2a` **33**(28+S11 5) · `test_po_a2a_trigger` 8 ·
+  `test_po_a2a_dispatch` 5 = **144**.
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -154,9 +155,11 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 19파일 278건이다** (7파일군 128 + A2A 9파일군 130 + 이 3파일 20).
+  📌 **pytest 총계는 이제 19파일 292건이다** (7파일군 128 + A2A 9파일군 144 + 이 3파일 20).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
-  신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 차단기는 **프로세스 전역
+  신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
+  `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
+  **130 → 144** 를 만들었다. 차단기는 **프로세스 전역
   상태**라 `test_client.py` 에 `registry().reset()` autouse 픽스처가 함께 들어갔다 —
   **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
   (도입 즉시 실측으로 드러났다).

@@ -185,6 +185,56 @@ def seed_lien_decisions(db_path: str):
 
 
 @pytest.fixture()
+def seed_signed_disposals(db_path: str):
+    """S11(notify-asset-change) payload 파생용 — 서명·부보 조합 4가지를 심는다.
+
+    `DEC-SIGNED`    → `AST-INSURED`   : 서명 O · 부보 O          (정상 통지 대상)
+    `DEC-DRAFT`     → `AST-INSURED`   : **서명 X** · 부보 O       (확정 전이라 통지 금지)
+    `DEC-UNINSURED` → `AST-UNINSURED` : 서명 O · **부보 X**       (고칠 증권이 없다)
+    `DEC-NOBLDG`    → `AST-NOBLDG`    : 서명 O · 부보 O · **building_id 없음**
+    """
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        for aid, name, bldg, policy, insured in (
+            ("AST-INSURED", "3라인 금속 컨베이어", "BLD-C", "POL-2026-FIRE-01", True),
+            ("AST-UNINSURED", "3라인 리프트", "BLD-C", None, False),
+            ("AST-NOBLDG", "건물 미상 설비", None, "POL-2026-FIRE-01", True),
+        ):
+            con.execute(
+                "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
+                " policy_id, insured) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (aid, name, "설비", 3, bldg, policy, insured),
+            )
+        # 서명 행에는 서명자가 있어야 한다 — `decisions_check1` 이 DDL 로 강제한다(D81).
+        con.execute(
+            "INSERT OR IGNORE INTO users (user_id, display_name, role)"
+            " VALUES ('mgr-01', '보전팀장', 'manager')"
+        )
+        for did, aid, signed in (
+            ("DEC-SIGNED", "AST-INSURED", "2026-08-15 09:30:00"),
+            ("DEC-DRAFT", "AST-INSURED", None),
+            ("DEC-UNINSURED", "AST-UNINSURED", "2026-08-15 09:30:00"),
+            ("DEC-NOBLDG", "AST-NOBLDG", "2026-08-15 09:30:00"),
+        ):
+            # `verdict_at_signing` 은 CLEAR|CONDITIONAL 만 서명될 수 있다(`decisions_check2`).
+            con.execute(
+                "INSERT INTO decisions (decision_id, asset_id, decision_type,"
+                " evidence_bundle, bundle_hash, verdict_at_signing, state, reason,"
+                " signed_at, reviewed_by)"
+                " VALUES (?, ?, 'DISPOSAL', '{}', 'sha256:test', 'CLEAR', ?, '테스트', ?, ?)",
+                (
+                    did, aid,
+                    "signed" if signed else "draft",
+                    signed,
+                    "mgr-01" if signed else None,
+                ),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
+@pytest.fixture()
 def fetch_asset(db_path: str):
     def _fetch(asset_id: str) -> dict:
         con = dbcompat.connect_dsn(db_path)

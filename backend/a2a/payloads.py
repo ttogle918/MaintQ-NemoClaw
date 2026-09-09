@@ -4,6 +4,7 @@
 - partner_links 테이블에서 external_ref 조회
 - S5 request-withdrawal payload 조립
 - InsuQ lookup-clause payload 조립
+- S11 notify-asset-change payload 조립 (InsuQ 부보 목적물 변경 통지)
 """
 
 from __future__ import annotations
@@ -216,3 +217,73 @@ def build_request_settlement_payload(
     if prepayment_fee is not None:
         payload["prepayment_fee"] = prepayment_fee
     return payload
+
+
+#: S11 이 InsuQ 에 알릴 수 있는 변경 종류 (계약 `notify-asset-change.json` 의 enum).
+ASSET_CHANGE_TYPES = ("REMOVE", "ADD")
+
+
+def build_notify_asset_change_payload(
+    decision_id: str,
+    request_chain_id: str,
+    change_type: str = "REMOVE",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """InsuQ notify-asset-change 스킬(S11, 부보 목적물 변경 통지) payload.
+
+    **S12 와 정반대로 서명 뒤에 온다.** S12(정산)는 담보를 푸는 수단이라 서명보다 **앞서야**
+    했지만, S11 은 계약이 *"설비 처분 **확정**에 따른"* 변경이라고 못박는다 — 확정은 서명이다.
+    미서명 draft 로 통지하면 보험사가 아직 일어나지 않은 처분으로 증권을 고치게 된다.
+    그래서 `signed_at IS NULL` 이면 조립하지 않는다.
+
+    ⛔ **부보되지 않은 자산은 통지하지 않는다** — `insured=false` 이거나 `policy_id` 가 없으면
+    InsuQ 에 고칠 증권 자체가 없다. 시드의 `AST-L3-LIFT` 가 실제로 그런 자산이다.
+    빈 문자열로 채워 보내면 수신부가 `schema_validation_failed` 를 낸다
+    (`request-withdrawal` 이 `error_code=None` 으로 정확히 그 400 을 맞은 전례가 있다).
+
+    `effective_date` 는 **서명일**이지 오늘이 아니다 — 부보 목적물이 빠지는 시점은
+    처분이 확정된 날이고, 통지가 늦어도 그 사실은 바뀌지 않는다.
+    """
+    if change_type not in ASSET_CHANGE_TYPES:
+        raise ValueError(
+            f"알 수 없는 change_type: {change_type} (가능: {', '.join(ASSET_CHANGE_TYPES)})"
+        )
+
+    with connect(db_path) as con:
+        row = con.execute(
+            "SELECT d.decision_id, d.signed_at, a.asset_id, a.name, a.building_id,"
+            "       a.policy_id, a.insured"
+            "  FROM decisions d JOIN assets a ON a.asset_id = d.asset_id"
+            " WHERE d.decision_id = ?",
+            (decision_id,),
+        ).fetchone()
+
+    if row is None:
+        raise ValueError(f"알 수 없는 decision_id: {decision_id}")
+    if not row["signed_at"]:
+        raise ValueError(
+            f"{decision_id} 는 서명 전이다 — 처분 확정 통지(S11)는 서명 뒤에만 보낸다."
+        )
+    if not row["insured"] or not row["policy_id"]:
+        raise ValueError(
+            f"{row['asset_id']} 는 부보 자산이 아니다 — InsuQ 에 변경할 증권이 없다."
+        )
+    if not row["building_id"]:
+        raise ValueError(f"{row['asset_id']} 에 building_id 가 없다 — 부보 목적물을 특정할 수 없다.")
+
+    return {
+        "requester": {
+            "finallq_company_id": get_finallq_company_id(db_path) or "",
+            "building_id": row["building_id"],
+            "policy_id": row["policy_id"],
+        },
+        "request_chain_id": request_chain_id,
+        "building_id": row["building_id"],
+        "policy_id": row["policy_id"],
+        "change_type": change_type,
+        # 계약은 배열이다. MaintQ 의 처분 결정은 자산 1건 단위라 항상 1개짜리 배열이다 —
+        # 여러 건을 한 통지로 묶으려면 결정도 묶여야 하므로 그건 다른 스킬이다.
+        "equipment": [row["name"]],
+        "effective_date": str(row["signed_at"])[:10],
+        "decision_id": row["decision_id"],
+    }
