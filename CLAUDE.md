@@ -60,7 +60,19 @@
 ## 기술 스택·컨벤션
 
 - Python 3.11+, FastAPI, SQLite(목업), MCP 서버는 backend와 프로세스 분리 (D15)
-- 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
+- 린터: **ruff check** — `.claude/hooks/lint_edited.py`(PostToolUse)가 **방금 편집한 파일 하나만**
+  `ruff check --fix` 로 훑는다(안전한 자동 수정만). Stop 훅은 `ruff check data backend mcp_server
+  spikes eval` 전체를 0.2초에 돌린다
+  🔴 **정정 (2026-09-09 실측)**: 이 줄은 오래 *"포매터: ruff (PostToolUse 훅으로 자동 실행)"* 이었는데
+  **두 가지가 함께 틀렸다.** ㉠ 그 훅은 `python -m ruff format .` 이라 **한 번도 돈 적이 없다** —
+  시스템 파이썬에 ruff 가 없어 매번 `No module named ruff` 로 죽었고 `|| exit 0` 이 삼켰다.
+  포맷이 유지된 건 훅이 아니라 사람이 `uv run ruff check` 를 돌렸기 때문이다.
+  ㉡ **이 레포의 규약은 포매터가 아니라 린터다** — `ruff format` 을 실제로 재 보면
+  **189개 중 110개 파일을 재포맷한다.** 켜면 기능 3줄 변경에 스타일 500줄이 섞인다.
+  전면 스타일 적용을 하려면 훅이 아니라 **의도된 단독 커밋**으로 할 것.
+  ⚠ Stop 훅도 같은 병이었다 — `pytest eval/` 을 가리켰는데 `eval/` 에는 테스트 파일이 **0개**라
+  `no tests ran` 만 찍고 끝났다. **훅 3개 중 2개가 조용히 무동작이었다.**
+  이 문서가 스스로 정한 *"부재 검사에는 liveness 앵커를 함께 건다"* 가 훅에는 적용되지 않은 자리다.
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
   - 확장 **14종**(코어 7 + 확장 14 = 21종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
