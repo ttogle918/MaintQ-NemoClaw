@@ -240,6 +240,10 @@ if TOOLS_PROFILE == "full":
         DESCRIPTION as EQUIPMENT_LOAN_DESC,
         assess_equipment_loan as _assess_equipment_loan,
     )
+    from mcp_server.tools.assess_used_equipment_loan import (  # noqa: E402
+        DESCRIPTION as USED_EQUIPMENT_LOAN_DESC,
+        assess_used_equipment_loan as _assess_used_equipment_loan,
+    )
     from mcp_server.tools.get_document_facts import (  # noqa: E402
         DESCRIPTION as DOC_FACTS_DESC,
         get_document_facts as _get_document_facts,
@@ -471,6 +475,14 @@ if TOOLS_PROFILE == "full":
         return _assess_equipment_loan(
             loan_amount=loan_amount, purpose=purpose, collateral_building_id=collateral_building_id
         )
+
+    @mcp.tool(description=USED_EQUIPMENT_LOAN_DESC)
+    def assess_used_equipment_loan(asset_id: str, loan_amount: float) -> dict:
+        """두 파라미터 전부 필수 (D80). 담보 건물·연식·점검 이력·취득원가는 **서버가
+        자산 대장에서 파생**하므로 도구 인자로 받지 않는다 (D138). MaintQ 백엔드 REST
+        (`/api/a2a/assess-used-equipment-loan`)를 HTTP 로 호출할 뿐 A2A 자격증명·파트너
+        대장을 직접 참조하지 않는다 (D15·D93)."""
+        return _assess_used_equipment_loan(asset_id=asset_id, loan_amount=loan_amount)
 
     @mcp.tool(description=DOC_FACTS_DESC)
     def get_document_facts(

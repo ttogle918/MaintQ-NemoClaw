@@ -9,9 +9,9 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D139**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D140**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **24절(실제 25개)** + 시드 케이스 맵
   (2026-09-04: `§24 manual_chunks`(dense 임베딩, D117) 절을 추가해 문서와 실제 DB 를
@@ -75,7 +75,7 @@
   이 문서가 스스로 정한 *"부재 검사에는 liveness 앵커를 함께 건다"* 가 훅에는 적용되지 않은 자리다.
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **14종**(코어 7 + 확장 14 = 21종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
+  - 확장 **15종**(코어 7 + 확장 15 = 22종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
     **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
@@ -167,7 +167,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 19파일 299건이다** (7파일군 128 + A2A 9파일군 151 + 이 3파일 20).
+  📌 **pytest 총계는 이제 22파일 342건이다** (7파일군 128 + A2A 9파일군 151 + 서비스 3파일 20 + **mcp_server 3파일 43**).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
@@ -175,9 +175,16 @@
   상태**라 `test_client.py` 에 `registry().reset()` autouse 픽스처가 함께 들어갔다 —
   **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
   (도입 즉시 실측으로 드러났다).
-  목록이 맞는지 보려면 `find backend data -name 'test_*.py' -not -path '*__pycache__*'`
-  가 반환하는 파일이 전부 위 세 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
-  누락이 반복된다(이번까지 **세 번째**다).
+  🔴 **2026-09-11 — `mcp_server/tools/test_*.py` 3파일 43건이 목록 밖이었다** (네 번째 누락).
+  `test_assess_equipment_loan` 16 · `test_search_insurance_clause` 13 · **`test_assess_used_equipment_loan` 14**(신규, D140).
+  ⚠ **가드 자신에게 사각지대가 있었다** — 아래 확인 커맨드가 `backend data` 만 훑어
+  `mcp_server/` 를 **아예 보지 않았다.** 누락을 막으려고 세운 검사가 그 누락을 못 봤다.
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/tools/ -q`** → **43건**
+  (A2A 자격증명을 안 다루는 얇은 HTTP 래퍼라 `httpx.post` monkeypatch 만으로 돈다 — DB 불필요)
+
+  목록이 맞는지 보려면 **`find backend data mcp_server -name 'test_*.py' -not -path '*__pycache__*'`**
+  가 반환하는 파일이 전부 위 네 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
+  누락이 반복된다(이번까지 **네 번째**다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
 
 - `spikes/` — **34종**(`ls spikes/*.py` 는 38개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
   `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):

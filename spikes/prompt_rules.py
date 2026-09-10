@@ -260,7 +260,7 @@ def run() -> None:
         and len(EXT_RULES) == 8
         and os.environ.get("MAINTQ_TOOLS_PROFILE") is None
         and len(CORE_TOOLS) == 7
-        and len(EXT_TOOLS) == 14,
+        and len(EXT_TOOLS) == 15,
         f"RULES={len(RULES)} EXT_RULES={len(EXT_RULES)} "
         f"CORE={len(CORE_TOOLS)} EXT={len(EXT_TOOLS)} · {env_note}",
     )
@@ -275,7 +275,7 @@ def run() -> None:
         f"규칙 누출={ext_rule_leak or '없음'} · 도구명 누출={ext_tool_leak or '없음'}",
     )
 
-    # ── ⑲ 전체 21종 등록 → EXT 규칙 8개 + 각 근거 D 태그
+    # ── ⑲ 전체 22종 등록 → EXT 규칙 8개 + 각 근거 D 태그
     all_tools = [*CORE_TOOLS, *EXT_TOOLS]
     full_prompt = build_system_prompt("iG5A", tool_names=all_tools)
     ext_missing = [i + 12 for i, r in enumerate(EXT_RULES) if r[:24] not in full_prompt]
@@ -285,11 +285,11 @@ def run() -> None:
     tag_missing = [t for t in ext_tags if t not in full_prompt]
     numbered = all(f"\n{n}. " in full_prompt for n in (12, 13, 14, 15, 16, 17, 18, 19))
     check(
-        "⑲ tool_names=전체21 → EXT 규칙 8개 + D 태그 전건 · 규칙 번호 12~19",
+        "⑲ tool_names=전체22 → EXT 규칙 8개 + D 태그 전건 · 규칙 번호 12~19",
         not ext_missing
         and not tag_missing
         and numbered
-        and "사용 가능한 도구 (21종)" in full_prompt
+        and "사용 가능한 도구 (22종)" in full_prompt
         and all(t in full_prompt for t in EXT_TOOLS),
         f"규칙 누락={ext_missing or '없음'} · 태그 누락={tag_missing or '없음'} · 번호={numbered}",
     )
