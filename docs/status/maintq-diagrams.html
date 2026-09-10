@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-19</b><span style="display:block;font-size:11px;margin-top:3px">§⑤·§⑪·대조표는 2026-08-24 갱신(Sprint 17·18, D119~D121, 계정 선택 화면)</span></div>
+    <div class="asof">기준 시점<b>2026-09-10</b><span style="display:block;font-size:11px;margin-top:3px">수치·A2A 절 2026-09-10 갱신(Postgres 전환 · 차단기 D136 · S11 · D137·D138)</span></div>
   </header>
 
   <nav class="toc">
@@ -295,14 +295,14 @@ flowchart LR
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 18 · 테이블 24</span></div>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 21 · 테이블 25</span></div>
     <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다. <b>Sprint 11은 읽기 도구만 7 → 9종으로 늘렸습니다</b>(<code>track_deadlines</code>·<code>assess_risk_grade</code>) — 쓰기 도구는 손대지 않았습니다.</p>
 
     <figure>
       <div class="plate">
 <pre class="mermaid">
 flowchart TB
-  subgraph FE["프론트엔드 · Next.js · 라우트 16"]
+  subgraph FE["프론트엔드 · Next.js · 라우트 25"]
     direction LR
     scrA["정비사 콘솔 · /technician<br/>+ 자산 · 사전판정 · 실사"]
     scrB["팀장 큐 · /manager<br/>발주 상세 · 처분서 서명"]
@@ -321,7 +321,7 @@ flowchart TB
 
   subgraph MCPP["MCP 서버 · 별도 프로세스 · D15"]
     direction TB
-    rd["읽기 도구 15종<br/>코어 6 + 확장 9<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …<br/>deadlines · risk_grade (Sprint 11)"]
+    rd["읽기 도구 18종<br/>코어 6 + 확장 12<br/>lookup · rag · history · inventory<br/>blockers · ownership · bundle …<br/>deadlines · risk_grade (Sprint 11)<br/>document_facts (D125)"]
     wr1["create_po_draft"]
     wr2["generate_disposal_document"]
     wr3["create_repair_record"]
@@ -365,7 +365,7 @@ flowchart TB
       </div>
       <figcaption><b>굵은 화살표 다섯이 이 시스템의 쓰기 경로 전부입니다.</b> 초록 셋(도구 → draft INSERT)과 빨강 둘(사람 전용 API → 상태 UPDATE). 도구에 UPDATE를 아예 주지 않았기 때문에, LLM이 아무리 잘못 판단해도 발주·처분·수리 증빙을 스스로 확정시킬 수 없습니다 — 프롬프트가 아니라 <b>권한 구조로 강제한 것</b>입니다(D10·D81·D98). <b>세 쓰기 도구는 DB 커넥션까지 분리돼 있습니다</b>(<code>draft_writer()</code> / <code>decision_writer()</code> / <code>repair_writer()</code>) — 섞으면 각 커넥션에 걸어 둔 TEMP TRIGGER 잠금이 사라지기 때문입니다. MCP 서버를 별도 프로세스로 뗀 것(D15)은 목업 DB를 실제 ERP로 갈아끼울 때 이 박스만 교체하기 위해서입니다.</figcaption>
       <div class="note" style="margin-top:14px">
-        <b>확장 도구 11종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69). <b>Sprint 11이 더한 <code>track_deadlines</code>·<code>assess_risk_grade</code>도 같은 게이트 안에 있습니다</b> — 다만 이 둘과 동형인 REST 3경로(<code>GET /api/deadlines</code> 등)는 MCP 프로세스를 거치지 않아 <code>core</code>에서도 동작합니다(D73).
+        <b>확장 도구 14종은 기본적으로 <i>보이지 않습니다</i>.</b> <code>MAINTQ_TOOLS_PROFILE=full</code>일 때만 등록되고 기본값은 <code>core</code>(7종)입니다(D69). <b>Sprint 11이 더한 <code>track_deadlines</code>·<code>assess_risk_grade</code>도 같은 게이트 안에 있습니다</b> — 다만 이 둘과 동형인 REST 3경로(<code>GET /api/deadlines</code> 등)는 MCP 프로세스를 거치지 않아 <code>core</code>에서도 동작합니다(D73).
         이유는 평가입니다 — 도구를 늘린 채 지표를 재면 <b>"수정의 효과"와 "도구가 늘어난 효과"를 분리할 수 없습니다.</b>
         <b>D88이 이 기준선을 코드로 잠갔습니다</b>: 평가 러너가 실행 전 <code>/health</code>를 읽어 <code>core</code>가 아니면 <code>exit 2</code>로 멈춥니다.
         env 에코 하나만 보면 MCP 자식이 다른 env로 떴을 때 통과하므로, <b><code>list_tools()</code> 실측 개수와 겹쳐서</b> 봅니다.
@@ -949,11 +949,17 @@ flowchart LR
           <tr><td><b>문서 렌더 01·02 (D118, 2026-08-24)</b></td><td class="mono">backend/services/po_documents.py(진단보고서·발주요청서 렌더) · data/korean_number.py(한글 금액) · backend/services/po.py <code>get_po()</code>(error_codes·part_alternatives JOIN) · frontend/components/queue/DocumentPreview.tsx</td></tr>
           <tr><td><b>재무부 승인 게이트 + 문서 렌더 03 (Sprint 17, D119, 2026-08-24)</b></td><td class="mono">data/expenditure_limits.py(예산·일일한도·FDS·SoD) · backend/routers/po.py <code>finance_approve()</code>·<code>finance_reject()</code>(department 체크) · backend/services/po.py <code>_finance_transition()</code>·<code>dispatch_a2a_withdrawal_request()</code>(발신 시점 이동) · backend/services/po_documents.py <code>render_fund_execution_document()</code>(doc3) · frontend/components/queue/FinanceDecisionBar.tsx</td></tr>
           <tr><td><b>정비사 랜딩 대시보드 (Sprint 18, 2026-08-24)</b></td><td class="mono">frontend/lib/role.ts <code>ROLE_HOME.technician</code>→<code>/technician/equipment-status</code> · frontend/app/(console)/technician/equipment-status/page.tsx(3×3 그리드·페이지네이션·정렬) · frontend/components/asset/EquipmentCard.tsx · frontend/components/layout/ChatFab.tsx(챗봇 진입점 이동)</td></tr>
+          <tr><td><b>결재 문서 docx 배선 + 사실 조회 도구 (D124·D125, 2026-09-04)</b></td><td class="mono">backend/services/docx_render.py(서식 채우기) · mcp_server/tools/get_document_facts.py(<b>읽기 전용</b> — 결재 문서에 찍힐 값을 조회만 한다. 교정은 UPDATE 가 아니라 새 draft INSERT 또는 사람의 화면 수정) · spikes/docx_contract.py(63건 신설) — <b>도구 20→21종</b></td></tr>
+          <tr><td><b>평가 축 재설계 — 오특정/미특정 분리 (D135, 2026-09-06)</b></td><td class="mono">eval/score.py(<code>part</code> 실패를 «틀린 부품을 확신»과 «답을 안 냄»으로 분리) · spikes/eval_score_contract.py(41→51건) — 합계 45.6% vs 51.0%로 두 모델이 구분되지 않는데 <b>틀리는 방식이 정반대</b>였던 것이 계기</td></tr>
+          <tr><td><b>A2A 차단기 (D136, 2026-09-09)</b></td><td class="mono">backend/a2a/circuit.py(<b>파트너 단위</b>로 열고 <b>«도달 불가»만</b> 센다 — 400·422 계약 실패는 상대가 살아 있다는 증거라 오히려 닫는다) · backend/a2a/client.py 연동 · backend/a2a/test_circuit.py(17건) — 상태는 <b>프로세스 안에만</b> 둔다(업무 사실이 아니라 관측이고, DB 에 쓰면 D10 경계에도 걸린다)</td></tr>
+          <tr><td><b>S11 <code>notify-asset-change</code> 발신 (2026-09-09)</b></td><td class="mono">backend/a2a/payloads.py <code>build_notify_asset_change_payload()</code> · backend/routers/a2a.py — <b>서명 뒤</b>에 보낸다(S12 와 정반대: S12 는 담보를 푸는 수단이라 서명보다 앞선다). 미서명·부보 아님·<code>building_id</code> 없음은 <b>발신 전 400</b> 이고 <code>call_skill</code> 이 호출조차 되지 않는다</td></tr>
+          <tr><td><b>부품 특정 «결론 표명» 조항 (D137, 2026-09-09)</b></td><td class="mono">backend/agent/prompts.py 규칙 3 가산 확장 — 규칙이 「조회 순서」만 규율하는데 실패는 「응답에서 무엇을 결론으로 내세우는가」에서 났다. 같은 날 통제 A/B(각 arm 120세션): <b>오특정 16.7% → 1.1%</b></td></tr>
+          <tr><td><b>S13 담보심사 실호출 성공 (D138, 2026-09-10)</b></td><td class="mono">backend/a2a/payloads.py <code>inspection_data.original_cost</code>(= <code>assets.acquisition_cost</code>) — 안 보내면 상대가 원가를 <b><code>loan_amount</code> 로 대체</b>해 감정가가 늘 신청액보다 작아지고 <b>승인이 구조적으로 불가능</b>했다. 원가를 실은 뒤 같은 호출이 <code>REJECTED</code> → <code>UNDER_REVIEW</code> 로 넘어갔다. ⛔ <code>book_value</code> 는 보내지 않는다 — <code>appraised_value</code> 키는 상대의 감가상각을 통째로 건너뛰는 override 라 장부가액을 감정가로 둔갑시킨다</td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>33스위트 / 1,075건</b>(+ seed 41 · pytest 99건(4파일군: rules·llm_cache·elice_docvision·expenditure_limits) + 86건(A2A 8파일군, pytest-asyncio 필요), 실측 2026-08-24) — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>34스위트 / 1,212건</b>(+ seed 41 · pytest <b>295건</b>(19파일: 코어 7파일군 128 · A2A 9파일군 147 · 서비스 3파일군 20), 실측 2026-09-10) — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>deadline_risk_contract</code>(Sprint 11 신설 — 기한·위험등급 계약) ·
@@ -965,7 +971,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-19 · §⑤·§⑪·대조표·라우트 22개 갱신 2026-08-24</span>
+    <span>기준 2026-09-10 · 라우트 25개 · 도구 21종 · 회귀 1,548건</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 
