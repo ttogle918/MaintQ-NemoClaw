@@ -110,19 +110,23 @@ def link_finallq(db_path: str):
 def seed_assets(db_path: str):
     """S13 payload 파생에 필요한 자산 2건 + 소유권 점검 2행을 심는다.
 
-    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산
-    `AST-NO-INSPECTION`  — `last_inspection_date` 가 NULL (D62 키 생략 검증용)
+    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산. `acquisition_cost`(원가)와
+                           `book_value`(장부가액)를 **둘 다** 갖는다 — 원가는 실어 보내고
+                           장부가액은 보내지 않는다는 D138 경계를 한 자산에서 대조하려면
+                           둘이 함께 있어야 한다(하나만 있으면 "안 보낸다"가 자동 성립한다)
+    `AST-NO-INSPECTION`  — `last_inspection_date`·`acquisition_cost` 가 NULL (D62 키 생략 검증용)
     """
     con = dbcompat.connect_dsn(db_path)
     try:
         con.execute(
             "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
             " acquired_at, last_inspection_date, inspection_valid_until,"
-            " safety_inspection_target)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " safety_inspection_target, acquisition_cost, book_value)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "AST-L3-CONV", "3라인 컨베이어", "설비", 3, "BLD-A",
                 "2019-05-01", "2026-03-02", "2027-03-01", True,
+                80_000_000, 40_000_000,
             ),
         )
         con.execute(

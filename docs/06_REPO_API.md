@@ -684,8 +684,14 @@ POST /api/a2a/assess-loan            # FinAllQ assess-loan 스킬 중계 (기존
 
 POST /api/a2a/assess-used-equipment-loan   # FinAllQ 중고 설비 담보 심사 (신규 2026-08-30, S13)
   body: { asset_id, loan_amount, session_id?, request_chain_id? }
-  #   호출자는 asset_id 와 금액만 준다 — 담보 건물·연식·점검 이력은 빌더가
+  #   호출자는 asset_id 와 금액만 준다 — 담보 건물·연식·점검 이력·**원가**는 빌더가
   #   assets·ownership_checks 에서 파생한다(build_request_withdrawal_payload 관례).
+  #   🔵 `inspection_data.original_cost` = `assets.acquisition_cost` (D138). 안 보내면
+  #     FinAllQ 가 원가를 `loan_amount` 로 대체해 **감정가가 늘 신청액보다 작아지고
+  #     승인이 구조적으로 불가능**해진다(2026-09-10 실 E2E 확인). 출처는
+  #     `original_cost_basis` 로 함께 보내고, NULL 이면 키를 생략한다(D62).
+  #   ⛔ `book_value` 는 보내지 않는다 — `inspection_data.appraised_value` 는 상대의
+  #     감가상각을 통째로 건너뛰는 override 라, 장부가액을 감정가로 둔갑시킨다.
   #   ⚠ equipment_year 는 계약상 제조연도지만 MaintQ 는 그걸 저장하지 않는다 —
   #     acquired_at 의 연도를 보내고 inspection_data.equipment_year_basis 로 그 사실을 알린다.
   → FinAllQ 응답 그대로(+ request_chain_id 강제 주입) — 200

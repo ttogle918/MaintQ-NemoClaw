@@ -126,11 +126,24 @@ def build_assess_used_equipment_loan_payload(
     않는다. 가장 가까운 값인 `acquired_at`(취득일)의 연도를 보내되, 무엇을 보냈는지
     `inspection_data.equipment_year_basis` 로 함께 알린다 — 지어내지 않고, 수신부가
     잔존연수를 재산정할 수 있게 한다 (D62·D74 태도).
+
+    🔵 `inspection_data.original_cost`: **원가를 함께 보낸다 (D138).** 계약에는 원가
+    필드가 없고, FinAllQ 는 그것이 없으면 `original_cost` 를 **`loan_amount` 로 대체**한다
+    (그쪽 `a2a_adapter/mapping.py` 가 "보수적 근사치"로 둔 폴백). 그러면 감정가 =
+    신청액 × 잔존율 이라 **언제나 신청액보다 작아** 승인이 구조적으로 불가능하다
+    (2026-09-10 실 E2E 로 확인 — 같은 자산에 3,000,000 신청 시 감정가 1,500,000,
+    1,000,000 신청 시 500,000). 우리는 그 값을 실제로 보유하므로(`assets.acquisition_cost`)
+    지어내는 것이 아니고, 무엇을 보냈는지 `original_cost_basis` 로 함께 알린다.
+
+    ⛔ **`book_value`(장부가액)는 보내지 않는다.** FinAllQ 는 `inspection_data.
+    appraised_value` 가 있으면 감가상각 계산 자체를 건너뛰고 그 값을 감정가로 쓴다 —
+    장부가액은 회계 수치이지 감정가가 아니다. 보내면 우리가 모르는 것을 아는 것처럼
+    말하게 된다 (D62).
     """
     with connect(db_path) as con:
         a = con.execute(
             "SELECT building_id, acquired_at, last_inspection_date,"
-            " inspection_valid_until, safety_inspection_target"
+            " inspection_valid_until, safety_inspection_target, acquisition_cost"
             " FROM assets WHERE asset_id = ?",
             (asset_id,),
         ).fetchone()
@@ -156,6 +169,11 @@ def build_assess_used_equipment_loan_payload(
             inspection[key] = str(a[key])
     if a["safety_inspection_target"] is not None:
         inspection["safety_inspection_target"] = bool(a["safety_inspection_target"])
+    # NULL 이면 키 자체를 생략한다 — 0 으로 채우면 "모름"이 "무가치"로 둔갑하고,
+    # 수신부는 그 0 을 원가로 믿어 감정가 0 을 낸다 (D62·D138)
+    if a["acquisition_cost"] is not None:
+        inspection["original_cost"] = a["acquisition_cost"]
+        inspection["original_cost_basis"] = "acquisition_cost"
 
     acquired = a["acquired_at"]
     return {

@@ -230,6 +230,58 @@ def test_missing_inspection_dates_are_omitted_not_blanked(db_path, seed_assets):
     assert p["inspection_data"]["equipment_year_basis"] == "acquired_at"
 
 
+def test_inspection_data_carries_original_cost(db_path, seed_assets):
+    """원가를 실어 보낸다 (D138).
+
+    안 보내면 FinAllQ 가 `original_cost` 를 **`loan_amount` 로 대체**한다
+    (`a2a_adapter/mapping.py` — 계약에 원가 필드가 없어 둔 근사치). 그러면 감정가가
+    항상 신청액보다 작아져 **승인이 구조적으로 불가능**하다. 우리는 그 값을 실제로
+    갖고 있으므로(`assets.acquisition_cost`) 지어내는 것이 아니다.
+    """
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-L3-CONV", loan_amount=5_000_000.0,
+        request_chain_id="C", db_path=db_path,
+    )
+
+    assert p["inspection_data"]["original_cost"] == 80_000_000
+    # 무엇을 근거로 보냈는지 함께 알린다 — `equipment_year_basis` 와 같은 관례
+    assert p["inspection_data"]["original_cost_basis"] == "acquisition_cost"
+
+
+def test_book_value_is_not_sent_as_appraised_value(db_path, seed_assets):
+    """장부가액을 감정가로 보내지 않는다 (D138 경계).
+
+    FinAllQ 는 `inspection_data.appraised_value` 가 있으면 **감가상각 계산 자체를
+    건너뛰고** 그 값을 그대로 쓴다. 장부가액은 회계 수치이지 감정가가 아니다 —
+    보내면 우리가 모르는 것을 아는 것처럼 말하게 된다(D62).
+    """
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-L3-CONV", loan_amount=5_000_000.0,
+        request_chain_id="C", db_path=db_path,
+    )
+    inspection = p["inspection_data"]
+
+    assert "appraised_value" not in inspection
+    assert 40_000_000 not in inspection.values()
+    # 양성 축 — 픽스처에 장부가액이 실재하고 빌더가 원가는 실어 보낸다는 것을 함께 보인다.
+    # 이게 없으면 "자산에 값이 없어서 안 샌 것"과 구분되지 않는다.
+    assert inspection["original_cost"] == 80_000_000
+
+
+def test_missing_acquisition_cost_is_omitted_not_zeroed(db_path, seed_assets):
+    """원가가 NULL 이면 키 자체를 생략한다 — 0 으로 채우면 '모름'이 '무가치'가 된다 (D62)."""
+    p = build_assess_used_equipment_loan_payload(
+        asset_id="AST-NO-INSPECTION", loan_amount=1.0,
+        request_chain_id="C", db_path=db_path,
+    )
+    inspection = p["inspection_data"]
+
+    assert "original_cost" not in inspection
+    assert "original_cost_basis" not in inspection
+    # 양성 축 — 스캐너가 눈이 먼 게 아니라 값이 없는 것이다
+    assert inspection["equipment_year_basis"] == "acquired_at"
+
+
 def test_unknown_asset_raises(db_path, seed_assets):
     """없는 자산으로 payload 를 만들지 않는다 — 조용히 빈 값을 보내면 수신부가 400 을 낸다."""
     with pytest.raises(ValueError, match="AST-NOPE"):
