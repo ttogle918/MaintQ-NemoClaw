@@ -54,6 +54,7 @@ async def call_skill(
     request_chain_id: str,
     base_url: str,
     timeout: float = 10.0,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """A2A 어댑터의 POST /a2a/skills/{skill_id}를 호출한다.
 
@@ -78,6 +79,12 @@ async def call_skill(
         "X-Request-Chain-Id": request_chain_id,
         **build_auth_header(partner),
     }
+    # 스킬마다 요구가 다르다 — InsuQ 는 notify-asset-change 에서 이 헤더가 없으면 400 이고
+    # lookup-clause 는 없이도 통과한다. 그래서 클라이언트가 임의로 만들지 않고 **호출자가
+    # 업무 정체성에서 파생해 넘긴다**(D141, `payloads.idempotency_key_for_asset_change`).
+    # ⚠ 계약면(schemas·agent_cards)에 헤더를 적을 자리가 없다 — CP-006 이 그 자리를 만드는 중.
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
 
     url = f"{base_url.rstrip('/')}/a2a/skills/{skill_id}"
 

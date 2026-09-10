@@ -724,6 +724,12 @@ POST /api/a2a/request-settlement     # FinAllQ 매각대금 정산·근저당 �
 
 POST /api/a2a/notify-asset-change    # InsuQ 부보 목적물 변경 통지 (신규 2026-09-09, S11)
   body: { decision_id, change_type?("REMOVE"|"ADD", 기본 REMOVE), session_id?, request_chain_id? }
+  #   🔵 발신 시 `Idempotency-Key: <decision_id>:<change_type>` 헤더를 함께 싣는다 (D141).
+  #     같은 처분의 재전송은 **같은 키** → 상대가 저장된 응답을 재생한다. 같은 키인데 내용이
+  #     다르면 **409 `idempotency_conflict`** 로 막힌다(사람이 봐야 할 상황이라 막히는 게 맞다).
+  #     ⛔ 난수를 쓰지 않는다 — 재전송이 다른 키가 되면 멱등성이 성립하지 않는다.
+  #     ⚠ 계약면(schemas·agent_cards)에 헤더를 적을 자리가 없다 — A2A_Q CP-006 이 진행 중이고,
+  #       상대 의미론은 배포된 구현으로 공개받았다(3중 복합키 · payload 다이제스트 비교 · 128자)
   → InsuQ 응답 그대로(+ request_chain_id 강제 주입) — 200
   → 504 · 502 · **503**(차단기) · 400
   ⛔ **조립 단계에서 막힌 요청은 발신하지 않는다** — 아래 넷은 전부 400 이고

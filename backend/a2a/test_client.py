@@ -447,6 +447,40 @@ async def test_our_own_timeout_still_opens_the_circuit(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio
+async def test_idempotency_key_is_sent_only_when_given(monkeypatch: pytest.MonkeyPatch):
+    """`Idempotency-Key` 는 **주어졌을 때만** 실린다 (D141).
+
+    InsuQ 는 `notify-asset-change` 에서 이 헤더를 요구하고 없으면 400 을 낸다. 반면
+    `lookup-clause` 는 없이도 통과한다 — 스킬마다 다르므로 클라이언트가 임의로 만들지
+    않고 **호출자가 업무 정체성에서 파생해 넘긴다.**
+    ⚠ 계약면에는 이 헤더를 적을 자리가 없다(`X-Request-Chain-Id` 도 마찬가지) — CP-006 이
+    그 자리를 만드는 중이고, 여기 구현은 그것과 별개로 «이 헤더 하나»를 푸는 것이다.
+    """
+    captured = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    await call_skill(
+        partner="insuq",
+        skill_id="notify-asset-change",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+        idempotency_key="DEC-0001:REMOVE",
+    )
+    assert captured["headers"]["Idempotency-Key"] == "DEC-0001:REMOVE"
+
+    # 안 넘기면 헤더가 없다 — 부재 검사에 양성 축을 함께 건다
+    captured2 = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    await call_skill(
+        partner="insuq",
+        skill_id="lookup-clause",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+    )
+    assert "Idempotency-Key" not in captured2["headers"]
+    assert captured2["headers"]["X-Request-Chain-Id"] == "CHAIN-1"  # 스캐너 생존
+
+
+@pytest.mark.asyncio
 async def test_one_partner_outage_does_not_block_the_other(monkeypatch: pytest.MonkeyPatch):
     """finallq 가 죽어도 insuq 약관 조회는 나간다 — 파트너 단위로 여는 이유."""
     _patch_client(monkeypatch, exc=httpx.ConnectError("refused"))

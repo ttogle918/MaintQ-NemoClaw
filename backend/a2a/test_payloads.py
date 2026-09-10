@@ -290,6 +290,45 @@ def test_unknown_asset_raises(db_path, seed_assets):
         )
 
 
+# ---- 멱등키 파생 (S11, D141) -------------------------------------------------
+
+
+def test_idempotency_key_is_derived_from_business_identity():
+    """같은 처분의 재전송은 **같은 키**여야 한다 — 난수면 멱등성이 성립하지 않는다.
+
+    InsuQ 저장 키는 3중 복합키 `(requester, skill_id, idempotency_key)` 라
+    전역 유일성은 필요 없다. 「MaintQ 안에서, 그 스킬 안에서」만 유일하면 된다.
+    """
+    from backend.a2a.payloads import idempotency_key_for_asset_change
+
+    a = idempotency_key_for_asset_change("DEC-0001", "REMOVE")
+    b = idempotency_key_for_asset_change("DEC-0001", "REMOVE")
+
+    assert a == b  # 결정론적
+    assert "DEC-0001" in a and "REMOVE" in a
+
+
+def test_idempotency_key_separates_change_type():
+    """같은 결정이라도 REMOVE 와 ADD 는 다른 통지다 — 키가 같으면 뒤엣것이 재생돼 사라진다."""
+    from backend.a2a.payloads import idempotency_key_for_asset_change
+
+    assert idempotency_key_for_asset_change("DEC-0001", "REMOVE") != (
+        idempotency_key_for_asset_change("DEC-0001", "ADD")
+    )
+
+
+def test_idempotency_key_fits_the_partner_limit():
+    """상대 저장소 상한 128자. 넘으면 조용히 잘리거나 거부된다."""
+    from backend.a2a.payloads import idempotency_key_for_asset_change
+
+    long_id = "DEC-" + "9" * 200
+    key = idempotency_key_for_asset_change(long_id, "REMOVE")
+
+    assert len(key) <= 128
+    # 양성 축 — 잘렸어도 change_type 은 남아야 REMOVE/ADD 가 안 섞인다
+    assert "REMOVE" in key
+
+
 # ---- build_request_settlement_payload (S12) ----------------------------------
 
 

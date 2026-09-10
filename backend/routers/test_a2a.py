@@ -558,6 +558,19 @@ def test_notify_asset_change_dispatches_to_insuq(
     assert captured["payload"]["change_type"] == "REMOVE"
 
 
+def test_notify_asset_change_sends_idempotency_key(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    """S11 은 멱등키를 실어 보낸다 (D141) — 통지 재전송이 증권을 두 번 고치면 안 된다."""
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-SIGNED"})
+
+    assert res.status_code == 200
+    assert captured["idempotency_key"] == "DEC-SIGNED:REMOVE"
+
+
 def test_notify_asset_change_unsigned_is_400_and_never_dispatched(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
 ) -> None:

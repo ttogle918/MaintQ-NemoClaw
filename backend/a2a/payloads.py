@@ -186,6 +186,37 @@ def build_assess_used_equipment_loan_payload(
     }
 
 
+#: 상대(InsuQ) `IdempotencyStore` 의 키 길이 상한. 넘으면 조용히 잘리거나 거부된다.
+_IDEMPOTENCY_MAX_LEN = 128
+
+
+def idempotency_key_for_asset_change(decision_id: str, change_type: str) -> str:
+    """S11 통지의 멱등키 — **업무 정체성에서 결정론적으로 파생**한다 (D141).
+
+    ⛔ **난수를 쓰지 않는다.** 재전송이 다른 키가 되면 멱등성이 성립하지 않는다 —
+    같은 처분을 두 번 통지했을 때 증권이 두 번 고쳐진다.
+
+    상대 저장 키는 **3중 복합키 `(requester, skill_id, idempotency_key)`** 라 전역
+    유일성이 필요 없다. 「MaintQ 안에서, 그 스킬 안에서」만 유일하면 되므로
+    `decision_id` + `change_type` 으로 충분하다. 상대 동작(공개받은 구현):
+      - 같은 3중키 + 같은 payload SHA-256 → 저장된 응답을 재계산 없이 그대로 재생
+      - 같은 3중키 + **다른** payload → 409 `idempotency_conflict`
+
+    `change_type` 을 반드시 넣는다 — 같은 결정이라도 REMOVE 와 ADD 는 **다른 통지**다.
+    키가 같으면 뒤엣것이 재생으로 처리돼 조용히 사라진다.
+
+    ⚠️ 상한(128자)을 넘으면 앞을 자른다. `change_type` 은 **뒤에** 두어 잘려도 남게 한다 —
+    REMOVE/ADD 가 섞이는 것이 길이 초과보다 나쁘다.
+
+    📌 계약면에는 이 헤더를 적을 자리가 없다(CP-006 이 그 자리를 만드는 중이다).
+    다만 상대 의미론은 **추측이 아니라 배포된 동작으로 공개**받았으므로, 계약이 서도
+    이 파생은 달라지지 않는다.
+    """
+    suffix = f":{change_type}"
+    head = decision_id[: _IDEMPOTENCY_MAX_LEN - len(suffix)]
+    return f"{head}{suffix}"
+
+
 def build_request_settlement_payload(
     decision_id: str,
     sale_amount: float,

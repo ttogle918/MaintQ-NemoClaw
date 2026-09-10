@@ -22,6 +22,7 @@ from backend.a2a.client import (
     call_skill,
 )
 from backend.a2a.payloads import (
+    idempotency_key_for_asset_change,
     build_assess_loan_payload,
     build_assess_used_equipment_loan_payload,
     build_lookup_clause_payload,
@@ -45,6 +46,7 @@ async def _dispatch(
     base_url: str,
     partner_label: str,
     partner: str = "finallq",
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """A2A 발신 + trace 기록 + 오류 매핑. 스킬마다 같은 블록을 복제하지 않는다.
 
@@ -72,6 +74,7 @@ async def _dispatch(
             payload=payload,
             request_chain_id=chain_id,
             base_url=base_url,
+            idempotency_key=idempotency_key,
         )
         # 파트너가 echo 안 해도 상관관계 키를 보장한다 (기존 두 엔드포인트와 같은 태도)
         res["request_chain_id"] = chain_id
@@ -444,4 +447,7 @@ async def notify_asset_change_endpoint(req: NotifyAssetChangeRequest) -> dict[st
         base_url=base_url,
         partner_label="InsuQ",
         partner="insuq",
+        # 같은 처분의 재전송은 같은 키 → 상대가 저장된 응답을 재생한다. 내용이 바뀌면 409 다
+        # (사람이 봐야 할 상황이므로 막히는 것이 맞다). D141
+        idempotency_key=idempotency_key_for_asset_change(req.decision_id, req.change_type),
     )
