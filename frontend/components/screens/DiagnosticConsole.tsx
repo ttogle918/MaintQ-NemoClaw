@@ -24,7 +24,12 @@ import { useChatStream } from "./useChatStream";
 const TRACE_BY_SCENARIO = { s1: TRACE_S1, s3: TRACE_S3 };
 
 /** 세션 ID 가 아직 없는(mount 전) 순간의 자리표시 trace — 하이드레이션 안전용. */
-const EMPTY_TRACE: TraceSession = { label: "SESSION", meta: "0 calls", accent: "blue", steps: [] };
+const EMPTY_TRACE: TraceSession = {
+  label: "SESSION",
+  meta: "이번 턴 0회",
+  accent: "blue",
+  steps: [],
+};
 
 /** 재생 데모의 고정 프롬프트 (`_replay_s1` 은 입력 무관하게 하드코딩 이벤트를 낸다, D55). */
 const REPLAY_PROMPT = "iG5A 인버터에 OHt 에러가 떴어";
