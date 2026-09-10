@@ -104,18 +104,29 @@ async def call_skill(
             breaker.on_unreachable(partner)
             raise A2AUpstreamUnavailableError(f"HTTP error communicating with {partner}/{skill_id}", detail=str(exc)) from exc
 
+    # 여기부터는 전부 «상대가 응답을 돌려줬다» = 살아 있다는 증거다 (D139).
+    # 죽은 프로세스는 502 를 만들지 못한다 — 502·503·504 는 상대가 살아서 요청을 파싱하고
+    # 자기 upstream 이 실패했다고 **판단해** 그 판단을 응답으로 써 보낸 것이다.
+    # 그래서 상태코드와 **무관하게** 차단기를 닫는다: 판정 축은 "이 응답이 성공인가"가
+    # 아니라 "응답이 있었는가"다. 4xx 계약 오류도 같은 이유다(모듈 docstring 경계 2).
+    #
+    # 🔴 이 줄이 5xx 검사보다 **위**에 있어야 한다. 아래에 두면 2차 홉 장애가 파트너
+    #    전체를 막는다 — 2026-09-10 E2E 에서 InsuQ 가 죽자 FinAllQ 는 멀쩡한데
+    #    `finallq` 차단기가 열려 InsuQ 와 무관한 request-withdrawal·request-settlement
+    #    까지 막히는 것이 실측됐다(D136 이 경계 ⓑ 로 막으려던 바로 그 병리).
+    # ⚠ 비용이 큰 경우는 이 규칙으로도 덮인다 — 상대가 아플 만큼 느리면 우리 타임아웃이
+    #    먼저 걸려 위쪽 `httpx.TimeoutException` 경로로 정상적으로 열린다(응답이 없다).
+    #    상대의 504(상대가 판단해 보낸 응답)와 우리 타임아웃(응답 없음)은 다른 사건이다.
+    breaker.on_reachable(partner)
+
     if resp.status_code in (502, 503, 504):
-        # 어댑터는 떴는데 그 뒤가 죽은 것 — 도달 불가로 센다.
-        breaker.on_unreachable(partner)
+        # 어댑터는 살아 있고 그 뒤(2차 홉·자기 upstream)가 죽은 것.
+        # 호출부 계약은 그대로 502 계열이다 — 차단기 회계만 위에서 달라졌다.
         raise A2AUpstreamUnavailableError(
             f"A2A adapter {partner} returned {resp.status_code}",
             status_code=resp.status_code,
             detail=resp.text,
         )
-
-    # 여기 아래는 전부 «상대가 응답을 돌려줬다» = 살아 있다는 증거다.
-    # 4xx 계약 오류도 마찬가지라 차단기를 닫는다 — 모듈 docstring 경계 2.
-    breaker.on_reachable(partner)
 
     if resp.status_code in (200, 202):
         try:

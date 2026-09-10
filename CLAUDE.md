@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D138**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D139**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
@@ -135,12 +135,12 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 147건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 151건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
-  파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **22**(16+차단기 연동 6) ·
+  파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **26**(16+차단기 연동 6+D139 4) ·
   **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` **37**(25+S11 9+D138 3) ·
   `test_trace` 8 · `routers/test_a2a` **33**(28+S11 5) · `test_po_a2a_trigger` 8 ·
-  `test_po_a2a_dispatch` 5 = **147**(2026-09-10 D138 원가 전송 3건 추가).
+  `test_po_a2a_dispatch` 5 = **151**(2026-09-10 D138 원가 전송 3 + D139 차단기 축 교체 4).
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -167,7 +167,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 19파일 295건이다** (7파일군 128 + A2A 9파일군 147 + 이 3파일 20).
+  📌 **pytest 총계는 이제 19파일 299건이다** (7파일군 128 + A2A 9파일군 151 + 이 3파일 20).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로

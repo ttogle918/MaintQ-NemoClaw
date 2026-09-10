@@ -316,8 +316,13 @@ async def test_circuit_opens_after_repeated_transport_failures(monkeypatch: pyte
         )
     assert excinfo.value.failure_count == 3
     assert excinfo.value.retry_after > 0
-    # 핵심 단언: HTTP 를 **시도조차 하지 않았다** — 이게 타임아웃을 안 무는 이유다
-    assert "post_kwargs" not in captured
+    # 핵심 단언: HTTP 를 **시도조차 하지 않았다** — 이게 타임아웃을 안 무는 이유다.
+    # ⚠ 이 줄은 오래 `assert "post_kwargs" not in captured` 였는데 **`post_kwargs` 는
+    #   `_patch_client` 가 만드는 키가 아니라(url·json·headers·init_kwargs 뿐)
+    #   요청이 실제로 나갔어도 통과하는 죽은 단언**이었다 — 차단기의 가장 중요한 주장
+    #   ("네트워크를 타지 않는다")을 지키는 자리가 비어 있었다(2026-09-10 발견).
+    #   부재 검사에는 양성 축을 함께 건다: 위 3회 호출에서는 같은 캡처에 url 이 찍혔다.
+    assert "url" not in captured
 
 
 @pytest.mark.asyncio
@@ -372,6 +377,73 @@ async def test_business_errors_do_not_open_the_circuit(monkeypatch: pytest.Monke
         base_url="http://adapter.local",
     )
     assert res == {"status": "completed"}
+
+
+@pytest.mark.parametrize("status_code", [502, 503, 504])
+@pytest.mark.asyncio
+async def test_upstream_5xx_does_not_open_the_circuit(
+    monkeypatch: pytest.MonkeyPatch, status_code: int
+):
+    """상대가 5xx 를 **돌려줬다면** 살아 있는 것이다 — 차단기를 열지 않는다 (D139).
+
+    죽은 프로세스는 502 를 만들지 못한다. 502·503·504 는 상대가 살아서 요청을 파싱하고
+    자기 upstream 이 실패했다고 «판단해» 그 판단을 응답으로 써 보낸 것이다.
+    ⛔ 이걸 도달 불가로 세면 **2차 홉 장애가 파트너 전체를 막는다** — 실제로 2026-09-10
+    E2E 에서 InsuQ 가 죽자 FinAllQ 는 멀쩡한데 `finallq` 차단기가 열렸고, InsuQ 와
+    무관한 request-withdrawal·request-settlement 까지 막히는 상태였다.
+
+    ⚠ 비용이 큰 경우는 이 규칙으로도 덮인다 — 상대가 아플 만큼 느리면 **우리 타임아웃이
+    먼저** 걸려 `httpx.TimeoutException` 경로로 정상적으로 열린다(응답이 없으므로).
+    상대의 504(=상대가 자기 타임아웃을 판단해 보낸 응답)와 우리 타임아웃(=응답 없음)은
+    다른 사건이다.
+    """
+    _patch_client(monkeypatch, response=_FakeResponse(status_code, text="upstream down"))
+    for _ in range(5):  # threshold(3) 를 넘겨 부른다
+        with pytest.raises(A2AUpstreamUnavailableError):
+            await call_skill(
+                partner="finallq",
+                skill_id="assess-used-equipment-loan",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+
+    assert registry().snapshot("finallq")["state"] != OPEN
+    assert registry().snapshot("finallq")["failure_count"] == 0
+
+    # 양성 축 — 같은 파트너의 다른 스킬이 **실제로 나간다**(차단기가 막지 않는다).
+    # 이게 없으면 "안 열렸다"와 "스캐너가 눈이 멀었다"가 구분되지 않는다.
+    captured = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    res = await call_skill(
+        partner="finallq",
+        skill_id="request-withdrawal",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+    )
+    assert res == {"status": "completed"}
+    assert captured["url"].endswith("/a2a/skills/request-withdrawal")
+
+
+@pytest.mark.asyncio
+async def test_our_own_timeout_still_opens_the_circuit(monkeypatch: pytest.MonkeyPatch):
+    """D139 의 경계 반대편 — **응답이 없으면** 여전히 도달 불가다.
+
+    상대의 504 와 우리 타임아웃은 헷갈리기 쉬운데 다른 사건이다: 전자는 상대가 판단해
+    보낸 응답이고, 후자는 아무것도 오지 않은 것이다. 이 테스트가 없으면 D139 수정이
+    차단기를 통째로 무력화하는 방향으로 넓어져도 아무도 모른다.
+    """
+    _patch_client(monkeypatch, exc=httpx.TimeoutException("timed out"))
+    for _ in range(3):
+        with pytest.raises(A2ATimeoutError):
+            await call_skill(
+                partner="finallq",
+                skill_id="request-withdrawal",
+                payload=BASE_PAYLOAD,
+                request_chain_id="CHAIN-1",
+                base_url="http://adapter.local",
+            )
+    assert registry().snapshot("finallq")["state"] == OPEN
 
 
 @pytest.mark.asyncio
