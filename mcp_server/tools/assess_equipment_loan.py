@@ -6,6 +6,14 @@ A2A 로 문의한다. 이 도구는 파트너 자격증명을 직접 다루지 �
 REST(`POST /api/a2a/assess-loan`)를 HTTP 로 호출할 뿐이다 (D15·D93 — mcp_server
 프로세스는 A2A 자격증명·파트너 대장을 알지 못한다). 실패는 예외가 아니라 status 로
 반환한다 (D9).
+
+## 503 을 502 와 뭉개지 않는다 (D136·D139)
+
+이 파일은 오래 `502·503·504` 를 한 덩어리로 `upstream_unavailable` 에 넣고 있었다.
+그러면 **«상대가 죽었다»와 «우리가 스스로 막았다»가 같은 말이 된다.** 503 은 차단기가
+연 것이고 사용자에게 할 안내가 다르다 — *"연속 실패로 잠시 차단됐다(잠시 후 재시도)"* 는
+상대 장애가 아니라 우리 판단이다. 504 도 따로 둔다: 시간이 다한 것과 닿지 못한 것은
+다른 사건이다. 동생 `assess_used_equipment_loan` 이 D139 에서 먼저 세운 경계를 옮긴 것이다.
 """
 
 from __future__ import annotations
@@ -23,6 +31,13 @@ DESCRIPTION = (
 
 _DEFAULT_BASE_URL = "http://localhost:8000"
 _ENV_BASE_URL = "MAINTQ_BACKEND_BASE_URL"
+
+#: HTTP 상태 → 실패 사유. 뭉개면 에이전트가 사용자에게 같은 말을 하게 된다 (모듈 docstring).
+_STATUS_REASON: dict[int, str] = {
+    502: "upstream_unavailable",  # 상대 뒤(2차 홉·자기 upstream)가 죽었다
+    503: "circuit_open",  # **우리가** 막았다 — 차단기 (D136·D139)
+    504: "upstream_timeout",  # 상대가 시간 안에 답하지 못했다
+}
 
 
 def assess_equipment_loan(loan_amount: float, purpose: str, collateral_building_id: str) -> dict:
@@ -82,11 +97,12 @@ def assess_equipment_loan(loan_amount: float, purpose: str, collateral_building_
             "skill_status": skill_status,
         }
 
-    if resp.status_code in (502, 503, 504):
+    reason = _STATUS_REASON.get(resp.status_code)
+    if reason:
         return {
             "status": "error",
-            "reason": "upstream_unavailable",
-            "message": f"FinAllQ A2A 어댑터에 연결할 수 없습니다 (HTTP {resp.status_code}).",
+            "reason": reason,
+            "message": _upstream_message(reason, resp),
         }
 
     detail: str
@@ -98,3 +114,16 @@ def assess_equipment_loan(loan_amount: float, purpose: str, collateral_building_
     if not detail:
         detail = resp.text[:200]
     return {"status": "error", "reason": "a2a_error", "message": detail}
+
+
+def _upstream_message(reason: str, resp: httpx.Response) -> str:
+    """실패 사유를 사람 말로. 차단기는 **상대 장애가 아니라 우리 판단**임을 밝힌다."""
+    if reason == "circuit_open":
+        body = (resp.text or "").strip()[:200]
+        return (
+            "연속 실패로 FinAllQ 호출이 잠시 차단된 상태입니다 (상대 장애가 아니라 "
+            f"우리 쪽 차단기입니다 — 잠시 후 다시 시도하십시오). {body}".strip()
+        )
+    if reason == "upstream_timeout":
+        return "FinAllQ 가 시간 안에 응답하지 않았습니다 (HTTP 504)."
+    return f"FinAllQ A2A 어댑터에 연결할 수 없습니다 (HTTP {resp.status_code})."

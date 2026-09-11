@@ -126,8 +126,34 @@ def test_502_maps_to_upstream_unavailable_normal_path(monkeypatch: pytest.Monkey
     }
 
 
-@pytest.mark.parametrize("status_code", [503, 504])
-def test_other_5xx_gateway_statuses_map_to_upstream_unavailable(monkeypatch: pytest.MonkeyPatch, status_code: int):
+def test_circuit_open_is_not_upstream_unavailable(monkeypatch: pytest.MonkeyPatch):
+    """503 은 «우리가 스스로 막았다»다 — 502 와 같은 이유로 뭉개지 않는다 (D136·D139).
+
+    형제 `assess_used_equipment_loan` 이 이미 지키는 경계를 이쪽에도 옮긴다. 뭉개면
+    에이전트가 «FinAllQ 가 죽었다»고 말하는데 실제로는 우리 차단기가 연 것이라,
+    사용자에게 할 안내(잠시 후 재시도)가 통째로 달라진다.
+    """
+    _patch_post(monkeypatch, response=_FakeResponse(503, text="차단기가 열려 있습니다 (연속 실패 3회)"))
+
+    result = assess_equipment_loan(
+        loan_amount=1000, purpose="설비교체", collateral_building_id="BLD-1"
+    )
+
+    assert result["status"] == "error"
+    assert result["reason"] == "circuit_open"
+    assert result["reason"] != "upstream_unavailable"
+    # 상대 장애가 아니라 우리 판단임이 사람 말에도 드러나야 한다
+    assert "차단" in result["message"]
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_reason"),
+    [(502, "upstream_unavailable"), (504, "upstream_timeout")],
+)
+def test_gateway_statuses_keep_their_own_reason(
+    monkeypatch: pytest.MonkeyPatch, status_code: int, expected_reason: str
+):
+    """502·504 는 서로도 구분한다 — 상대가 죽은 것과 시간이 다한 것은 다른 사건이다."""
     _patch_post(monkeypatch, response=_FakeResponse(status_code, text="adapter down"))
 
     result = assess_equipment_loan(
@@ -135,7 +161,7 @@ def test_other_5xx_gateway_statuses_map_to_upstream_unavailable(monkeypatch: pyt
     )
 
     assert result["status"] == "error"
-    assert result["reason"] == "upstream_unavailable"
+    assert result["reason"] == expected_reason
 
 
 def test_timeout_maps_to_timeout(monkeypatch: pytest.MonkeyPatch):

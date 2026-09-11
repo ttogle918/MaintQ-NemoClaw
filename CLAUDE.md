@@ -167,7 +167,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 22파일 347건이다** (7파일군 128 + A2A 9파일군 156 + 서비스 3파일 20 + mcp_server 3파일 43).
+  📌 **pytest 총계는 이제 22파일 348건이다** (7파일군 128 + A2A 9파일군 156 + 서비스 3파일 20 + mcp_server 3파일 44).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
@@ -176,10 +176,10 @@
   **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
   (도입 즉시 실측으로 드러났다).
   🔴 **2026-09-11 — `mcp_server/tools/test_*.py` 3파일 43건이 목록 밖이었다** (네 번째 누락).
-  `test_assess_equipment_loan` 16 · `test_search_insurance_clause` 13 · **`test_assess_used_equipment_loan` 14**(신규, D140).
+  `test_assess_equipment_loan` **17**(2026-09-11 — D139 5xx 분리를 형제에서 이식, 16→17) · `test_search_insurance_clause` 13 · **`test_assess_used_equipment_loan` 14**(신규, D140).
   ⚠ **가드 자신에게 사각지대가 있었다** — 아래 확인 커맨드가 `backend data` 만 훑어
   `mcp_server/` 를 **아예 보지 않았다.** 누락을 막으려고 세운 검사가 그 누락을 못 봤다.
-  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/tools/ -q`** → **43건**
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/tools/ -q`** → **44건**
   (A2A 자격증명을 안 다루는 얇은 HTTP 래퍼라 `httpx.post` monkeypatch 만으로 돈다 — DB 불필요)
 
   목록이 맞는지 보려면 **`find backend data mcp_server -name 'test_*.py' -not -path '*__pycache__*'`**
