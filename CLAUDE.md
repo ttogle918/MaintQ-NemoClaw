@@ -135,12 +135,15 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 156건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 162건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
   파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **26**(16+차단기 연동 6+D139 4) ·
   **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` **40**(25+S11 9+D138 3+D141 3) ·
   `test_trace` 8 · `routers/test_a2a` **33**(28+S11 5) · `test_po_a2a_trigger` 8 ·
-  `test_po_a2a_dispatch` 5 = **156**(2026-09-10 D138 3 + D139 4 · 2026-09-11 D141 멱등키 5).
+  `test_po_a2a_dispatch` 5 = **162**(2026-09-10 D138 3 + D139 4 · 2026-09-11 D141 멱등키 5 ·
+  **2026-09-16 D142 연결 승인 게이트 6** — `test_payloads` 40→46). ⚠ D142 는 **픽스처도 바꿨다** —
+  `seed_signed_disposals` 가 `partner_links` 행 2개(insuq/BLD-C · finallq/company)를 함께 심고,
+  `link_finallq` 는 **멱등**이 됐다(먼저 DELETE). 안 그러면 두 픽스처를 같이 쓰는 테스트가 PK 충돌로 죽는다.
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -167,7 +170,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 22파일 348건이다** (7파일군 128 + A2A 9파일군 156 + 서비스 3파일 20 + mcp_server 3파일 44).
+  📌 **pytest 총계는 이제 22파일 354건이다** (7파일군 128 + A2A 9파일군 162 + 서비스 3파일 20 + mcp_server 3파일 44).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로

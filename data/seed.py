@@ -1280,7 +1280,14 @@ PART_BY_ACTION = {
 #   건물 3행에 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
 #   결(grain)만 바꿔 재발시키는 것이 된다. 확정안에서 복제는 **0건**이고 검사 ㉔ 가 그걸 본다.
 # ★ BLD-D 가 대조군인 이유: 자산 3건이 **전부 부보(insured=1)** 돼 있는데도 미연결이다 —
-#   "부보돼 있어도 A2A 연결 승인이 없으면 못 쏜다"가 한눈에 보인다. BLD-C 를 쓰면
+#   "부보돼 있어도 A2A 연결 승인이 없으면 못 쏜다"가 한눈에 보인다.
+#   🔵 **이 문장은 2026-09-16 에야 사실이 됐다 (D142).** 그전까지는 **주장만 있고 강제하는
+#   코드가 한 줄도 없었다** — 실제로 2026-09-11 에 NOT_LINKED 인 BLD-D 로 S11 을 쏴서
+#   200 completed 를 받았다(대조군이 막았어야 할 호출이 그냥 나갔다). 지금은
+#   `build_notify_asset_change_payload` 가 조립 단계에서 거부한다.
+#   ⛔ **이 대장은 MaintQ 쪽이다** — InsuQ 는 2026-09-16 회신에서 BLD-A~D **4동 전부
+#   `active`** 라고 했다. 둘이 다른 것은 결함이 아니다. 이 행이 말하는 것은
+#   *"상대가 받아 줄까"* 가 아니라 *"우리 쪽 연결 승인이 끝났는가"* 다. BLD-C 를 쓰면
 #   미부보(AST-L3-LIFT)와 미연결이 한 건물에 겹쳐 **별개인 두 축이 섞인다**(D78·§A).
 # (partner, subject_type, subject_ref, link_state, external_ref, linked_days_ago)
 PARTNER_LINKS: list[tuple[str, str, str, str | None, str | None, int | None]] = [

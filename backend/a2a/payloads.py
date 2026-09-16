@@ -30,6 +30,28 @@ def get_finallq_company_id(db_path: str | None = None) -> str | None:
     return r["external_ref"]
 
 
+def building_link_state(
+    building_id: str, partner: str = "insuq", db_path: str | None = None
+) -> str | None:
+    """`partner_links` 에서 건물 결의 연결 승인 상태를 읽는다 (D142).
+
+    ⛔ **이 값은 MaintQ 쪽 대장**이다 — 상대 시스템의 상태가 아니다. 상대가 그 건물을
+    알고 있어도 우리 대장에 승인이 없으면 `LINKED` 가 아니다. 그 둘이 다른 것은 결함이
+    아니라 정상이며, 실제로 다르다(InsuQ 2026-09-16 회신: 4동 전부 `active`).
+
+    행이 없으면 `None` 을 돌려준다 — **`'NOT_LINKED'` 로 뭉개지 않는다.** «승인이 반려됐다»
+    와 «대장에 아예 없다» 는 다른 사실이고, 호출부가 메시지에 그대로 실어 사람이 구분할 수
+    있어야 한다(D62 — 모르는 것을 아는 것으로 반올림하지 않는다).
+    """
+    with connect(db_path) as con:
+        r = con.execute(
+            "SELECT link_state FROM partner_links"
+            " WHERE partner = ? AND subject_type = 'building' AND subject_ref = ?",
+            (partner, building_id),
+        ).fetchone()
+    return None if r is None else r["link_state"]
+
+
 def build_request_withdrawal_payload(
     po: dict[str, Any],
     supplier_row: dict[str, Any] | None = None,
@@ -320,9 +342,30 @@ def build_notify_asset_change_payload(
     if not row["building_id"]:
         raise ValueError(f"{row['asset_id']} 에 building_id 가 없다 — 부보 목적물을 특정할 수 없다.")
 
+    # D142 — 연결 승인은 주석이 아니라 여기서 강제된다. 위 4가드와 같은 자리다.
+    # ⛔ `partner_links` 는 **MaintQ 쪽 대장**이다. 상대 대장과 다를 수 있고 다른 것이 정상이다 —
+    #    이 가드가 말하는 것은 *"상대가 받아 줄까"* 가 아니라 *"우리 쪽 승인이 끝났는가"* 다.
+    #    2026-09-11 에 `NOT_LINKED` 인 BLD-D 로 S11 이 그냥 나가 200 completed 를 받았다.
+    #    시드 주석은 그때도 "연결 승인이 없으면 못 쏜다"고 적고 있었다 — 그 거짓을 닫는다.
+    link_state = building_link_state(row["building_id"], partner="insuq", db_path=db_path)
+    if link_state != "LINKED":
+        raise ValueError(
+            f"{row['building_id']} 는 InsuQ 연결 승인 상태가 아니다"
+            f" (link_state={link_state!r}) — 통지를 보내지 않는다."
+        )
+
+    # 요청자 식별자가 비면 수신부가 `schema_validation_failed` 를 낸다 —
+    # `request-withdrawal` 이 `error_code=None` 으로 정확히 그 400 을 맞은 전례가 있다.
+    # 빈 값을 실어 보내느니 나가기 전에 멈춘다(D142).
+    company_id = get_finallq_company_id(db_path)
+    if not company_id:
+        raise ValueError(
+            "finallq 회사 결 연결 승인이 없다 — 요청자 식별자 없이 통지를 보내지 않는다."
+        )
+
     return {
         "requester": {
-            "finallq_company_id": get_finallq_company_id(db_path) or "",
+            "finallq_company_id": company_id,
             "building_id": row["building_id"],
             "policy_id": row["policy_id"],
         },

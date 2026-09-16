@@ -20,6 +20,7 @@ from backend.a2a.payloads import (
     build_notify_asset_change_payload,
     build_request_settlement_payload,
     build_request_withdrawal_payload,
+    building_link_state,
     get_finallq_company_id,
 )
 
@@ -482,3 +483,74 @@ def test_notify_asset_change_accepts_add(db_path: str, seed_signed_disposals):
         change_type="ADD", db_path=db_path,
     )
     assert p["change_type"] == "ADD"
+
+
+# ---- D142 연결 승인 게이트 -------------------------------------------------
+#
+# ⚠ 이 블록이 존재하는 이유: 가드가 없던 시절 시드 주석은 "부보돼 있어도 A2A 연결 승인이
+#   없으면 못 쏜다"고 **주장하고 있었는데 그걸 강제하는 코드가 한 줄도 없었다.** 실제로
+#   2026-09-11 에 NOT_LINKED 인 BLD-D 로 S11 이 그냥 나가 200 completed 를 받았다.
+#   주장만 있고 검사가 없으면 아무도 모른다.
+
+
+def test_building_link_state_reads_our_ledger(db_path: str, seed_signed_disposals):
+    """정상 축(liveness) — 픽스처가 심은 LINKED 를 실제로 읽어 온다.
+
+    이게 없으면 아래 거부 검사들이 '조회가 항상 None' 이어도 전부 통과한다.
+    """
+    assert building_link_state("BLD-C", partner="insuq", db_path=db_path) == "LINKED"
+
+
+def test_building_link_state_distinguishes_missing_from_rejected(
+    db_path: str, seed_signed_disposals, link_insuq_building
+):
+    """«대장에 없다»(None)와 «반려됐다»(NOT_LINKED)를 뭉개지 않는다 (D62)."""
+    link_insuq_building(None)
+    assert building_link_state("BLD-C", partner="insuq", db_path=db_path) is None
+    link_insuq_building("NOT_LINKED")
+    assert building_link_state("BLD-C", partner="insuq", db_path=db_path) == "NOT_LINKED"
+
+
+def test_notify_asset_change_refuses_when_building_not_linked(
+    db_path: str, seed_signed_disposals, link_insuq_building
+):
+    """연결 반려 건물은 서명·부보가 모두 갖춰져 있어도 조립되지 않는다."""
+    link_insuq_building("NOT_LINKED")
+    with pytest.raises(ValueError, match="연결 승인"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path,
+        )
+
+
+def test_notify_asset_change_refuses_when_building_absent_from_ledger(
+    db_path: str, seed_signed_disposals, link_insuq_building
+):
+    """대장에 행 자체가 없어도 거부한다 — 없는 것을 LINKED 로 반올림하지 않는다."""
+    link_insuq_building(None)
+    with pytest.raises(ValueError, match="연결 승인"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path,
+        )
+
+
+def test_notify_asset_change_refuses_when_requester_id_missing(
+    db_path: str, seed_signed_disposals, link_finallq
+):
+    """요청자 식별자가 비면 보내지 않는다 — 빈 값은 수신부에서 schema_validation_failed 다."""
+    link_finallq(link_state="NOT_LINKED")
+    with pytest.raises(ValueError, match="요청자 식별자"):
+        build_notify_asset_change_payload(
+            decision_id="DEC-SIGNED", request_chain_id="CHAIN-1", db_path=db_path,
+        )
+
+
+def test_notify_asset_change_still_builds_when_linked(db_path: str, seed_signed_disposals):
+    """양성 축 — 가드 5개를 다 통과하는 정상 경로가 살아 있다.
+
+    거부 검사만 있으면 '항상 거부' 로 망가져도 전부 통과한다.
+    """
+    p = build_notify_asset_change_payload(
+        decision_id="DEC-SIGNED", request_chain_id="CHAIN-OK", db_path=db_path,
+    )
+    assert p["building_id"] == "BLD-C"
+    assert p["requester"]["finallq_company_id"] == "CMP-MAINTQ-001"

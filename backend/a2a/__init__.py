@@ -17,6 +17,7 @@ from backend.a2a.credentials import PartnerCredential, load, status_report
 from backend.a2a.payloads import (
     build_lookup_clause_payload,
     build_request_withdrawal_payload,
+    building_link_state,
     get_finallq_company_id,
 )
 
@@ -29,6 +30,7 @@ __all__ = [
     "build_lookup_clause_payload",
     "build_request_withdrawal_payload",
     "call_skill",
+    "building_link_state",
     "get_finallq_company_id",
     "load",
     "status_report",

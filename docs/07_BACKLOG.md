@@ -303,6 +303,21 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ## 알려진 결함 — 테스트 격리·회귀 표기
 
+- 🟡 **요청자 식별자 `finallq_company_id` 가 빌더 5곳에서 `or ""` 로 뭉개진다** (2026-09-16 발견, D142 스코프 밖).
+  `get_finallq_company_id()` 는 `link_state != 'LINKED'` 면 `None` 을 돌려주는데, 호출부가
+  `or ""` 로 받아 **빈 문자열을 payload 에 싣는다**. 빈 요청자 식별자는 수신부에서
+  `schema_validation_failed`(400) 가 된다 — `request-withdrawal` 이 `error_code=None` 으로
+  정확히 그 400 을 맞은 전례가 있다.
+  ✅ **`notify-asset-change` 는 D142 가 닫았고**, `request-withdrawal` 은 발신 경로
+  (`services/po.py:461`)에 dispatch 게이트가 있어 **실제로는 안 나간다.**
+  🟡 **남은 것은 `lookup-clause` · `assess-loan` · `assess-used-equipment-loan` ·
+  `request-settlement` 4곳**이다 — 이 라우트들은 회사 결 연결을 확인하지 않는다.
+  ⚠ **왜 이번에 같이 안 고쳤나**: `test_payloads.py` 40건 중 **26건만** `link_finallq` 를
+  쓴다. 빌더에서 일괄 `raise` 로 바꾸면 나머지가 함께 움직여 «가드 1개 추가» 가
+  «회귀 14건 재작성» 이 된다. 스코프를 지키려고 분리했다 — 고칠 때는 픽스처부터 정리할 것.
+
+
+
 > 🔵 **2026-09-16 전수 대조.** 제목이 오래 *"(2026-08-29 발견, **미수정**)"* 이었는데
 > **틀렸다** — 2026-08-29 자 3건(`a2a_identity_contract` 사망 · pytest `DATABASE_URL`
 > 전제 누락 · A2A "86건" 표기)은 **전부 같은 날 고쳐졌고**(`be16ff6`·`53342ae`) 백로그만

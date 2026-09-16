@@ -94,6 +94,13 @@ def link_finallq(db_path: str):
     def _link(external_ref: str = "CMP-MAINTQ-001", link_state: str = "LINKED") -> None:
         con = dbcompat.connect_dsn(db_path)
         try:
+            # ⚠ **먼저 지운다** — `seed_signed_disposals` 가 D142 가드를 통과시키려고 같은
+            #   행을 이미 심을 수 있어서, 그대로 INSERT 하면 PK 충돌로 죽는다. 픽스처의 일은
+            #   "이 상태로 만든다" 이므로 덮어쓰는 쪽이 맞다.
+            con.execute(
+                "DELETE FROM partner_links WHERE partner = 'finallq'"
+                " AND subject_type = 'company' AND subject_ref = ''"
+            )
             con.execute(
                 "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state, external_ref)"
                 " VALUES ('finallq', 'company', '', ?, ?)",
@@ -189,6 +196,36 @@ def seed_lien_decisions(db_path: str):
 
 
 @pytest.fixture()
+def link_insuq_building(db_path: str):
+    """`partner_links` 의 InsuQ 건물 결 연결 상태를 바꾸는 헬퍼 (D142).
+
+    `seed_signed_disposals` 가 `BLD-C` 를 `LINKED` 로 심어 두므로, 연결 미승인 경로를
+    보려면 이걸로 덮어쓰거나 지운다. `link_state=None` 을 주면 **행 자체를 지운다** —
+    «반려됐다»(`NOT_LINKED`)와 «대장에 없다»(행 없음)는 다른 사실이라 둘 다 시험한다.
+    """
+
+    def _set(link_state: str | None, building_id: str = "BLD-C") -> None:
+        con = dbcompat.connect_dsn(db_path)
+        try:
+            con.execute(
+                "DELETE FROM partner_links WHERE partner = 'insuq'"
+                " AND subject_type = 'building' AND subject_ref = ?",
+                (building_id,),
+            )
+            if link_state is not None:
+                con.execute(
+                    "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state)"
+                    " VALUES ('insuq', 'building', ?, ?)",
+                    (building_id, link_state),
+                )
+            con.commit()
+        finally:
+            con.close()
+
+    return _set
+
+
+@pytest.fixture()
 def seed_signed_disposals(db_path: str):
     """S11(notify-asset-change) payload 파생용 — 서명·부보 조합 4가지를 심는다.
 
@@ -196,6 +233,11 @@ def seed_signed_disposals(db_path: str):
     `DEC-DRAFT`     → `AST-INSURED`   : **서명 X** · 부보 O       (확정 전이라 통지 금지)
     `DEC-UNINSURED` → `AST-UNINSURED` : 서명 O · **부보 X**       (고칠 증권이 없다)
     `DEC-NOBLDG`    → `AST-NOBLDG`    : 서명 O · 부보 O · **building_id 없음**
+
+    ⚠ **`BLD-C` 의 InsuQ 연결 승인 행도 함께 심는다 (D142).** 이게 없으면 조립 가드가
+    `link_state=None`("대장에 행이 없다")으로 전부 거부한다 — 이 픽스처가 보려는 것은
+    서명·부보 축이지 연결 승인 축이 아니다. 연결 미승인 자체를 보는 검사는 별도로 둔다
+    (`link_insuq_building` 픽스처로 상태를 바꿔 쓴다).
     """
     con = dbcompat.connect_dsn(db_path)
     try:
@@ -212,6 +254,16 @@ def seed_signed_disposals(db_path: str):
                 " policy_id, insured) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (aid, name, "설비", 3, bldg, policy, insured),
             )
+        # D142 — 건물 결 연결 승인. `AST-INSURED`·`AST-UNINSURED` 가 BLD-C 에 있다.
+        con.execute(
+            "INSERT INTO partner_links (partner, subject_type, subject_ref, link_state)"
+            " VALUES ('insuq', 'building', 'BLD-C', 'LINKED')"
+        )
+        # 요청자 식별자(D142) — finallq 회사 결이 없으면 통지도 막힌다.
+        con.execute(
+            "INSERT OR IGNORE INTO partner_links (partner, subject_type, subject_ref,"
+            " link_state, external_ref) VALUES ('finallq', 'company', '', 'LINKED', 'CMP-MAINTQ-001')"
+        )
         # 서명 행에는 서명자가 있어야 한다 — `decisions_check1` 이 DDL 로 강제한다(D81).
         con.execute(
             "INSERT OR IGNORE INTO users (user_id, display_name, role)"
