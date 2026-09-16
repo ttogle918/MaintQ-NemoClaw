@@ -1275,7 +1275,11 @@ PART_BY_ACTION = {
 }
 
 # ── partner_links 시드 (D92·D95) ─────────────────────────────────────────
-# ⚠ 시드 전제(목업)다 — 실제 연결 승인·발급값이 아니다. PARTNER_LINKS_MOCK 참조.
+# ✅ **2026-09-16 사람 확인 완료** — 5행이 실제 연결 승인 상태와 맞는지 확인하고
+#   `PARTNER_LINKS_MOCK` 을 False 로 내렸다. `BLD-D` 를 **미승인으로 두는 것도 확인된 선택**이다.
+# ⛔ **이 대장은 MaintQ 쪽이다.** InsuQ 는 2026-09-16 회신에서 BLD-A~D **4동 전부 `active`**
+#   라고 했는데, 그것과 이 표가 다른 것은 **결함이 아니다** — 여기 적는 것은
+#   *"상대가 받아 줄까"* 가 아니라 *"우리 쪽 연결 승인이 끝났는가"* 다 (D142).
 # ★ InsuQ building 행의 external_ref 는 **전부 NULL** — 증권 식별자의 정본은 assets.policy_id 다 (D95).
 #   건물 3행에 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
 #   결(grain)만 바꿔 재발시키는 것이 된다. 확정안에서 복제는 **0건**이고 검사 ㉔ 가 그걸 본다.
@@ -1298,8 +1302,9 @@ PARTNER_LINKS: list[tuple[str, str, str, str | None, str | None, int | None]] = 
     ("insuq", "building", "BLD-D", "NOT_LINKED", None, None),  # ★ 대조군
 ]
 
-# 실제 연결 승인·자격증명 발급 여부. 사람이 실값을 받으면 False 로 바꾼다 (TODO_직접할일.md).
-PARTNER_LINKS_MOCK: bool = True
+# 실제 연결 승인·자격증명 발급 여부. 2026-09-16 사람 확인 완료 → False.
+# ⚠ **줄을 지우지 않는다** — 지우면 "확인했다"는 사실 자체가 사라진다. 문구만 바뀐다(D90).
+PARTNER_LINKS_MOCK: bool = False
 
 
 # ────────────────────────────────────────────────────────────── 적재
