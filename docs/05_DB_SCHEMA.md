@@ -745,6 +745,13 @@ CREATE TABLE residual_curve (
 
 > *"나가는 A2A 요청의 **subject**(누구 건인가)를 무엇으로 적을 것인가"* 의 원천.
 > `link_state` 가 연결 승인 여부를, `external_ref` 가 상대 시스템 식별자를 담는다.
+> 🔵 **`link_state` 는 2026-09-16(D142)부터 «기록»이 아니라 «게이트»다** — 건물 결이 `LINKED`
+> 가 아니면 `build_notify_asset_change_payload` 가 조립을 거부하고 통지가 네트워크로 나가지
+> 않는다. 그전까지는 시드 주석만 *"연결 승인이 없으면 못 쏜다"* 고 주장했고 **강제하는 코드가
+> 없었다**(`NOT_LINKED` 인 `BLD-D` 로 S11 이 실제로 나가 200 completed 를 받은 적이 있다).
+> ⛔ **이 표는 MaintQ 쪽 대장이다** — 상대 대장과 다를 수 있고 다른 것이 정상이다
+> (InsuQ 2026-09-16 회신: 4동 전부 `active`, 우리 `BLD-D` 는 `NOT_LINKED`). 여기 적는 것은
+> *"상대가 받아 줄까"* 가 아니라 *"우리 쪽 연결 승인이 끝났는가"* 다.
 > **DDL 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고 아래는 그 사본이다.
 
 ```sql

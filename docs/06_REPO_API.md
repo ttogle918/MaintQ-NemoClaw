@@ -724,6 +724,13 @@ POST /api/a2a/request-settlement     # FinAllQ 매각대금 정산·근저당 �
 
 POST /api/a2a/notify-asset-change    # InsuQ 부보 목적물 변경 통지 (신규 2026-09-09, S11)
   body: { decision_id, change_type?("REMOVE"|"ADD", 기본 REMOVE), session_id?, request_chain_id? }
+  #   🔵 **조립 가드 6종 — 하나라도 어긋나면 발신하지 않고 400** (D142 로 4→6):
+  #     ① 미서명 결정 ② 미부보 자산 ③ `policy_id` 없음 ④ `building_id` 없음
+  #     ⑤ **건물 결 `partner_links.link_state != 'LINKED'`** ⑥ **요청자 식별자 없음**
+  #     ⑤ 는 행이 없을 때도 거부한다 — «반려됐다»(`NOT_LINKED`)와 «대장에 없다»(행 없음)를
+  #       뭉개지 않고 오류 메시지에 그대로 싣는다(D62).
+  #     ⑥ 이 없으면 빈 요청자 식별자가 나가 수신부가 `schema_validation_failed` 를 낸다
+  #       (`request-withdrawal` 이 `error_code=None` 으로 정확히 그 400 을 맞은 전례).
   #   🔵 발신 시 `Idempotency-Key: <decision_id>:<change_type>` 헤더를 함께 싣는다 (D141).
   #     같은 처분의 재전송은 **같은 키** → 상대가 저장된 응답을 재생한다. 같은 키인데 내용이
   #     다르면 **409 `idempotency_conflict`** 로 막힌다(사람이 봐야 할 상황이라 막히는 게 맞다).
