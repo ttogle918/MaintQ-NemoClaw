@@ -701,7 +701,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
     // ⑤ 엔진이 돌려준 facts_used **그대로**. 재조립 금지 (W5). NULL 컬럼은 키 자체가 없다 (D62)
     "facts": {"asset_id": "AST-L3-CONV", "building_id": "BLD-C", "status": "IN_USE",
               "acquired_at": "2020-02-10", "tax_credit_applied": true, "has_lien": true,
-              "lien_creditor": "한빛은행 여신부", "insured": true, "policy_id": "POL-2026-FIRE-01",
+              "lien_creditor": "한빛은행 여신부", "insured": true, "policy_id": "SBP-2022-0003",
               "safety_inspection_target": false, "disposal_mode": "SALE",
               "vat_invoice_issued": false, "disposal_date": "2026-09-01",
               "months_since_acquisition": 78}

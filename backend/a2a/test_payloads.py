@@ -416,7 +416,7 @@ def test_notify_asset_change_builds_contract_fields(db_path: str, seed_signed_di
     ):
         assert key in p, key
     assert p["building_id"] == "BLD-C"
-    assert p["policy_id"] == "POL-2026-FIRE-01"
+    assert p["policy_id"] == "SBP-2022-0003"  # BLD-C (InsuQ 발급)
     assert p["change_type"] == "REMOVE"
     assert p["decision_id"] == "DEC-SIGNED"
     assert p["requester"]["finallq_company_id"] == "CMP-MAINTQ-001"

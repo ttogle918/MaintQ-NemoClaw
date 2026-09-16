@@ -243,11 +243,15 @@ spikes **34스위트 / 1,212건**(2026-09-06 — 1,202 + `eval_score_contract` *
 `demo_recommendation_1_and_2.py` 는 PASS/FAIL 단언 없는 시연 스크립트)는 의도적으로 공식
 목록 밖이고, 나머지 2개(`a2a_outbound_contract.py`·`a2a_e2e_integration_spike.py`)는 진짜
 계약 스파이크이지만 아직 공식 33종에 편입할지 결정 전이다 — 포팅은 완료됨,
-`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **41건**(불변 아님 —
+`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **43건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
-`error_codes` IE5 5건 병합 검증(D109)) · pytest **128건**(위 커맨드 정정 참고)
+`error_codes` IE5 5건 병합 검증(D109) · **㊶~㊷ InsuQ 발급 증권번호 체계 고정(2026-09-16)** —
+`policy_id` 목업 1종을 실번호 4종으로 바꾸며 형식(`[A-Z]{2,3}-\d{4}-\d{4}`)과
+건물↔증권 짝을 함께 잠갔다. ⚠ **접두사가 2~3글자 가변**이라(`SB`/`DS`/`SBP`) 형식 검사에
+**양성 축(접두사 3종 생존)을 함께 걸었다** — `{2}` 로 좁히면 `SBP` 2행에서 FAIL 하는 것을
+뮤턴트로 실증했다) · pytest **128건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
 프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.

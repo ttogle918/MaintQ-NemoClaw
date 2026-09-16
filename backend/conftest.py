@@ -200,9 +200,12 @@ def seed_signed_disposals(db_path: str):
     con = dbcompat.connect_dsn(db_path)
     try:
         for aid, name, bldg, policy, insured in (
-            ("AST-INSURED", "3라인 금속 컨베이어", "BLD-C", "POL-2026-FIRE-01", True),
+            # 증권번호는 InsuQ 발급 체계다 — BLD-C = SBP-2022-0003 (접두사가 3글자인 유일한 건물)
+            ("AST-INSURED", "3라인 금속 컨베이어", "BLD-C", "SBP-2022-0003", True),
             ("AST-UNINSURED", "3라인 리프트", "BLD-C", None, False),
-            ("AST-NOBLDG", "건물 미상 설비", None, "POL-2026-FIRE-01", True),
+            # ⚠ building_id 가 NULL 이라 **대응 증권이 원리적으로 없다** — 이 픽스처가 보는 것은
+            #   "건물 없이는 부보 목적물을 특정할 수 없다"는 거부 경로이고, 값은 형식만 유효하면 된다
+            ("AST-NOBLDG", "건물 미상 설비", None, "SB-2023-0001", True),
         ):
             con.execute(
                 "INSERT INTO assets (asset_id, name, category, line_id, building_id,"

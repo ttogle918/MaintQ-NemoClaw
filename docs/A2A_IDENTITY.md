@@ -26,8 +26,10 @@ FinAllQ 문서와 같은 구분을 쓴다.
    컬럼이고, 참조 대상인 `risk_profile`(건물 마스터)은 `11_ASSET_LIFECYCLE §10-2`에
    **제안만 되어 있고 미구현·후순위**다. 즉 `finallq_company_id`를 붙일 자산 마스터가
    그 자체로 없다.
-2. **`policy_id`는 이미 있다.** `assets.policy_id`에 `POL-2026-FIRE-01`이 9건 중 8건에
-   시드돼 있다. **`insuq_policy_id`를 새로 만들면 안 된다** — 기존 컬럼과 이중 진실이 된다.
+2. **`policy_id`는 이미 있다.** `assets.policy_id`가 9건 중 8건에 시드돼 있다.
+   **`insuq_policy_id`를 새로 만들면 안 된다** — 기존 컬럼과 이중 진실이 된다.
+   🔵 **2026-09-16 — 값이 InsuQ 발급 실번호 4종으로 바뀌었다**(아래 표). 종전 목업
+   `POL-2026-FIRE-01` 로 부르면 InsuQ 가 `policy_not_found`(200 `rejected`)를 돌려준다.
 3. **`request_chain_id` 자리는 trace에 없다.** 전제가 사실과 다르다 — §6에서 정정한다.
    `traces` 테이블에는 없고, `docs/A2A_CONTRACTS.md`의 **payload 스펙 문장**에만 있다.
    → **조사 시점 실측이다. Sprint 8(D94-ⓐ)이 nullable 컬럼을 만들었다** — 단 **쓰는 쪽은 아직 없어
@@ -83,8 +85,17 @@ risk_profile       건물 단위 속성
 
 | 자산 | `insured` | `policy_id` |
 |---|---|---|
-| `AST-L1-CONV` … `AST-L4-DUST` (8건) | 1 | `POL-2026-FIRE-01` |
+| `AST-L1-CONV` (BLD-A) | 1 | `SB-2023-0001` |
+| `AST-L2-SPDL`·`AST-L2-CLNT` (BLD-B) | 1 | `DS-2024-0002` |
+| `AST-L3-CONV`·`AST-L3-EXFAN` (BLD-C) | 1 | `SBP-2022-0003` |
+| `AST-L4-CONV`·`AST-L4-WRAP`·`AST-L4-DUST` (BLD-D) | 1 | `SB-2024-0004` |
 | `AST-L3-LIFT` | 0 (확인된 미부보) | NULL |
+
+⚠ **접두사가 2~3글자로 가변**이다(`SB`/`DS`/`SBP`) — 형식 검사를 `[A-Z]{2}` 로 쓰면
+`SBP-2022-0003` 하나만 조용히 빠진다. 시드 자가검증 ㊶~㊷ 참조.
+⛔ **해소는 InsuQ 쪽에서 2단계**다(파트너 건물 매핑 → 사업장+증권 동시 조회 + active).
+둘 중 무엇이 실패해도 응답은 **똑같이 `policy_not_found`** 라 원인을 응답으로 못 가른다 —
+위 표를 **행 단위로** 짝지어 쓸 것.
 
 **8건이 같은 증권 하나를 공유한다.** 즉 `policy_id`는 이름과 달리 자산 단위 사실이
 아니라 **사실상 건물·회사 단위 사실이 자산 행에 복제된 것**이다. (화재보험이 원래
@@ -250,7 +261,7 @@ CREATE TABLE partner_links (
 ("insuq",   "building", "BLD-D", "NOT_LINKED", None,             None),  # ★ 대조군
 ```
 
-> ⚠ **초안은 InsuQ 행의 `external_ref` 에 `POL-2026-FIRE-01` 을 넣었는데 그건 폐기됐다** (§A·**D95**).
+> ⚠ **초안은 InsuQ 행의 `external_ref` 에 증권번호를 넣었는데 그건 폐기됐다** (§A·**D95**).
 > 증권 식별자의 정본은 `assets.policy_id` 하나이고 `partner_links` 에 **복제하지 않는다** —
 > 건물 3행에 같은 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
 > **결(grain)만 바꿔 재발**시키는 것이 된다. 확정안에서 복제는 **0건**이고 seed 검사 **㉔** 가 그걸 본다.
@@ -260,7 +271,7 @@ CREATE TABLE partner_links (
 > A2A 미연결이다 — *"부보돼 있어도 연결 승인이 없으면 못 쏜다"* 가 한눈에 보인다.
 > `BLD-C` 를 쓰면 미부보(`AST-L3-LIFT`)와 미연결이 한 건물에 겹쳐 **별개인 두 축이 섞인다**(D78·D95).
 
-- **근거:** 이 레포는 이미 같은 방식을 쓴다. `policy_id = POL-2026-FIRE-01`이
+- **근거:** 이 레포는 이미 같은 방식을 쓴다. `policy_id` 가
   "이 건물은 이미 화재보험에 가입돼 있다"는 전제를 시드로 심은 것이고,
   A2A_Q 문서도 InsuQ S7이 *"전제: 기가입 보험 존재"* 패턴을 쓴다고 인정하며
   **"MaintQ가 먼저 등록되어 있다는 것을 전제로 S5~S16을 설계한다"**고 명시했다.

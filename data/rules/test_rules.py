@@ -439,7 +439,7 @@ def _asset_row(**over):
         "lien_creditor": "한빛은행 여신부",
         "lien_consent_ref": None,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SBP-2022-0003",  # BLD-C (InsuQ 발급)
         "safety_inspection_target": 0,
         "last_inspection_date": None,
         "inspection_valid_until": None,
