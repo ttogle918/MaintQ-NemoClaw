@@ -32,19 +32,23 @@ from __future__ import annotations
 TEMPLATE_REVIEWED = True
 TEMPLATE_REVIEWED_AT = "2026-08-13"
 
-# ── 정비·부품 발주요청서 (02, D118) — data/templates/02_정비부품발주요청서.docx 문구를
-#    옮긴 렌더 문안. 아직 사람이 검수하지 않았다 — 승인 전까지는 아래를 False 로 둔다.
-PO_REQUEST_TEMPLATE_REVIEWED = False
-PO_REQUEST_TEMPLATE_REVIEWED_AT: str | None = None
+# ── 01·02·03 문안 검수 — 2026-09-16 · 사용자 승인.
+#    D124 로 docx 가 실제 파일로 사람 손에 나가게 된 뒤 세 문서를 함께 검수했다.
+#    ⚠ **줄은 지우지 않는다** — 법적 효력이 있는 서류라 "언제 검수했는가"가 남아야 한다
+#    (`_notice()` docstring: *"침묵은 검수 여부를 알려주지 않는다"*). 이 상수가 True 가 되면
+#    서류 마지막 줄이 `※ 문서 문안은 미검수 초안이다` 에서 검수 완료 표기로 바뀐다.
 
-# ── 설비 이상 진단 보고서 (01, D118) — 같은 이유로 미검수.
-DIAGNOSIS_TEMPLATE_REVIEWED = False
-DIAGNOSIS_TEMPLATE_REVIEWED_AT: str | None = None
+# ── 정비·부품 발주요청서 (02, D118) — data/templates/02_정비부품발주요청서.docx 문구를 옮긴 렌더 문안.
+PO_REQUEST_TEMPLATE_REVIEWED = True
+PO_REQUEST_TEMPLATE_REVIEWED_AT: str | None = "2026-09-16"
 
-# ── 자금집행요청서 (03, D118·D119) — data/templates/03_자금집행요청서.docx 문구를
-#    옮긴 렌더 문안. 아직 사람이 검수하지 않았다 — 승인 전까지는 아래를 False 로 둔다.
-FUND_EXECUTION_TEMPLATE_REVIEWED = False
-FUND_EXECUTION_TEMPLATE_REVIEWED_AT: str | None = None
+# ── 설비 이상 진단 보고서 (01, D118).
+DIAGNOSIS_TEMPLATE_REVIEWED = True
+DIAGNOSIS_TEMPLATE_REVIEWED_AT: str | None = "2026-09-16"
+
+# ── 자금집행요청서 (03, D118·D119) — data/templates/03_자금집행요청서.docx 문구를 옮긴 렌더 문안.
+FUND_EXECUTION_TEMPLATE_REVIEWED = True
+FUND_EXECUTION_TEMPLATE_REVIEWED_AT: str | None = "2026-09-16"
 
 
 def _notice(reviewed: bool, reviewed_at: str | None) -> str:
