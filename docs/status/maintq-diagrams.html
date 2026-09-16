@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-09-10</b><span style="display:block;font-size:11px;margin-top:3px">수치·A2A 절 2026-09-10 갱신(Postgres 전환 · 차단기 D136 · S11 · D137·D138)</span></div>
+    <div class="asof">기준 시점<b>2026-09-17</b><span style="display:block;font-size:11px;margin-top:3px">수치·A2A 절 2026-09-17 갱신(발신 6종 전건 E2E · 연결 승인 게이트 D142 · 사람 승인 0건)</span></div>
   </header>
 
   <nav class="toc">
@@ -295,7 +295,7 @@ flowchart LR
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 21 · 테이블 25</span></div>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 22 · 테이블 25</span></div>
     <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다. <b>Sprint 11은 읽기 도구만 7 → 9종으로 늘렸습니다</b>(<code>track_deadlines</code>·<code>assess_risk_grade</code>) — 쓰기 도구는 손대지 않았습니다.</p>
 
     <figure>
@@ -949,6 +949,7 @@ flowchart LR
           <tr><td><b>문서 렌더 01·02 (D118, 2026-08-24)</b></td><td class="mono">backend/services/po_documents.py(진단보고서·발주요청서 렌더) · data/korean_number.py(한글 금액) · backend/services/po.py <code>get_po()</code>(error_codes·part_alternatives JOIN) · frontend/components/queue/DocumentPreview.tsx</td></tr>
           <tr><td><b>재무부 승인 게이트 + 문서 렌더 03 (Sprint 17, D119, 2026-08-24)</b></td><td class="mono">data/expenditure_limits.py(예산·일일한도·FDS·SoD) · backend/routers/po.py <code>finance_approve()</code>·<code>finance_reject()</code>(department 체크) · backend/services/po.py <code>_finance_transition()</code>·<code>dispatch_a2a_withdrawal_request()</code>(발신 시점 이동) · backend/services/po_documents.py <code>render_fund_execution_document()</code>(doc3) · frontend/components/queue/FinanceDecisionBar.tsx</td></tr>
           <tr><td><b>정비사 랜딩 대시보드 (Sprint 18, 2026-08-24)</b></td><td class="mono">frontend/lib/role.ts <code>ROLE_HOME.technician</code>→<code>/technician/equipment-status</code> · frontend/app/(console)/technician/equipment-status/page.tsx(3×3 그리드·페이지네이션·정렬) · frontend/components/asset/EquipmentCard.tsx · frontend/components/layout/ChatFab.tsx(챗봇 진입점 이동)</td></tr>
+          <tr><td><b>연결 승인을 코드가 강제 (D142, 2026-09-16)</b></td><td class="mono">backend/a2a/payloads.py — build_notify_asset_change_payload 의 조립 가드를 4종→<b>6종</b>으로(건물 결 link_state != LINKED · 요청자 식별자 없음). 라우터가 이미 조립 예외를 400 으로 매핑해 <b>"발신하지 않고 400"이 새 배선 없이 성립</b>한다. ⛔ partner_links 는 <b>MaintQ 쪽 대장</b>이라 상대 대장과 다른 것이 정상이다. 회귀 6건(거부 4 + <b>양성 2</b>) — 뮤턴트로 실증했다</td></tr>
           <tr><td><b>결재 문서 docx 배선 + 사실 조회 도구 (D124·D125, 2026-09-04)</b></td><td class="mono">backend/services/docx_render.py(서식 채우기) · mcp_server/tools/get_document_facts.py(<b>읽기 전용</b> — 결재 문서에 찍힐 값을 조회만 한다. 교정은 UPDATE 가 아니라 새 draft INSERT 또는 사람의 화면 수정) · spikes/docx_contract.py(63건 신설) — <b>도구 20→21종</b></td></tr>
           <tr><td><b>평가 축 재설계 — 오특정/미특정 분리 (D135, 2026-09-06)</b></td><td class="mono">eval/score.py(<code>part</code> 실패를 «틀린 부품을 확신»과 «답을 안 냄»으로 분리) · spikes/eval_score_contract.py(41→51건) — 합계 45.6% vs 51.0%로 두 모델이 구분되지 않는데 <b>틀리는 방식이 정반대</b>였던 것이 계기</td></tr>
           <tr><td><b>A2A 차단기 (D136, 2026-09-09)</b></td><td class="mono">backend/a2a/circuit.py(<b>파트너 단위</b>로 열고 <b>«도달 불가»만</b> 센다 — 400·422 계약 실패는 상대가 살아 있다는 증거라 오히려 닫는다) · backend/a2a/client.py 연동 · backend/a2a/test_circuit.py(17건) — 상태는 <b>프로세스 안에만</b> 둔다(업무 사실이 아니라 관측이고, DB 에 쓰면 D10 경계에도 걸린다)</td></tr>
@@ -971,7 +972,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-09-10 · 라우트 25개 · 도구 21종 · 회귀 1,548건</span>
+    <span>기준 2026-09-17 · 라우트 25개 · 도구 22종 · 회귀 1,609건</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 

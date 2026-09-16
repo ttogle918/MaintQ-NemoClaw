@@ -142,6 +142,21 @@
     <div class="asof">기준 시점<b>2026-08-23</b> · 최신 갱신<b>2026-08-24</b></div>
   </header>
 
+  <div class="note-strip" style="border-left:4px solid #C2790F;background:#FBEEDA">
+    <b>⚠ 이 문서는 2026-08-23 시점의 감사 스냅샷이다 — 갱신하지 않는다.</b>
+    특정 시점에 코드를 읽어 내린 판정의 기록이라, 나중 사실로 덮어쓰면 <b>그때 무엇을 알았고 무엇을 몰랐는지가 사라진다.</b>
+    아래 판정들은 <b>그 시점 기준으로 읽어야 한다.</b> 현재 상태는 <code class="inline">docs/status/maintq-status.html</code>(상시 대시보드)를 볼 것.
+    <br><br><b>2026-09-17 기준 — 이 문서 이후 바뀐 것 중 판정을 뒤집는 것만 적는다:</b>
+    <ul style="margin:8px 0 0 18px;padding:0">
+      <li><b>A2A 발신이 3종 → 6종, 전건 실 E2E 검증 완료</b>. 이 문서가 "미구현/연결고리 0건"으로 적은 <code class="inline">request-settlement</code>(S12)·<code class="inline">assess-used-equipment-loan</code>(S13)·<code class="inline">notify-asset-change</code>(S11)가 전부 구현·완주했다. S13 은 <b>3사 멀티홉 완주</b>(2026-09-11), S11 은 <b>수신 측 로그로 홉 도달까지 확증한 첫 사례</b>다.</li>
+      <li><b>차단기(circuit breaker) 신설</b>(D136) — 상대 장애가 우리 코어로 번지지 않는다. ⛔ 400·422 는 차단기를 <b>열지 않는다</b>(상대가 살아 있다는 증거라서).</li>
+      <li><b>연결 승인을 코드가 강제한다</b>(D142, 2026-09-16) — 이 문서가 점검하지 않았던 축이다. 시드 주석이 <i>"연결 승인이 없으면 못 쏜다"</i>고 주장하는데 <b>강제하는 코드가 없었고</b>, 실제로 미승인 건물로 통지가 나간 적이 있다.</li>
+      <li><b>사람 승인 대기 0건</b>(2026-09-16) — 안전 문구 문안 검수 · 결재 문서 문안 3종 · <code class="inline">partner_links</code> 확인이 모두 닫혔다.</li>
+      <li>설계 결정 <b>D1~D119 → D1~D142</b> · 회귀 단언 <b>1,609</b>(34스위트 1,212 + pytest 354 + seed 43) · MCP 도구 <b>22종</b> · 커밋 <b>532</b>.</li>
+      <li><b>「미착수」가 아니라 「하지 않기로 한 것」이 구분됐다</b> — A2A <b>수신부</b>(표준 계약이 MaintQ 를 client 로 배정, Agent Card <code class="inline">skills: []</code>) · <code class="inline">advise-hedge</code>/<code class="inline">advise-financing</code>/<code class="inline">advise-replacement-financing</code> 3종(데이터·트리거·1차 홉 부재).</li>
+    </ul>
+  </div>
+
   <div class="note-strip">
     최초 감사는 당시 <code class="inline">po-draft-screen-creation</code> 브랜치의 커밋 안 된 A2A 배관·PO 서비스 변경까지 포함해 점검했습니다.
     이후 <b>S8(설비 담보 대출 상담) <code class="inline">assess-loan</code> 아웃바운드 트리거를 새로 구현</b>했고,

@@ -254,7 +254,7 @@
       <h1>설비 진단 → 부품 발주 AI 에이전트, 진행 현황</h1>
       <p>에러코드 진단 → 부품 발주에서 시작해, <b>설비를 팔 때와 살 때</b>(법정 조건 검사 · 근거 번들 · 사람 서명)까지 하나의 대화로 잇는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-09-10</b></div>
+    <div class="asof">기준 시점<b>2026-09-17</b></div>
   </header>
 
   <div class="milestones">
@@ -366,7 +366,7 @@
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 8종</span></div>
-    <p class="sec-note">회귀 <b>spikes 34스위트 / 1,212건</b> · seed 41 · pytest 295(19파일 합산) + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 34스위트 / 1,212건</b> · seed <b>43</b> · pytest <b>354</b>(22파일 합산) + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -407,7 +407,7 @@
 
       <div class="card">
         <div class="card-head"><h3>MCP 서버 · 백엔드 · Agent Loop</h3><span class="chip done">완료</span></div>
-        <p class="desc">도구 <b>21종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 14(읽기 12 + 쓰기 2). <b>Sprint 11이 읽기 전용 2종(<code class="inline">track_deadlines</code>·<code class="inline">assess_risk_grade</code>, D102)을 더했습니다.</b> 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
+        <p class="desc">도구 <b>22종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 15(읽기 13 + 쓰기 2). <b>D140(2026-09-11)이 <code class="inline">assess_used_equipment_loan</code>을 더했고 2026-09-16 master 에 병합됐습니다.</b> <b>Sprint 11이 읽기 전용 2종(<code class="inline">track_deadlines</code>·<code class="inline">assess_risk_grade</code>, D102)을 더했습니다.</b> 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
         <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88·D98·D102</span><span class="tag">core 7 · full 18</span></div>
       </div>
 
@@ -583,7 +583,30 @@
 
   <!-- ============ 문제점 ============ -->
   <section>
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">8건 남음 — 사람 승인 4 · 외부 결함 1 · 환경 1 · UX 1 · 품질 한계 1</span></div>
+    <div class="sec-head"><h2>2026-09-11 ~ 09-17 구간 요약</h2><span class="count">A2A 완주 · 연결 승인 게이트 · 사람 승인 0건</span></div>
+    <div class="issue">
+      <span class="sev info">✅ 완료</span>
+      <div>
+        <p><b>A2A 발신 6종 전건 실 E2E 검증 완료.</b> <code class="inline">assess-used-equipment-loan</code>(S13)은 <b>3사 멀티홉 완주</b>(감정가 2,400만·<code class="inline">approved</code>), <code class="inline">notify-asset-change</code>(S11)는 <b>수신 측 로그로 홉 도달까지 확증한 첫 사례</b>입니다.</p>
+        <div class="fix"><b>S13 은 그 전까지 금액과 무관하게 전건 담보 부족이었습니다</b> — 계약에 원가 필드가 없어 상대가 원가를 «대출 신청액»으로 근사했고, 그러면 감정가 = 신청액 × 잔존율(1 미만)이라 <b>구조적으로 승인이 불가능</b>했습니다. 보유 중이던 취득원가를 실어 보내자 2차 홉이 처음 열렸습니다(D138).</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">✅ 완료</span>
+      <div>
+        <p><b>D142 — 연결 승인을 주석이 아니라 코드가 강제합니다.</b> 시드 주석이 <i>"부보돼 있어도 A2A 연결 승인이 없으면 못 쏜다"</i>고 <b>주장하는데 그걸 강제하는 코드가 한 줄도 없었습니다.</b></p>
+        <div class="fix"><b>이미 실증돼 있었습니다 —</b> 5일 전 실호출 검증에서 <b>미승인 건물로 통지가 그냥 나가 200 completed 를 받았고, 아무도 몰랐습니다.</b> 조립 단계에 가드 2종을 추가했고(라우터가 이미 조립 예외를 400 으로 매핑하므로 <i>"발신하지 않고 400"</i>이 <b>새 배선 없이</b> 성립), 가드를 일부러 무력화해 회귀가 실제로 잡는지 확인한 뒤 통과로 인정했습니다. ⛔ <code class="inline">partner_links</code>는 <b>MaintQ 쪽 대장</b>입니다 — 상대는 같은 건물을 전부 <code class="inline">active</code>로 갖고 있고 <b>다른 것이 정상</b>입니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">상대 승인 대기</span>
+      <div>
+        <p><b>S14(<code class="inline">notify-risk-change</code>) — 척도 합의 완료, 상대 구현 승인 대기.</b> 계약이 위험도를 <code class="inline">number</code>로 요구하는데 MaintQ 는 <code class="inline">LOW/MEDIUM/HIGH</code> <b>서열 등급</b>입니다.</p>
+        <div class="fix"><b>문제는 «띠가 아무것도 못 거른다»가 아니라 «띠가 엉뚱한 걸 거른다»였습니다</b> — 비율 산식을 서열에 대면 <code class="inline">3→4</code>(둘 다 LOW)가 통지의무, <code class="inline">8→9</code>(둘 다 HIGH)가 유예로 <b>같은 한 칸이 시작점에 따라 갈립니다.</b> 합의안은 요청 필드를 문자열 enum 으로, <code class="inline">margin</code>을 단계 차 또는 <code class="inline">null</code>로, 판정을 전이표로 하는 것입니다. ⛔ <i>"우리가 임계값을 함께 보낸다"</i> 안은 <b>상대가 기각했고 우리가 받았습니다</b> — 통지의무 임계값은 보험사가 정할 사안이고, 이는 <b>증권번호 발급 주체 논증과 같은 구조</b>이며 그 논증을 먼저 세운 것이 우리였습니다.</div>
+      </div>
+    </div>
+
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">4건 남음 — 사람 승인 <b>0</b> · 상대 승인 대기 1 · 환경 1 · 원인 미특정 2 <span style="font-size:11px">(2026-09-17 갱신)</span></span></div>
     <div class="issue">
       <span class="sev info">✅ 해결</span>
       <div>
@@ -952,18 +975,18 @@
     나머지 스위트는 무변동. MCP 도구 개수 표기도 이 세션에서 함께 정정했습니다 — <code class="inline">CLAUDE.md</code>가
     오래 "11종/18종"으로 적혀 있었는데 실제로는 <b>코어 7 + 확장 13 = 20종</b>입니다(§8~§20 계약 문서
     기준 정정, 코드 변경 아님). 이후 <code class="inline">get_document_facts</code>(D125)가 더해져
-    <b>2026-09-04 부터 21종</b>입니다.
+    <b>2026-09-16 부터 22종</b>입니다(master 병합 완료).
   </div>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>Sprint 5~13 전부 완료 — 남은 것은 백로그(P39 화면 직접 초안 생성)와 사람 승인 대기 항목뿐</strong><br>
-      <span style="font-size:12.5px">🔴 사람: 안전 문구 최종 검수 (<code class="inline">SAFETY_BASELINE</code> · <code class="inline">QUALIFIED_WORKER_NOTE</code> 문안) — <b>이제 이 1건뿐입니다</b><br>
+    <div>다음 우선순위: <strong>Sprint 1~18 전부 완료 · <b>사람 승인 대기 0건</b>(2026-09-16) — 남은 것은 상대 승인 대기 1건(S14 척도)과 백로그뿐</strong><br>
+      <span style="font-size:12.5px">✅ <b>2026-09-16 — 남은 사람 승인 4건이 하루에 전부 닫혔습니다</b>: 안전 문구 문안 검수(<code class="inline">SAFETY_BASELINE.text_reviewed_at</code> 신설 — <code class="inline">approved_at</code> 2026-07-18 은 <b>기준값</b> 승인일이라 합치지 않고 나란히 둡니다) · 결재 문서 문안 3종(01·02·03) · <code class="inline">partner_links</code> 연결 승인 확인.<br>🔴 그 과정에서 <b>안전 문구 체크가 「완료」로 잘못 서 있던 것</b>을 발견했습니다 — 무관한 커밋(Sprint 12 시나리오 번호 정정)이 체크박스만 뒤집었고 승인 기록은 없었습니다. <b>코드가 반증했습니다.</b><br>🟡 남은 대기는 <b>S14 척도 — 상대(InsuQ) 구현 승인</b> 1건입니다.<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b> · <b><code class="inline">DISAGREE</code> 6건 확인 완료 — 조치 불필요(08-19)</b> · <b><code class="inline">iG5A NTC</code> D99 승인·정본 병합(08-29)</b> · <b>A2A 파트너 자격증명 실값 확보(D120 — Bearer 스킴 교체)</b></span></div>
     <div class="figs">
-      <div><b>1,548</b>회귀 단언 — 34스위트 1,212 + seed 41 + pytest 295 (실측 2026-09-10)</div>
+      <div><b>1,609</b>회귀 단언 — 34스위트 1,212 + pytest 354 + seed 43 (실측 2026-09-17)</div>
       <div><b>25</b>DB 테이블 (코어 11 + 확장 7 + A2A 1 + 목업 1 + Sprint 11 4 + manual_chunks 1)</div>
-      <div><b>138</b>설계 결정 D1~D138</div>
-      <div><b>21</b>MCP 도구 (코어 7 + 확장 14)</div>
+      <div><b>142</b>설계 결정 D1~D142</div>
+      <div><b>22</b>MCP 도구 (코어 7 + 확장 15)</div>
     </div>
   </div>
 
