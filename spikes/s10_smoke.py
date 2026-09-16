@@ -71,7 +71,7 @@ CLEAR_ASSET, CLEAR_MODE = "AST-L3-LIFT", "SCRAP"      # → CLEAR
 BLOCKED_ASSET, BLOCKED_MODE = "AST-L3-CONV", "SALE"   # → BLOCKED (담보권 미해소)
 
 # 도구 총수 = 코어 7 + 확장 13 (D69·D98·D112). `full` 이 안 켜지면 7 이 나온다.
-EXPECTED_TOOLS_FULL = 21  # 코어 7 + 확장 14 (D125 가 get_document_facts 추가)
+EXPECTED_TOOLS_FULL = 22  # 코어 7 + 확장 15 (D140 이 assess_used_equipment_loan 추가)
 OVERRIDE_REASON = "법무 검토 완료 — 담보권자 동의 별건 확보 (스모크 기록)"
 
 MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"

@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -m ruff format . --silent || exit 0"
+            "command": "python .claude/hooks/lint_edited.py"
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -m pytest eval/ -q --no-header -x 2>&1 | tail -n 3 || exit 0"
+            "command": "uv run ruff check data backend mcp_server spikes eval 2>&1 | tail -n 5 || echo \"[stop-hook] ruff 실행 실패 — uv 설치/경로 확인\""
           }
         ]
       }

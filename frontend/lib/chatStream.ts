@@ -19,7 +19,7 @@
  *
  * ## `?replay=s1` 기대 이벤트 시퀀스 (chat.py `_replay_s1`) — Stage 3 육안 채점표
  * 모든 tool_call/tool_result/block 은 `replay: true` 표식을 단다(TraceWriter._write, D55) →
- * `trace.replay === true`, meta `4 calls · 재생`(실측 elapsed 합산 제외). token 은 표식 없음.
+ * `trace.replay === true`, meta `이번 턴 4회 · 재생`(실측 elapsed 합산 제외). token 은 표식 없음.
  *
  *   1. tool_call  lookup_error_code {model:iG5A, code:OHt}
  *   2. tool_result lookup_error_code ok "과열 · related: FAN-IG5-01"
@@ -35,7 +35,7 @@
  *  11. block po_card variant:"draft" (PO-0117)  → po_draft 카드
  *
  * 기대 최종 items: [error_log?, agent#1(cite 202), safety, agent#2, po_draft]
- * 기대 trace: 4 calls · 재생 + `재생 데이터` 배지(TracePanel), 각 스텝 pending→ok.
+ * 기대 trace: 이번 턴 4회 · 재생 + `재생 데이터` 배지(TracePanel), 각 스텝 pending→ok.
  *
  * ## repeat_banner 는 hold payload 의 `repeated` 로 산출한다 (MQ-405 정정)
  * hold payload(`backend/agent/loop.py _hold_block`)는 `repeated:{count, window_days}` 를
@@ -382,12 +382,19 @@ function seedTurn(
 /* -------------------------------------------------------------------------- */
 /* 내부 헬퍼                                                                   */
 
+/**
+ * `"turn"` 인 이유: `traceEvents` 는 `startTurn()` 이 매 턴 `initialState` 로 비운다.
+ * 세션 누적이 아니라 **이번 턴** 호출 수이므로 라벨도 그렇게 나가야 한다(`TraceScope`).
+ */
 function rebuildTrace(ctx: ReducerCtx): TraceSession {
-  return toTraceSession({
-    session_id: ctx.sessionId,
-    count: ctx.traceEvents.length,
-    events: ctx.traceEvents,
-  });
+  return toTraceSession(
+    {
+      session_id: ctx.sessionId,
+      count: ctx.traceEvents.length,
+      events: ctx.traceEvents,
+    },
+    "turn",
+  );
 }
 
 function nextId(ctx: ReducerCtx): string {

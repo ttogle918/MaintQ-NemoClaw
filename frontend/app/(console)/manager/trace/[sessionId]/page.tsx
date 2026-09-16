@@ -97,7 +97,7 @@ export default function TracePage({ params }: { params: { sessionId: string } })
         )}
 
         {state.kind === "ready" && state.trace.count > 0 && (
-          <TracePanel session={toTraceSession(state.trace)} />
+          <TracePanel session={toTraceSession(state.trace, "session")} />
         )}
       </ConsoleFrame>
     </ScreenStack>

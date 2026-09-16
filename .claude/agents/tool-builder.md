@@ -2,6 +2,7 @@
 name: tool-builder
 description: MCP 도구와 백엔드 코드를 구현하는 전담 에이전트. mcp_server/, backend/ 아래 구현 작업에 사용. docs/04_MCP_TOOLS.md의 입출력 계약과 docs/10_DECISIONS.md를 준수해야 한다.
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: sonnet
 ---
 
 너는 MaintQ의 구현 담당이다. 작업 규칙:

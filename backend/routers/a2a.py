@@ -14,11 +14,19 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError, call_skill
+from backend.a2a.client import (
+    A2ACircuitOpenError,
+    A2AClientError,
+    A2ATimeoutError,
+    A2AUpstreamUnavailableError,
+    call_skill,
+)
 from backend.a2a.payloads import (
+    idempotency_key_for_asset_change,
     build_assess_loan_payload,
     build_assess_used_equipment_loan_payload,
     build_lookup_clause_payload,
+    build_notify_asset_change_payload,
     build_request_settlement_payload,
 )
 from backend.a2a.trace import record_a2a_trace
@@ -38,6 +46,7 @@ async def _dispatch(
     base_url: str,
     partner_label: str,
     partner: str = "finallq",
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """A2A 발신 + trace 기록 + 오류 매핑. 스킬마다 같은 블록을 복제하지 않는다.
 
@@ -65,6 +74,7 @@ async def _dispatch(
             payload=payload,
             request_chain_id=chain_id,
             base_url=base_url,
+            idempotency_key=idempotency_key,
         )
         # 파트너가 echo 안 해도 상관관계 키를 보장한다 (기존 두 엔드포인트와 같은 태도)
         res["request_chain_id"] = chain_id
@@ -74,6 +84,14 @@ async def _dispatch(
         _trace("timeout", {"error": str(exc)})
         raise HTTPException(
             status_code=504, detail=f"{partner_label} A2A adapter timeout"
+        ) from exc
+    except A2ACircuitOpenError as exc:
+        # ⚠ 반드시 A2AUpstreamUnavailableError 보다 **먼저** 잡는다 (하위 타입이다).
+        _trace("circuit_open", {"error": str(exc)})
+        raise HTTPException(
+            status_code=503,
+            detail=f"{partner_label} A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
         ) from exc
     except A2AUpstreamUnavailableError as exc:
         _trace("unavailable", {"error": str(exc)})
@@ -139,6 +157,22 @@ async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
             status="timeout",
         )
         raise HTTPException(status_code=504, detail="InsuQ A2A adapter timeout") from exc
+
+    except A2ACircuitOpenError as exc:
+        # ⚠ A2AUpstreamUnavailableError 의 하위 타입이라 **먼저** 와야 한다.
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="lookup-clause",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="circuit_open",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"InsuQ A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
+        ) from exc
 
     except A2AUpstreamUnavailableError as exc:
         record_a2a_trace(
@@ -236,6 +270,22 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             status="timeout",
         )
         raise HTTPException(status_code=504, detail="FinAllQ A2A adapter timeout") from exc
+
+    except A2ACircuitOpenError as exc:
+        # ⚠ A2AUpstreamUnavailableError 의 하위 타입이라 **먼저** 와야 한다.
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="assess-loan",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="circuit_open",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"FinAllQ A2A 차단기가 열려 있습니다 (연속 실패 {exc.failure_count}회)",
+            headers={"Retry-After": str(max(1, int(exc.retry_after)))},
+        ) from exc
 
     except A2AUpstreamUnavailableError as exc:
         record_a2a_trace(
@@ -356,3 +406,48 @@ def a2a_history_endpoint(
 ) -> dict:
     """A2A 호출 감사 이력 (D114) — `read_trace`(D76-2 ⓑ)와 달리 tool_payload 원문을 연다."""
     return list_a2a_history(skill=skill, po_id=po_id, building_id=building_id, chain_id=chain_id, limit=limit)
+
+
+class NotifyAssetChangeRequest(BaseModel):
+    decision_id: str = Field(..., min_length=1, description="서명 완료된 처분 결정 ID")
+    change_type: str = Field("REMOVE", description="REMOVE | ADD")
+    session_id: str | None = Field(None, description="MaintQ 세션 ID")
+    request_chain_id: str | None = Field(None, description="멀티홉 추적용 체인 ID")
+
+
+@router.post("/notify-asset-change")
+async def notify_asset_change_endpoint(req: NotifyAssetChangeRequest) -> dict[str, Any]:
+    """InsuQ notify-asset-change 로 부보 목적물 변경을 통지한다(S11).
+
+    처분이 **서명으로 확정된 뒤** 보내는 통지다 — 조립 단계에서 서명·부보 여부를 막으므로
+    (`build_notify_asset_change_payload`), 조건에 안 맞으면 **발신하지 않고 400 으로 돌려준다.**
+    조용히 빈 값을 실어 보내면 수신부가 `schema_validation_failed` 를 낸다(전례 있음).
+
+    ⛔ **응답으로 MaintQ 상태를 바꾸지 않는다** — 통지는 알리는 것이지 되받는 것이 아니다.
+    `receipt_no`·`premium_adjustment` 는 trace 에만 남는다. 보험료 조정을 자산 장부에 반영하려면
+    사람이 하는 별도 경로가 필요하다(S12 가 `lien_released` 를 소비하는 것과는 성격이 다르다).
+    """
+    base_url = os.environ.get("MAINTQ_A2A_INSUQ_BASE_URL") or "http://localhost:9102"
+    chain_id = req.request_chain_id or f"CHAIN-ASSETCHG-{uuid.uuid4().hex[:8]}"
+
+    try:
+        payload = build_notify_asset_change_payload(
+            decision_id=req.decision_id,
+            request_chain_id=chain_id,
+            change_type=req.change_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await _dispatch(
+        skill_id="notify-asset-change",
+        payload=payload,
+        chain_id=chain_id,
+        session_id=req.session_id or "",
+        base_url=base_url,
+        partner_label="InsuQ",
+        partner="insuq",
+        # 같은 처분의 재전송은 같은 키 → 상대가 저장된 응답을 재생한다. 내용이 바뀌면 409 다
+        # (사람이 봐야 할 상황이므로 막히는 것이 맞다). D141
+        idempotency_key=idempotency_key_for_asset_change(req.decision_id, req.change_type),
+    )

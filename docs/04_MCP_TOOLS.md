@@ -23,7 +23,7 @@
 | 프로파일 | 등록 도구 | 비고 |
 |---|---|---|
 | `core` | 코어 7종 (§1~§7) | **기본값** |
-| `full` | 코어 7 + 확장 14 = 21종 (§1~§21) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
+| `full` | 코어 7 + 확장 15 = 22종 (§1~§22) | `MAINTQ_TOOLS_PROFILE=full` 로 명시할 때만 |
 
 > **실측** — `mcp_server/server.py` 의 `if TOOLS_PROFILE == "full":` 블록 안에 `@mcp.tool` 이
 > **13개**다: `check_disposal_blockers`·`verify_ownership`·`classify_part_criticality`·
@@ -701,7 +701,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
     // ⑤ 엔진이 돌려준 facts_used **그대로**. 재조립 금지 (W5). NULL 컬럼은 키 자체가 없다 (D62)
     "facts": {"asset_id": "AST-L3-CONV", "building_id": "BLD-C", "status": "IN_USE",
               "acquired_at": "2020-02-10", "tax_credit_applied": true, "has_lien": true,
-              "lien_creditor": "한빛은행 여신부", "insured": true, "policy_id": "POL-2026-FIRE-01",
+              "lien_creditor": "한빛은행 여신부", "insured": true, "policy_id": "SBP-2022-0003",
               "safety_inspection_target": false, "disposal_mode": "SALE",
               "vat_invoice_issued": false, "disposal_date": "2026-09-01",
               "months_since_acquisition": 78}
@@ -1291,6 +1291,53 @@ docx      GET .../documents/{doc}.docx                     ← 다운로드 시�
 D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full` 전용) · D124(필드맵 공유 계층)
 
 ---
+
+## 22. assess_used_equipment_loan — FinAllQ 중고 설비 담보 심사 (S13, D140)
+
+**자산 하나를 담보로 한** 대출 심사를 FinAllQ 에 문의한다. §20(`assess_equipment_loan`)이
+**건물** 담보인 것과 갈린다 — 이쪽은 담보물이 설비이고, 그래서 **자산 대장에서 파생되는
+값이 많다.**
+
+**호출자는 두 가지만 준다.** 담보 건물(`building_id`)·연식(`acquired_at` 의 연도)·점검
+이력(`ownership_checks`)·**취득원가(`acquisition_cost`)** 는 전부 백엔드 payload 빌더가
+자산에서 파생한다(`backend/a2a/payloads.py::build_assess_used_equipment_loan_payload`).
+
+⛔ **원가를 도구 파라미터로 두지 않는다.** 두면 LLM 이 그 값을 지어내 호출하는 경로가
+열린다 — §15 가 `override` 키를 스키마에서 뺀 것과 같은 이유(D23·D31·D81 계열).
+원가의 정본은 `assets.acquisition_cost` 이고, NULL 이면 payload 에서 **키가 빠진다**(D62).
+
+```
+입력  { asset_id: str, loan_amount: float }          ← 둘 다 필수 (D80)
+출력  { status: "ok", skill_status: "completed",
+        appraised_value: float, decision: "approved"|"rejected",
+        condition_note?: str, collateral_check: {...}, request_chain_id: str }
+```
+
+**description (코드 정본 = `assess_used_equipment_loan.py:DESCRIPTION`):**
+사용자가 설비를 담보로 한 자금 조달을 **명시적으로** 물을 때만 호출한다(D112 와 같은 태도).
+
+🔴 **`decision:"approved"` 를 «대출이 승인됐다»로 옮기지 않는다.** 그것은 상대가 담보
+조건을 충족한다고 본 판정이고, **실제 여신 승인은 상대 담당자의 결재가 남아 있다**
+(상대 장부의 대출 건은 심사중 상태로 남는다 — 2026-09-10 FinAllQ 실측 확인).
+「담보 조건 충족」으로 전하고 결재가 남았음을 함께 밝힌다. 이 경계를 흐리면
+**화면·장부가 우리 말을 배신한다.**
+
+**실패 사유 — 503 을 502 와 뭉개지 않는다 (D136·D139):**
+
+| HTTP | reason | 뜻 |
+|---|---|---|
+| 502 | `upstream_unavailable` | 상대 뒤(2차 홉·자기 upstream)가 죽었다 |
+| **503** | **`circuit_open`** | **우리가** 막았다 — 차단기가 열려 있다(연속 실패 N회) |
+| 504 | `upstream_timeout` | 상대가 시간 안에 답하지 못했다 |
+| 400 | `a2a_error` | 없는 `asset_id` · 조립 단계 차단(백엔드 detail 그대로) |
+| — | `timeout` | **우리** 타임아웃(응답 없음). 상대의 504 와 다른 사건이다 |
+| — | `backend_unreachable` | MaintQ 백엔드 프로세스에 못 닿음 — A2A 파트너 실패와 구분 |
+
+§20 이 셋을 한 덩어리로 뭉개는 것과 의도적으로 다르다 — 사용자에게 할 안내가 다르기
+때문이다. *"상대가 응답하지 않습니다"* 와 *"연속 실패로 잠시 차단됐습니다"* 는 같은 말이
+아니고, 후자는 **상대를 고쳐도 낫지 않는다.**
+
+⚠️ **`full` 프로파일에서만 등록된다**(D69·D88). 기본은 `core` 7종이다.
 
 ## 확장 도구 reason 색인 (한눈에)
 

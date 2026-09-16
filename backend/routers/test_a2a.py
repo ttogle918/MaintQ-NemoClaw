@@ -524,3 +524,102 @@ def test_settlement_on_asset_without_lien_is_400(
 
     assert res.status_code == 400
     assert "담보" in res.json()["detail"]
+
+
+# ---- S11: notify-asset-change ------------------------------------------------
+
+
+def _fake_notify(captured: dict):
+    async def _fake_call_skill(**kwargs: Any) -> dict:
+        captured.update(kwargs)
+        return {
+            "status": "completed",
+            "receipt_no": "RCP-2026-0811",
+            "premium_adjustment": -120000,
+            "evidence": ["화재보험 보통약관 제12조 ②, p.34"],
+        }
+
+    return _fake_call_skill
+
+
+def test_notify_asset_change_dispatches_to_insuq(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-SIGNED"})
+
+    assert res.status_code == 200
+    assert res.json()["receipt_no"] == "RCP-2026-0811"
+    # InsuQ 로 가야 한다 — 파트너를 잘못 넣으면 FinAllQ 토큰이 실린다
+    assert captured["partner"] == "insuq"
+    assert captured["skill_id"] == "notify-asset-change"
+    assert captured["payload"]["change_type"] == "REMOVE"
+
+
+def test_notify_asset_change_sends_idempotency_key(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    """S11 은 멱등키를 실어 보낸다 (D141) — 통지 재전송이 증권을 두 번 고치면 안 된다."""
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-SIGNED"})
+
+    assert res.status_code == 200
+    assert captured["idempotency_key"] == "DEC-SIGNED:REMOVE"
+
+
+def test_notify_asset_change_unsigned_is_400_and_never_dispatched(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    """조립에서 막힌 요청은 **나가지 않는다** — 빈 값을 실어 보내 상대가 400 을 내게 하지 않는다."""
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-DRAFT"})
+
+    assert res.status_code == 400
+    assert "서명 전" in res.json()["detail"]
+    assert captured == {}  # 발신 자체가 없었다
+
+
+def test_notify_asset_change_uninsured_is_400(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-UNINSURED"})
+
+    assert res.status_code == 400
+    assert captured == {}
+
+
+def test_notify_asset_change_does_not_mutate_maintq_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals, fetch_asset
+) -> None:
+    """S12 와 달리 통지는 되받지 않는다 — 보험료 조정이 와도 자산 장부를 건드리지 않는다."""
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify({}))
+    before = fetch_asset("AST-INSURED")
+
+    res = client.post("/api/a2a/notify-asset-change", json={"decision_id": "DEC-SIGNED"})
+
+    assert res.status_code == 200
+    assert fetch_asset("AST-INSURED") == before
+
+
+def test_notify_asset_change_uses_provided_chain_id(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_signed_disposals
+) -> None:
+    captured: dict = {}
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_notify(captured))
+
+    client.post(
+        "/api/a2a/notify-asset-change",
+        json={"decision_id": "DEC-SIGNED", "request_chain_id": "CHAIN-S11-FIXED"},
+    )
+
+    assert captured["request_chain_id"] == "CHAIN-S11-FIXED"
+    assert captured["payload"]["request_chain_id"] == "CHAIN-S11-FIXED"

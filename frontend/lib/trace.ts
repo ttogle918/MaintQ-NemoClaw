@@ -97,7 +97,28 @@ export function stepPatchFromResult(data: Record<string, unknown>): {
   return { summary, status };
 }
 
-export function toTraceSession(trace: ApiTrace): TraceSession {
+/**
+ * 이 타임라인이 **어느 범위**의 이벤트로 만들어졌는지. 호출 수 라벨이 여기서 갈린다.
+ *
+ * `toTraceSession()` 은 받은 이벤트 묶음의 `tool_call` 을 셀 뿐이라 같은 코드가 호출자에
+ * 따라 **다른 뜻의 숫자**를 낸다 — 정비사 콘솔(`lib/chatStream.ts`)은 턴마다 이벤트를
+ * 비우므로 `4 → 1 → 0` 으로 리셋되는 것이 정상이고, 매니저 트레이스 화면
+ * (`manager/trace/[sessionId]`)은 세션 전체를 받으므로 누적값이다.
+ *
+ * ⚠️ **이 모호함이 실제로 오독을 낳았다.** 2026-08-31 촬영에서 호출 수가 `1 → 0 → 1` 로
+ * 리셋되는 것을 보고 *"세션 상태가 매 턴 초기화된다"* 는 가설이 서서 다른 세션에 조사가
+ * 위임됐다. 진짜 원인은 이력 절삭이었고 이 값은 **정상 동작**이었다 — 값이 틀린 게 아니라
+ * **같은 이름이 두 뜻**이었다. 그래서 범위를 추론하지 않고 **호출자가 선언**하게 한다.
+ * 기본값을 두지 않는 이유도 같다: 기본이 있으면 두 뜻 중 하나가 조용히 선택되고,
+ * 그 순간 이 결함이 그대로 돌아온다.
+ */
+export type TraceScope = "turn" | "session";
+
+/**
+ * `scope` 는 호출자가 **넘긴 이벤트의 범위**다 — 한 턴만 넘겼으면 `"turn"`,
+ * 세션 전체면 `"session"`. 화면 문구가 이 값으로만 갈린다(`callsLabel`).
+ */
+export function toTraceSession(trace: ApiTrace, scope: TraceScope): TraceSession {
   const steps: TraceStepData[] = [];
   /** tool → 아직 결과가 안 붙은 스텝의 인덱스 큐 (가장 이른 것이 앞) */
   const waiting = new Map<string, number[]>();
@@ -148,7 +169,9 @@ export function toTraceSession(trace: ApiTrace): TraceSession {
   const allReplay = trace.events.length > 0 && replayEvents === trace.events.length;
   const session: TraceSession = {
     label: `SESSION #${trace.session_id}`,
-    meta: allReplay ? `${calls} calls · 재생` : `${elapsed.toFixed(1)}s · ${calls} calls`,
+    meta: allReplay
+      ? `${callsLabel(scope, calls)} · 재생`
+      : `${elapsed.toFixed(1)}s · ${callsLabel(scope, calls)}`,
     // 오렌지는 안전·긴급 전용이다 — held(발주 보류)일 때만 쓴다
     accent: held ? "orange" : "blue",
     steps,
@@ -159,6 +182,14 @@ export function toTraceSession(trace: ApiTrace): TraceSession {
 
 /* -------------------------------------------------------------------------- */
 /* 내부 (isHoldCard 만 예외 — chatStream 공용이라 export)                       */
+
+/**
+ * 호출 수 한 줄. **숫자만으로는 턴/누적을 구분할 수 없으므로** 라벨에 범위를 적는다
+ * (위 `TraceScope`). 표기는 화면이 아니라 여기서 만든다 — 두 화면이 같은 규칙을 쓰게.
+ */
+function callsLabel(scope: TraceScope, calls: number): string {
+  return scope === "turn" ? `이번 턴 ${calls}회` : `누적 ${calls}회`;
+}
 
 /** `tool` 컬럼이 비어 있으면 payload 의 `tool` 을 쓴다. 둘 다 없으면 지어내지 않는다. */
 function toolName(ev: ApiTraceEvent): string {

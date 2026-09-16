@@ -4,6 +4,7 @@
 - partner_links 테이블에서 external_ref 조회
 - S5 request-withdrawal payload 조립
 - InsuQ lookup-clause payload 조립
+- S11 notify-asset-change payload 조립 (InsuQ 부보 목적물 변경 통지)
 """
 
 from __future__ import annotations
@@ -125,11 +126,24 @@ def build_assess_used_equipment_loan_payload(
     않는다. 가장 가까운 값인 `acquired_at`(취득일)의 연도를 보내되, 무엇을 보냈는지
     `inspection_data.equipment_year_basis` 로 함께 알린다 — 지어내지 않고, 수신부가
     잔존연수를 재산정할 수 있게 한다 (D62·D74 태도).
+
+    🔵 `inspection_data.original_cost`: **원가를 함께 보낸다 (D138).** 계약에는 원가
+    필드가 없고, FinAllQ 는 그것이 없으면 `original_cost` 를 **`loan_amount` 로 대체**한다
+    (그쪽 `a2a_adapter/mapping.py` 가 "보수적 근사치"로 둔 폴백). 그러면 감정가 =
+    신청액 × 잔존율 이라 **언제나 신청액보다 작아** 승인이 구조적으로 불가능하다
+    (2026-09-10 실 E2E 로 확인 — 같은 자산에 3,000,000 신청 시 감정가 1,500,000,
+    1,000,000 신청 시 500,000). 우리는 그 값을 실제로 보유하므로(`assets.acquisition_cost`)
+    지어내는 것이 아니고, 무엇을 보냈는지 `original_cost_basis` 로 함께 알린다.
+
+    ⛔ **`book_value`(장부가액)는 보내지 않는다.** FinAllQ 는 `inspection_data.
+    appraised_value` 가 있으면 감가상각 계산 자체를 건너뛰고 그 값을 감정가로 쓴다 —
+    장부가액은 회계 수치이지 감정가가 아니다. 보내면 우리가 모르는 것을 아는 것처럼
+    말하게 된다 (D62).
     """
     with connect(db_path) as con:
         a = con.execute(
             "SELECT building_id, acquired_at, last_inspection_date,"
-            " inspection_valid_until, safety_inspection_target"
+            " inspection_valid_until, safety_inspection_target, acquisition_cost"
             " FROM assets WHERE asset_id = ?",
             (asset_id,),
         ).fetchone()
@@ -155,6 +169,11 @@ def build_assess_used_equipment_loan_payload(
             inspection[key] = str(a[key])
     if a["safety_inspection_target"] is not None:
         inspection["safety_inspection_target"] = bool(a["safety_inspection_target"])
+    # NULL 이면 키 자체를 생략한다 — 0 으로 채우면 "모름"이 "무가치"로 둔갑하고,
+    # 수신부는 그 0 을 원가로 믿어 감정가 0 을 낸다 (D62·D138)
+    if a["acquisition_cost"] is not None:
+        inspection["original_cost"] = a["acquisition_cost"]
+        inspection["original_cost_basis"] = "acquisition_cost"
 
     acquired = a["acquired_at"]
     return {
@@ -165,6 +184,37 @@ def build_assess_used_equipment_loan_payload(
         "equipment_year": int(str(acquired)[:4]) if acquired else 0,
         "inspection_data": inspection,
     }
+
+
+#: 상대(InsuQ) `IdempotencyStore` 의 키 길이 상한. 넘으면 조용히 잘리거나 거부된다.
+_IDEMPOTENCY_MAX_LEN = 128
+
+
+def idempotency_key_for_asset_change(decision_id: str, change_type: str) -> str:
+    """S11 통지의 멱등키 — **업무 정체성에서 결정론적으로 파생**한다 (D141).
+
+    ⛔ **난수를 쓰지 않는다.** 재전송이 다른 키가 되면 멱등성이 성립하지 않는다 —
+    같은 처분을 두 번 통지했을 때 증권이 두 번 고쳐진다.
+
+    상대 저장 키는 **3중 복합키 `(requester, skill_id, idempotency_key)`** 라 전역
+    유일성이 필요 없다. 「MaintQ 안에서, 그 스킬 안에서」만 유일하면 되므로
+    `decision_id` + `change_type` 으로 충분하다. 상대 동작(공개받은 구현):
+      - 같은 3중키 + 같은 payload SHA-256 → 저장된 응답을 재계산 없이 그대로 재생
+      - 같은 3중키 + **다른** payload → 409 `idempotency_conflict`
+
+    `change_type` 을 반드시 넣는다 — 같은 결정이라도 REMOVE 와 ADD 는 **다른 통지**다.
+    키가 같으면 뒤엣것이 재생으로 처리돼 조용히 사라진다.
+
+    ⚠️ 상한(128자)을 넘으면 앞을 자른다. `change_type` 은 **뒤에** 두어 잘려도 남게 한다 —
+    REMOVE/ADD 가 섞이는 것이 길이 초과보다 나쁘다.
+
+    📌 계약면에는 이 헤더를 적을 자리가 없다(CP-006 이 그 자리를 만드는 중이다).
+    다만 상대 의미론은 **추측이 아니라 배포된 동작으로 공개**받았으므로, 계약이 서도
+    이 파생은 달라지지 않는다.
+    """
+    suffix = f":{change_type}"
+    head = decision_id[: _IDEMPOTENCY_MAX_LEN - len(suffix)]
+    return f"{head}{suffix}"
 
 
 def build_request_settlement_payload(
@@ -216,3 +266,73 @@ def build_request_settlement_payload(
     if prepayment_fee is not None:
         payload["prepayment_fee"] = prepayment_fee
     return payload
+
+
+#: S11 이 InsuQ 에 알릴 수 있는 변경 종류 (계약 `notify-asset-change.json` 의 enum).
+ASSET_CHANGE_TYPES = ("REMOVE", "ADD")
+
+
+def build_notify_asset_change_payload(
+    decision_id: str,
+    request_chain_id: str,
+    change_type: str = "REMOVE",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """InsuQ notify-asset-change 스킬(S11, 부보 목적물 변경 통지) payload.
+
+    **S12 와 정반대로 서명 뒤에 온다.** S12(정산)는 담보를 푸는 수단이라 서명보다 **앞서야**
+    했지만, S11 은 계약이 *"설비 처분 **확정**에 따른"* 변경이라고 못박는다 — 확정은 서명이다.
+    미서명 draft 로 통지하면 보험사가 아직 일어나지 않은 처분으로 증권을 고치게 된다.
+    그래서 `signed_at IS NULL` 이면 조립하지 않는다.
+
+    ⛔ **부보되지 않은 자산은 통지하지 않는다** — `insured=false` 이거나 `policy_id` 가 없으면
+    InsuQ 에 고칠 증권 자체가 없다. 시드의 `AST-L3-LIFT` 가 실제로 그런 자산이다.
+    빈 문자열로 채워 보내면 수신부가 `schema_validation_failed` 를 낸다
+    (`request-withdrawal` 이 `error_code=None` 으로 정확히 그 400 을 맞은 전례가 있다).
+
+    `effective_date` 는 **서명일**이지 오늘이 아니다 — 부보 목적물이 빠지는 시점은
+    처분이 확정된 날이고, 통지가 늦어도 그 사실은 바뀌지 않는다.
+    """
+    if change_type not in ASSET_CHANGE_TYPES:
+        raise ValueError(
+            f"알 수 없는 change_type: {change_type} (가능: {', '.join(ASSET_CHANGE_TYPES)})"
+        )
+
+    with connect(db_path) as con:
+        row = con.execute(
+            "SELECT d.decision_id, d.signed_at, a.asset_id, a.name, a.building_id,"
+            "       a.policy_id, a.insured"
+            "  FROM decisions d JOIN assets a ON a.asset_id = d.asset_id"
+            " WHERE d.decision_id = ?",
+            (decision_id,),
+        ).fetchone()
+
+    if row is None:
+        raise ValueError(f"알 수 없는 decision_id: {decision_id}")
+    if not row["signed_at"]:
+        raise ValueError(
+            f"{decision_id} 는 서명 전이다 — 처분 확정 통지(S11)는 서명 뒤에만 보낸다."
+        )
+    if not row["insured"] or not row["policy_id"]:
+        raise ValueError(
+            f"{row['asset_id']} 는 부보 자산이 아니다 — InsuQ 에 변경할 증권이 없다."
+        )
+    if not row["building_id"]:
+        raise ValueError(f"{row['asset_id']} 에 building_id 가 없다 — 부보 목적물을 특정할 수 없다.")
+
+    return {
+        "requester": {
+            "finallq_company_id": get_finallq_company_id(db_path) or "",
+            "building_id": row["building_id"],
+            "policy_id": row["policy_id"],
+        },
+        "request_chain_id": request_chain_id,
+        "building_id": row["building_id"],
+        "policy_id": row["policy_id"],
+        "change_type": change_type,
+        # 계약은 배열이다. MaintQ 의 처분 결정은 자산 1건 단위라 항상 1개짜리 배열이다 —
+        # 여러 건을 한 통지로 묶으려면 결정도 묶여야 하므로 그건 다른 스킬이다.
+        "equipment": [row["name"]],
+        "effective_date": str(row["signed_at"])[:10],
+        "decision_id": row["decision_id"],
+    }

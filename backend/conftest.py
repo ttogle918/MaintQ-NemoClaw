@@ -110,19 +110,23 @@ def link_finallq(db_path: str):
 def seed_assets(db_path: str):
     """S13 payload 파생에 필요한 자산 2건 + 소유권 점검 2행을 심는다.
 
-    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산
-    `AST-NO-INSPECTION`  — `last_inspection_date` 가 NULL (D62 키 생략 검증용)
+    `AST-L3-CONV`        — 점검일이 **있는** 정상 자산. `acquisition_cost`(원가)와
+                           `book_value`(장부가액)를 **둘 다** 갖는다 — 원가는 실어 보내고
+                           장부가액은 보내지 않는다는 D138 경계를 한 자산에서 대조하려면
+                           둘이 함께 있어야 한다(하나만 있으면 "안 보낸다"가 자동 성립한다)
+    `AST-NO-INSPECTION`  — `last_inspection_date`·`acquisition_cost` 가 NULL (D62 키 생략 검증용)
     """
     con = dbcompat.connect_dsn(db_path)
     try:
         con.execute(
             "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
             " acquired_at, last_inspection_date, inspection_valid_until,"
-            " safety_inspection_target)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " safety_inspection_target, acquisition_cost, book_value)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "AST-L3-CONV", "3라인 컨베이어", "설비", 3, "BLD-A",
                 "2019-05-01", "2026-03-02", "2027-03-01", True,
+                80_000_000, 40_000_000,
             ),
         )
         con.execute(
@@ -178,6 +182,59 @@ def seed_lien_decisions(db_path: str):
                 " evidence_bundle, bundle_hash, verdict_at_signing, state, reason)"
                 " VALUES (?, ?, 'SALE', '{}', 'sha256:test', 'BLOCKED', 'draft', '테스트')",
                 (did, aid),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
+@pytest.fixture()
+def seed_signed_disposals(db_path: str):
+    """S11(notify-asset-change) payload 파생용 — 서명·부보 조합 4가지를 심는다.
+
+    `DEC-SIGNED`    → `AST-INSURED`   : 서명 O · 부보 O          (정상 통지 대상)
+    `DEC-DRAFT`     → `AST-INSURED`   : **서명 X** · 부보 O       (확정 전이라 통지 금지)
+    `DEC-UNINSURED` → `AST-UNINSURED` : 서명 O · **부보 X**       (고칠 증권이 없다)
+    `DEC-NOBLDG`    → `AST-NOBLDG`    : 서명 O · 부보 O · **building_id 없음**
+    """
+    con = dbcompat.connect_dsn(db_path)
+    try:
+        for aid, name, bldg, policy, insured in (
+            # 증권번호는 InsuQ 발급 체계다 — BLD-C = SBP-2022-0003 (접두사가 3글자인 유일한 건물)
+            ("AST-INSURED", "3라인 금속 컨베이어", "BLD-C", "SBP-2022-0003", True),
+            ("AST-UNINSURED", "3라인 리프트", "BLD-C", None, False),
+            # ⚠ building_id 가 NULL 이라 **대응 증권이 원리적으로 없다** — 이 픽스처가 보는 것은
+            #   "건물 없이는 부보 목적물을 특정할 수 없다"는 거부 경로이고, 값은 형식만 유효하면 된다
+            ("AST-NOBLDG", "건물 미상 설비", None, "SB-2023-0001", True),
+        ):
+            con.execute(
+                "INSERT INTO assets (asset_id, name, category, line_id, building_id,"
+                " policy_id, insured) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (aid, name, "설비", 3, bldg, policy, insured),
+            )
+        # 서명 행에는 서명자가 있어야 한다 — `decisions_check1` 이 DDL 로 강제한다(D81).
+        con.execute(
+            "INSERT OR IGNORE INTO users (user_id, display_name, role)"
+            " VALUES ('mgr-01', '보전팀장', 'manager')"
+        )
+        for did, aid, signed in (
+            ("DEC-SIGNED", "AST-INSURED", "2026-08-15 09:30:00"),
+            ("DEC-DRAFT", "AST-INSURED", None),
+            ("DEC-UNINSURED", "AST-UNINSURED", "2026-08-15 09:30:00"),
+            ("DEC-NOBLDG", "AST-NOBLDG", "2026-08-15 09:30:00"),
+        ):
+            # `verdict_at_signing` 은 CLEAR|CONDITIONAL 만 서명될 수 있다(`decisions_check2`).
+            con.execute(
+                "INSERT INTO decisions (decision_id, asset_id, decision_type,"
+                " evidence_bundle, bundle_hash, verdict_at_signing, state, reason,"
+                " signed_at, reviewed_by)"
+                " VALUES (?, ?, 'DISPOSAL', '{}', 'sha256:test', 'CLEAR', ?, '테스트', ?, ?)",
+                (
+                    did, aid,
+                    "signed" if signed else "draft",
+                    signed,
+                    "mgr-01" if signed else None,
+                ),
             )
         con.commit()
     finally:

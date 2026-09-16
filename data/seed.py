@@ -8,6 +8,7 @@
        + actions 병합 검증(㉚, MQ-919) + part_lifecycle_mock(㉛)
        + Sprint 11 deadlines·incidents·ownership_checks·risk_profile DDL 확정(㉜~㉟, MQ-1101)
        + Sprint 15 error_codes IE5 병합(㊱) + Sprint 17 po_drafts finance 확장(㊲~㊵, MQ-1702)
+       + InsuQ 발급 증권번호 체계 고정(㊶~㊷, 2026-09-16)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -795,7 +796,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 0,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SB-2023-0001",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
         "overhaul_years_ago": None,
@@ -815,7 +816,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 0,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "DS-2024-0002",
         "safety_inspection_target": 1,
         "controller_generation": "S100/2018",
         "overhaul_years_ago": 3,
@@ -834,7 +835,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 0,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "DS-2024-0002",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2018",
         "overhaul_years_ago": None,
@@ -856,7 +857,7 @@ ASSETS: list[dict] = [
         "lien_creditor": "한빛은행 여신부",
         "lien_consent_ref": None,  # 동의서 없음 → LIEN-CONSENT trigger 재료
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SBP-2022-0003",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
         "overhaul_years_ago": None,
@@ -875,7 +876,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 0,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SBP-2022-0003",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2020",
         "overhaul_years_ago": None,
@@ -922,7 +923,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 0,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SB-2024-0004",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2022",
         "overhaul_years_ago": None,
@@ -943,7 +944,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": 1,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SB-2024-0004",
         "safety_inspection_target": 0,
         "controller_generation": "S100/2012",
         "overhaul_years_ago": 6,
@@ -963,7 +964,7 @@ ASSETS: list[dict] = [
         "tax_credit_applied": None,
         "has_lien": 0,
         "insured": 1,
-        "policy_id": "POL-2026-FIRE-01",
+        "policy_id": "SB-2024-0004",
         "safety_inspection_target": 0,
         "controller_generation": "iG5A/2014",
         "overhaul_years_ago": None,
@@ -1276,7 +1277,7 @@ PART_BY_ACTION = {
 # ── partner_links 시드 (D92·D95) ─────────────────────────────────────────
 # ⚠ 시드 전제(목업)다 — 실제 연결 승인·발급값이 아니다. PARTNER_LINKS_MOCK 참조.
 # ★ InsuQ building 행의 external_ref 는 **전부 NULL** — 증권 식별자의 정본은 assets.policy_id 다 (D95).
-#   건물 3행에 `POL-2026-FIRE-01` 을 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
+#   건물 3행에 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
 #   결(grain)만 바꿔 재발시키는 것이 된다. 확정안에서 복제는 **0건**이고 검사 ㉔ 가 그걸 본다.
 # ★ BLD-D 가 대조군인 이유: 자산 3건이 **전부 부보(insured=1)** 돼 있는데도 미연결이다 —
 #   "부보돼 있어도 A2A 연결 승인이 없으면 못 쏜다"가 한눈에 보인다. BLD-C 를 쓰면
@@ -3309,6 +3310,50 @@ def verify(con: DbConnection, with_codes: bool, db_path: Path) -> list[tuple[str
         "㊵ 미등록 finance_decided_by → FK 거부 (Sprint 17 MQ-1702)",
         fin_fk_rejected,
         fin_fk_detail,
+    )
+
+    # ㊶ policy_id 는 InsuQ 발급 체계를 그대로 적는다 — 접두사가 **상품별로 2~3글자**다
+    #    (SB 수퍼비즈니스 · DS 동산종합 · SBP 삼성비지니스패키지).
+    #    ⚠ 부재 검사라 **양성 축을 함께 건다** (CLAUDE.md 규약) — `bad == 0` 만 보면
+    #      쿼리가 0행을 돌려줘도 통과한다. 스캔된 행 수와 **접두사 종류 수**를 판정에 넣는다.
+    #      접두사를 2글자로 가정해 짜면 SBP 하나만 빠지는데, 종류 수 축이 그걸 잡는다.
+    pol_rows = con.execute(
+        "SELECT asset_id, policy_id FROM assets WHERE policy_id IS NOT NULL"
+    ).fetchall()
+    pol_re = re.compile(r"^[A-Z]{2,3}-\d{4}-\d{4}$")
+    pol_bad = [f"{r['asset_id']}={r['policy_id']}" for r in pol_rows if not pol_re.match(r["policy_id"])]
+    pol_prefixes = {r["policy_id"].split("-")[0] for r in pol_rows}
+    check(
+        "㊶ policy_id 형식 [A-Z]{2,3}-NNNN-NNNN + 접두사 3종 생존 (InsuQ 발급 체계)",
+        not pol_bad and len(pol_rows) == 8 and pol_prefixes == {"SB", "DS", "SBP"},
+        f"스캔 {len(pol_rows)}행 · 위반 {len(pol_bad)}건{' ' + str(pol_bad) if pol_bad else ''}"
+        f" · 접두사 {sorted(pol_prefixes)}",
+    )
+
+    # ㊷ 건물 ↔ 증권 매핑이 InsuQ 표와 **행 단위로** 일치하는가.
+    #    InsuQ 쪽 해소는 2단계다(파트너 건물 매핑 → 사업장+증권 동시 조회). 둘 중 무엇이
+    #    실패해도 응답은 똑같이 `policy_not_found` 라 **응답으로는 원인을 못 가른다** —
+    #    그래서 우리 쪽에서 미리 고정한다. 출처: InsuQ 세션 회신 (2026-09-16).
+    insuq_map = {
+        "BLD-A": "SB-2023-0001",
+        "BLD-B": "DS-2024-0002",
+        "BLD-C": "SBP-2022-0003",
+        "BLD-D": "SB-2024-0004",
+    }
+    pair_rows = con.execute(
+        "SELECT building_id, policy_id, count(*) AS n FROM assets"
+        " WHERE policy_id IS NOT NULL GROUP BY building_id, policy_id"
+    ).fetchall()
+    pair_bad = [
+        f"{r['building_id']}→{r['policy_id']}"
+        for r in pair_rows
+        if insuq_map.get(r["building_id"]) != r["policy_id"]
+    ]
+    check(
+        "㊷ 건물↔증권 매핑이 InsuQ 발급표와 일치 (엇갈리면 policy_not_found)",
+        not pair_bad and len(pair_rows) == 4,
+        f"짝 {len(pair_rows)}종 · 불일치 {len(pair_bad)}건{' ' + str(pair_bad) if pair_bad else ''}"
+        f" · {[(r['building_id'], r['policy_id'], r['n']) for r in pair_rows]}",
     )
 
     return results

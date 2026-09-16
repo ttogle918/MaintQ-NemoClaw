@@ -9,9 +9,9 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D135**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D141**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
-- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 14종** §8~§21, 총 21종 —
+- `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
 - `docs/05_DB_SCHEMA.md` — 테이블 **24절(실제 25개)** + 시드 케이스 맵
   (2026-09-04: `§24 manual_chunks`(dense 임베딩, D117) 절을 추가해 문서와 실제 DB 를
@@ -60,10 +60,22 @@
 ## 기술 스택·컨벤션
 
 - Python 3.11+, FastAPI, SQLite(목업), MCP 서버는 backend와 프로세스 분리 (D15)
-- 포매터: ruff (PostToolUse 훅으로 자동 실행 — .claude/settings.json)
+- 린터: **ruff check** — `.claude/hooks/lint_edited.py`(PostToolUse)가 **방금 편집한 파일 하나만**
+  `ruff check --fix` 로 훑는다(안전한 자동 수정만). Stop 훅은 `ruff check data backend mcp_server
+  spikes eval` 전체를 0.2초에 돌린다
+  🔴 **정정 (2026-09-09 실측)**: 이 줄은 오래 *"포매터: ruff (PostToolUse 훅으로 자동 실행)"* 이었는데
+  **두 가지가 함께 틀렸다.** ㉠ 그 훅은 `python -m ruff format .` 이라 **한 번도 돈 적이 없다** —
+  시스템 파이썬에 ruff 가 없어 매번 `No module named ruff` 로 죽었고 `|| exit 0` 이 삼켰다.
+  포맷이 유지된 건 훅이 아니라 사람이 `uv run ruff check` 를 돌렸기 때문이다.
+  ㉡ **이 레포의 규약은 포매터가 아니라 린터다** — `ruff format` 을 실제로 재 보면
+  **189개 중 110개 파일을 재포맷한다.** 켜면 기능 3줄 변경에 스타일 500줄이 섞인다.
+  전면 스타일 적용을 하려면 훅이 아니라 **의도된 단독 커밋**으로 할 것.
+  ⚠ Stop 훅도 같은 병이었다 — `pytest eval/` 을 가리켰는데 `eval/` 에는 테스트 파일이 **0개**라
+  `no tests ran` 만 찍고 끝났다. **훅 3개 중 2개가 조용히 무동작이었다.**
+  이 문서가 스스로 정한 *"부재 검사에는 liveness 앵커를 함께 건다"* 가 훅에는 적용되지 않은 자리다.
 - 도구는 `mcp_server/tools/` 파일당 1개, status 필드로 실패 반환 (예외 던지지 말 것, D9)
   - **필수 파라미터에 기본값을 두지 않는다** (D80) — 인자 누락은 MCP 스키마가 앞단에서 막는다. D9 는 도구 **로직**의 실패에 대한 규칙이다
-  - 확장 **14종**(코어 7 + 확장 14 = 21종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
+  - 확장 **15종**(코어 7 + 확장 15 = 22종)은 `MAINTQ_TOOLS_PROFILE=full` 에서만 등록된다.
     **기본은 `core`** (D69·**D88** — 평가는 `core` 에서만 인정)
 - SSE 이벤트는 token / tool_call / tool_result / block 4종 고정 (D14·D22)
 - 커밋 메시지: 한국어 OK, 접두어 `[M1]`~`[M4]` 마일스톤 표기
@@ -123,11 +135,12 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` — **8파일 107건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 156건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
-  파일별 실측: `test_auth_header` 5 · `test_client` 16 · `test_credentials` 12 ·
-  `test_payloads` 25 · `test_trace` 8 · `routers/test_a2a` 28 · `test_po_a2a_trigger` 8 ·
-  `test_po_a2a_dispatch` 5 = **107**.
+  파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **26**(16+차단기 연동 6+D139 4) ·
+  **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` **40**(25+S11 9+D138 3+D141 3) ·
+  `test_trace` 8 · `routers/test_a2a` **33**(28+S11 5) · `test_po_a2a_trigger` 8 ·
+  `test_po_a2a_dispatch` 5 = **156**(2026-09-10 D138 3 + D139 4 · 2026-09-11 D141 멱등키 5).
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -140,9 +153,9 @@
   앞부분만 잘라 오기 때문이다 — **요약 줄 전체**를 보거나 `--collect-only` 로 교차 확인한다.
   ⚠ 실행 커맨드(**pytest-asyncio 추가 필요**): **`uv run --with pytest --with pytest-asyncio
   python -m pytest backend/a2a/test_auth_header.py backend/a2a/test_client.py
-  backend/a2a/test_credentials.py backend/a2a/test_payloads.py backend/a2a/test_trace.py
-  backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
-  backend/services/test_po_a2a_dispatch.py -q`**
+  backend/a2a/test_circuit.py backend/a2a/test_credentials.py backend/a2a/test_payloads.py
+  backend/a2a/test_trace.py backend/routers/test_a2a.py backend/routers/test_po_a2a_trigger.py
+  backend/services/test_po_a2a_dispatch.py -q`** (또는 `backend/a2a/` 디렉터리 통째로)
   (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
@@ -154,10 +167,24 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 18파일 255건이다** (7파일군 128 + A2A 8파일군 107 + 이 3파일 20).
-  목록이 맞는지 보려면 `find backend data -name 'test_*.py' -not -path '*__pycache__*'`
-  가 반환하는 파일이 전부 위 세 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
-  누락이 반복된다(이번까지 **세 번째**다).
+  📌 **pytest 총계는 이제 22파일 348건이다** (7파일군 128 + A2A 9파일군 156 + 서비스 3파일 20 + mcp_server 3파일 44).
+  🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
+  신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
+  `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
+  **130 → 144** 를 만들었다. 차단기는 **프로세스 전역
+  상태**라 `test_client.py` 에 `registry().reset()` autouse 픽스처가 함께 들어갔다 —
+  **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
+  (도입 즉시 실측으로 드러났다).
+  🔴 **2026-09-11 — `mcp_server/tools/test_*.py` 3파일 43건이 목록 밖이었다** (네 번째 누락).
+  `test_assess_equipment_loan` **17**(2026-09-11 — D139 5xx 분리를 형제에서 이식, 16→17) · `test_search_insurance_clause` 13 · **`test_assess_used_equipment_loan` 14**(신규, D140).
+  ⚠ **가드 자신에게 사각지대가 있었다** — 아래 확인 커맨드가 `backend data` 만 훑어
+  `mcp_server/` 를 **아예 보지 않았다.** 누락을 막으려고 세운 검사가 그 누락을 못 봤다.
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/tools/ -q`** → **44건**
+  (A2A 자격증명을 안 다루는 얇은 HTTP 래퍼라 `httpx.post` monkeypatch 만으로 돈다 — DB 불필요)
+
+  목록이 맞는지 보려면 **`find backend data mcp_server -name 'test_*.py' -not -path '*__pycache__*'`**
+  가 반환하는 파일이 전부 위 네 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
+  누락이 반복된다(이번까지 **네 번째**다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
 
 - `spikes/` — **34종**(`ls spikes/*.py` 는 38개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
   `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
@@ -216,11 +243,15 @@ spikes **34스위트 / 1,212건**(2026-09-06 — 1,202 + `eval_score_contract` *
 `demo_recommendation_1_and_2.py` 는 PASS/FAIL 단언 없는 시연 스크립트)는 의도적으로 공식
 목록 밖이고, 나머지 2개(`a2a_outbound_contract.py`·`a2a_e2e_integration_spike.py`)는 진짜
 계약 스파이크이지만 아직 공식 33종에 편입할지 결정 전이다 — 포팅은 완료됨,
-`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **41건**(불변 아님 —
+`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **43건**(불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
-`error_codes` IE5 5건 병합 검증(D109)) · pytest **128건**(위 커맨드 정정 참고)
+`error_codes` IE5 5건 병합 검증(D109) · **㊶~㊷ InsuQ 발급 증권번호 체계 고정(2026-09-16)** —
+`policy_id` 목업 1종을 실번호 4종으로 바꾸며 형식(`[A-Z]{2,3}-\d{4}-\d{4}`)과
+건물↔증권 짝을 함께 잠갔다. ⚠ **접두사가 2~3글자 가변**이라(`SB`/`DS`/`SBP`) 형식 검사에
+**양성 축(접두사 3종 생존)을 함께 걸었다** — `{2}` 로 좁히면 `SBP` 2행에서 FAIL 하는 것을
+뮤턴트로 실증했다) · pytest **128건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
 프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.

@@ -3,7 +3,7 @@ import type { TraceSession } from "../types";
 /** M2 에서 traces 테이블 / SSE tool_call·tool_result 로 대체된다 (D21). */
 export const TRACE_S1: TraceSession = {
   label: "SESSION #S1 · 오케스트레이션",
-  meta: "2.1s · 5 calls",
+  meta: "2.1s · 이번 턴 5회",
   accent: "blue",
   steps: [
     {
@@ -41,7 +41,7 @@ export const TRACE_S1: TraceSession = {
 
 export const TRACE_S3: TraceSession = {
   label: "SESSION #S3 · 이력 기반 판단 · 분기",
-  meta: "1.9s · 3 calls",
+  meta: "1.9s · 이번 턴 3회",
   accent: "orange",
   steps: [
     {

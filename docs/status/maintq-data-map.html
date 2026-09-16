@@ -216,21 +216,21 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-08-18, Sprint 13에서 무변경)</b>입니다 — 문서가 주장하는 값이 아닙니다.</p>
+      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-09-10)</b>입니다 — 문서가 주장하는 값이 아닙니다. ⚠️ <b>기능 축(14종)은 2026-08-19 분류 그대로</b>입니다 — 이후 더해진 것(A2A 발신 6종 · 결재 문서 렌더 · 재무부 승인)은 이 목록에 별도 항목으로 잡혀 있지 않습니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-08-19</b><span style="display:block;font-size:11px;margin-top:3px">로드맵 갱신 2026-08-24(D119)</span></div>
+    <div class="asof">기준 시점<b>2026-09-10</b><span style="display:block;font-size:11px;margin-top:3px">수치 갱신 2026-09-10(D138)</span></div>
   </header>
 
   <div class="stats">
     <div class="stat g">
       <div class="n">14</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 18종(코어 7 + 확장 11) · 회귀 976건</div>
+      <div class="s">MCP 도구 21종(코어 7 + 확장 14) · 회귀 1,548건</div>
     </div>
     <div class="stat w">
       <div class="n">0</div>
       <div class="l">남은 기능</div>
-      <div class="s">Sprint 11 이 P36(F5·F6 감시 계층, D102)까지 닫음. 다음은 백로그 P39(화면 직접 초안 생성)뿐</div>
+      <div class="s">P36(F5·F6 감시 계층)에 이어 <b>P39(화면 직접 초안 생성)도 2026-09-03 닫힘</b>. 남은 A2A 항목은 전부 상대 스택 기동·계약 합의 등 외부 의존</div>
     </div>
     <div class="stat a">
       <div class="n">9</div>
@@ -240,7 +240,7 @@
     <div class="stat">
       <div class="n">16</div>
       <div class="l">생성한 데이터</div>
-      <div class="s">DB 24테이블 · 시드 35건 검증 · <b>actions 결측 3자 대조 ★</b></div>
+      <div class="s">DB 25테이블(Postgres) · 시드 41건 검증 · <b>actions 결측 3자 대조 ★</b></div>
     </div>
   </div>
 
@@ -265,7 +265,7 @@
     <code>D102</code>로 본 범위에 편입 — Sprint 7이 한 번 v2로 제외했던 것을 MVP 완료 기준(핵심 1~6 + 확장 7~12) 달성 후 다시 열었습니다.
     신규 테이블 4종(<code>deadlines</code>·<code>incidents</code>·<code>ownership_checks</code>·<code>risk_profile</code>, 44행)과
     읽기 전용 도구 2종(<code>track_deadlines</code>·<code>assess_risk_grade</code>)이 더해져 <b>기능 14종 전부 완료</b>,
-    도구 <b>18종</b>(코어 7 + 확장 11), 테이블 <b>24개</b>가 됐습니다. 새 데이터는 전부
+    도구 <b>18종</b>(코어 7 + 확장 11), 테이블 <b>24개</b>가 됐습니다. (그 뒤 <b>도구 21종 · 테이블 25개</b>가 됐습니다 — 2026-09-10 실측) 새 데이터는 전부
     <span class="d mock" style="display:inline-block">생성한 데이터</span> — <b>배지가 실제 데이터로 옮겨간 항목은 이번에 없습니다.</b>
     <code>detect_law_revision</code>(S17)만 이번에도 v2 제외 그대로입니다.
   </div>
@@ -307,7 +307,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 976건 · 32스위트</span>
+      <span class="count">M1~M4 · 회귀 1,548건 · 34스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -651,8 +651,8 @@
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">16종 · DB 24테이블 실측(08-18, 무변경) · 갱신 2026-08-19</span></div>
-    <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> DB 규모는 2026-08-18 <code>data/maintq.db</code> 조회 결과입니다(Sprint 13은 DB에 쓰지 않아 그대로입니다).</p>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">16종 · DB 25테이블 실측(2026-09-10, Postgres) · 갱신 2026-09-10</span></div>
+    <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> DB 규모는 2026-09-10 조회 결과입니다 — <b>저장소가 SQLite 에서 PostgreSQL 로 바뀌었고</b>(Sprint 16 · D116), <code>manual_chunks</code>(dense 임베딩, D117)가 더해져 25테이블입니다.</p>
     <div class="twrap">
       <table>
         <thead><tr><th>데이터</th><th class="num">실측 규모</th><th>만든 방식</th><th>왜 목업인가</th><th>쓰는 기능</th></tr></thead>
@@ -779,7 +779,7 @@
               8채널 · 16kHz · 32bit float · 10초 wav.
               <b>① <code>train.csv</code>의 <code>LABEL</code>이 1,279행 전부 0(정상)</b> — 지도학습 분류가 아니라 비지도 이상탐지 과제다.
               <b>② <code>test.csv</code>에 <code>LABEL</code>이 없고 정답 미공개</b> → <b>라벨된 고장 샘플 0건</b>이라 "실제 고장 사례" 확보 목적으로도 못 쓴다.
-              ③ 진단 경로가 에러코드 텍스트 기반이고(D1) 도구 18종에 오디오 입력이 없다. 대상도 <b>팬 소리 vs 인버터</b>로 다르다(D6·D13).
+              ③ 진단 경로가 에러코드 텍스트 기반이고(D1) 도구 21종에 오디오 입력이 없다. 대상도 <b>팬 소리 vs 인버터</b>로 다르다(D6·D13).
               <span class="sub">붙는다면 백로그 P10(예지보전)이나, 현재 P10 입력이 <code>error_history</code>(D29)라 입력 축 신설이 선행된다. 상세는 <code>data/raw/INDEX.md §4</code></span>
             </td>
           </tr>

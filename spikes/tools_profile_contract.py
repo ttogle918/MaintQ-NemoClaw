@@ -13,7 +13,7 @@
 
 ## 무엇을 보는가
 
-  ① `full` 기동 → 도구 **21종**(코어 7 + 확장 14). 부분집합이 아니라 **집합 동일**
+  ① `full` 기동 → 도구 **22종**(코어 7 + 확장 15). 부분집합이 아니라 **집합 동일**
   ② D80 — `classify_expenditure`·`assess_repair_value`·`generate_disposal_document` 의
      `inputSchema.required` 집합. 기본값을 두는 순간 optional 로 노출되어 LLM 이 인자 없이
      호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다.
@@ -77,12 +77,15 @@ EXT_TOOLS = {
     "search_insurance_clause",
     "assess_equipment_loan",
     "get_document_facts",  # D125 — 읽기 전용 필드맵 조회
+    "assess_used_equipment_loan",  # D140 — S13 트리거 (자산 기반)
 }
 
 # D80 — 필수 파라미터에 기본값을 두지 않는다. 이 집합이 **정확히** 일치해야 한다:
 #   빠지면(=기본값이 생기면) LLM 이 인자 없이 부를 수 있고,
 #   늘면 선택적이어야 할 값이 필수가 되어 정당한 호출이 막힌다.
 EXPECTED_REQUIRED = {
+    # D80 — S13 은 두 인자 전부 필수 (원가·연식은 서버가 파생한다, D138)
+    "assess_used_equipment_loan": {"asset_id", "loan_amount"},
     "classify_expenditure": {"part_class", "repair_scope", "amount"},
     "assess_repair_value": {"equipment_id", "failed_part", "repair_cost"},
     # `asset_id`·`equipment_id` 는 either-or 라 스키마상 optional 이다 (D80 의 공백).
@@ -157,7 +160,7 @@ async def run(db: Path) -> None:
     # ─ ① 집합 동일 — 부분집합이 아니다 (이 스위트의 존재 이유)
     names = set(full)
     check(
-        "full 프로파일 → 도구 21종 (코어 7 + 확장 14, 집합 동일)",
+        "full 프로파일 → 도구 22종 (코어 7 + 확장 15, 집합 동일)",
         names == CORE_TOOLS | EXT_TOOLS,
         f"{len(names)}종 · 누락={sorted((CORE_TOOLS | EXT_TOOLS) - names) or '없음'} "
         f"· 초과={sorted(names - (CORE_TOOLS | EXT_TOOLS)) or '없음'}",
