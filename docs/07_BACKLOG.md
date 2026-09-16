@@ -15,7 +15,7 @@ MVP에서 의도적으로 제외한 기능. 우선순위 순.
 | P6 | 발주서 내보내기 | 승인된 발주서를 PDF/이메일로 공급사에 발송하는 마지막 마일 | `suppliers.contact`, 승인 시점 `unit_price` 스냅샷(D31) |
 | P7 | 모델 자동 식별 고도화 | 형명(nameplate) 텍스트/사진으로 모델 자동 판별, 모호 시 확인 질문 | `equipment.model` + 헤더 장비 선택기(`GET /api/equipment`) |
 | P8 | 음성 인터페이스 | 현장 작업자(장갑 착용) 대상 STT/TTS | UI는 이미 있음 — `VoiceBar` 컴포넌트(듣는 중 상태·파형). STT 연결만 남음 |
-| P9 | 예산/승인 한도 체크 | 금액 구간별 승인 단계 차등 (팀장→부장) | `unit_price`×`qty`가 서버 계산값이라 신뢰 가능(D31). `state` 확장 + `ALLOWED_FROM` 규칙 추가로 대응 |
+| **P9** 🟡 **부분 착지 (Sprint 17, D119)** | 예산/승인 한도 체크 | 금액 구간별 승인 단계 차등 (팀장→부장). 🔵 **2026-09-16 갱신 — 이 칸이 「미착수」인 채로 낡아 있었다.** Sprint 17 이 **재무부 승인 단계**를 신설해 `manager` 승인과 분리했고(`po_drafts.state` 에 `finance_approved`/`finance_rejected` 추가), 내부통제 **4종**을 `data/expenditure_limits.py` 순수 함수로 넣었다 — 건당 예산 한도(`BUDGET_LIMIT` 500만) · 부서 1일 누적 한도(`DAILY_LIMIT` 1,500만) · FDS · SoD(직무분리). pytest 16건. **즉 「2단계 결재」와 「한도 판정」은 이미 돈다.** ⛔ **남은 것은 «금액 구간별 차등»** — 지금은 금액과 무관하게 항상 재무부 단계를 타고, 한도는 통과/초과 판정에만 쓰인다. 구간별로 결재 단계 수를 바꾸는 것은 미착수다. ⚠ 두 상수는 **목업 값**이다(코드 주석 명시) | `unit_price`×`qty`가 서버 계산값이라 신뢰 가능(D31). `state` 확장 + `ALLOWED_FROM` 규칙 추가로 대응 |
 | P10 | 예지보전 연계 | 반복 감지 데이터 축적 → 고장 예측 모델의 입력으로 | `POST /api/equipment/{id}/errors`(D29)로 **실제 이력이 쌓이는 경로가 생겼다**. `po_drafts.error_code`(D33)로 "이 코드로 몇 번 발주됐나"도 질의 가능 |
 | **P11** | ✅ **완료 (Sprint 15, 2026-08-21)** — **기종 확장 (IE5, D109)** | iS7, G100 등 추가 → 1차로 **IE5** 를 model enum 에 편입했다. P29(IE5 추출)가 "manifest 등재·enum 확장은 P11 의 일"이라고 미뤄둔 것이 이번에 해소됐다 — `manifest.json` IE5 표준판 등재(role:primary) + `error_codes.json` IE5 5건 병합(65→70, D109) + `lookup_error_code`·`rag_search_manual`·`create_po_draft`·`create_repair_record`·`inventory`·`prompts.py` 등 MODELS/VALID_MODELS 3-tuple 확장. 🔴 **실측 정정** — 원안의 "enum 확장 지점 4곳"은 부정확했다. 실제로는 **최소 8곳**(`mcp_server/tools/lookup_error_code.py`·`rag_search_manual.py`·`create_po_draft.py`·`create_repair_record.py`·`data/inventory.py`·`backend/manifest.py`·`backend/agent/prompts.py`·`mcp_server/rag.py`) + **하드코딩 에러 메시지 4곳**(`rag_search_manual.py`·`create_po_draft.py`·`data/inventory.py` 3곳의 에러 메시지 + `backend/agent/prompts.py` 의 `RULES` 규칙 9 텍스트 — 이 마지막 것은 D109 최초 실측에도 없다가 Stage 2 reviewer 1차 게이트가 추가로 잡아냈다)였다. "DB `CHECK(model IN ...)`"는 `error_codes` 가 아니라 **`equipment` 테이블**에 있었고 D109 ⓒ 에 따라 **의도적으로 미확장**(물리 설비 미시드)이며, "프론트 타입" 지점은 **애초에 존재하지 않았다**. 안전 문구(`SAFETY_BASELINE`)·`equipment` 물리 설비는 명시적으로 범위 밖(D109 ⓐⓒ 유지). ⚠ **RAG는
 범위 밖이 아니게 됐다** — 같은 날 **D110**이 D109 ⓑ("RAG는 별도 스프린트 대상")를 재조사로
@@ -164,7 +164,14 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 > 스킬까지 멈춘다(2026-08-24 assess-loan 드리프트 때 실제로 그런 상황이었다).
 > 회귀 `test_circuit.py` 17건 + `test_client.py` 16→22건.
 >
-> ⚠ **2026-08-24 추가 대기열**: FinAllQ 세션이 크로스세션 메시지로 나머지 5개 스킬(advise-hedge·
+> ⚠ **2026-08-24 추가 대기열** — 🔵 **2026-09-16 갱신: 5개 중 2개는 이미 착지했다.**
+> `request-settlement`(S12, 2026-08-30 — 응답 `lien_released` 가 MaintQ 상태를 바꾸는 첫 스킬) ·
+> `assess-used-equipment-loan`(S13, 2026-08-30 → D140 이 MCP 도구로도 개방)이 완료다.
+> **남은 3개**는 `advise-hedge` · `advise-financing` · `advise-replacement-financing` 이고,
+> 셋 다 **자문(advise) 계열**이라 «받아서 무엇을 바꾸는가»가 MaintQ 쪽에 정의돼 있지 않다 —
+> 착수 전에 그것부터 정할 것. ⚠ 아래 *"지금은 넘어가고 **시연 이후** 착수"* 의 그 시연은
+> **2026-08-29 에 끝났다** — 더 이상 대기 사유가 아니다.
+> (원문 유지) FinAllQ 세션이 크로스세션 메시지로 나머지 5개 스킬(advise-hedge·
 > advise-financing·request-settlement·assess-used-equipment-loan·advise-replacement-financing)의
 > 요청/응답 계약과 curl 검증 결과를 선제 공유해 왔다(`docs/sessions/2026-08-24_finallq_conversion.md`
 > 는 이 메시지를 포함하지 않는다 — 별도 시각의 메시지). 이번 시연 범위가 S5·S8 두 시나리오로
@@ -201,7 +208,11 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
      표가 문서당 9~13개라 평문 덤프였으면 전부 뭉개졌다.
   **미리보기 5종은 바이트 동일**하다(골든 `spikes/golden/*.txt` 가 고정) — 리팩터가
   화면에 나가는 문자열을 한 글자도 안 바꿨다.
-  회귀: `spikes/docx_contract.py` **58건 신설** · `tools_profile_contract` 20→21종 ·
+  회귀: `spikes/docx_contract.py` **63건 신설**(🔴 **2026-09-16 정정** — 오래 **58** 로
+  적혀 있었다. 러너 실측이 63 이고 CLAUDE.md 기준선도 63 이라 **이 줄만 어긋나 있었다**.
+  구현 도중 값을 적고 마지막에 안 고친 것으로 보인다) · `tools_profile_contract` 20→21종
+  (⚠ 지금은 **22종**이다 — D140 이 `assess_used_equipment_loan` 을 더했다. 이 20→21 은
+  D124 시점 기록이다) ·
   `write_tool_contract` **30건 그대로**(쓰기 경로 무증가 = D10 무손상의 증거).
   아래는 착수 전 조사 기록 — 경위 참고용으로 남긴다.
 
@@ -290,7 +301,14 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   하자"고 제안했다가 이 문장을 뒤늦게 읽고 철회한 일이 있다. **검증되지 않은 차단 문구는
   없는 것보다 나쁘다** — 근거 없는 "대기"는 아무도 다시 확인하지 않는다.
 
-## 알려진 결함 — 테스트 격리·회귀 표기 (2026-08-29 발견, 미수정)
+## 알려진 결함 — 테스트 격리·회귀 표기
+
+> 🔵 **2026-09-16 전수 대조.** 제목이 오래 *"(2026-08-29 발견, **미수정**)"* 이었는데
+> **틀렸다** — 2026-08-29 자 3건(`a2a_identity_contract` 사망 · pytest `DATABASE_URL`
+> 전제 누락 · A2A "86건" 표기)은 **전부 같은 날 고쳐졌고**(`be16ff6`·`53342ae`) 백로그만
+> 안 닫혔다. 실행으로 확인했다(`a2a_identity_contract` **PASS 19건**).
+> **지금 실제로 열려 있는 것은 위 2건뿐이다** — S13 도구 선택 취약성 · T07 인자 JSON 유출.
+> ⚠ 둘 다 **우리 코드 쪽 원인이 실측으로 기각된** 상태라 고칠 자리가 특정되지 않았다.
 
 - 🟡 **S13 도구 선택이 발화 표현에 취약하다 — 어림 금액·완곡 청유형이면 안 부르고 되묻는다**
   (2026-09-11 측정, `gpt-oss:120b`). D140 이 만든 `assess_used_equipment_loan` 을 **챗 경로로
@@ -454,7 +472,11 @@ NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌
 **셋 다 그 브랜치와 무관한 기존 문제**이고, 범위를 지키려고 기록만 하고 넘어갔다.
 1·2 는 실제로 사람을 멈춰 세우는 종류라 다음에 회귀를 만지는 사람이 먼저 볼 것.
 
-- 🔴 **`spikes/a2a_identity_contract.py` 가 D120 이후 죽어 있다** (2026-08-29 발견).
+- ✅ ~~**`spikes/a2a_identity_contract.py` 가 D120 이후 죽어 있다**~~ (2026-08-29 발견 →
+  **같은 날 해소, `be16ff6`** — 「백로그만 안 닫혔다」. 2026-09-16 실측 확인: 컨테이너를
+  올리고 돌려 **PASS 19건**, `client_secret`·`FAKE_SECRET` 단언은 `cred.token`·`FAKE_TOKEN`
+  으로 이미 교체돼 있다(`spikes/a2a_identity_contract.py:566`). 따라서 아래 *"기준선
+  33스위트/1,075건은 재현 불가능하다"* 는 서술도 **더 이상 사실이 아니다**).
   `AttributeError: 'PartnerCredential' object has no attribute 'client_secret'`
   (`spikes/a2a_identity_contract.py:558`). D120(`ba340a6`)이 파트너 인증을
   Basic(`client_id`/`client_secret`) → Bearer(`token`)로 바꾸면서 `PartnerCredential`
@@ -491,16 +513,24 @@ NVIDIA provider 전환 작업(`feat/llm-provider-unification`) 중 회귀를 돌
   → 이미 있는 인자 가드가 실제 발생 지점을 전부 덮는다. 전역 가드는 가설적 위험을 막으려고
   회귀 전체를 한 줄에 인질로 잡는 거래다. **하지 않는다.**
 
-- 🔴 **pytest 는 `DATABASE_URL` 없이는 매단다.** pytest 실행 경로에는 `load_dotenv` 가 없어
+- ✅ **pytest 는 `DATABASE_URL` 없이는 매단다** — **현상은 그대로 유효하고, 「CLAUDE.md 에
+  전제가 빠졌다」는 부분만 2026-08-29 `53342ae` 로 해소됐다**(2026-09-16 확인 — 아래 실행
+  커맨드가 CLAUDE.md 「회귀 스위트」 절에 실려 있다). ⚠ **함정 자체는 사라지지 않았다** —
+  아래 설명은 앞으로도 유효하니 지우지 말 것.
+  pytest 실행 경로에는 `load_dotenv` 가 없어
   (`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값 `postgresql://localhost/maintq`
   = **포트 5432** 로 떨어지는데, `docker-compose.yml` 의 컨테이너는 **5434** 다. 아무도 듣지
   않는 포트라 psycopg 가 타임아웃 없이 멈춘다 — 실패가 아니라 **무한 대기**라 원인 파악이
   오래 걸린다. ⚠ **CLAUDE.md 「회귀 스위트」 절의 pytest 실행 커맨드에 이 전제가 빠져 있다** —
   적힌 대로 복사해 돌리면 그대로 밟는다. 실제 실행은 아래처럼 해야 한다:
   `DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)" uv run --with pytest ...`
-  (이 정정은 CLAUDE.md 수정이 필요해 **사람 확인 대기 중**이다.)
+  ~~(이 정정은 CLAUDE.md 수정이 필요해 **사람 확인 대기 중**이다.)~~
+  → **반영 완료 (2026-08-29, `53342ae`).** 대기 중이 아니다.
 
-- 🟡 **A2A 8파일군 “86건” 은 러너 출력이 아니다.** `def test_` 개수를 센 값이고 실제
+- ✅ ~~**A2A 8파일군 “86건” 은 러너 출력이 아니다.**~~ (2026-08-29 발견 → **같은 날 해소,
+  `53342ae`** — 86→88 정정. 이후 파일군이 **9파일 156건**으로 자라며 CLAUDE.md 가 파일별
+  실측을 싣고 *"`N passed` 만 grep 하지 말 것 — 요약 줄 전체를 보거나 `--collect-only` 로
+  교차 확인한다"* 는 규칙까지 명문화했다. 2026-09-16 확인.) 원 기록은 아래에 남긴다: `def test_` 개수를 센 값이고 실제
   pytest 출력은 **88** 이다 — `backend/a2a/test_client.py:213` 의
   `@pytest.mark.parametrize("status_code", [502, 503, 504])` 가 함수 1개를 3건으로 편다.
   CLAUDE.md 는 바로 위 문단에서 **“건수는 러너 출력이 기준이다”** 라고 못박고 있어
