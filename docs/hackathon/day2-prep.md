@@ -64,6 +64,8 @@ Guardrails · OpenShell · NeMo Agent Toolkit 전용 스킬은 카탈로그에 �
   - `content safety`(`nvidia/llama-3.1-nemotron-safety-guard-8b-v3`) — **두 번째 모델 경로가 필요** → 현 구조로는 불가(미확인)
   - 휴리스틱 jailbreak 탐지는 gpt2-large 필요 · 영어 최적화 → 한국어 문서 텍스트엔 약함
 - **NemoClaw** 공식 최소 사양 **RAM 8GB**(권장 16GB) · 4 vCPU · 디스크 20GB · Node 22.19+.
+  🔵 **2026-09-24 갱신 — WSL Ubuntu 로 옮기며 전부 충족됐다**(RAM 15Gi · 8 vCPU · 936G · Node v22.23.1, §11).
+  아래 "RAM 7GB 미달" 은 Windows 시절 실측이다.
   현 PC 는 **RAM 7GB → 최소 미달.** OpenShell 직접 사용(BYOC) 유지, 근거는 `day1.md` §5.
   원리상 OpenClaw 는 SKILL.md 와 stdio MCP(`mcp.servers`)를 둘 다 로드할 수 있다(미실행)
 - **NeMo Agent Toolkit** `nvidia-nat` 1.9.0 · Python 3.11~3.13 · `nvidia-nat[mcp]` 로
@@ -114,21 +116,31 @@ HV600 URL: https://www.yaskawa.com/delegate/getAttachment?documentId=TOEPC710617
 
 ---
 
-## 8. 미결정 사항 (새 레포에서 결정)
+## 8. 미결정 사항 → **전부 결정됨** (2026-09-24, 새 레포에서)
 
-1. **새 레포 설정** — 이름 · 공개 시점(비공개로 시작해 제출 직전 공개 추천) · LICENSE(현재 없음)
-2. 🔴 **매뉴얼 추출물 공개 여부** — `data/raw/`(PDF)는 git 밖이지만 **`data/extracted/manual_chunks.jsonl`(매뉴얼 본문 청크)과
-   에러코드 원인·조치 문구는 git 안**이다. 공개하면 LS 매뉴얼 텍스트 재배포가 된다.
-   (a) 빼고 "공식 PDF 받아 추출 스크립트 실행" 재현 절차 제공(추천) / (b) 그대로 / (c) 최소 발췌
-3. **매뉴얼 선택** — HV600 추천
-4. 🔴 **절대 규칙 4(기종 enum) 충돌** — enum 이 코드 8곳 하드코딩(D109). 추천: 새 기종을 enum 에 미리 넣고
-   "진단 가능"은 DB 온보딩 상태로 게이트(승격 전 조회 = `not_found` → S4 흐름). 대안: DB 동적 enum(규칙 4 개정, 무거움)
-5. **A2A `policy_blocked` 분류** 적용 여부 (§6)
-6. **새 기종 안전 문구** — 절대 규칙 3(근거 없는 안전 문구 금지). 현 `SAFETY_BASELINE` 은 iG5A 기준 →
-   새 기종 진단 시 안전 게이트가 "근거 문서를 확인하지 못해…"로 막을 가능성. 제안: 온보딩이 안전 문구 후보도 스테이징 → 사람 승인
-7. **새 매뉴얼 RAG** — 검색 인덱스는 이미지 안(읽기 전용). 샌드박스 쓰기는 `/tmp`·DB 뿐 → 새 청크는 DB 에 넣는 방향 검토
+| # | 항목 | 결정 | 근거 |
+|---|---|---|---|
+| 1 | 새 레포 | `ttogle918/MaintQ-NemoClaw` · **비공개**(제출 직전 공개) · **Apache-2.0** | NVIDIA 생태계 표준 라이선스. NemoClaw 사양은 WSL 이전으로 충족(RAM 7→15GB) |
+| 2 | 매뉴얼 추출물 공개 | **비공개 — 실데이터는 `.gitignore`, 형태는 `data/extracted/samples/`** | **D144**. 히스토리까지 재작성(`git filter-repo --invert-paths`) |
+| 3 | 매뉴얼 선택 | **Yaskawa HV600** + 온보딩에 **한국어 정규화 단계** | **D145**. 영문 그대로면 샌드박스 키워드 검색이 0히트 |
+| 4 | 기종 enum 충돌 | **enum 선등록 + DB 온보딩 상태로 게이트** (절대규칙 4 유지) | **D146**. 정의 지점 **9곳 + DB CHECK 2곳**(문서의 "8곳" 은 실측과 달랐다) |
+| 5 | A2A `policy_blocked` | **적용** — 샌드박스에서는 시도 전 분류, 차단기 회계 제외 | **D149** |
+| 6 | 새 기종 안전 문구 | **스테이징 → 사람 승인** (절대규칙 3 유지) | **D147**. 승인 전 차단은 결함이 아니라 데모의 핵심 |
+| 7 | 새 매뉴얼 RAG | **DB(`manual_chunks`) 승격 + `rag.py` 가 jsonl ∪ DB** | **D148**. `/app` 읽기 전용이라 파일 재생성 경로가 막힌다 |
 
----
+### 이 과정에서 드러난 실측 정정
+
+- **§7 의 "DB 에 넣는 방향" 은 그대로는 동작하지 않는다.** 키워드 인덱스는 DB 가 아니라 파일
+  (`rag.py:44` → `data/extracted/manual_chunks.jsonl`)을 읽고, `manual_chunks` 테이블은 dense 전용인데
+  dense 는 샌드박스에서 꺼진다. → `rag.py` 를 **jsonl ∪ DB** 로 넓히는 것이 전제다(D148)
+- **§8 #4 의 "코드 8곳" 은 9곳 + DB CHECK 2곳이다.** 전수: `backend/manifest.py:30` ·
+  `agent/prompts.py:41` · `services/po.py:121` · `mcp_server/rag.py:51` · `tools/lookup_error_code.py:31` ·
+  `tools/create_po_draft.py:38` · `tools/create_repair_record.py:48` · `data/inventory.py:19` ·
+  `data/chunk_manual.py:48` + `data/seed.py:152` · `scripts/postgres_schema.sql`
+- **§8 #6 의 "막을 가능성" 은 확정이다.** `loop.py:353 safety_page()` 가 `SAFETY_BASELINE["pages"]`
+  (iG5A 4 / S100 2)에 없는 기종이면 `None` → `loop.py:435` 가 턴을 끊는다. IE5 가 이미 그 상태다
+- **매뉴얼 문장의 퍼짐이 예상보다 넓었다** — `data/extracted` 뿐 아니라 `eval/results` **190파일**,
+  Elice OCR 캐시 34파일, IE5 회귀 픽스처까지 들어 있었다(D144 가 전부 다룬다)
 
 ## 9. 공개 전 점검 결과 (현 레포, 2026-09-24)
 
@@ -141,6 +153,8 @@ HV600 URL: https://www.yaskawa.com/delegate/getAttachment?documentId=TOEPC710617
 
 ## 10. 새 폴더에서 작업할 때 알아야 할 환경 사실
 
+> 🔴 **이 절의 앞 두 줄은 이제 틀렸다 — §11 참고.** Claude Code 는 WSL Ubuntu 에서 직접 돈다.
+
 - Claude Code 는 **Windows 쪽에서** 켠다. OpenShell 은 WSL Ubuntu 에 설치돼 있고 `wsl -d Ubuntu -- bash -c '…'` 로 조작
 - Git Bash 에서 wsl 로 경로를 넘길 때 **`MSYS_NO_PATHCONV=1`** (안 붙이면 `/mnt/c/...` 가 `C:/Program Files/Git/mnt/...` 로 바뀜)
 - `bash -c` 안에서 `pkill -f <패턴>` 은 자기 자신도 죽인다(exit 15)
@@ -148,3 +162,20 @@ HV600 URL: https://www.yaskawa.com/delegate/getAttachment?documentId=TOEPC710617
 - 샌드박스 재현 절차·함정: `day1.md` §6
 - 게이트웨이에는 provider `nvidia-prod` · 모델 `nvidia/nemotron-3-super-120b-a12b` 가 설정돼 있다(PC 단위라 새 폴더에서도 그대로)
 - 현재 샌드박스 `maintq` 는 A2A 주소 env 를 넣은 상태로 **실행 중**(`localhost:8000`)
+
+---
+
+## 11. 레포 이관 사실 (2026-09-24)
+
+- 작업 위치는 **WSL Ubuntu `~/MaintQ-NVIDIA`** 로 옮겼다. Claude Code 도 여기서 돈다 —
+  §10 의 "Windows 에서 켜고 `wsl -d Ubuntu` 로 조작" 은 **더 이상 맞지 않는다**(`MSYS_NO_PATHCONV` 주의사항도 무관)
+- 원격: `https://github.com/ttogle918/MaintQ-NemoClaw` (비공개)
+- 🔴 **커밋 해시가 전부 바뀌었다 — 두 번 재작성했다.** ㉠ 작성자 이메일 `ttogle918@naver.com` →
+  `17754713+ttogle918@users.noreply.github.com`(537커밋) ㉡ D144 퍼지. 그래서 이 레포의 문서가
+  인용하는 **옛 해시(`5e5e962`·`5895c2e`·`7ff38b2`·`213b62d`·`390e7a9` 등)는 더 이상 조회되지 않는다.**
+  옛→새 대조표는 `~/maintq-filter-repo-maps-20260924/commit-map` 에 있다
+- 복구용 번들: `~/maintq-backup-20260924.bundle`(이메일 치환 전) ·
+  `~/maintq-backup-20260924-prepurge.bundle`(퍼지 전). **둘 다 매뉴얼 실데이터를 담고 있으니 공개 금지**
+- NemoClaw 사양 실측(Ubuntu): RAM **15Gi**(최소 8) · vCPU **8**(4) · 디스크 **936G**(20) ·
+  Node **v22.23.1**(22.19+) · docker 29.3.1 · openshell 0.0.116 → **전부 충족**(Windows 시절 RAM 7GB 미달이 해소됐다).
+  단 **실제 설치·기동은 아직 안 했다**
