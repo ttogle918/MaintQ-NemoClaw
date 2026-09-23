@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D149**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D150**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
@@ -189,8 +189,12 @@
   가 반환하는 파일이 전부 위 네 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
   누락이 반복된다(이번까지 **네 번째**다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
 
-- `spikes/` — **34종**(`ls spikes/*.py` 는 38개를 반환한다 — 남는 4개는 아직 이 공식 목록 밖,
-  `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
+- `spikes/` — **35종**(`ls spikes/*.py` 는 **38개**를 반환한다 = 35 + 목록 밖 3개:
+  `demo_recommendation_1_and_2`(PASS/FAIL 단언 없는 시연) · `a2a_outbound_contract` ·
+  `a2a_e2e_integration_spike`(둘은 진짜 계약 스파이크인데 편입 여부 미결정).
+  🔴 **2026-09-24 정정**: 오래 *"남는 4개"* 로 적혀 있었으나 4번째인 `test_elice_stream.py` 는
+  `.gitignore` 대상이라 **새로 클론한 트리에는 아예 없다** — Windows 작업 사본에만 있던 파일을
+  세던 값이다. `docs/sprints/sprint-16-wip.md` "스코프 밖 발견" 참고):
   sp2_mcp_roundtrip · write_tool_contract · api_contract · sp3_sse_events ·
   trace_persist · mcp_client_contract · prompt_rules · lookup_contract · citation_render ·
   db_concurrency · rag_contract · agent_loop_contract · eval_score_contract · s4_smoke ·
@@ -204,7 +208,7 @@
   deadline_risk_contract ·
   external_store_contract ·
   ie5_extract_contract ·
-  **a2a_partner_tools_contract** · **docx_contract**
+  **a2a_partner_tools_contract** · **docx_contract** · **mcp_http_contract**(신규, D150 — 8건)
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
