@@ -64,9 +64,43 @@ data/raw/external/*
 !data/raw/external/*/
 data/raw/external/*/*
 !data/raw/external/*/*.json
+# 🔴 D144 — 위 예외(D103)의 예외. 외부 API 응답 원본이라도 **매뉴얼 페이지를 OCR 한 것**은
+# 매뉴얼 본문 재배포가 된다(iG5A p200~207·troubleshooting p20~31 · S100 p412~425 = 고장 표 전면).
+# 캐시 자체는 로컬에 그대로 남고 지출 가드(D105)도 그대로 동작한다 — git 추적에서만 뺀다.
+data/raw/external/*/*manual_p*.json
+data/raw/external/*/*troubleshooting_p*.json
 
 # LLM 응답 카세트 (D104) — 개발 보조물이라 추적하지 않는다. 언제 지워도 된다.
 data/cache/
 
 # OpenShell 샌드박스 빌드 산출물 (DB 덤프 — 커밋 금지, D143)
 deploy/openshell/build/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔴 매뉴얼 추출물 — 재배포하지 않는다 (D144)
+#
+# 매뉴얼 본문·고장 표의 원인/조치 문장은 원본 매뉴얼의 **표현**이다. 코드·페이지 같은
+# 사실과 달리 그대로 올리면 텍스트 재배포가 된다. 그래서 실데이터는 추적하지 않고,
+# **형태는 `data/extracted/samples/` 에 남긴다**(키 구조 + 40자로 자른 예시 문장).
+#
+# 복원: 공식 PDF 를 `data/raw/` 에 두고 (출처·sha256 은 `data/raw/manifest.json`)
+#   uv run python data/chunk_manual.py          # manual_chunks.jsonl
+#   uv run python data/extract_error_codes.py   # error_codes.json + 후보 파일
+#   uv run python data/extract_ie5_codes.py     # IE5 후보 + 회귀 픽스처
+# 우리가 쓴 산출물(residual_curve·extract_triage)은 매뉴얼 문구가 아니라 추적한다.
+data/extracted/*.json
+data/extracted/*.jsonl
+!data/extracted/residual_curve.json
+!data/extracted/extract_triage.json
+!data/extracted/samples/
+
+# IE5 회귀 픽스처 — p125~126 고장 표를 좌표째 재현한다(정본 문장 32/162 포함).
+# 없으면 spikes/ie5_extract_contract.py 가 재생성 방법을 알려주며 멈춘다.
+spikes/fixtures/ie5_p125_geometry.json
+
+# 평가 결과 원본 — 에이전트 응답 전문이 실려 매뉴얼 원인·조치 문구를 그대로 나른다.
+# 지표는 `eval/SCOREBOARD.md` 로 보존한다 (scripts/make_eval_scoreboard.py).
+eval/results/
+
+# 원인·조치 40문장을 인용한 분석 문서 — 같은 이유로 제외(로컬 보관).
+data/analysis/actions_absence_verification.md

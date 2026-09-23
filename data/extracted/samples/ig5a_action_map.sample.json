@@ -1,0 +1,33 @@
+{
+  "_설명": "iG5A 트러블슈팅본 조인 대장 — 무엇이 무엇에 붙었는지가 검수 대상이다 (D19·D100, MQ-905).",
+  "_status": "부분 반영 (2026-08-29) — mappings 2건 정본 병합 완료(MQ-919) · pending_review 9건 미해결 — 전부 해결돼야 완전 승인",
+  "generated_at": "2026-08-16",
+  "manual_id": "ig5a-troubleshooting",
+  "print_page_offset_used": 1,
+  "_mappings_전체건수": 2,
+  "mappings": [
+    {
+      "code": "RERR",
+      "join_key": "리모트통신에러",
+      "actions_page": 27,
+      "confidence": "high",
+      "actions": [
+        "통신선 연결 커넥터에 통신 선이 올바르게 부착되어 있는지 확인하십시오."
+      ]
+    },
+    {
+      "code": "ETB",
+      "join_key": "B접점고장신호",
+      "actions_page": 27,
+      "confidence": "high",
+      "actions": [
+        "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다."
+      ]
+    }
+  ],
+  "pending_review": [
+    "iG5A OLT: 물리 p.24 의 조치문이 항목 ['인버터 과부하', '과부하 트립'] 와 공유돼 자동 매칭 보류(ambiguous) — 자동 선택하지 않는다",
+    "iG5A COL: 일람표에 명칭은 있으나 대응 페이지가 없음(Page='-') — 트러블슈팅본에 실제 조치 내용이 없다. 지어내지 않는다",
+    "…(7건 생략)"
+  ]
+}

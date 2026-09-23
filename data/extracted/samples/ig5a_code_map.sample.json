@@ -1,0 +1,35 @@
+{
+  "_설명": "iG5A 코드↔보호기능 매핑 (기계용). 사람 검수표는 data/analysis/ig5a_code_mapping.md — 검수 반영 시 두 파일을 함께 수정. display_code는 키패드 7-세그 원표기 (비전 판독, 이미지: 표준본 p.202~204).",
+  "_status": "승인 완료 (2026-07-28) — ② 4건 이미지 재확인 + ③ 2건 결정 반영. data/analysis/ig5a_code_mapping.md 참조",
+  "_canonical_정책": "canonical = 키패드 표기 대문자 (사용자가 키패드에서 읽고 입력하는 값과 일치 — S1 입력 흐름 기준). 통신 비트명이 다른 경우 aliases에 보존 (IOL↔IOLT, ETA↔EXT-A, ETB↔EXT-B, EST↔BX). 2026-07-28 승인.",
+  "_mappings_전체건수": 24,
+  "mappings": [
+    {
+      "code": "OCT",
+      "display_code": "OCt",
+      "name_kr": "과전류",
+      "match_keys": [
+        "과전류"
+      ],
+      "manual_page": 202,
+      "remedy_pages": [
+        204
+      ],
+      "confidence": "high"
+    },
+    {
+      "code": "OC2",
+      "display_code": "OC2",
+      "name_kr": "과전류 2",
+      "match_keys": [
+        "과전류2"
+      ],
+      "manual_page": 202,
+      "remedy_pages": [
+        204
+      ],
+      "confidence": "high"
+    }
+  ],
+  "pending_review": []
+}

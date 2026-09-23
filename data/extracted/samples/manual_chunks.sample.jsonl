@@ -1,0 +1,4 @@
+// 전체 1229청크 중 앞 3건. text 는 40자로 잘랐다.
+{"chunk_id": "ie5-standard-p0001-00", "manual_id": "ie5-standard", "model": "IE5", "page": 1, "section": "(cid:46)(cid:53) (cid:39)(cid:46)(cid:39", "text": "(cid:46)(cid:53) (cid:39)(cid:46)(cid:39…", "char_len": 860}
+{"chunk_id": "ie5-standard-p0004-00", "manual_id": "ie5-standard", "model": "IE5", "page": 4, "section": "안전을 위한 주의사항", "text": "안전을 위한 주의사항\n안전을 위한 주의사항\n안전상의 주의사항은 사고나 위…", "char_len": 505}
+{"chunk_id": "ie5-standard-p0004-01", "manual_id": "ie5-standard", "model": "IE5", "page": 4, "section": "안전을 위한 주의사항", "text": "보십시오.\n경고\n• 전원이 입력된 상태에서 또는 운전 중에는 도어를 열지…", "char_len": 505}

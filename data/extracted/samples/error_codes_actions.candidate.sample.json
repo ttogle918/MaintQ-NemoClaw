@@ -1,0 +1,41 @@
+{
+  "_status": "승인 완료 (2026-08-17). ⛔ 이 파일은 여전히 DB 에 적재되지 않는다 — 정본 병합은 MQ-919 가 별도로 한다 · iG5A NTC 사람 승인 (2026-08-29 — 2026-08-19 위임 반려를 사람이 뒤집음. 귀속(rowspan) 미확인 상태로 승인된 것임을 entries[].override_note 에 남긴다)",
+  "_source_of_truth": "data/extracted/error_codes.json (이 파일은 병합 후보다)",
+  "generated_at": "2026-08-16",
+  "counts": {
+    "iG5A": 3,
+    "S100": 1
+  },
+  "_entries_전체건수": 4,
+  "entries": [
+    {
+      "model": "iG5A",
+      "code": "RERR",
+      "actions": [
+        "통신선 연결 커넥터에 통신 선이 올바르게 부착되어 있는지 확인하십시오."
+      ],
+      "actions_manual_id": "ig5a-troubleshooting",
+      "actions_page": 27,
+      "join_key": "리모트통신에러",
+      "confidence": "high",
+      "evidence_excerpt": "통신선 연결 커넥터에 통신 선이 올바르게 부착되어 있는지 확인하십시오."
+    },
+    {
+      "model": "iG5A",
+      "code": "ETB",
+      "actions": [
+        "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다."
+      ],
+      "actions_manual_id": "ig5a-troubleshooting",
+      "actions_page": 27,
+      "join_key": "B접점고장신호",
+      "confidence": "high",
+      "evidence_excerpt": "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다."
+    }
+  ],
+  "_pending_review": [
+    "iG5A OLT: 물리 p.24 의 조치문이 항목 ['인버터 과부하', '과부하 트립'] 와 공유돼 자동 매칭 보류(ambiguous) — 자동 선택하지 않는다",
+    "iG5A COL: 일람표에 명칭은 있으나 대응 페이지가 없음(Page='-') — 트러블슈팅본에 실제 조치 내용이 없다. 지어내지 않는다",
+    "…(33건 생략)"
+  ]
+}

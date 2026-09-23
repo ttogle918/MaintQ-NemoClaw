@@ -1,0 +1,355 @@
+{
+  "generated_at": "2026-08-19",
+  "allow_purchase": false,
+  "inputs": {
+    "error_codes": {
+      "path": "data/extracted/error_codes.json",
+      "sha256_before": "1fd95338c4e38e3ca590f45da1b50250d7668133196d9f58d15901bc7ce32751",
+      "sha256_after": "1fd95338c4e38e3ca590f45da1b50250d7668133196d9f58d15901bc7ce32751"
+    },
+    "candidate": {
+      "path": "data/extracted/error_codes_actions.candidate.json",
+      "sha256_before": "0436535232339680806fde28fe96b7c20e75f74e787bf8c1f3983411487011ae",
+      "sha256_after": "0436535232339680806fde28fe96b7c20e75f74e787bf8c1f3983411487011ae"
+    },
+    "triage": {
+      "path": "data/extracted/extract_triage.json",
+      "exists": true
+    }
+  },
+  "canonical_unchanged": true,
+  "cost": {
+    "won_per_page": 45,
+    "n_pages": 34,
+    "won_total": 1530,
+    "by_target": [
+      {
+        "doc_slug": "s100-manual",
+        "first_page": 412,
+        "last_page": 425,
+        "n_pages": 14,
+        "won": 630,
+        "note": "§9.1+§9.2+여유 (결측 25건)"
+      },
+      {
+        "doc_slug": "ig5a-troubleshooting",
+        "first_page": 20,
+        "last_page": 31,
+        "n_pages": 12,
+        "won": 540,
+        "note": "트러블슈팅 조치 구간+여유 (결측 9건)"
+      },
+      "…(1건 생략)"
+    ],
+    "note": "산술 추정치다. 실제 집행은 사람 승인 사안이며 기본 실행은 네트워크를 타지 않는다."
+  },
+  "read_plan": [
+    {
+      "doc_slug": "s100-manual",
+      "pages": [
+        412,
+        425
+      ],
+      "n_pages": 14,
+      "note": "§9.1+§9.2+여유 (결측 25건)"
+    },
+    {
+      "doc_slug": "ig5a-troubleshooting",
+      "pages": [
+        20,
+        31
+      ],
+      "n_pages": 12,
+      "note": "트러블슈팅 조치 구간+여유 (결측 9건)"
+    },
+    "…(1건 생략)"
+  ],
+  "read_status": [
+    {
+      "doc_slug": "s100-manual",
+      "page": 412,
+      "state": "cache",
+      "elements": 4,
+      "tables": 1,
+      "chars": 15
+    },
+    {
+      "doc_slug": "s100-manual",
+      "page": 413,
+      "state": "cache",
+      "elements": 4,
+      "tables": 0,
+      "chars": 22
+    },
+    "…(32건 생략)"
+  ],
+  "pages_read": 34,
+  "page_chars": [
+    {
+      "doc_slug": "s100-manual",
+      "page": 412,
+      "chars": 1111,
+      "tables": 1,
+      "state": "ok"
+    },
+    {
+      "doc_slug": "s100-manual",
+      "page": 413,
+      "chars": 15,
+      "tables": 0,
+      "state": "ok"
+    },
+    "…(32건 생략)"
+  ],
+  "pending_join": {
+    "pending_total": 35,
+    "pending_parse_failed": 0,
+    "missing_total": 34,
+    "joined": 34,
+    "join_ratio": "34/34",
+    "unjoined_missing": [],
+    "unjoined_pending": [],
+    "excluded_resolved": [
+      {
+        "model": "S100",
+        "code": "FANW",
+        "claim": "RESOLVED"
+      }
+    ],
+    "excluded_claim_mismatch": [],
+    "by_claim": {
+      "ABSENT_IN_MANUAL": 28,
+      "AMBIGUOUS": 5,
+      "NOT_FOUND_ON_PAGE": 1
+    }
+  },
+  "control": [
+    {
+      "doc_slug": "s100-manual",
+      "state": "ok",
+      "controls_total": 16,
+      "action_found": 16,
+      "action_verified": 6,
+      "action_found_table_row": 16,
+      "action_found_text_window": 0,
+      "row_text_only": 0,
+      "pages_read": 14,
+      "rows": [
+        {
+          "model": "S100",
+          "code": "OCT",
+          "error_name": "Over Current1",
+          "anchor_page": 416,
+          "selected_by": "canonical.manual_page",
+          "expected_actions": [
+            "모터가 정지한 후에 운전하거나 속도 검색 기능(Cn.60)을 사용하십시오."
+          ],
+          "axis": "ACTION_FOUND",
+          "found_page": 420,
+          "anchor_source": "error_name",
+          "evidence_kind": "table_row",
+          "evidence": "가/감속 시간을 길게 설정하십시오.",
+          "action_text_matched": false,
+          "action_match_kind": "",
+          "expected_action_sample": "모터가 정지한 후에 운전하거나 속도 검색 기능(Cn.60)을 사용하십시오.",
+          "matched_action": ""
+        },
+        {
+          "model": "S100",
+          "code": "OVT",
+          "error_name": "Over Voltage",
+          "anchor_page": 416,
+          "selected_by": "canonical.manual_page",
+          "expected_actions": [
+            "제동 유닛을 사용하십시오."
+          ],
+          "axis": "ACTION_FOUND",
+          "found_page": 420,
+          "anchor_source": "error_name",
+          "evidence_kind": "table_row",
+          "evidence": "감속 시간을 길게 설정하십시오.",
+          "action_text_matched": false,
+          "action_match_kind": "",
+          "expected_action_sample": "제동 유닛을 사용하십시오.",
+          "matched_action": ""
+        },
+        "…(14건 생략)"
+      ]
+    },
+    {
+      "doc_slug": "ig5a-troubleshooting",
+      "state": "ok",
+      "controls_total": 2,
+      "action_found": 1,
+      "action_verified": 1,
+      "action_found_table_row": 0,
+      "action_found_text_window": 1,
+      "row_text_only": 0,
+      "pages_read": 12,
+      "rows": [
+        {
+          "model": "iG5A",
+          "code": "RERR",
+          "error_name": "리모트 통신 에러",
+          "anchor_page": 27,
+          "selected_by": "candidate.actions_page",
+          "expected_actions": [
+            "통신선 연결 커넥터에 통신 선이 올바르게 부착되어 있는지 확인하십시오."
+          ],
+          "axis": "ANCHOR_ONLY",
+          "found_page": 20,
+          "anchor_source": "error_name",
+          "evidence_kind": "",
+          "evidence": "",
+          "action_text_matched": false,
+          "action_match_kind": "",
+          "expected_action_sample": "통신선 연결 커넥터에 통신 선이 올바르게 부착되어 있는지 확인하십시오.",
+          "matched_action": ""
+        },
+        {
+          "model": "iG5A",
+          "code": "ETB",
+          "error_name": "B 접점 고장 신호",
+          "anchor_page": 27,
+          "selected_by": "candidate.actions_page",
+          "expected_actions": [
+            "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다."
+          ],
+          "axis": "ACTION_FOUND",
+          "found_page": 27,
+          "anchor_source": "error_name",
+          "evidence_kind": "text_window",
+          "evidence": "Latch\n입출력 그룹의 다기능 입력 단자 기능 (l17~l24)을 19 번 (외부트립 신호 입력:B 접점)으로 설정한 단자가 온 (ON)되면 인버터출력을 차단합니다.\n원인\n조치사항\n입, 출력 그룹의 다기능 입력 단자기능 선택 (l17~l24)을 18 번 (외부트립 신호 입력:A 접점)이나 19 번 (B접점)으로 설정한 단자가 온 (ON)상태\n외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다.\n키패드 표시",
+          "action_text_matched": true,
+          "action_match_kind": "full",
+          "expected_action_sample": "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다.",
+          "matched_action": "외부 고장 단자에 연결된 회로 이상 및 외부 고장의 원인을 제거합니다."
+        }
+      ]
+    },
+    "…(1건 생략)"
+  ],
+  "rows": [
+    {
+      "model": "S100",
+      "code": "ALOR",
+      "display_code": "alor",
+      "error_name": "BLE App. Lost",
+      "anchor_page": 418,
+      "parser_claim": "ABSENT_IN_MANUAL",
+      "parser_reason": "9.2 항목|진단|조치사항 표(p.420~421)에 해당 항목이 없음 — 9.1 트립/경보 표(p.416~419)의 '내용' 설명만 매뉴얼에 있고 별도 조치문이 없다. 지어내지 않는다 (OCR 미호출, 비용 견적 필요 시 유료 경로 검토)",
+      "triage_label": "CELL_SPLIT",
+      "triage_anchor_conflict": false,
+      "elice_axis": "ROW_TEXT_ONLY",
+      "axis_by_target": [
+        {
+          "doc_slug": "s100-manual",
+          "axis": "ROW_TEXT_ONLY",
+          "page": 418
+        }
+      ],
+      "evidence_kind": "row_text_only",
+      "evidence_page": 418,
+      "evidence": "인버터와 DriveView M(Mobile Application) 간의연결 이상이 검출된 경우 발생합니다. CM.97코드를 0 이외의 값으로 설정해야 작동합니다.",
+      "anchor_source": "display_code",
+      "matched_token": "alor",
+      "weak_anchor": false,
+      "rowspan": 1,
+      "covers_item_rows": 1,
+      "rowspan_resolved": false,
+      "reader_blind": false,
+      "unread_in_scope": false,
+      "unread_targets": [],
+      "verdict": "CONFIRMED_ABSENT",
+      "verdict_before_blind_demotion": "CONFIRMED_ABSENT"
+    },
+    {
+      "model": "S100",
+      "code": "BX",
+      "display_code": "bx",
+      "error_name": "BX",
+      "anchor_page": 417,
+      "parser_claim": "ABSENT_IN_MANUAL",
+      "parser_reason": "9.2 항목|진단|조치사항 표(p.420~421)에 해당 항목이 없음 — 9.1 트립/경보 표(p.416~419)의 '내용' 설명만 매뉴얼에 있고 별도 조치문이 없다. 지어내지 않는다 (OCR 미호출, 비용 견적 필요 시 유료 경로 검토)",
+      "triage_label": "CELL_SPLIT",
+      "triage_anchor_conflict": false,
+      "elice_axis": "ROW_TEXT_ONLY",
+      "axis_by_target": [
+        {
+          "doc_slug": "s100-manual",
+          "axis": "ROW_TEXT_ONLY",
+          "page": 417
+        }
+      ],
+      "evidence_kind": "row_text_only",
+      "evidence_page": 417,
+      "evidence": "다기능 단자의 기능 선택에 따라 인버터 출력을 차단합니다. In.65~71 코드의 기능 중 5( BX)를 선택합니다.",
+      "anchor_source": "error_name",
+      "matched_token": "bx",
+      "weak_anchor": true,
+      "rowspan": 1,
+      "covers_item_rows": 1,
+      "rowspan_resolved": false,
+      "reader_blind": false,
+      "unread_in_scope": false,
+      "unread_targets": [],
+      "verdict": "CONFIRMED_ABSENT",
+      "verdict_before_blind_demotion": "CONFIRMED_ABSENT"
+    },
+    "…(32건 생략)"
+  ],
+  "verdict_counts": {
+    "CONFIRMED_ABSENT": 24,
+    "RECOVERABLE": 0,
+    "STILL_AMBIGUOUS": 4,
+    "DISAGREE": 6,
+    "INCONCLUSIVE": 0
+  },
+  "axis_counts": {
+    "ACTION_FOUND": 8,
+    "ROW_TEXT_ONLY": 25,
+    "ANCHOR_ONLY": 1,
+    "NO_ANCHOR": 0,
+    "UNREAD": 0
+  },
+  "thresholds": {
+    "action_min_chars": 12,
+    "min_anchor_token_len": 2,
+    "weak_anchor_len": 4,
+    "text_window_chars": 240,
+    "action_match_min_chars": 12,
+    "action_markers": [
+      "조치",
+      "점검",
+      "…(7건 생략)"
+    ],
+    "action_header_markers": [
+      "조치",
+      "대책",
+      "…(4건 생략)"
+    ]
+  },
+  "vocabulary": {
+    "verdicts": [
+      "CONFIRMED_ABSENT",
+      "RECOVERABLE",
+      "…(3건 생략)"
+    ],
+    "parser_claims": [
+      "ABSENT_IN_MANUAL",
+      "AMBIGUOUS",
+      "…(3건 생략)"
+    ],
+    "elice_axes": [
+      "ACTION_FOUND",
+      "ROW_TEXT_ONLY",
+      "…(3건 생략)"
+    ],
+    "resolved_claim": "RESOLVED"
+  },
+  "warnings": [
+    "UNVERIFIED_ACTION — `s100-manual`: `ACTION_FOUND` 16건 중 10건은 **정본 `actions` 문장과 대조되지 않았다**(판독기가 다른 문장을 조치문으로 인정했거나 문장이 잘렸다). 생존 축은 대조 통과 건수로만 센다 — 근거 열을 직접 볼 것.",
+    "CONTROL_WEAK — `ig5a-troubleshooting`: 대조군이 2건뿐이라 **통계적으로 약하다.** 이 대상의 `READER_BLIND` 발화/미발화 어느 쪽도 강한 근거가 아니다.",
+    "…(4건 생략)"
+  ]
+}

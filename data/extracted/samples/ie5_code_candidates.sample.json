@@ -1,0 +1,269 @@
+{
+  "_status": "승인 완료 (2026-08-20). ⛔ 이 파일은 여전히 DB 에 적재되지 않는다 — 정본 병합은 별도 스크립트(Sprint 15 MQ-1507)가 한다 · IE5 5건 정본 병합 완료 (2026-08-21, MQ-1507)",
+  "_설명": "IE5 표준 매뉴얼 추출 **후보** — 사람 검수 전이며 DB 에 적재되지 않는다 (D33·D99). 정본 data/extracted/error_codes.json 은 이 스크립트가 읽기만 한다. model enum·manifest 등재는 P11 소관이라 여기서 건드리지 않는다. 🔴 **P11 정본 병합 시 `code` 를 그대로 넣지 말 것** — 이 파일의 `code`/`display_code` 는 매뉴얼 **원표기**(`OHt`·`Ovt`)다. 정본 error_codes.json 과 DB 는 D25 에 따라 **대문자 canonical** 로 저장하고 원표기는 `display_code` 에 남긴다. 병합할 때 `canonical_code` 를 `code` 로, `display_code` 를 그대로 쓰면 된다 — 이 파일 안의 집계·차집합은 이미 `canonical_code` 기준으로 접혀 있다. ⚠ `_stats.codes_found` 는 '본문에서 `한글명(영문 3자)` 로 표기된 토큰의 canonical 종류 수'이지 '에러코드 수'가 아니다 — 키패드 라벨(RUN·SET·drv 등)이 섞여 있고, 그것들은 `_unmatched.codes` 에 그대로 남는다(임의 제외하지 않는다, 절대규칙 6). 🔴 `_unmatched` 는 버킷 **3종**이고 뒤의 둘이 **리콜(recall) 축**이다: `codes`= 조인 실패 · `codes_excluded_by_shape`= 코드 형상이 좁아 애초에 파이프라인에 못 들어온 것(스펙 형상 `[A-Za-z][A-Za-z0-9]{1,3}` 과의 차집합. 정본 65종 중 16종이 이 형상 밖이므로 무시하면 안 된다) · `codes_without_name`= §0-2 확정 12종 중 본문에 리터럴은 있으나 괄호 표기가 없어 못 들어온 것(이름 미상 — 지어내지 않는다). 실제 검수 대상은 `codes`(조인 성공분) + `_unmatched` 3버킷 + `_unmatched.names`(표에 있으나 코드를 못 붙인 행)다.",
+  "_source": {
+    "manual_id": "ie5-standard",
+    "manifest_registered": true,
+    "file": "IE5_User Manual(Standard)_Kor_V1.0_200526.pdf",
+    "sha256": "d777626148b4cfcc73650133fda787598931450b712b6d722006dc77f0bec0ba",
+    "pages": [
+      125,
+      126
+    ],
+    "total_pages": 151,
+    "citation_basis": "PDF 물리 페이지 (D26)"
+  },
+  "_generated_at": "2026-08-20",
+  "_stats": {
+    "codes_found": 29,
+    "codes_found_display_variants": 40,
+    "table_rows": 13,
+    "matched": 5,
+    "matched_rows": 5,
+    "unmatched_codes": 24,
+    "unmatched_names": 8,
+    "codes_excluded_by_shape": 43,
+    "codes_without_name": 2
+  },
+  "_warnings": [],
+  "_unmatched": {
+    "codes": [
+      {
+        "code": "ACC",
+        "canonical_code": "ACC",
+        "display_variants": [
+          "ACC"
+        ],
+        "name_candidates": [
+          "트립이 발생한 상태표시는 가속 중",
+          "가속 시간",
+          "…(1건 생략)"
+        ],
+        "pages": [
+          49,
+          107,
+          "…(1건 생략)"
+        ],
+        "code_pages_exact": [
+          43,
+          46,
+          "…(6건 생략)"
+        ],
+        "code_pages_case_folded": []
+      },
+      {
+        "code": "Cur",
+        "canonical_code": "CUR",
+        "display_variants": [
+          "Cur",
+          "CUr"
+        ],
+        "name_candidates": [
+          "다단속 주파수 3 선택 8 출력 전류",
+          "투입 시 표시 선택 0 8 출력 전류"
+        ],
+        "pages": [
+          64,
+          107
+        ],
+        "code_pages_exact": [
+          48,
+          57,
+          "…(4건 생략)"
+        ],
+        "code_pages_case_folded": []
+      },
+      "…(22건 생략)"
+    ],
+    "names": [
+      {
+        "name": "지락 전류",
+        "manual_page": 125,
+        "band": [
+          253.01,
+          329.93
+        ],
+        "name_band": [
+          253.01,
+          329.93
+        ],
+        "name_clipped": false,
+        "name_band_raw": " 인버터의 출력선이 지락되었다.  전동기의 절연이 열화 되었다. 지락 전류",
+        "reason": "본문 괄호 표기에서 같은 명칭을 찾지 못함"
+      },
+      {
+        "name": "과부하 트립",
+        "manual_page": 125,
+        "band": [
+          329.93,
+          417.55
+        ],
+        "name_band": [
+          373.75,
+          417.55
+        ],
+        "name_clipped": false,
+        "name_band_raw": " 토크부스트 양이 너무 크다. 과부하 트립",
+        "reason": "본문 괄호 표기에서 같은 명칭을 찾지 못함"
+      },
+      "…(6건 생략)"
+    ],
+    "codes_excluded_by_shape": [
+      {
+        "code": "AI",
+        "canonical_code": "AI",
+        "display_variants": [
+          "AI"
+        ],
+        "name_candidates": [
+          "아날로그 입력"
+        ],
+        "pages": [
+          119
+        ],
+        "code_pages_exact": [
+          34,
+          56,
+          "…(8건 생략)"
+        ],
+        "code_pages_case_folded": []
+      },
+      {
+        "code": "AM",
+        "canonical_code": "AM",
+        "display_variants": [
+          "AM"
+        ],
+        "name_candidates": [
+          "을 인버터 단자대의 아날로그 출력 단자"
+        ],
+        "pages": [
+          109
+        ],
+        "code_pages_exact": [
+          24,
+          34,
+          "…(1건 생략)"
+        ],
+        "code_pages_case_folded": []
+      },
+      "…(41건 생략)"
+    ],
+    "codes_without_name": [
+      {
+        "code": "CoL",
+        "canonical_code": "COL",
+        "pages": [
+          61,
+          117,
+          "…(1건 생략)"
+        ],
+        "code_pages_exact": [
+          117,
+          141
+        ],
+        "code_pages_case_folded": [
+          61
+        ],
+        "reason": "본문에 코드 리터럴은 있으나 `한글명(코드)` 괄호 표기가 없어 조인 후보에 못 들어왔다 — 이름은 지어내지 않는다 (절대규칙 6)"
+      },
+      {
+        "code": "nOn",
+        "canonical_code": "NON",
+        "pages": [
+          49,
+          57,
+          "…(2건 생략)"
+        ],
+        "code_pages_exact": [],
+        "code_pages_case_folded": [
+          49,
+          57,
+          "…(2건 생략)"
+        ],
+        "reason": "본문에 코드 리터럴은 있으나 `한글명(코드)` 괄호 표기가 없어 조인 후보에 못 들어왔다 — 이름은 지어내지 않는다 (절대규칙 6)"
+      }
+    ]
+  },
+  "codes": [
+    {
+      "code": "OCt",
+      "display_code": "OCt",
+      "display_variants": [
+        "OCt"
+      ],
+      "canonical_code": "OCT",
+      "table_row": 0,
+      "name_ko": "과전류",
+      "cause": [
+        "부하의 관성(GD2)에 비해 가감속 시간이 지나치게 짧다.",
+        "인버터의 부하가 정격보다 크다.",
+        "…(3건 생략)"
+      ],
+      "action": [
+        "가감속 시간을 크게 설정합니다.",
+        "큰용량의 인버터로 교체하여 주십시오.",
+        "…(3건 생략)"
+      ],
+      "manual_page": 125,
+      "code_pages": [
+        49,
+        50,
+        "…(1건 생략)"
+      ],
+      "code_pages_exact": [
+        49,
+        50,
+        "…(1건 생략)"
+      ],
+      "code_pages_case_folded": [],
+      "join_variant": "과전류",
+      "join_pages": [
+        50
+      ],
+      "merged_with": [],
+      "collides_with_canonical_code": true
+    },
+    {
+      "code": "IOL",
+      "display_code": "IOL",
+      "display_variants": [
+        "IOL"
+      ],
+      "canonical_code": "IOL",
+      "table_row": 2,
+      "name_ko": "인버터 과부하",
+      "cause": [
+        "인버터의 부하가 정격보다 크다.",
+        "토크부스트 양이 너무 크다."
+      ],
+      "action": [
+        "전동기와 인버터의 용량을 크게 하십시오.",
+        "토크부스트 양을 줄여 주십시오."
+      ],
+      "manual_page": 125,
+      "code_pages": [
+        110,
+        113
+      ],
+      "code_pages_exact": [
+        110,
+        113
+      ],
+      "code_pages_case_folded": [],
+      "join_variant": "과부하",
+      "join_pages": [
+        110,
+        113
+      ],
+      "merged_with": [
+        "과부하 트립"
+      ],
+      "collides_with_canonical_code": true,
+      "name_collision_with": [
+        "IOLT"
+      ]
+    },
+    "…(3건 생략)"
+  ]
+}

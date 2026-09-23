@@ -1,0 +1,56 @@
+{
+  "_status": "승인 완료 (2026-07-28) — ② 4건 이미지 재확인 + ③ 2건 결정 반영. data/analysis/ig5a_code_mapping.md 참조 · actions 3건 병합 (2026-08-17, MQ-919, TODO_직접할일.md 승인 완료) · IE5 5건 정본 병합 완료 (OCT·IOL·OHT·OVT·LVT, 2026-08-21, MQ-1507) · iG5A NTC actions 병합 (2026-08-29 — 2026-08-19 위임 반려를 사람이 뒤집은 건. 기계 판정은 STILL_AMBIGUOUS 로 남아 있고 귀속(rowspan)은 미확인이다, 후보 파일 override_note 참조)",
+  "generated_at": "2026-08-29",
+  "citation_basis": "PDF 물리 페이지 (D26)",
+  "code_policy": "code=대문자 canonical, display_code=키패드 원표기 (D25)",
+  "counts": {
+    "iG5A": 24,
+    "S100": 41,
+    "IE5": 5
+  },
+  "_entries_전체건수": 70,
+  "entries": [
+    {
+      "model": "iG5A",
+      "code": "OCT",
+      "display_code": "OCt",
+      "error_name": "과전류",
+      "severity": "fault",
+      "causes": [
+        "과전류로 고장이 나면 인버터 내부에 있는 파워 반도체 소자의 파손 우려가…",
+        "부하의 관성 (GD2)에 비해 가감속 시간이 지나치게 빠르다.",
+        "…(4건 생략)"
+      ],
+      "actions": [
+        "가감속 시간을 크게 설정합니다.",
+        "용량이 큰 인버터로 교체하십시오.",
+        "…(3건 생략)"
+      ],
+      "manual_page": 204,
+      "mapping_confidence": "high",
+      "source": "iG5A 표준본 12.1/12.2 + 통신 챕터 비트명 매핑(검수 대기)"
+    },
+    {
+      "model": "iG5A",
+      "code": "OC2",
+      "display_code": "OC2",
+      "error_name": "과전류 2",
+      "severity": "fault",
+      "causes": [
+        "iGBT 상하간 합선이 발생되었다.",
+        "인버터 출력합선이 발생되었다.",
+        "…(1건 생략)"
+      ],
+      "actions": [
+        "iGBT를 체크합니다.",
+        "인버터 출력 배선을 확인합니다.",
+        "…(1건 생략)"
+      ],
+      "manual_page": 204,
+      "mapping_confidence": "high",
+      "source": "iG5A 표준본 12.1/12.2 + 통신 챕터 비트명 매핑(검수 대기)"
+    }
+  ],
+  "_pending_review": [],
+  "_unparsed": []
+}
