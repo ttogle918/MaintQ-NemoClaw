@@ -1,22 +1,29 @@
-# MaintQ OpenShell 샌드박스 정책 초안 (D143, NVIDIA 해커톤 Day 1)
+# MaintQ OpenShell 샌드박스 정책 (D143, NVIDIA 해커톤 Day 1 — 방식 B)
 #
-# 원칙: 기본 전부 차단. 허용은 (1) NVIDIA 추론 — 게이트웨이의 inference.local 경유,
-#       (2) MaintQ 자체 구성요소 — 백엔드·MCP 서버는 같은 샌드박스 안의 프로세스이고
-#           밖으로 나가는 것은 Postgres 접속 하나뿐이다.
+# 원칙: 기본 전부 차단. 허용은
+#   (1) NVIDIA 추론 — 게이트웨이의 inference.local 경유. network_policies 에 적지 않는다:
+#       게이트웨이가 가로채 키를 주입한다(2026-09-24 실측: `ALLOWED inference.local:443`,
+#       `openshell_router: routing proxy inference request`). 샌드박스 안에는 키가 없다.
+#   (2) MaintQ 자체 구성요소 — 백엔드(uvicorn) · MCP 서버(stdio 자식) · Postgres 가 전부
+#       샌드박스 **안** 프로세스이고 loopback 으로만 통신한다. 밖으로 나가는 항목이 없다.
+#
+# 그래서 network_policies 가 비어 있다 — 이것이 "기본 전부 차단" 의 가장 강한 형태다.
+#   실측(2026-09-24): api.openai.com · integrate.api.nvidia.com(직접) · example.com 전부
+#   `Tunnel connection failed: 403 Forbidden`, 로그 `DENIED /usr/local/bin/python3.13 -> <host>:443
+#   [reason:endpoint <host>:443 is not allowed by any policy]`.
+#
+# 방식 A(호스트 Postgres 를 network_policies 로 허용)는 기각됐다 — Docker Desktop 에서 호스트 IP 가
+# 게이트웨이와 같아 SSRF 보호로 거부된다(`policy_dns_trusted_gateway_unavailable`). 이미지 주석 참고.
 #
 # 스키마: https://docs.nvidia.com/openshell/reference/policy-schema
 #   - filesystem_policy / landlock / process 는 생성 시 고정(바꾸려면 샌드박스 재생성)
 #   - network_policies 는 hot-reload 가능 (`openshell policy set <name> --policy ...`)
-#   - 선언된 binaries 만 선언된 endpoints 로 나갈 수 있다. 목록에 없으면 거부된다.
-#
-# ⚠ 아직 실측 전인 가정 (docs/hackathon/day1.md 「미확인」 참고):
-#   - inference.local 은 network_policies 에 적지 않아도 게이트웨이가 가로챈다
-#   - host.docker.internal 이 샌드박스 안에서 호스트 Postgres(5434)로 풀린다
-#   - python 심링크(/app/.venv/bin/python → /usr/local/bin/python3.13)가 어느 경로로 매칭되는지
 version: 1
 
 filesystem_policy:
-  include_workdir: true
+  # 작업 디렉터리(/app)를 쓰기 목록에 자동으로 넣지 않는다 — 앱 코드·매뉴얼 청크·DB 템플릿을
+  # 에이전트가 고쳐 쓸 수 없게. 쓰기는 /tmp 뿐이다(Postgres 데이터 디렉터리도 /tmp/pgdata).
+  include_workdir: false
   read_only:
     - /usr
     - /lib
@@ -35,19 +42,4 @@ process:
   run_as_user: "1000"
   run_as_group: "1000"
 
-network_policies:
-  # MaintQ 자체 구성요소 — 백엔드(uvicorn)와 MCP 서버(stdio 자식)가 둘 다 python 이다.
-  # 둘 다 Postgres 에 붙는다(MCP 는 read_only / draft_writer 등 D10 커넥션 분리 그대로).
-  maintq_postgres:
-    name: maintq-postgres
-    endpoints:
-      - host: host.docker.internal
-        port: 5434
-        protocol: tcp
-        enforcement: enforce
-    binaries:
-      - path: /app/.venv/bin/python*
-      - path: /usr/local/bin/python3*
-
-  # NVIDIA 추론은 여기 적지 않는다 — inference.local 을 게이트웨이가 가로채 키를 주입한다.
-  # integrate.api.nvidia.com 을 직접 허용하면 샌드박스 안에 키가 있어야 하므로 D143 과 충돌한다.
+network_policies: {}

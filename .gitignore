@@ -67,3 +67,6 @@ data/raw/external/*/*
 
 # LLM 응답 카세트 (D104) — 개발 보조물이라 추적하지 않는다. 언제 지워도 된다.
 data/cache/
+
+# OpenShell 샌드박스 빌드 산출물 (DB 덤프 — 커밋 금지, D143)
+deploy/openshell/build/

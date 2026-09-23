@@ -1,26 +1,57 @@
-# MaintQ — OpenShell 샌드박스용 이미지 (D143, NVIDIA 해커톤 Day 1)
+# MaintQ — OpenShell 샌드박스용 이미지 (D143, NVIDIA 해커톤 Day 1 — 방식 B)
 #
-# 루트 Dockerfile 이미지(백엔드 + MCP stdio 자식 프로세스)를 그대로 쓰고, 두 가지만 바꾼다.
-#   1) 비root 사용자(uid 1000) — OpenShell process 정책이 root(0) 실행을 거부한다.
-#   2) 샌드박스 모드 env — 추론은 inference.local 로만, 키 없이 기동한다(D143).
+# 루트 Dockerfile 이미지(백엔드 + MCP stdio 자식 프로세스) 위에 다음을 얹는다.
+#   1) OpenShell 슈퍼바이저가 요구하는 도구(iproute2 · nftables)
+#   2) Postgres 17 + pgvector — DB 도 샌드박스 **안**에서 돈다(방식 B).
+#      방식 A(호스트 Postgres 를 정책으로 허용)는 Docker Desktop 에서 막혔다:
+#      호스트 IP(192.168.65.254)가 OpenShell 게이트웨이와 같은 주소라 SSRF 보호로 거부된다
+#      (`DENIED host.docker.internal:53 [reason:policy_dns_trusted_gateway_unavailable]`, 2026-09-24 실측).
+#   3) 비root 사용자(uid 1000) — OpenShell process 정책이 root(0) 실행을 거부한다.
+#   4) 샌드박스 env — 추론은 inference.local 로만, 키 없이 기동한다(D143).
 #
 # ⛔ 키를 넣지 않는다. NVIDIA_API_KEY 는 OpenShell 게이트웨이 provider 에만 등록한다.
 #    루트 .dockerignore 가 .env 를 빌드 컨텍스트에서 제외한다(2026-09-24 이미지 전수 스캔으로 확인).
 #
-# 빌드:  docker build -t maintq:hackathon-day1 .
-#        docker build -f deploy/openshell/Dockerfile.sandbox -t maintq-sandbox:day1 .
+# 빌드 (레포 루트에서):
+#   docker build -t maintq:hackathon-day1 .
+#   docker exec maintq_postgres pg_dump -U postgres -d maintq -Fc --no-owner --no-privileges \
+#       --exclude-table-data=manual_chunks -f /tmp/maintq.dump
+#   docker cp maintq_postgres:/tmp/maintq.dump deploy/openshell/build/maintq.dump   # gitignore 대상
+#   docker build -f deploy/openshell/Dockerfile.sandbox -t maintq-sandbox:day1 .
 ARG BASE_IMAGE=maintq:hackathon-day1
 FROM ${BASE_IMAGE}
+
+# OpenShell 슈퍼바이저가 요구하는 호스트 도구 — slim 이미지엔 둘 다 없어 컨테이너가 즉시 종료된다(0.0.116 실측).
+#   iproute2 (`ip`)  — 네트워크 네임스페이스 생성. 없으면 "trusted ip helper not found"
+#   nftables (`nft`) — 정책 DNS·투명 TCP. 없으면 "trusted nft helper not found"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 nftables postgresql-17 postgresql-17-pgvector \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1000 maintq \
     && useradd -u 1000 -g 1000 -M -d /app -s /usr/sbin/nologin maintq \
     && chown -R 1000:1000 /app
 
+COPY --chown=1000:1000 deploy/openshell/build/maintq.dump /tmp/maintq.dump
+COPY --chown=1000:1000 --chmod=755 deploy/openshell/start.sh /app/start.sh
+
+USER 1000:1000
+
+# DB 템플릿 — 빌드 때 한 번 복원해 두고, 기동 때 /tmp 로 복사한다(start.sh).
+# 임베딩(manual_chunks 데이터)은 뺐다 — 샌드박스 안에서는 질의 임베딩을 못 불러 dense 가 꺼진다(day1.md §5.2).
+RUN /usr/lib/postgresql/17/bin/initdb -D /app/pgdata-template -U postgres --auth=trust -E UTF8 >/dev/null \
+    && /usr/lib/postgresql/17/bin/pg_ctl -D /app/pgdata-template -w start \
+        -o "-c listen_addresses='' -c unix_socket_directories=/tmp" >/dev/null \
+    && /usr/lib/postgresql/17/bin/createdb -h /tmp -U postgres maintq \
+    && /usr/lib/postgresql/17/bin/pg_restore -h /tmp -U postgres -d maintq --no-owner --no-privileges --exit-on-error /tmp/maintq.dump \
+    && /usr/lib/postgresql/17/bin/psql -h /tmp -U postgres -d maintq -tAc \
+        "select 'restored error_codes=' || (select count(*) from error_codes) || ' triggers=' || (select count(*) from pg_trigger where not tgisinternal)" \
+    && /usr/lib/postgresql/17/bin/pg_ctl -D /app/pgdata-template -w stop >/dev/null \
+    && rm /tmp/maintq.dump
+
 ENV MAINTQ_SANDBOX=openshell \
     MAINTQ_LLM_PROVIDER=nvidia \
     MAINTQ_LLM_MODEL=nvidia/nemotron-3-super-120b-a12b \
-    MAINTQ_LLM_FALLBACK_PROVIDER= \
-    MAINTQ_LLM_FALLBACK_MODEL= \
-    MAINTQ_LLM_CACHE=
+    DATABASE_URL=postgresql://postgres@127.0.0.1:5432/maintq
 
-USER 1000:1000
+CMD ["/app/start.sh"]

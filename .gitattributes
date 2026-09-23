@@ -1,3 +1,5 @@
 *.ipynb filter=nbstripout
 *.zpln filter=nbstripout
 *.ipynb diff=ipynb
+# 샌드박스 엔트리포인트는 리눅스에서 실행된다 — CRLF 면 /bin/sh 가 못 읽는다
+deploy/openshell/*.sh text eol=lf
