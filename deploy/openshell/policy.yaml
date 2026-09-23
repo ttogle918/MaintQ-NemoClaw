@@ -1,0 +1,53 @@
+# MaintQ OpenShell 샌드박스 정책 초안 (D143, NVIDIA 해커톤 Day 1)
+#
+# 원칙: 기본 전부 차단. 허용은 (1) NVIDIA 추론 — 게이트웨이의 inference.local 경유,
+#       (2) MaintQ 자체 구성요소 — 백엔드·MCP 서버는 같은 샌드박스 안의 프로세스이고
+#           밖으로 나가는 것은 Postgres 접속 하나뿐이다.
+#
+# 스키마: https://docs.nvidia.com/openshell/reference/policy-schema
+#   - filesystem_policy / landlock / process 는 생성 시 고정(바꾸려면 샌드박스 재생성)
+#   - network_policies 는 hot-reload 가능 (`openshell policy set <name> --policy ...`)
+#   - 선언된 binaries 만 선언된 endpoints 로 나갈 수 있다. 목록에 없으면 거부된다.
+#
+# ⚠ 아직 실측 전인 가정 (docs/hackathon/day1.md 「미확인」 참고):
+#   - inference.local 은 network_policies 에 적지 않아도 게이트웨이가 가로챈다
+#   - host.docker.internal 이 샌드박스 안에서 호스트 Postgres(5434)로 풀린다
+#   - python 심링크(/app/.venv/bin/python → /usr/local/bin/python3.13)가 어느 경로로 매칭되는지
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /app
+  read_write:
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: "1000"
+  run_as_group: "1000"
+
+network_policies:
+  # MaintQ 자체 구성요소 — 백엔드(uvicorn)와 MCP 서버(stdio 자식)가 둘 다 python 이다.
+  # 둘 다 Postgres 에 붙는다(MCP 는 read_only / draft_writer 등 D10 커넥션 분리 그대로).
+  maintq_postgres:
+    name: maintq-postgres
+    endpoints:
+      - host: host.docker.internal
+        port: 5434
+        protocol: tcp
+        enforcement: enforce
+    binaries:
+      - path: /app/.venv/bin/python*
+      - path: /usr/local/bin/python3*
+
+  # NVIDIA 추론은 여기 적지 않는다 — inference.local 을 게이트웨이가 가로채 키를 주입한다.
+  # integrate.api.nvidia.com 을 직접 허용하면 샌드박스 안에 키가 있어야 하므로 D143 과 충돌한다.
