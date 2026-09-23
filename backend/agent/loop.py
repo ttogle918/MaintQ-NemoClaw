@@ -24,7 +24,7 @@ from collections.abc import AsyncIterator
 
 from backend import sse
 from backend.agent import prompts
-from backend.agent.llm import LlmClient, ToolUse
+from backend.agent.llm import LlmClient, ToolUse, stream_failure_message
 from backend.agent.mcp_client import TOOL_TIMEOUT_SEC, McpClient, summarize_result
 from backend.agent.trace import TraceWriter
 from backend.db import connect
@@ -448,6 +448,7 @@ async def run_turn(
         # 안에 두면 우리 코드의 버그(KeyError 등)가 "LLM 실패"로 위장돼 조용히 우회된다.
         stream = _safe_stream(llm, system=system, messages=messages, tools=tools)
         failed = False
+        stream_exc: BaseException | None = None
         #: `("end", stop_reason)` 델타. 이전에는 이 분기가 없어 **버려지고 있었다** —
         #: 잘린 응답과 스스로 끝낸 응답이 구분되지 않던 자리다 (MQ-713a ③).
         finish_raw: object | None = None
@@ -461,6 +462,7 @@ async def run_turn(
                 trace.replay = True
             if kind == "_stream_error":
                 failed = True
+                stream_exc = value  # type: ignore[assignment]
                 break
             if kind == "text":
                 buf.append(str(value))
@@ -491,7 +493,8 @@ async def run_turn(
 
         if failed:
             # 09_RUNTIME §3 — 부분 스트림을 이어 붙이지 않는다
-            yield sse.token("응답 생성에 실패했습니다. 다시 시도해 주세요.")
+            # D143 — 샌드박스 폴백 차단은 이유를 그대로 보여 준다(그 외는 기존 문구)
+            yield sse.token(stream_failure_message(stream_exc))
             return
 
         async for ev in flush(force=True):

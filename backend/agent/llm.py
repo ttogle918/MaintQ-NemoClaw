@@ -568,6 +568,86 @@ class FallbackClient:
 PROVIDERS = ("gemini", "anthropic", "elice", "openai", "nvidia", "ollama")
 
 
+# ────────────────────────────────────────────── OpenShell 샌드박스 (D143)
+#
+# 샌드박스 안에서 MaintQ 는 NVIDIA 키를 갖지 않는다. 추론은 OpenShell 게이트웨이의
+# `https://inference.local` 로 보내고, 게이트웨이가 Authorization 을 떼고 실제 키를 넣고
+# model 을 재작성한다. egress 는 기본 차단이라 폴백 제공자로는 나갈 수 없다.
+
+#: `MAINTQ_SANDBOX` 가 받는 유일한 값. 오타가 조용히 "샌드박스 아님"이 되지 않게 다른 값은 거부한다.
+SANDBOX_OPENSHELL = "openshell"
+SANDBOX_INFERENCE_URL = "https://inference.local"
+#: 게이트웨이가 떼어 내므로 상류로 가지 않는다. SDK 가 빈 키를 거부해서 자리만 채운다.
+SANDBOX_PLACEHOLDER_KEY = "injected-by-openshell-gateway"
+
+
+def sandbox_mode() -> bool:
+    value = (os.environ.get("MAINTQ_SANDBOX") or "").strip().lower()
+    if not value:
+        return False
+    if value != SANDBOX_OPENSHELL:
+        raise RuntimeError(
+            f"MAINTQ_SANDBOX 는 비워 두거나 {SANDBOX_OPENSHELL!r} 여야 합니다: {value!r}"
+        )
+    return True
+
+
+class SandboxFallbackBlocked(RuntimeError):
+    """샌드박스에서 primary 가 실패했는데 정책상 폴백으로 넘어갈 수 없을 때.
+
+    메시지는 사용자에게 그대로 보여 준다 — 원인은 `fallback_cause()`(타입 + 상태코드)만
+    담고 응답 본문은 담지 않는다 (D40·D131).
+    """
+
+
+class SandboxNoFallbackClient:
+    """샌드박스용 래퍼 — `FallbackClient` 자리에 선다 (D143).
+
+    primary 실패를 삼키지도, 다른 제공자로 넘기지도 않는다. 대신 "샌드박스 정책상
+    폴백 불가" 를 명시한 `SandboxFallbackBlocked` 로 바꿔 올린다. 첫 델타 이후 실패는
+    `FallbackClient` 와 같은 이유로 원래 예외를 그대로 올린다.
+    """
+
+    def __init__(
+        self, primary: LlmClient, *, primary_label: str, fallback_label: str | None
+    ) -> None:
+        self._primary = primary
+        self._primary_label = primary_label
+        self._fallback_label = fallback_label
+
+    def stream(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[LlmDelta]:
+        primary, primary_label = self._primary, self._primary_label
+        fb = self._fallback_label
+
+        async def gen() -> AsyncIterator[LlmDelta]:
+            yielded = False
+            try:
+                async for delta in primary.stream(
+                    system=system, messages=messages, tools=tools
+                ):
+                    yielded = True
+                    yield delta
+            except Exception as exc:  # noqa: BLE001 — 어떤 실패든 명시적 에러로 바꾼다
+                if yielded:
+                    raise
+                target = f"폴백({fb})" if fb else "폴백"
+                raise SandboxFallbackBlocked(
+                    f"LLM 호출 실패 — {primary_label} 원인 {fallback_cause(exc)}. "
+                    f"샌드박스 정책상 {target} 불가 (egress 기본 차단, D143)."
+                ) from exc
+
+        return gen()
+
+
+def stream_failure_message(exc: BaseException | None) -> str:
+    """스트림 실패 시 사용자에게 보여 줄 문구. 샌드박스 폴백 차단만 이유를 그대로 말한다."""
+    if isinstance(exc, SandboxFallbackBlocked):
+        return str(exc)
+    return "응답 생성에 실패했습니다. 다시 시도해 주세요."
+
+
 def fallback_cause(exc: BaseException) -> str:
     """폴백 원인을 **고칠 수 있을 만큼만** 적는다 — 예외 타입 + HTTP 상태코드.
 
@@ -605,6 +685,13 @@ def _build_single_client(provider: str, model: str) -> LlmClient:
         raise RuntimeError(
             f"MAINTQ_LLM_PROVIDER 는 {PROVIDERS} 중 하나여야 합니다: {provider!r}"
         )
+    if sandbox_mode() and provider != "nvidia":
+        # D143 — 샌드박스 egress 정책이 허용하는 추론 경로는 inference.local 하나뿐이다.
+        # 다른 제공자는 기동은 돼도 첫 호출에서 정책에 막힌다 — 그 전에 이유를 말하고 죽는다.
+        raise RuntimeError(
+            f"샌드박스 정책상 {provider!r} 제공자는 쓸 수 없습니다 — 허용된 추론 경로는 "
+            "OpenShell inference.local(nvidia) 하나뿐입니다 (D143)."
+        )
 
     base_url = ""
     if provider == "gemini":
@@ -630,7 +717,22 @@ def _build_single_client(provider: str, model: str) -> LlmClient:
         #    여기에 박으면 `/v1/v1` 이 된다.
         api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
         key_label = "NVIDIA_API_KEY"
-        base_url = "https://integrate.api.nvidia.com"
+        base_url = (os.environ.get("NVIDIA_BASE_URL") or "").strip() or (
+            "https://integrate.api.nvidia.com"
+        )
+        if sandbox_mode():
+            # D143 — 샌드박스 안에는 키가 **없어야** 한다. 키는 OpenShell 게이트웨이에만
+            # 등록되고, 게이트웨이가 호출자의 Authorization 을 떼고 실제 키를 넣는다.
+            # 키가 보이면 "키는 샌드박스 밖에 있다"는 전제가 깨진 것이라 기동을 거부한다.
+            if api_key:
+                raise RuntimeError(
+                    "샌드박스 모드(MAINTQ_SANDBOX=openshell)인데 NVIDIA_API_KEY 가 샌드박스 "
+                    "안에 있습니다. 키는 OpenShell 게이트웨이에만 등록해야 합니다 (D143)."
+                )
+            api_key = SANDBOX_PLACEHOLDER_KEY
+            base_url = (os.environ.get("NVIDIA_BASE_URL") or "").strip() or (
+                SANDBOX_INFERENCE_URL
+            )
     elif provider == "ollama":
         # Ollama **Cloud** — 로컬 데몬이 아니라 ollama.com 이 호스팅하는 모델이다.
         # 로컬 설치는 필요 없다(설치가 필요한 건 `ollama signin` 으로 localhost:11434 를
@@ -685,7 +787,19 @@ def get_client() -> LlmClient:
 
     fb_provider = (os.environ.get("MAINTQ_LLM_FALLBACK_PROVIDER") or "").strip().lower()
     fb_model = (os.environ.get("MAINTQ_LLM_FALLBACK_MODEL") or "").strip()
-    if fb_provider and fb_model:
+    if sandbox_mode():
+        # D143 — 폴백 제공자(OpenAI 등)는 egress 정책이 막는다. 폴백을 조립하지 않고,
+        # primary 실패를 "샌드박스 정책상 폴백 불가" 로 명시해 올린다. 폴백 설정 자체는
+        # 로컬 실행을 위해 그대로 둔다 — 여기서 무시할 뿐 지우지 않는다.
+        if fb_provider or fb_model:
+            logger.warning(
+                "샌드박스 모드 — 폴백(%s)을 켜지 않는다. 샌드박스 정책상 폴백 불가 (D143).",
+                fb_provider or "?",
+            )
+        inner = SandboxNoFallbackClient(
+            inner, primary_label=provider, fallback_label=fb_provider or None
+        )
+    elif fb_provider and fb_model:
         inner = FallbackClient(
             inner,
             _build_single_client(fb_provider, fb_model),

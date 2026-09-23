@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D142**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D143**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
@@ -112,7 +112,7 @@
   uv run --with pytest python -m pytest data/rules/test_rules.py
   backend/agent/test_llm_cache.py backend/agent/test_llm_fallback.py
   data/external/test_elice_docvision.py data/test_expenditure_limits.py
-  backend/services/test_docx_render.py backend/services/test_po_documents.py -q`** → **128건**
+  backend/services/test_docx_render.py backend/services/test_po_documents.py -q`** → **138건**
   (`uv run python -m pytest` 는 pytest 미설치로 **실행되지 않는다**)
 
   🔴 **정정 (2026-09-04 실측)**: 이 커맨드는 오래 **"4파일 합산 → 114건"** 으로 적혀 있었는데
@@ -122,9 +122,9 @@
      넣지 않았다. 그대로 복붙해 돌리면 **영원히 114 가 나오지 않는다.**
   ㉡ **기준값 99 도 낡았다** — 실측은 101 이다(`test_llm_cache.py` 가 24→26.
      `docs/07_BACKLOG.md` 가 기록한 `TraceWriter` 가드 회귀 2건이 늘어난 것).
-  파일별 실측: `test_rules` 46 · `test_llm_cache` 26 · `test_llm_fallback` 15 ·
+  파일별 실측: `test_rules` 46 · `test_llm_cache` 26 · `test_llm_fallback` **25**(15 + D143 샌드박스 모드 10, 2026-09-24) ·
   `test_elice_docvision` 13 · `test_expenditure_limits` 16 · **`test_docx_render` 9**(신규,
-  D124) · **`test_po_documents` 3**(기존인데 목록 밖이었다) = **128**.
+  D124) · **`test_po_documents` 3**(기존인데 목록 밖이었다) = **138**.
   실제로 도는 파일을 전부 커맨드에 넣었다 — **합계만 고치면 같은 함정이 재발한다.**
   🔴 **`DATABASE_URL` 을 반드시 실어야 한다** (2026-08-29 실측). pytest 실행 경로에는
   `load_dotenv` 가 없어(`backend/main.py` 에만 있다) `backend/db.py:21` 의 기본값
@@ -170,7 +170,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 22파일 354건이다** (7파일군 128 + A2A 9파일군 162 + 서비스 3파일 20 + mcp_server 3파일 44).
+  📌 **pytest 총계는 이제 22파일 364건이다** (7파일군 138 + A2A 9파일군 162 + 서비스 3파일 20 + mcp_server 3파일 44).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
@@ -254,7 +254,7 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 `policy_id` 목업 1종을 실번호 4종으로 바꾸며 형식(`[A-Z]{2,3}-\d{4}-\d{4}`)과
 건물↔증권 짝을 함께 잠갔다. ⚠ **접두사가 2~3글자 가변**이라(`SB`/`DS`/`SBP`) 형식 검사에
 **양성 축(접두사 3종 생존)을 함께 걸었다** — `{2}` 로 좁히면 `SBP` 2행에서 FAIL 하는 것을
-뮤턴트로 실증했다) · pytest **128건**(위 커맨드 정정 참고)
+뮤턴트로 실증했다) · pytest **138건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
 프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.

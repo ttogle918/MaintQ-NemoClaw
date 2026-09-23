@@ -32,6 +32,8 @@ _LLM_ENV = (
     "NVIDIA_API_KEY",
     "OPENAI_API_KEY",
     "MAINTQ_LLM_CACHE",
+    "MAINTQ_SANDBOX",
+    "NVIDIA_BASE_URL",
 )
 
 
@@ -251,3 +253,108 @@ def test_fallback_client_uses_its_own_model_not_the_primary(monkeypatch):
     import os as _os
 
     assert _os.environ["MAINTQ_LLM_MODEL"] == "openai/gpt-oss-120b"
+
+
+# ── D143 — OpenShell 샌드박스 모드 ───────────────────────────────────────────
+
+
+def _sandbox_env(monkeypatch):
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("MAINTQ_SANDBOX", "openshell")
+    monkeypatch.setenv("MAINTQ_LLM_PROVIDER", "nvidia")
+    monkeypatch.setenv("MAINTQ_LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+
+
+def test_sandbox_routes_nvidia_to_inference_local_without_key(monkeypatch):
+    """키 없이 기동하고 inference.local 로 보낸다 — 키는 게이트웨이에만 있다."""
+    _sandbox_env(monkeypatch)
+    client = llm.get_client()
+
+    assert isinstance(client, llm.SandboxNoFallbackClient)
+    inner = client._primary
+    assert str(inner._client.base_url).rstrip("/") == "https://inference.local/v1"
+    assert inner._client.api_key == llm.SANDBOX_PLACEHOLDER_KEY
+
+
+def test_sandbox_refuses_to_start_when_key_is_inside(monkeypatch):
+    _sandbox_env(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", FAKE_KEY)
+
+    with pytest.raises(RuntimeError, match="게이트웨이에만") as ei:
+        llm.get_client()
+    assert FAKE_KEY not in str(ei.value)
+
+
+def test_sandbox_rejects_non_nvidia_provider(monkeypatch):
+    _sandbox_env(monkeypatch)
+    monkeypatch.setenv("MAINTQ_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", FAKE_KEY)
+
+    with pytest.raises(RuntimeError, match="샌드박스 정책상"):
+        llm.get_client()
+
+
+def test_sandbox_value_typo_is_rejected(monkeypatch):
+    """오타가 조용히 "샌드박스 아님" 이 되지 않는다."""
+    _sandbox_env(monkeypatch)
+    monkeypatch.setenv("MAINTQ_SANDBOX", "openshel")
+
+    with pytest.raises(RuntimeError, match="MAINTQ_SANDBOX"):
+        llm.get_client()
+
+
+def test_sandbox_does_not_build_fallback_even_when_configured(monkeypatch, caplog):
+    _sandbox_env(monkeypatch)
+    monkeypatch.setenv("MAINTQ_LLM_FALLBACK_PROVIDER", "openai")
+    monkeypatch.setenv("MAINTQ_LLM_FALLBACK_MODEL", "gpt-4.1-mini")
+    monkeypatch.setenv("OPENAI_API_KEY", FAKE_KEY)
+
+    with caplog.at_level("WARNING", logger="backend.agent.llm"):
+        client = llm.get_client()
+
+    assert isinstance(client, llm.SandboxNoFallbackClient)
+    assert not isinstance(client._primary, llm.FallbackClient)
+    assert "샌드박스 정책상 폴백 불가" in caplog.text
+
+
+def _no_fallback(primary, fb="openai"):
+    return llm.SandboxNoFallbackClient(primary, primary_label="nvidia", fallback_label=fb)
+
+
+def test_sandbox_primary_failure_is_explicit_not_silent():
+    with pytest.raises(llm.SandboxFallbackBlocked) as ei:
+        asyncio.run(_drain(_no_fallback(FakeClient([], exc=FakeStatusError(403)))))
+
+    msg = str(ei.value)
+    assert "샌드박스 정책상 폴백(openai) 불가" in msg
+    assert "FakeStatusError 403" in msg
+    assert "status 403" not in msg  # 예외 본문은 싣지 않는다 (D40·D131)
+    assert llm.stream_failure_message(ei.value) == msg
+
+
+def test_sandbox_primary_success_passes_through():
+    """양성 축 — 래퍼가 항상 실패로 망가져도 위 테스트는 통과하므로 짝을 둔다."""
+    out = asyncio.run(_drain(_no_fallback(FakeClient([("text", "정상"), ("end", "stop")]))))
+    assert out == [("text", "정상"), ("end", "stop")]
+
+
+def test_sandbox_failure_after_first_delta_keeps_original_error():
+    primary = FakeClient([("text", "a"), ("text", "b")], exc=FakeStatusError(500), raise_after=1)
+    with pytest.raises(FakeStatusError):
+        asyncio.run(_drain(_no_fallback(primary)))
+
+
+def test_generic_failure_message_is_unchanged():
+    assert llm.stream_failure_message(RuntimeError("x")) == "응답 생성에 실패했습니다. 다시 시도해 주세요."
+    assert llm.stream_failure_message(None) == "응답 생성에 실패했습니다. 다시 시도해 주세요."
+
+
+def test_nvidia_base_url_override_outside_sandbox(monkeypatch):
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("MAINTQ_LLM_PROVIDER", "nvidia")
+    monkeypatch.setenv("MAINTQ_LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+    monkeypatch.setenv("NVIDIA_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("NVIDIA_BASE_URL", "https://example.invalid")
+
+    client = llm.get_client()
+    assert str(client._client.base_url).rstrip("/") == "https://example.invalid/v1"
