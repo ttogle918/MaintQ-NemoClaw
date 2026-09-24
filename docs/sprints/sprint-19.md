@@ -89,7 +89,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
 
 | TASK | 제목 | 범위 | 규모 | 선행 |
 |------|------|------|------|------|
-| MQ-1911 | 승격 검수 화면 — 원문·정규화문 나란히 + 승격/반려 + **기종 온보딩 뱃지** (**컷 후보**) | `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규) · `frontend/components/onboarding/OnboardingBadge.tsx`(신규) · `frontend/components/asset/EquipmentCard.tsx` · `frontend/lib/api.ts` · `spikes/ui_honesty_contract.py`(게이트 등재) | M→L | MQ-1909 |
+| MQ-1911 | 승격 검수 화면 — 원문·정규화문 나란히 + 승격/반려 + **기종 온보딩 뱃지** (**컷 후보**) | `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규) · `frontend/components/onboarding/OnboardingBadge.tsx`(신규) · `frontend/components/asset/EquipmentCard.tsx` · `frontend/lib/a2a.ts` · `frontend/lib/api.ts` · `spikes/ui_honesty_contract.py`(게이트 등재) | M→L | MQ-1909 |
 | MQ-1912 | 데모 E2E — OpenClaw 진단 스킬 HV600 반영 + 데모 시나리오 | `skills/maintq-diagnose/SKILL.md` · `skills/maintq-diagnose/evals/evals.json` · `deploy/nemoclaw/workspace/out/*`(재생성) · `docs/hackathon/day2.md` | S | MQ-1909 · MQ-1910 |
 | MQ-1913 | 회귀 목록·기준선·문서 동기화 | `CLAUDE.md`(회귀 절) · `docs/README.md` · `docs/10_DECISIONS.md`(D153 주석) · `docs/07_BACKLOG.md` | S | Stage 1~3 전부 |
 
@@ -796,6 +796,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   API 는 코드 **그룹** 승격(D156 — primary 라디오 · `acknowledged_flags`)이다 — **동작은 API 를 따른다**
 - **변경 파일**: `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규, React·`@/` 별칭 미사용 순수 함수) ·
   `frontend/components/onboarding/OnboardingBadge.tsx`(신규 — 2026-09-25 추가) · `frontend/components/asset/EquipmentCard.tsx`(수정 — 뱃지 부착) ·
+  `frontend/lib/a2a.ts`(수정 — 2026-09-25 Stage 2 브라우저 검증 반영, 아래) ·
   `frontend/lib/api.ts`(수정 — 온보딩 API 클라이언트 함수) · `spikes/ui_honesty_contract.py`(수정 — `lib/onboarding.ts` 를 제약 게이트에 등재, `lib/a2a.ts` C9·C10 선례)
 - **인터페이스**: `lib/onboarding.ts` — `groupStatusView(group): {label, tone}` · `flagLabel(flag): string` · `confidenceTone(c): "ok"|"warn"` ·
   **`onboardingBadgeView(state): {label, tone} | null`**(`none` → `null` = 뱃지 없음) (상태 문자열 직접 비교는 여기만 — D87)
@@ -803,6 +804,10 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   「온보딩 중」(중립) / 「안전 문구 대기」 / 「진단 가능」(ok 톤)을 그린다. 붙는 곳: ⓐ `/manager/onboarding` 기종 헤더 카드 ⓑ `EquipmentCard`.
   ⚠ **HV600 설비 행은 MQ-1914(Stage 5, 선택) 전까지 0건**이라 ⓑ 는 데모에 안 보인다 — **데모 화면의 뱃지는 ⓐ 가 담당**하고,
   ⓑ 는 배선만 해 두고 iG5A·S100 에서 `none` → 뱃지 없음(기존 화면 무변화)을 회귀로 확인한다
+- 🔵 **A2A 상태 라벨 (2026-09-25 Stage 2 브라우저 검증 반영 — 사용자 결정)**: `/manager/a2a` 이력 화면에 `policy_blocked` 가
+  원문 그대로, `unknown` 톤으로 나온다 — `lib/a2a.ts` 의 `a2aStatusTone`·상태 라벨이 `ok|timeout|unavailable|error` 4종만 안다.
+  `policy_blocked`(D149 — 「샌드박스 정책 차단」, 재시도해도 안 풀림) · `circuit_open`(D136 — 「차단기 열림」)을 라벨·톤에 추가하고
+  주석의 status 어휘도 갱신. 데모 ⑥(MQ-1912) 이 이 화면을 쓴다. `ui_honesty_contract` C9·C10(`lib/a2a.ts` 게이트) 건수 변화 실측
 - **핵심 로직**: 배치 선택 → 코드 그룹 목록(승격됨/대기/저신뢰 배지) → 그룹 펼침: 행마다 **좌 원문(en) · 우 정규화(ko)**, 원문 페이지 표시, flags 경고 →
   행별 norm 선택(기본 최신) · primary 라디오 · 반려(사유 필수) · 「플래그 확인」 체크(=`acknowledged_flags`) · 승격 버튼 → 결과(403/409/422 메시지 그대로 표시).
   안전 후보 탭: 원문 인용 + 페이지 + `wait_minutes_in_text` 표시, 승인 문안 입력 + 「원문과 대조했다」 체크. **정규화문을 안전 문안 입력란에 미리 채우지 않는다**(D147)
