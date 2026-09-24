@@ -516,6 +516,7 @@ Claude가 대신 못 하는 것들. 순서대로.
       않는다). 막는 것: 데모 ⑤(승인 후 경로).
 - [ ] **H5 (두 번 — ⓐ H3 전: 데모 ① 녹화용 · ⓑ H3·H4 뒤: ④⑤ 녹화용, 2026-09-25 결정 ㉠) — `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent`
       에 재설치.** 막는 것: OpenClaw 진단 흐름에서 HV600 안전 문구가 실제로 나오는 것.
+      ✅ 2026-09-25 사용자 승인 — 아래 적용 범위 문장(build.py AGENTS.md · maintq-diagnose SKILL.md). 워크스페이스 재생성·업로드·스킬 설치도 사용자가 실행(H5ⓐ)
       ⚠ **ⓐ 전 선행 확인(safety-guardrail 규칙 5)**: `build.py` 가 만드는 AGENTS.md 의 「10분 이상」 확정 문구 **적용 기종을
       iG5A·S100 으로 좁힌 문장**과 `skills/maintq-diagnose/SKILL.md` 의 HV600 안전 적용 범위 문장(「시작 전」·「하지 않는 것」)을
       사람이 읽고 승인한다 — 안전 문구 본문은 바뀌지 않았고 적용 범위만 바뀌었다(Stage 3·4 리뷰 지적)
