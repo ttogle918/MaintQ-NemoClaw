@@ -19,10 +19,12 @@ import json
 import re
 import sqlite3
 from itertools import zip_longest
+from pathlib import PurePath
 
 from backend.agent import prompts
 from backend.agent.safety_source import SEED_MODELS
 from backend.agent.safety_source import resolve as resolve_safety
+from backend.manifest import manual_entry_by_id
 from backend.db import connect
 from backend.services.decisions import now_utc_sql
 from data.doc_fields import iso_utc
@@ -234,6 +236,22 @@ def build_chunks(rows: list[dict], norms: dict[int, dict], manual_id: str) -> li
 # ── DB 접근 함수 ─────────────────────────────────────────────────────────────
 
 
+def manual_doc(manual_id: object) -> str | None:
+    """배치 `manual_id` → 매뉴얼 문서번호(manifest `file` 의 stem). 예: `hv600-iopm` → `TOEPC71061732`.
+
+    manifest(`data/raw/manifest.json`, D19 단일 원천)를 `backend.manifest` 로만 읽는다.
+    manifest 에 없는 id·빈 값·`file` 누락이면 None — 지어내지 않는다(절대규칙 6 과 같은 태도).
+    제조사명 등 manifest 에 필드가 없는 값은 여기서 파생하지 않는다(`license_note` 파싱 금지).
+    """
+    if not isinstance(manual_id, str) or not manual_id:
+        return None
+    entry = manual_entry_by_id(manual_id)
+    file = entry.get("file") if entry else None
+    if not isinstance(file, str) or not file.strip():
+        return None
+    return PurePath(file).stem or None
+
+
 def list_batches() -> list[dict]:
     with connect() as con:
         rows = con.execute(
@@ -255,6 +273,7 @@ def list_batches() -> list[dict]:
     for r in rows:
         d = dict(r)
         d["loaded_at"] = iso_utc(d["loaded_at"])  # D39 — UTC 명시(Z)
+        d["manual_doc"] = manual_doc(d["manual_id"])  # 계약 확장 — 기존 필드 불변
         out.append(d)
     return out
 

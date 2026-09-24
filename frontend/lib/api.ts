@@ -1090,6 +1090,11 @@ export interface ApiOnboardingBatch {
   batch_id: number;
   model: string;
   manual_id: string;
+  /**
+   * 매뉴얼 문서번호 — manifest `file` 의 stem(예: `TOEPC71061732`). manifest 에 없는 id 면 null.
+   * (계약 확장 — 기존 필드 불변)
+   */
+  manual_doc: string | null;
   /** UTC ISO (`...Z`, D39) */
   loaded_at: string;
   rows: number;

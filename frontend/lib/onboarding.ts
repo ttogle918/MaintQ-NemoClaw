@@ -34,6 +34,33 @@ export interface OnboardingLabel {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 기종 표시명 · 매뉴얼 문서번호                                                   */
+
+/**
+ * 기종 코드 → 화면 표시명(제조사 포함). manifest 에 제조사 필드가 없어(`license_note` 는
+ * 자유 문자열이라 파싱하지 않는다) 화면 상수로만 둔다. **모르는 기종은 코드 그대로** — 지어내지 않는다.
+ */
+const MODEL_DISPLAY_NAME: Record<string, string> = {
+  HV600: "Yaskawa HV600",
+};
+
+export function modelDisplayName(model: string): string {
+  return hasKey(MODEL_DISPLAY_NAME, model) ? MODEL_DISPLAY_NAME[model] : model;
+}
+
+/**
+ * 헤더의 원본 매뉴얼 표기. `manual_doc`(서버가 manifest `file` stem 으로 준 문서번호)이 있으면
+ * 그것을 앞에, 없으면(null — manifest 에 없는 id) `manual_id` 만. 둘 다 서버 값 그대로다.
+ */
+export function manualDocLabel(batch: { manual_id: string; manual_doc?: string | null }): {
+  primary: string;
+  secondary: string | null;
+} {
+  const doc = typeof batch.manual_doc === "string" && batch.manual_doc.trim() ? batch.manual_doc : null;
+  return doc ? { primary: doc, secondary: batch.manual_id } : { primary: batch.manual_id, secondary: null };
+}
+
+/* -------------------------------------------------------------------------- */
 /* 기종 온보딩 뱃지 — `GET /api/onboarding/status?model=` → `{model, state}`        */
 
 const BADGE_VIEW: Record<string, OnboardingLabel> = {
@@ -290,6 +317,55 @@ export function promoteBlockers(
   const missing = requiredFlags(rows, selection).filter((f) => !acknowledged.includes(f));
   if (missing.length > 0) out.push(`플래그 확인 필요: ${missing.map(flagLabel).join(", ")}`);
   return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 원문 대조 보조 — 접힌 원인 · 긴 원문 · 반려 사유                                  */
+
+/** 행 비교 표가 기본으로 보여 주는 원인 수. 넘으면 「원인 N건 더 보기」로 접힌다. */
+export const CAUSE_FOLD_LIMIT = 3;
+
+/** 이 행의 원인 칸 수 = max(원문 원인 수, 선택 정규화 원인 수). 선택 정규화가 없으면 원문만. */
+export function causeRowCount(
+  row: { causes_en: unknown[] },
+  selectedNorm: { causes_ko: unknown[] } | null
+): number {
+  return Math.max(row.causes_en.length, selectedNorm ? selectedNorm.causes_ko.length : 0);
+}
+
+/** 접힌 원인이 있는 행인가 (원인 칸 수 > `CAUSE_FOLD_LIMIT`). */
+export function hasFoldedCauses(count: number): boolean {
+  return count > CAUSE_FOLD_LIMIT;
+}
+
+/**
+ * 승격 전에 **아직 한 번도 펼치거나 원문 전체 보기로 열어 보지 않은** 접힌 행(대기 행만).
+ * 안내용일 뿐이다 — 승격을 막지 않는다(막을지는 사람이 정할 몫).
+ */
+export function unseenFoldedRows<
+  R extends { row_id: number; state: string; causes_en: unknown[]; norms: { norm_id: number; causes_ko: unknown[] }[] },
+>(rows: R[], selection: Record<number, number | null>, seen: Record<number, boolean>): R[] {
+  return promotableRows(rows).filter((r) => {
+    const norm = r.norms.find((n) => n.norm_id === selection[r.row_id]) ?? null;
+    return hasFoldedCauses(causeRowCount(r, norm)) && !seen[r.row_id];
+  });
+}
+
+/**
+ * 한 줄에 다 안 보일 만큼 긴 원문인가 — 「원문 전체 보기」 버튼을 붙일지.
+ * 줄바꿈이 있거나 `maxChars` 를 넘으면 참. 표시 판단일 뿐 내용 판정이 아니다.
+ */
+export function isLongText(text: string | null | undefined, maxChars = 90): boolean {
+  if (!text) return false;
+  return text.length > maxChars || text.includes("\n");
+}
+
+/**
+ * 반려 사유 입력 차단 사유. 비었거나 공백뿐이면 문구, 아니면 null.
+ * 서버(`note_required` 422)와 같은 규칙을 **미리** 보여 줄 뿐 — 최종 판정은 서버다.
+ */
+export function rejectNoteBlocker(note: string): string | null {
+  return note.trim() ? null : "반려 사유를 입력하십시오 (공백만으로는 반려할 수 없습니다)";
 }
 
 /* -------------------------------------------------------------------------- */

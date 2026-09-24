@@ -601,6 +601,32 @@ def run_rest(client, dsn: str, ids: dict) -> None:
           f"n={len(stamps)} bad={[t for t in stamps if not (isinstance(t, str) and iso_z.match(t))]}"
           f" sample={stamps[:2]} skew={skew:.0f}s")
 
+    # ── Ⓑ-38 GET /batches `manual_doc` — manifest `file` stem (D19 단일 원천, 계약 확장) ──
+    # 실 manifest 의 `hv600-iopm` 을 가리키는 행 0건짜리 배치를 이 시점에 심는다(앞선 집계·
+    # status 검사를 건드리지 않게 — status 는 promotions 로 판정해 배치 수 1→2 는 무영향).
+    con = dbcompat.connect_dsn(dsn)
+    try:
+        real_batch = con.execute(
+            "INSERT INTO onboarding_batches (model, manual_id, pdf_sha256, candidates_sha256, loaded_by)"
+            " VALUES ('HV600', 'hv600-iopm', 'syn-pdf', 'syn-cand-real', 'spike') RETURNING batch_id"
+        ).fetchone()["batch_id"]
+        con.commit()
+    finally:
+        con.close()
+    gb3 = client.get("/api/onboarding/batches", headers=MGR)
+    by_id = {x["batch_id"]: x for x in gb3.json()} if gb3.status_code == 200 else {}
+    real_b, syn_b = by_id.get(real_batch, {}), by_id.get(ids["batch"], {})
+    base_keys = {"batch_id", "model", "manual_id", "loaded_at", "rows", "staged", "approved",
+                 "rejected", "normalized_rows"}
+    check("Ⓑ-38 GET /batches manual_doc — hv600-iopm → 'TOEPC71061732'(양성) · manifest 밖 id → null"
+          " · 기존 9필드 불변",
+          real_b.get("manual_doc") == "TOEPC71061732"
+          and "manual_doc" in syn_b and syn_b["manual_doc"] is None
+          and base_keys <= set(real_b) and set(real_b) - base_keys == {"manual_doc"},
+          f"real={real_b.get('manual_id')}→{real_b.get('manual_doc')!r}"
+          f" syn={syn_b.get('manual_id')}→{syn_b.get('manual_doc', '<키 없음>')!r}"
+          f" extra={sorted(set(real_b) - base_keys)}")
+
     # ── status: ready ──
     n_before = len(calls)
     s_ready = client.get("/api/onboarding/status", params={"model": "HV600"})

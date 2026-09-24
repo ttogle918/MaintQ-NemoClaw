@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   ConsoleFrame,
@@ -242,6 +243,19 @@ export function ApprovalQueueScreen({
             {headerLabel} <span style={sx("color:var(--orange-tx)")}>({headerCount})</span>
           </span>
           <Spacer />
+          {/* 기종 온보딩 검수(MQ-1911)는 정비팀장 업무다 — 재무 포커스·재무담당 신원에는 노출하지 않는다.
+              정비사 라우트는 이 화면을 쓰지 않는다(/manager/* 전용). */}
+          {focus !== "finance" && managerIdentity.department === "maintenance" && (
+            <Link
+              href="/manager/onboarding"
+              style={sx(
+                "display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:6px;" +
+                  "padding:5px 11px;font:600 12px 'Pretendard';color:var(--blue-tx);text-decoration:none;white-space:nowrap"
+              )}
+            >
+              기종 온보딩 검수 →
+            </Link>
+          )}
           <span style={sx("font:12px 'Pretendard';color:var(--dim)")}>
             {managerIdentity.label}
           </span>

@@ -799,7 +799,8 @@ GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
 
 ```
 GET  /api/onboarding/batches
-  → [{ batch_id, model, manual_id, loaded_at, rows, staged, approved, rejected, normalized_rows }]
+  → [{ batch_id, model, manual_id, manual_doc, loaded_at, rows, staged, approved, rejected, normalized_rows }]
+     manual_doc = data/raw/manifest.json 의 해당 manual_id `file` stem(예: "TOEPC71061732"), 없으면 null (2026-09-25 추가, D19)
 
 GET  /api/onboarding/batches/{batch_id}/groups?state=staged|all
   → [{ model, code, promoted: bool,

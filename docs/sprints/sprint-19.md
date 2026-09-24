@@ -1045,3 +1045,10 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
   (코디네이터) `README.md` · `docs/00_MVP_SCOPE.md` · `.claude/agents/reviewer.md` D 범위 · `TODO_직접할일.md` H5 두 번 + ⓐ 선행 확인
 #### 회귀
 - tsc · next build 26 · ui_honesty 345 · sp2 20 · write_tool 30 · api 52 · sp3 22 · prompt_rules 24 · s10 17 · agent_loop 37 · pytest 406 · ruff · evals JSON — 전부 PASS, 공유 DB 불변
+
+#### Stage 4 후속 (2026-09-25, H2 전 보완 — 사용자 요청)
+- 헤더 「Yaskawa HV600 · 원본 매뉴얼 TOEPC71061732」 — `GET /api/onboarding/batches` 에 `manual_doc`(manifest `file` stem, D19) 추가 · `onboarding_promote_contract` 53→**54**(Ⓑ-38)
+- 안전 후보·코드 행 반려: 사유 필수 + 확인 모달(되돌릴 수 없음 명시) — 둘 다 사유 없이 즉시 POST 하던 결함
+- 팀장 랜딩(`ApprovalQueueScreen` 헤더)에 「기종 온보딩 검수 →」 링크(정비팀장 신원에서만)
+- 근거 보기: 코드 행 「원문 전체 보기」 모달(전체 원인·조치 en↔ko, 인용은 원문 쪽만) · 접힌 원인 행 안내(승격은 막지 않음) · 안전 후보 원문 전체 모달(also_pages 칩)
+- 회귀: tsc · next build 26 · ui_honesty 345 · promote 54 · ruff — spikes 합계 1,349

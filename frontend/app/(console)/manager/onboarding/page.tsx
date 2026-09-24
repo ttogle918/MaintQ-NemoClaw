@@ -49,17 +49,25 @@ import {
   isDischargeFailClosed,
   isDischargeWait,
   isOnboardingBlocked,
+  isLongText,
   isRowStaged,
+  manualDocLabel,
+  modelDisplayName,
   onboardingBadgeView,
   onboardingErrorText,
+  CAUSE_FOLD_LIMIT,
+  causeRowCount,
+  hasFoldedCauses,
   promotableRows,
   promoteBlockers,
+  rejectNoteBlocker,
   requiredFlags,
   rowStateView,
   safetyKindLabel,
   safetyKindMatches,
   safetyStateView,
   safetyTextPrecheck,
+  unseenFoldedRows,
   utcStamp,
   type GroupFlagFilter,
   type GroupStatusKey,
@@ -250,6 +258,8 @@ function HeaderCard({
 }) {
   const total = Math.max(batch.rows, 1);
   const pct = (n: number) => `${((n / total) * 100).toFixed(2)}%`;
+  const displayName = modelDisplayName(batch.model);
+  const doc = manualDocLabel(batch);
   return (
     <div
       style={sx(
@@ -260,7 +270,7 @@ function HeaderCard({
       <div style={sx("display:flex;flex-direction:column;gap:6px;min-width:0")}>
         <div style={sx("display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
           <span style={sx("font:800 18px 'Pretendard';color:var(--ink)")}>
-            <Mono size={18}>{batch.model}</Mono>
+            {displayName === batch.model ? <Mono size={18}>{batch.model}</Mono> : displayName}
           </span>
           <OnboardingBadge model={batch.model} size={10} showFailure refreshKey={refreshKey} />
           <span
@@ -278,14 +288,21 @@ function HeaderCard({
             >
               {batches.map((b) => (
                 <option key={b.batch_id} value={b.batch_id}>
-                  배치 #{b.batch_id} · {b.model} · {b.manual_id}
+                  배치 #{b.batch_id} · {modelDisplayName(b.model)} · {manualDocLabel(b).primary}
                 </option>
               ))}
             </select>
           )}
         </div>
         <div style={sx("font:11.5px 'Pretendard';color:var(--dim)")}>
-          원본 매뉴얼 <Mono size={11}>{batch.manual_id}</Mono> (영문) · 배치 #{batch.batch_id} · 적재{" "}
+          원본 매뉴얼 <Mono size={11.5}>{doc.primary}</Mono>
+          {doc.secondary && (
+            <span style={sx("color:var(--dim2)")}>
+              {" "}
+              (<Mono size={10.5}>{doc.secondary}</Mono>)
+            </span>
+          )}{" "}
+          (영문) · 배치 #{batch.batch_id} · 적재{" "}
           {utcStamp(batch.loaded_at)} · 정규화된 행 {batch.normalized_rows}/{batch.rows}
         </div>
         <div style={sx("font:11px 'Pretendard';color:var(--dim2)")}>
@@ -492,8 +509,12 @@ function GroupDetail({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiPromoteResult | null>(null);
+  // 접힌 원인을 펼쳤거나 「원문 전체 보기」로 연 행 — 안내 문구용(승격을 막지 않는다).
+  const [seen, setSeen] = useState<Record<number, boolean>>({});
+  const markSeen = useCallback((rowId: number) => setSeen((m) => (m[rowId] ? m : { ...m, [rowId]: true })), []);
 
   const needed = requiredFlags(group.rows, selection);
+  const unseenFolded = unseenFoldedRows(group.rows, selection, seen);
   // D156 — 보내는 것도, 체크 표시도 **현재 선택된 norm 이 요구하는 플래그 ∩ 체크한 플래그** 다.
   const ackedNow = effectiveAcknowledged(needed, acked);
   const blockers = promoteBlockers(group.rows, selection, primary, ackedNow);
@@ -576,6 +597,7 @@ function GroupDetail({
           onSelectNorm={(nid) => selectNorm(r.row_id, nid)}
           isPrimary={primary === r.row_id}
           onPrimary={() => setPrimary(r.row_id)}
+          onSeen={() => markSeen(r.row_id)}
           canWrite={canWrite}
           onChanged={onChanged}
         />
@@ -630,6 +652,20 @@ function GroupDetail({
                 ))}
               </ul>
             )}
+            {unseenFolded.length > 0 && (
+              <div
+                style={sx(
+                  "border:1px dashed var(--line2);border-radius:6px;padding:7px 11px;font:11.5px/1.6 'Pretendard';color:var(--ink2)"
+                )}
+              >
+                ⤵ <b>접힌 원인이 있는 행 {unseenFolded.length}개</b>{" "}
+                <span style={sx("color:var(--dim)")}>
+                  (row {unseenFolded.map((r) => `#${r.row_id}`).join(", ")}) — 「원인 N건 더 보기」로 펼쳐 보거나 「원문 전체
+                  보기」로 원문과 대조하십시오. 기본 표에는 원인 {CAUSE_FOLD_LIMIT}건까지만 보입니다. (안내일 뿐 승격을 막지는
+                  않습니다)
+                </span>
+              </div>
+            )}
             {error && <ErrorBox title="승격 실패 — 서버 응답 그대로">{error}</ErrorBox>}
             <div style={sx("display:flex;align-items:center;gap:10px")}>
               <span style={sx("flex:1;font:11px 'Pretendard';color:var(--dim2)")}>
@@ -658,6 +694,7 @@ function RowCompare({
   onSelectNorm,
   isPrimary,
   onPrimary,
+  onSeen,
   canWrite,
   onChanged,
 }: {
@@ -668,6 +705,7 @@ function RowCompare({
   onSelectNorm: (nid: number) => void;
   isPrimary: boolean;
   onPrimary: () => void;
+  onSeen: () => void;
   canWrite: boolean;
   onChanged: () => void;
 }) {
@@ -675,15 +713,18 @@ function RowCompare({
   const staged = isRowStaged(row.state);
   const norm = row.norms.find((n) => n.norm_id === selectedNorm) ?? null;
   const [expanded, setExpanded] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const LIMIT = 3;
-  const n = Math.max(row.causes_en.length, norm?.causes_ko.length ?? 0);
-  const shown = expanded ? n : Math.min(n, LIMIT);
+  const n = causeRowCount(row, norm);
+  const folded = hasFoldedCauses(n);
+  const shown = expanded ? n : Math.min(n, CAUSE_FOLD_LIMIT);
   const citations: Citation[] = row.pages.map((p) => ({ manual: manualLabel, page: p }));
+  const noteBlocker = rejectNoteBlocker(rejectNote);
 
   async function reject() {
     setBusy(true);
@@ -695,143 +736,262 @@ function RowCompare({
       setError(describeError(e));
     } finally {
       setBusy(false);
+      setConfirmReject(false);
     }
   }
 
   return (
-    <div style={sx("border:1px solid var(--line);border-radius:8px;overflow:hidden;" + (staged ? "" : "opacity:.72"))}>
-      <div
-        style={sx(
-          "display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 12px;background:var(--head);border-bottom:1px solid var(--line)"
-        )}
-      >
-        <label style={sx("display:flex;align-items:center;gap:5px;font:11.5px 'Pretendard';color:var(--ink2)")}>
-          <input type="radio" checked={isPrimary} disabled={!staged || !canWrite} onChange={onPrimary} />
-          대표(primary)
-        </label>
-        <Mono size={12}>{row.display_code}</Mono>
-        <span style={sx("font:600 12px 'Pretendard';color:var(--ink2)")}>
-          {row.section_ko} <span style={sx("color:var(--dim2);font-weight:400")}>({row.section_en})</span>
-        </span>
-        <Mono size={10}>row #{row.row_id}</Mono>
-        <ToneBadge tone={rs.tone} size={9.5}>
-          {rs.label}
-        </ToneBadge>
-        <Spacer />
-        {row.norms.length > 0 ? (
-          <label style={sx("display:flex;align-items:center;gap:5px;font:11px 'Pretendard';color:var(--dim)")}>
-            정규화
-            <select
-              value={selectedNorm ?? ""}
-              disabled={!staged || !canWrite}
-              onChange={(e) => onSelectNorm(Number(e.target.value))}
-              style={sx("font:11px 'JetBrains Mono',monospace;padding:2px 4px;background:var(--raise);color:var(--ink2)")}
-            >
-              {row.norms.map((nm, i) => (
-                <option key={nm.norm_id} value={nm.norm_id}>
-                  #{nm.norm_id}
-                  {i === 0 ? " (최신)" : ""} · {confidenceLabel(nm.confidence)} · {nm.staged_by} · {utcStamp(nm.created_at)}
-                </option>
-              ))}
-            </select>
+    <>
+      <div style={sx("border:1px solid var(--line);border-radius:8px;overflow:hidden;" + (staged ? "" : "opacity:.72"))}>
+        <div
+          style={sx(
+            "display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 12px;background:var(--head);border-bottom:1px solid var(--line)"
+          )}
+        >
+          <label style={sx("display:flex;align-items:center;gap:5px;font:11.5px 'Pretendard';color:var(--ink2)")}>
+            <input type="radio" checked={isPrimary} disabled={!staged || !canWrite} onChange={onPrimary} />
+            대표(primary)
           </label>
-        ) : (
-          <Badge tone="unknown" size={9.5}>
-            한국어 정규화 없음 — 승격 불가
-          </Badge>
+          <Mono size={12}>{row.display_code}</Mono>
+          <span style={sx("font:600 12px 'Pretendard';color:var(--ink2)")}>
+            {row.section_ko} <span style={sx("color:var(--dim2);font-weight:400")}>({row.section_en})</span>
+          </span>
+          <Mono size={10}>row #{row.row_id}</Mono>
+          <ToneBadge tone={rs.tone} size={9.5}>
+            {rs.label}
+          </ToneBadge>
+          <SmallButton
+            onClick={() => {
+              setFullOpen(true);
+              onSeen();
+            }}
+          >
+            원문 전체 보기{folded ? ` (원인 ${n}건)` : ""}
+          </SmallButton>
+          <Spacer />
+          {row.norms.length > 0 ? (
+            <label style={sx("display:flex;align-items:center;gap:5px;font:11px 'Pretendard';color:var(--dim)")}>
+              정규화
+              <select
+                value={selectedNorm ?? ""}
+                disabled={!staged || !canWrite}
+                onChange={(e) => onSelectNorm(Number(e.target.value))}
+                style={sx("font:11px 'JetBrains Mono',monospace;padding:2px 4px;background:var(--raise);color:var(--ink2)")}
+              >
+                {row.norms.map((nm, i) => (
+                  <option key={nm.norm_id} value={nm.norm_id}>
+                    #{nm.norm_id}
+                    {i === 0 ? " (최신)" : ""} · {confidenceLabel(nm.confidence)} · {nm.staged_by} · {utcStamp(nm.created_at)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <Badge tone="unknown" size={9.5}>
+              한국어 정규화 없음 — 승격 불가
+            </Badge>
+          )}
+        </div>
+
+        <div style={sx("display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1fr)")}>
+          <Cell head />
+          <Cell head>
+            원문 (영문) <span style={sx("color:var(--dim2);font-weight:400")}>· 근거</span>
+          </Cell>
+          <Cell head>
+            한국어 정규화 (AI 초안){" "}
+            <span style={sx("color:var(--dim2);font-weight:400")}>· 대조용, 근거 아님</span>
+            {norm && (
+              <span style={sx(`margin-left:6px;font:700 10px 'Pretendard';color:${confidenceTone(norm.confidence) === "ok" ? "var(--dim)" : "var(--error-tx)"}`)}>
+                {confidenceLabel(norm.confidence)}
+              </span>
+            )}
+            {norm?.flags.map((f) => (
+              <span key={f} style={sx("margin-left:5px")}>
+                <FlagMark tone={flagTone(f)}>{flagLabel(f)}</FlagMark>
+              </span>
+            ))}
+          </Cell>
+
+          <Cell label>명칭</Cell>
+          <Cell>
+            <span style={sx("font-weight:600")}>{row.name_en}</span>
+          </Cell>
+          <Cell>{norm ? <span style={sx("font-weight:600")}>{norm.name_ko}</span> : <NoKo />}</Cell>
+
+          {Array.from({ length: shown }, (_, i) => (
+            <CausePair key={i} index={i} en={row.causes_en[i]} ko={norm ? norm.causes_ko[i] : undefined} hasNorm={!!norm} />
+          ))}
+
+          <Cell label>근거</Cell>
+          <Cell>
+            <div style={sx("display:flex;gap:5px;flex-wrap:wrap")}>
+              {citations.map((c) => (
+                <CitationChip key={c.page} citation={c} />
+              ))}
+            </div>
+          </Cell>
+          <Cell>
+            <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>번역문에는 인용을 달지 않습니다 (D145)</span>
+          </Cell>
+        </div>
+
+        {folded && (
+          <button
+            onClick={() => {
+              setExpanded((v) => !v);
+              onSeen();
+            }}
+            style={sx(
+              "width:100%;border:none;border-top:1px solid var(--line);background:var(--panel);cursor:pointer;" +
+                "padding:6px;font:11.5px 'Pretendard';color:var(--blue-tx)"
+            )}
+          >
+            {expanded ? "접기" : `원인 ${n - CAUSE_FOLD_LIMIT}건 더 보기`}
+          </button>
+        )}
+
+        {staged && (
+          <div style={sx("border-top:1px solid var(--line);padding:8px 12px;display:flex;flex-direction:column;gap:6px")}>
+            {rejectOpen ? (
+              <div style={sx("display:flex;flex-direction:column;gap:4px")}>
+                <div style={sx("display:flex;gap:8px;align-items:center")}>
+                  <input
+                    value={rejectNote}
+                    onChange={(e) => setRejectNote(e.target.value)}
+                    placeholder="반려 사유 (필수)"
+                    aria-label={`row ${row.row_id} 반려 사유`}
+                    style={sx(
+                      "flex:1;font:12px 'Pretendard';padding:6px 8px;border:1px solid var(--line2);border-radius:5px;" +
+                        "background:var(--field);color:var(--ink)"
+                    )}
+                  />
+                  <ActionButton
+                    variant="outline"
+                    disabled={!canWrite || busy || noteBlocker !== null}
+                    title={!canWrite ? "보전팀장만 반려할 수 있습니다" : (noteBlocker ?? undefined)}
+                    onClick={() => setConfirmReject(true)}
+                  >
+                    이 행 반려…
+                  </ActionButton>
+                  <ActionButton variant="outline" onClick={() => setRejectOpen(false)}>
+                    취소
+                  </ActionButton>
+                </div>
+                {noteBlocker && (
+                  <span style={sx("font:11px 'Pretendard';color:var(--dim)")}>반려 버튼 비활성 — {noteBlocker}</span>
+                )}
+              </div>
+            ) : (
+              <div style={sx("display:flex;justify-content:flex-end")}>
+                <ActionButton
+                  variant="outline"
+                  disabled={!canWrite}
+                  title={canWrite ? undefined : "보전팀장만 반려할 수 있습니다"}
+                  onClick={() => setRejectOpen(true)}
+                >
+                  행 반려…
+                </ActionButton>
+              </div>
+            )}
+            {error && <ErrorBox title="반려 실패 — 서버 응답 그대로">{error}</ErrorBox>}
+          </div>
         )}
       </div>
 
-      <div style={sx("display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1fr)")}>
-        <Cell head />
-        <Cell head>
-          원문 (영문) <span style={sx("color:var(--dim2);font-weight:400")}>· 근거</span>
-        </Cell>
-        <Cell head>
-          한국어 정규화 (AI 초안){" "}
-          <span style={sx("color:var(--dim2);font-weight:400")}>· 대조용, 근거 아님</span>
-          {norm && (
-            <span style={sx(`margin-left:6px;font:700 10px 'Pretendard';color:${confidenceTone(norm.confidence) === "ok" ? "var(--dim)" : "var(--error-tx)"}`)}>
-              {confidenceLabel(norm.confidence)}
-            </span>
-          )}
-          {norm?.flags.map((f) => (
-            <span key={f} style={sx("margin-left:5px")}>
-              <FlagMark tone={flagTone(f)}>{flagLabel(f)}</FlagMark>
-            </span>
-          ))}
-        </Cell>
+      {/* 모달은 opacity 가 걸린(반려·승격된) 행 틀 밖에 둔다 — 안에 두면 모달까지 흐려진다 */}
+      {confirmReject && (
+        <RejectConfirmModal
+          title={`row #${row.row_id} (${row.display_code} · ${row.section_ko}) 을 반려합니다`}
+          consequence="이 행은 승격 대상에서 빠지고, 다시 올리려면 재추출(새 배치 적재)이 필요합니다. 같은 코드의 나머지 대기 행은 그대로 승격할 수 있습니다."
+          note={rejectNote}
+          busy={busy}
+          onCancel={() => setConfirmReject(false)}
+          onConfirm={reject}
+        />
+      )}
 
+      {fullOpen && (
+        <Modal title={`원문 전체 — ${row.display_code} · row #${row.row_id}`} width={1080} onClose={() => setFullOpen(false)}>
+          <RowFullText row={row} norm={norm} citations={citations} />
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/** 「원문 전체 보기」 모달 본문 — 원문(en) 전체 · 선택 정규화(ko) 전체를 나란히. 인용은 원문 쪽에만(D145). */
+function RowFullText({
+  row,
+  norm,
+  citations,
+}: {
+  row: ApiOnboardingRow;
+  norm: ApiOnboardingRow["norms"][number] | null;
+  citations: Citation[];
+}) {
+  const n = causeRowCount(row, norm);
+  return (
+    <div style={sx("display:flex;flex-direction:column;gap:10px")}>
+      <div style={sx("display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:12px 'Pretendard';color:var(--ink2)")}>
+        <Mono size={12.5}>{row.display_code}</Mono>
+        <span>
+          {row.section_ko} <span style={sx("color:var(--dim2)")}>({row.section_en})</span>
+        </span>
+        <span style={sx("color:var(--dim2)")}>· 원인 {row.causes_en.length}건(원문)</span>
+        {norm && <span style={sx("color:var(--dim2)")}>· 정규화 #{norm.norm_id} 원인 {norm.causes_ko.length}건</span>}
+        <Spacer />
+        <span style={sx("font:11px 'Pretendard';color:var(--dim)")}>원문 페이지</span>
+        {citations.map((c) => (
+          <CitationChip key={c.page} citation={c} />
+        ))}
+      </div>
+      <div style={sx("display:flex;align-items:center;gap:6px;flex-wrap:wrap;font:11px 'Pretendard';color:var(--dim)")}>
+        source_flags
+        {row.source_flags.length === 0 ? (
+          <span style={sx("color:var(--dim2)")}>없음</span>
+        ) : (
+          row.source_flags.map((f) => (
+            <FlagMark key={f} tone={flagTone(f)}>
+              {flagLabel(f)} · {f}
+            </FlagMark>
+          ))
+        )}
+        {norm && norm.flags.length > 0 && (
+          <>
+            <span style={sx("margin-left:10px")}>정규화 flags</span>
+            {norm.flags.map((f) => (
+              <FlagMark key={f} tone={flagTone(f)}>
+                {flagLabel(f)} · {f}
+              </FlagMark>
+            ))}
+          </>
+        )}
+      </div>
+      <div
+        style={sx(
+          "border:1px solid var(--line);border-radius:7px;overflow:auto;max-height:64vh;" +
+            "display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1fr)"
+        )}
+      >
+        <Cell head />
+        <Cell head>원문 (영문) · 근거</Cell>
+        <Cell head>
+          한국어 정규화 (AI 초안){norm ? ` #${norm.norm_id} · ${confidenceLabel(norm.confidence)}` : ""}
+          <span style={sx("color:var(--dim2);font-weight:400")}> · 대조용, 근거 아님</span>
+        </Cell>
         <Cell label>명칭</Cell>
         <Cell>
           <span style={sx("font-weight:600")}>{row.name_en}</span>
         </Cell>
         <Cell>{norm ? <span style={sx("font-weight:600")}>{norm.name_ko}</span> : <NoKo />}</Cell>
-
-        {Array.from({ length: shown }, (_, i) => (
+        {Array.from({ length: n }, (_, i) => (
           <CausePair key={i} index={i} en={row.causes_en[i]} ko={norm ? norm.causes_ko[i] : undefined} hasNorm={!!norm} />
         ))}
-
-        <Cell label>근거</Cell>
-        <Cell>
-          <div style={sx("display:flex;gap:5px;flex-wrap:wrap")}>
-            {citations.map((c) => (
-              <CitationChip key={c.page} citation={c} />
-            ))}
-          </div>
-        </Cell>
-        <Cell>
-          <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>번역문에는 인용을 달지 않습니다 (D145)</span>
-        </Cell>
       </div>
-
-      {n > LIMIT && (
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          style={sx(
-            "width:100%;border:none;border-top:1px solid var(--line);background:var(--panel);cursor:pointer;" +
-              "padding:6px;font:11.5px 'Pretendard';color:var(--blue-tx)"
-          )}
-        >
-          {expanded ? "접기" : `원인 ${n - LIMIT}건 더 보기`}
-        </button>
-      )}
-
-      {staged && (
-        <div style={sx("border-top:1px solid var(--line);padding:8px 12px;display:flex;flex-direction:column;gap:6px")}>
-          {rejectOpen ? (
-            <div style={sx("display:flex;gap:8px;align-items:center")}>
-              <input
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                placeholder="반려 사유 (필수)"
-                style={sx(
-                  "flex:1;font:12px 'Pretendard';padding:6px 8px;border:1px solid var(--line2);border-radius:5px;" +
-                    "background:var(--field);color:var(--ink)"
-                )}
-              />
-              <ActionButton variant="outline" disabled={!canWrite || busy} onClick={reject}>
-                {busy ? "반려 중…" : "이 행 반려"}
-              </ActionButton>
-              <ActionButton variant="outline" onClick={() => setRejectOpen(false)}>
-                취소
-              </ActionButton>
-            </div>
-          ) : (
-            <div style={sx("display:flex;justify-content:flex-end")}>
-              <ActionButton
-                variant="outline"
-                disabled={!canWrite}
-                title={canWrite ? undefined : "보전팀장만 반려할 수 있습니다"}
-                onClick={() => setRejectOpen(true)}
-              >
-                행 반려…
-              </ActionButton>
-            </div>
-          )}
-          {error && <ErrorBox title="반려 실패 — 서버 응답 그대로">{error}</ErrorBox>}
-        </div>
-      )}
+      <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>
+        인용(페이지)은 원문에만 답니다 — 번역문은 근거가 아닙니다 (D145). 원문 PDF 와 직접 대조하십시오.
+      </span>
     </div>
   );
 }
@@ -1046,6 +1206,8 @@ function SafetyDetail({
   const [text, setText] = useState("");
   const [reviewed, setReviewed] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1054,6 +1216,8 @@ function SafetyDetail({
   const manual = `${model} 매뉴얼`;
   const citation: Citation = { manual, page: cand.page };
   const precheck = text.trim() ? safetyTextPrecheck(text, cand.wait_minutes_in_text) : null;
+  const noteBlocker = rejectNoteBlocker(rejectNote);
+  const longQuote = isLongText(cand.quote_en);
 
   async function approve() {
     setBusy(true);
@@ -1075,12 +1239,13 @@ function SafetyDetail({
     setError(null);
     try {
       await rejectSafetyCandidate(role, cand.cand_id, rejectNote);
-      setDone("반려했습니다.");
+      setDone("반려했습니다 — 되돌릴 수 없습니다.");
       onChanged();
     } catch (e) {
       setError(describeError(e));
     } finally {
       setBusy(false);
+      setConfirmReject(false);
     }
   }
 
@@ -1103,8 +1268,12 @@ function SafetyDetail({
         </div>
 
         <div style={sx("border:1px solid var(--line);border-radius:7px;background:var(--panel);padding:10px 13px")}>
-          <div style={sx("font:10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2);margin-bottom:5px")}>
-            원문 발췌 (영문) · 근거
+          <div style={sx("display:flex;align-items:center;gap:8px;margin-bottom:5px")}>
+            <span style={sx("font:10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)")}>
+              원문 발췌 (영문) · 근거 · {cand.quote_en.length}자
+            </span>
+            <Spacer />
+            {longQuote && <SmallButton onClick={() => setFullOpen(true)}>원문 전체 보기</SmallButton>}
           </div>
           <div style={sx("font:12px/1.65 'JetBrains Mono',monospace;color:var(--ink);white-space:pre-wrap")}>
             {cand.quote_en}
@@ -1177,13 +1346,19 @@ function SafetyDetail({
                 onChange={(e) => setRejectNote(e.target.value)}
                 disabled={!canWrite}
                 placeholder="반려 사유 (반려 시 필수)"
+                aria-label="안전 후보 반려 사유"
                 style={sx(
                   "flex:1;max-width:280px;font:12px 'Pretendard';padding:6px 8px;border:1px solid var(--line2);" +
                     "border-radius:5px;background:var(--field);color:var(--ink)"
                 )}
               />
-              <ActionButton variant="outline" disabled={!canWrite || busy} onClick={reject}>
-                반려
+              <ActionButton
+                variant="outline"
+                disabled={!canWrite || busy || noteBlocker !== null}
+                title={!canWrite ? "보전팀장만 반려할 수 있습니다" : (noteBlocker ?? undefined)}
+                onClick={() => setConfirmReject(true)}
+              >
+                반려…
               </ActionButton>
               <ActionButton
                 disabled={!canWrite || busy || !text.trim() || !reviewed}
@@ -1201,6 +1376,11 @@ function SafetyDetail({
                 승인…
               </ActionButton>
             </div>
+            {canWrite && noteBlocker && (
+              <span style={sx("align-self:flex-end;font:11px 'Pretendard';color:var(--dim)")}>
+                반려 버튼 비활성 — {noteBlocker}
+              </span>
+            )}
           </div>
         ) : (
           <div
@@ -1240,6 +1420,23 @@ function SafetyDetail({
         </div>
       </div>
 
+      {confirmReject && (
+        <RejectConfirmModal
+          title={`안전 문구 후보 SC-${cand.cand_id} (${safetyKindLabel(cand.kind)} · p.${cand.page}) 를 반려합니다`}
+          consequence="이 후보는 폐기되고, 다시 검토하려면 재추출(새 배치 적재)이 필요합니다."
+          note={rejectNote}
+          busy={busy}
+          onCancel={() => setConfirmReject(false)}
+          onConfirm={reject}
+        />
+      )}
+
+      {fullOpen && (
+        <Modal title={`원문 전체 — 안전 문구 후보 SC-${cand.cand_id}`} width={860} onClose={() => setFullOpen(false)}>
+          <SafetyFullText cand={cand} manual={manual} />
+        </Modal>
+      )}
+
       {confirming && (
         <div
           role="dialog"
@@ -1278,6 +1475,170 @@ function SafetyDetail({
         </div>
       )}
     </div>
+  );
+}
+
+/** 안전 후보 「원문 전체 보기」 모달 본문 — quote_en 전체 · page · also_pages 칩 · kind · 원문 수치. */
+function SafetyFullText({ cand, manual }: { cand: ApiSafetyCandidate; manual: string }) {
+  return (
+    <div style={sx("display:flex;flex-direction:column;gap:10px")}>
+      <div style={sx("display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 12px;font:12px/1.6 'Pretendard';color:var(--ink2)")}>
+        <span style={sx("color:var(--dim)")}>종류 (kind)</span>
+        <span>
+          {safetyKindLabel(cand.kind)} <Mono size={11}>{cand.kind}</Mono>
+        </span>
+        <span style={sx("color:var(--dim)")}>원문 페이지</span>
+        <span>
+          <CitationChip citation={{ manual, page: cand.page }} />
+        </span>
+        <span style={sx("color:var(--dim)")}>함께 나온 페이지</span>
+        <span style={sx("display:flex;gap:5px;flex-wrap:wrap")}>
+          {cand.also_pages.length === 0 ? (
+            <span style={sx("color:var(--dim2)")}>없음</span>
+          ) : (
+            cand.also_pages.map((p) => <CitationChip key={p} citation={{ manual, page: p }} />)
+          )}
+        </span>
+        <span style={sx("color:var(--dim)")}>원문 대기시간</span>
+        <span>
+          {cand.wait_minutes_in_text === null ? (
+            <b>명시 없음</b>
+          ) : (
+            <Mono size={12}>{`${cand.wait_minutes_in_text} minutes`}</Mono>
+          )}
+        </span>
+      </div>
+      <div
+        style={sx(
+          "border:1px solid var(--line);border-radius:7px;background:var(--panel);padding:12px 14px;max-height:60vh;overflow:auto;" +
+            "font:12.5px/1.75 'JetBrains Mono',monospace;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere"
+        )}
+      >
+        {cand.quote_en}
+      </div>
+      <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>
+        원문 {cand.quote_en.length}자 · 추출기가 뽑은 영문 원문 그대로입니다. 원문 PDF 의 해당 페이지와 대조하십시오.
+      </span>
+    </div>
+  );
+}
+
+/** 공용 모달 틀. 배경·✕·Esc 로 닫는다(열람용). 되돌릴 수 없는 확인에는 `RejectConfirmModal` 을 쓴다. */
+function Modal({
+  title,
+  width = 720,
+  onClose,
+  children,
+}: {
+  title: string;
+  width?: number;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onClose}
+      style={sx(
+        "position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center"
+      )}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={sx(
+          `width:${width}px;max-width:94vw;max-height:92vh;overflow:auto;background:var(--surface);border:1px solid var(--line);` +
+            "border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.4)"
+        )}
+      >
+        <div style={sx("display:flex;align-items:center;gap:8px")}>
+          <b style={sx("font:700 14.5px 'Pretendard';color:var(--ink)")}>{title}</b>
+          <Spacer />
+          <SmallButton onClick={onClose}>닫기 ✕</SmallButton>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** 반려 확인 모달 — 되돌릴 수 없다는 사실 + 입력한 사유 재표시 + [취소][반려 확정]. 배경 클릭으로 닫지 않는다. */
+function RejectConfirmModal({
+  title,
+  consequence,
+  note,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  consequence: string;
+  note: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="반려 확인"
+      style={sx(
+        "position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center"
+      )}
+    >
+      <div
+        style={sx(
+          "width:500px;max-width:92vw;background:var(--surface);border:1px solid var(--line);border-radius:10px;" +
+            "padding:18px 20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.4)"
+        )}
+      >
+        <b style={sx("font:700 15px 'Pretendard';color:var(--ink)")}>반려하면 되돌릴 수 없습니다</b>
+        <span style={sx("font:12.5px/1.7 'Pretendard';color:var(--ink2)")}>
+          {title}. {consequence} 반려 취소 API 는 없습니다.
+        </span>
+        <div style={sx("display:flex;flex-direction:column;gap:3px")}>
+          <span style={sx("font:700 11px 'Pretendard';color:var(--dim)")}>반려 사유 (그대로 기록됩니다)</span>
+          <div
+            style={sx(
+              "border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px/1.6 'Pretendard';color:var(--ink);" +
+                "background:var(--panel);white-space:pre-wrap;overflow-wrap:anywhere"
+            )}
+          >
+            {note.trim()}
+          </div>
+        </div>
+        <div style={sx("display:flex;gap:8px;justify-content:flex-end")}>
+          <ActionButton variant="outline" onClick={onCancel}>
+            취소
+          </ActionButton>
+          <ActionButton disabled={busy || rejectNoteBlocker(note) !== null} onClick={onConfirm}>
+            {busy ? "반려 중…" : "반려 확정"}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SmallButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={sx(
+        "cursor:pointer;border:1px solid var(--line2);background:var(--raise);color:var(--blue-tx);border-radius:5px;" +
+          "padding:3px 9px;font:600 11px 'Pretendard';white-space:nowrap"
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

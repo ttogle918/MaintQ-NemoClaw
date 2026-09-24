@@ -259,10 +259,10 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (최신 2026-09-25 Sprint 19 Stage 4 · 이력은 아래 문단 — 2026-08-23 Sprint 16 Postgres 마이그레이션 완결부터)** —
-spikes **40스위트 / 1,348건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 4 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
-1,348 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
+spikes **40스위트 / 1,349건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 4 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
+1,349 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
 Sprint 19 신설 5스위트 **100**(`model_enum_contract` 10 · `onboarding_contract` 9 · `onboarding_rag_contract` 6 ·
-`onboarding_safety_gate` 22 · `onboarding_promote_contract` 53) + `disposal_api_contract` 36→**37**(㉪ 공유 DB 누수 단언) +
+`onboarding_safety_gate` 22 · `onboarding_promote_contract` 54) + `disposal_api_contract` 36→**37**(㉪ 공유 DB 누수 단언) +
 `ui_honesty_contract` 327→**345**(MQ-1911 — L1 +2: L1-16·L1-17 미지 상태·프로토타입 키 → ok 금지 · 뮤턴트 +2: ⓘⓙ · L2 +12: 검수 페이지(app 글롭 자동)·`OnboardingBadge.tsx`(`L2_EXTRA` 수동 등재) 2파일 × 6 ·
 게이트 +2: `lib/onboarding.ts` C11·C12. `L2_FILES_FLOOR` 42 는 이미 낡아 있었다(실측 48) → 50).
 직전 1,212 = 2026-09-06 — 1,202 + `eval_score_contract` **D135 오특정/미특정 분리 축 10건**(⑫-g~⑫-n, ⑫-k 는 3케이스 루프). 뮤턴트 2종으로 실증했다 — 판정을 `return PART_WRONG` 으로 망가뜨리면 3건이, 렌더를 지우면 **⑫-m 하나만** FAIL 한다(렌더 검사가 제 몫을 한다는 뜻).
@@ -320,7 +320,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `disposal_sign_contract 26` · `eval_replay_guard 21` · `eval_score_contract 51` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `mcp_http_contract 17` ·
-`model_enum_contract 10` · `onboarding_contract 9` · `onboarding_promote_contract 53` · `onboarding_rag_contract 6` ·
+`model_enum_contract 10` · `onboarding_contract 9` · `onboarding_promote_contract 54` · `onboarding_rag_contract 6` ·
 `onboarding_safety_gate 22` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
