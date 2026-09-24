@@ -13,7 +13,9 @@ description: 에러코드 20문항 평가셋을 실행하고 결과 리포트를
 ```bash
 # 🔴 유료 폴백을 반드시 끈다 (아래 "돈과 모델 혼입" 참고)
 export MAINTQ_LLM_FALLBACK_PROVIDER= MAINTQ_LLM_FALLBACK_MODEL=
-export DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
+# DATABASE_URL 은 셸로 꺼내지 않는다 — run_eval.py:94 가 backend import 전에
+# load_dotenv(override=False) 로 읽는다. 위의 빈 값 export 는 override=False 라 덮이지 않는다
+# (SkillSpector PE3: 스킬이 비밀 파일을 셸로 직접 읽던 줄을 걷어냄, 2026-09-24)
 
 uv run python eval/run_eval.py --dry-run      # 비용 추정 + D88 프로파일 가드
 uv run python eval/run_eval.py --yes          # 실행 (--repeat N · --testset PATH)

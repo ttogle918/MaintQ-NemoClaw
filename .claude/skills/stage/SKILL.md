@@ -70,7 +70,10 @@ uv run ruff check data backend mcp_server spikes
 `frontend/` 변경이 있으면 추가:
 
 ```bash
-cd frontend && npx tsc --noEmit && npx next build
+# 로컬 node_modules 의 고정 버전(package.json + lockfile)만 쓴다 — 레지스트리에서 받지 않는다.
+# 예전 방식(npx 로 이름만 부르기)은 node_modules 없는 새 클론에서 TypeScript 가 아닌 npm 의 동명 패키지를
+# 받아 왔다 (SkillSpector RP1, 2026-09-24). 파일이 없다고 나오면 먼저 `npm ci`
+cd frontend && ./node_modules/.bin/tsc --noEmit && ./node_modules/.bin/next build
 ```
 
 **FAIL 시:** 실패한 태스크의 tool-builder만 재실행 → 해당 부분만 재검증.

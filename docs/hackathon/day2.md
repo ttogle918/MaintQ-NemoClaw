@@ -117,7 +117,29 @@ non-interactive provider selections still require a local key."* 등록된 샌�
 
 ## 8. 남은 것
 
-- NemoClaw 가 게이트웨이 자체 CA(`openshell-ca`)를 신뢰하는가 — 신뢰하면
-  `nemoclaw <sb> mcp add maintq --url <expose URL> --env MAINTQ_MCP_TOKEN --trusted-private-host <host>` 한 줄
-- OpenClaw 가 우리 `SKILL.md` 를 읽는가 (day2-prep §4 의 미확인 항목)
+- ~~NemoClaw 가 게이트웨이 자체 CA 를 신뢰하는가~~ → **D151 로 해소** — managed MCP 경로는 불가,
+  호스트 loopback + 커스텀 egress 정책으로 연결 완료
+- ✅ **OpenClaw 가 우리 `SKILL.md` 를 읽는다** (2026-09-24 실측, 샌드박스 `maintq-agent`)
+  - 형식 변경 불필요 — 8종 전부 표준(`name` 소문자·하이픈·디렉터리명 일치, `description` ≤1024자)
+  - `nemoclaw maintq-agent skill install .claude/skills/safety-guardrail` → `Validated SKILL.md` →
+    `/sandbox/.openclaw/workspace/skills/` 설치, `skill list` 에 `✓ ready · openclaw-workspace` (15→16 ready)
+  - 명시 질의: 규칙 1번을 **원문 그대로** 인용
+  - 암묵 적용: 스킬 이름 없이 "iG5A 커버 열고 커패시터 점검 안전 주의" → "10분 이상 + 테스터 방전 확인 ·
+    5분 등 단축 금지 · iG5A p.4/p.6 · S100 p.2 (D26)" — 전부 `SKILL.md:17-19` 에 있는 값이다
+  - ⚠ 첫 시도는 `FailoverError: The AI service is temporarily overloaded` (무료 티어 과부하 O1) — 재시도로 통과
+  - ⚠ 우리 8종 중 **제품용은 `safety-guardrail` 하나뿐**이다. 나머지 7종은 Claude Code 개발 워크플로
+    (`/sprint`·`/stage` 등 — 서브에이전트·레포 명령 전제)라 OpenClaw 에 넣을 대상이 아니다
+- ✅ **스킬 공급망 게이트 — SkillSpector (2026-09-24, `skillspector:local`, `--no-llm`)**
+  - NVIDIA 카탈로그 2종을 **설치 전** 스캔: `skill-card-generator` AE1 HIGH ×5 — 전부 "번들 스크립트 실행"
+    서술. 스크립트 3개를 직접 읽음: 네트워크 0 · subprocess 는 `git describe/log/remote`(읽기) 뿐 ·
+    `.env`·키 파일은 명시적 제외 목록 → **수용**. `nemoclaw-user-guide` EA2 MEDIUM ×1 — "비밀값을
+    요청하지 말라" 는 **방어 문구**에 걸린 오탐 → **수용**. 사람이 `.claude/skills/` 에 설치
+    (NVIDIA 서명 스킬도 정적 스캔은 HIGH 를 낸다 — 판정은 사람이 근거를 읽고 한다)
+  - 우리 스킬 3건: `run-eval` 15→**0** (스킬이 셸로 비밀 파일을 읽던 줄 제거 — `run_eval.py:94` 가
+    backend import 전에 `load_dotenv(override=False)` 로 이미 읽는다) · `stage` 10→**0**
+    (`npx tsc` → `./node_modules/.bin/tsc`. 이 WSL 클론엔 `node_modules` 가 없어 옛 명령은 **실제로**
+    npm 의 동명 `tsc` 패키지를 받아 올 상태였다) · `done` 21 그대로 — AS1 은 `reviewer.md` 의 D 범위를
+    읽는 정당한 접근이라 **수용된 위험**
+  - ⚠ 재스캔 판정을 한 번 잘못 읽었다 — 결과 키는 `findings` 가 아니라 **`issues`** 다. 빈 키를 읽어
+    "3종 모두 0건" 이 나왔다(부재 검사 + liveness 앵커 규칙이 여기에도 적용된다)
 - 온보딩 에이전트 런타임 선택(NAT / LangGraph / `loop.py` 확장) — **미결정**
