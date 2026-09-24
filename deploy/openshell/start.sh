@@ -22,4 +22,17 @@ fi
     -o "-c listen_addresses=127.0.0.1 -c port=5432 -c unix_socket_directories=/tmp -c dynamic_shared_memory_type=mmap"
 
 cd /app
+
+# MCP streamable-http 입구 (D150) — NemoClaw/OpenClaw 가 붙는 자리.
+# MAINTQ_MCP_TOKEN 이 없으면 http_entry 가 **기동을 거부**하므로(D150 가드 ⓐ) 여기서도
+# 띄우지 않는다. 토큰 없이 조용히 열린 입구가 생기지 않게 하려는 것이다.
+# 바깥으로 나가는 길은 `openshell service expose` 하나뿐이다 — loopback 에만 바인드한다.
+if [ -n "${MAINTQ_MCP_TOKEN:-}" ]; then
+    MAINTQ_MCP_HTTP_PORT="${MAINTQ_MCP_HTTP_PORT:-8765}" \
+        /app/.venv/bin/python -m mcp_server.http_entry >/tmp/mcp_http.log 2>&1 &
+    echo "MCP http 입구 기동 (port ${MAINTQ_MCP_HTTP_PORT:-8765})"
+else
+    echo "MAINTQ_MCP_TOKEN 없음 — MCP http 입구를 열지 않는다 (D150)"
+fi
+
 exec /app/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000

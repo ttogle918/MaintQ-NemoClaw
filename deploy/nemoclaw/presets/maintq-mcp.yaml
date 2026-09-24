@@ -1,0 +1,30 @@
+# MaintQ MCP 접근 프리셋 (D150 배선)
+#
+# OpenClaw(에이전트 샌드박스 `maintq-agent`)가 MaintQ 의 MCP streamable-http 입구에
+# 닿기 위한 최소 정책이다. 호스트 loopback 서비스를 샌드박스에서 쓰는 공식 패턴은
+# `local-memory`·`local-inference` 빌트인 프리셋과 같다 — `host.openshell.internal:<port>`.
+#
+# ⚠ 왜 게이트웨이 ingress(`openshell service expose`)를 안 쓰는가:
+#   실측 결과 게이트웨이가 `Authorization` 헤더를 **자기 인증용으로 소비**한다
+#   (커스텀 헤더는 통과하는데 Authorization 만 사라지는 것을 헤더 에코로 확인).
+#   MCP bearer 가 그 경로로는 목적지에 도달하지 못한다.
+#
+# 노출 범위: POST /mcp 한 경로뿐이다. 도구 목록 자체는 MAINTQ_TOOLS_PROFILE 이 정하고
+# (기본 core 7종, D69·D88), 쓰기는 여전히 draft INSERT 만이다 (D10 — 전송과 무관).
+preset:
+  name: maintq-mcp
+  description: "MaintQ MCP streamable-http endpoint (core tool profile, bearer required)"
+network_policies:
+  maintq_mcp:
+    name: maintq-mcp
+    endpoints:
+      - host: host.openshell.internal
+        port: 8765
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/mcp" }
+          - allow: { method: GET, path: "/mcp" }
+          - allow: { method: DELETE, path: "/mcp" }
+    binaries:
+      - { path: /usr/local/bin/node }

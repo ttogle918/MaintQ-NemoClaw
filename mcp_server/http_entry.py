@@ -39,16 +39,56 @@ import sys
 #: 노출 경로 — NemoClaw `mcp add --url <base>/mcp` 가 가리키는 자리.
 DEFAULT_PATH = "/mcp"
 DEFAULT_PORT = 8765
-#: 바인딩은 loopback 고정. env 로 열 수 있게 두지 않는다 — 실수로 0.0.0.0 이 되면
-#: 게이트웨이를 우회하는 두 번째 입구가 생긴다.
+#: 기본 바인딩은 loopback. 샌드박스 안에서 돌 때는 이것만으로 충분하다 —
+#: 바깥으로 나가는 길이 `openshell service expose` 하나뿐이기 때문이다.
 BIND_HOST = "127.0.0.1"
 
 TOKEN_ENV = "MAINTQ_MCP_TOKEN"
 PORT_ENV = "MAINTQ_MCP_HTTP_PORT"
+BIND_ENV = "MAINTQ_MCP_BIND"
+TLS_CERT_ENV = "MAINTQ_MCP_TLS_CERT"
+TLS_KEY_ENV = "MAINTQ_MCP_TLS_KEY"
+ALLOWED_HOSTS_ENV = "MAINTQ_MCP_ALLOWED_HOSTS"
+
+#: 기본 허용 Host. MCP SDK 의 DNS 리바인딩 보호(`enable_dns_rebinding_protection`)는
+#: **끄지 않는다** — 목록에 더할 뿐이다. 실측: 에이전트 샌드박스가 `host.openshell.internal`
+#: 로 부르면 SDK 가 `421 Invalid Host header` 를 낸다. 그 보호를 끄면 브라우저가 로컬
+#: MCP 를 재바인딩 공격으로 부를 수 있게 되므로, **필요한 이름만 명시**한다.
+DEFAULT_ALLOWED_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*")
+
+#: loopback 으로 간주하는 주소. 이 밖으로 바인드하면 평문이 랜에 노출되므로 TLS 를 의무화한다.
+LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 class TokenMissing(RuntimeError):
     """`MAINTQ_MCP_TOKEN` 부재 — 기동하지 않는다."""
+
+
+class TlsRequired(RuntimeError):
+    """loopback 밖 바인딩인데 TLS 인증서가 없다 — 기동하지 않는다."""
+
+
+def resolve_bind(env: dict[str, str] | None = None) -> tuple[str, str | None, str | None]:
+    """(bind host, cert, key) 를 돌려준다.
+
+    **loopback 밖으로 바인드하려면 TLS 가 필수다.** 호스트에서 돌릴 때(에이전트
+    샌드박스가 `host.openshell.internal` 로 닿는 배선) 평문으로 열리면 같은 망의
+    아무나 bearer 없이 스캔할 수 있고, NemoClaw 도 `https://` 아닌 URL 을 거부한다
+    (*"Authenticated MCP server URLs must use https:// so the configured MCP client
+    uses TLS when OpenShell forwards credential-bearing requests"*).
+
+    기본값은 그대로 loopback 이라 샌드박스 안 실행은 아무것도 바뀌지 않는다.
+    """
+    src = os.environ if env is None else env
+    host = (src.get(BIND_ENV) or BIND_HOST).strip() or BIND_HOST
+    cert = (src.get(TLS_CERT_ENV) or "").strip() or None
+    key = (src.get(TLS_KEY_ENV) or "").strip() or None
+    if host not in LOOPBACK and not (cert and key):
+        raise TlsRequired(
+            f"{BIND_ENV}={host!r} 는 loopback 이 아니다 — {TLS_CERT_ENV}/{TLS_KEY_ENV} 없이 열지 않는다 (D150). "
+            "평문으로 열면 bearer 가 망에 그대로 흐르고, NemoClaw 도 https 가 아닌 URL 을 거부한다."
+        )
+    return host, cert, key
 
 
 def read_token(env: dict[str, str] | None = None) -> str:
@@ -77,6 +117,31 @@ def token_ok(header: str | None, token: str) -> bool:
     return secrets.compare_digest(header[len(prefix) :].strip(), token)
 
 
+def allowed_hosts(env: dict[str, str] | None = None) -> list[str]:
+    """허용 Host 목록. env 로 **추가**할 수 있고, 기본값을 지우지는 못한다."""
+    src = os.environ if env is None else env
+    extra = [h.strip() for h in (src.get(ALLOWED_HOSTS_ENV) or "").split(",") if h.strip()]
+    out = list(DEFAULT_ALLOWED_HOSTS)
+    for h in extra:
+        if h not in out:
+            out.append(h)
+        port_glob = f"{h}:*"
+        if ":" not in h and port_glob not in out:
+            out.append(port_glob)
+    return out
+
+
+def transport_security():
+    """DNS 리바인딩 보호는 **켠 채로** 허용 목록만 넓힌다."""
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts(),
+        allowed_origins=[],
+    )
+
+
 def build_app(token: str):
     """`server.py` 의 FastMCP 인스턴스에 bearer 검사를 씌운 ASGI 앱.
 
@@ -87,8 +152,8 @@ def build_app(token: str):
 
     from mcp_server.server import mcp
 
-    mcp.settings.host = BIND_HOST
     mcp.settings.streamable_http_path = DEFAULT_PATH
+    mcp.settings.transport_security = transport_security()
     inner = mcp.streamable_http_app()
 
     async def app(scope, receive, send):
@@ -113,19 +178,28 @@ def build_app(token: str):
 def main(argv: list[str] | None = None) -> int:
     try:
         token = read_token()
-    except TokenMissing as exc:
+        host, cert, key = resolve_bind()
+    except (TokenMissing, TlsRequired) as exc:
         print(f"[실패] {exc}", file=sys.stderr)
         return 2
 
     port = int(os.environ.get(PORT_ENV) or DEFAULT_PORT)
     import uvicorn
 
+    scheme = "https" if cert else "http"
     print(
-        f"MCP streamable-http — http://{BIND_HOST}:{port}{DEFAULT_PATH} "
+        f"MCP streamable-http — {scheme}://{host}:{port}{DEFAULT_PATH} "
         f"(bearer 필수 · 프로필 {os.environ.get('MAINTQ_TOOLS_PROFILE') or 'core'})",
         flush=True,
     )
-    uvicorn.run(build_app(token), host=BIND_HOST, port=port, log_level="info")
+    uvicorn.run(
+        build_app(token),
+        host=host,
+        port=port,
+        log_level="info",
+        ssl_certfile=cert,
+        ssl_keyfile=key,
+    )
     return 0
 
 

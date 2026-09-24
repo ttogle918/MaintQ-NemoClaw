@@ -19,6 +19,10 @@ NemoClaw 는 stdio MCP 를 받지 않아서(원문: *"Stdio-only MCP servers are
   ⑤ 바인딩이 loopback 이다 — 소스에 `0.0.0.0` 이 없고 `BIND_HOST` 가 127.0.0.1
   ⑥ 쓰기 도구는 여전히 **3종**뿐이다 (D10 — 전송이 늘어도 쓰기 표면은 그대로)
   ⑦ 401 본문에 원인을 적지 않는다 (D40·D131)
+  ⑧ DNS 리바인딩 보호가 **켜져 있다** — 허용 Host 목록을 넓히기만 하고 끄지 않는다.
+     ↔ 양성 축: 기본 목록에 loopback 이 들어 있다 (빈 목록이면 "안 껐다" 로 통과한다)
+  ⑨ `MAINTQ_MCP_ALLOWED_HOSTS` 로 **더할 수는 있어도 기본값을 지울 수는 없다**
+  ⑩ loopback 밖 바인딩은 TLS 없이 기동 거부 (D150 개정) ↔ 양성 축: TLS 를 주면 통과
 
 실행:  uv run python spikes/mcp_http_contract.py
 """
@@ -223,6 +227,42 @@ def main() -> None:
             "⑦ 401 본문에 원인 미기재 (D40·D131)",
             "token" not in body_none.lower() and "MAINTQ" not in body_none,
             f"본문={body_none[:60]!r}",
+        )
+
+        # ⑧⑨⑩ — 호스트 실행 배선(D150 개정)에서 새로 생긴 표면.
+        ts = http_entry.transport_security()
+        base = http_entry.allowed_hosts({})
+        check(
+            "⑧ DNS 리바인딩 보호 유지",
+            ts.enable_dns_rebinding_protection is True and "127.0.0.1" in base,
+            f"보호={ts.enable_dns_rebinding_protection} · 기본 허용 {len(base)}개(loopback 포함 "
+            f"{'예' if '127.0.0.1' in base else '아니오'})",
+        )
+
+        widened = http_entry.allowed_hosts({http_entry.ALLOWED_HOSTS_ENV: "host.openshell.internal"})
+        check(
+            "⑨ 허용 Host 는 추가만 되고 기본값이 지워지지 않는다",
+            set(base) <= set(widened) and "host.openshell.internal" in widened,
+            f"기본 {len(base)} ⊆ 확장 {len(widened)} · 추가분 반영 "
+            f"{'예' if 'host.openshell.internal' in widened else '아니오'}",
+        )
+
+        try:
+            http_entry.resolve_bind({http_entry.BIND_ENV: "0.0.0.0"})
+            no_tls_refused = False
+        except http_entry.TlsRequired:
+            no_tls_refused = True
+        with_tls = http_entry.resolve_bind(
+            {
+                http_entry.BIND_ENV: "0.0.0.0",
+                http_entry.TLS_CERT_ENV: "/tmp/x.crt",
+                http_entry.TLS_KEY_ENV: "/tmp/x.key",
+            }
+        )
+        check(
+            "⑩ loopback 밖은 TLS 필수 (양성 축 포함)",
+            no_tls_refused and with_tls == ("0.0.0.0", "/tmp/x.crt", "/tmp/x.key"),
+            f"TLS 없음 거부={no_tls_refused} · TLS 있음 통과={with_tls[0]!r}",
         )
     finally:
         proc.terminate()
