@@ -487,11 +487,17 @@ async def dispatch_a2a_withdrawal_request(
         )
         return res
     except Exception as exc:
-        # 차단기가 연 것과 실제로 시도했다 실패한 것을 trace 에서 구분한다 (P35) —
-        # 운영자가 "상대가 죽었다"와 "우리가 스스로 막고 있다"를 혼동하면 안 된다.
-        from backend.a2a.client import A2ACircuitOpenError
+        # 차단기가 연 것·정책상 시도조차 안 한 것·실제로 시도했다 실패한 것을 trace 에서
+        # 구분한다 (P35·D149) — 운영자가 "상대가 죽었다"와 "우리가 스스로 막고 있다"를
+        # 혼동하면 안 된다.
+        from backend.a2a.client import A2ACircuitOpenError, A2APolicyBlockedError
 
-        status = "circuit_open" if isinstance(exc, A2ACircuitOpenError) else "error"
+        if isinstance(exc, A2APolicyBlockedError):
+            status = "policy_blocked"
+        elif isinstance(exc, A2ACircuitOpenError):
+            status = "circuit_open"
+        else:
+            status = "error"
         record_a2a_trace(
             session_id=po.get("session_id") or "",
             skill_id="request-withdrawal",

@@ -504,6 +504,11 @@ POST /api/decisions/{id}/reject      # pending → rejected (**manager만**, bod
 - **503 은 "재시도하라"는 말이다.** 그러니 재시도로 풀리는 것만 503 이다 — 카탈로그 **미적재**
   (`rule_catalog_not_loaded`)가 그것이다. *인용 룰만 사라진* 경우는 근거가 바뀐 것이라 409 다.
   재시도해도 같은 답이 오는 상태에 503 을 주면 클라이언트를 영원히 돌게 만든다.
+  ⚠ **예외가 하나 있다 — A2A `policy_blocked`(§2.9, D149).** 샌드박스 모드(`MAINTQ_SANDBOX=
+  openshell`)에서 egress 정책이 파트너 호스트를 막을 때도 503 을 쓰는데, 이건 재시도로
+  풀리지 않는다(정책이 바뀌기 전까지 항상 같은 결과) — "503 = 재시도하면 풀린다"는 이
+  경로에서는 성립하지 않는다는 것을 알고 읽을 것. `Retry-After` 헤더도 없다(재시도를
+  유도하지 않는다는 신호).
 - **`override_reason` 공백을 pydantic 으로 막지 않는다** — 본문 검증은 라우팅 직후라
   404·`evidence_changed`·`override_required` 보다 **먼저** 실행되어 **D84 가 정한 순서가 깨진다.**
   검증은 `services.decisions.sign()` 안에서 하고 라우터가 422 로 매핑한다. DB CHECK 가 2차 방어선(D63).
@@ -676,6 +681,20 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
 > 멀쩡한데 `request-withdrawal`·`request-settlement` 까지 차단된다(2026-09-10 실측).
 > ⚠ 상대의 `504`(상대가 판단해 보낸 **응답**)와 우리 타임아웃(**응답 없음**)은 다른 사건이다 —
 > 후자는 여전히 도달 불가로 세므로, 아플 만큼 느린 상대에는 차단기가 정상 동작한다.
+>
+> 🔴 **`policy_blocked` 503 도 있다 (D149, 2026-09-24).** 샌드박스 모드
+> (`MAINTQ_SANDBOX=openshell`)에서는 egress 정책상 파트너 호스트가 애초에 열려 있지 않다 —
+> **네트워크를 시도하기도 전에** 판정한다(day1 §5.1). `A2ACircuitOpenError` 보다 **먼저** 잡는다.
+> 형태가 다르다 — `detail` 이 문자열이 아니라 **dict**: `{"reason": "policy_blocked",
+> "message": "..."}`, 그리고 **`Retry-After` 헤더가 없다**(차단기 503 은 있다). 재시도해도
+> 절대 풀리지 않는다 — 상대가 아프거나 우리가 연속 실패를 회계한 상태가 아니라 **정책이
+> 애초에 막아 둔 상태**이기 때문이다(에러코드는 절대 추측하지 않는다는 태도의 A2A 판). trace 는
+> `status=policy_blocked` 로 남고 `backend/a2a/circuit.py` 의 성공/실패 회계에는 들어가지
+> 않는다(상대가 살았는지 죽었는지 판단할 근거 자체가 없다 — 시도하지 않았다).
+> ⚠ **현재 알려진 결함(MQ-1913 소관, `docs/07_BACKLOG.md` 참고)**: `assess_equipment_loan`·
+> `assess_used_equipment_loan`·`search_insurance_clause` MCP 도구 3종은 503 을 받으면
+> 이유를 묻지 않고 전부 `circuit_open` 으로 읽는다 — `policy_blocked` 인지 실제 차단기
+> 발동인지 이 세 도구의 반환값만으로는 구분할 수 없다.
 
 ```
 POST /api/a2a/lookup-clause          # InsuQ lookup-clause 스킬 중계 (기존 — Sprint 16 이전 미문서화분 소급 기재)

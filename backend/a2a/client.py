@@ -30,6 +30,15 @@ class A2ATimeoutError(A2AClientError):
     """요청 타임아웃."""
 
 
+class A2APolicyBlockedError(A2AClientError):
+    """샌드박스 정책상 외부 발신이 불가해 **시도하지 않았다** (D149). 네트워크·차단기 무관.
+
+    ⚠ `A2AUpstreamUnavailableError` 의 하위 타입으로 두지 **않는다** — 기존
+    `except A2AUpstreamUnavailableError` 가 이 예외를 잡으면 「상대 불가」(502 계열)로
+    오기록된다. 정책은 우리 쪽 사정이지 상대의 장애가 아니다.
+    """
+
+
 class A2ACircuitOpenError(A2AUpstreamUnavailableError):
     """차단기가 열려 있어 **호출을 시도조차 하지 않았다** (P35).
 
@@ -87,6 +96,18 @@ async def call_skill(
         headers["Idempotency-Key"] = idempotency_key
 
     url = f"{base_url.rstrip('/')}/a2a/skills/{skill_id}"
+
+    # ── 샌드박스 정책 관문 (D149). ValueError 검사들보다 **뒤**, 차단기 관문보다 **앞**.
+    #    `MAINTQ_SANDBOX=openshell` 이면 egress 정책상 파트너 호스트가 열려 있지 않다 —
+    #    보낼 수 없다는 것을 호출 전에 알 수 있으므로 시도조차 하지 않는다. `registry()` 를
+    #    아예 호출하지 않는다 — 차단기 성공·실패 카운터를 건드리면 안 된다(정책 차단은
+    #    상대의 장애가 아니다).
+    from backend.agent.llm import sandbox_mode  # 지연 import — 순환 방지
+
+    if sandbox_mode():
+        raise A2APolicyBlockedError(
+            f"샌드박스 정책상 A2A 발신이 차단되었습니다: {partner}/{skill_id} (D149)"
+        )
 
     # ── 차단기 관문 (P35). 위의 ValueError 들보다 **뒤**에 둔다 —
     #    설정 오류는 우리 문제이지 상대의 장애가 아니라서 차단기와 무관하다.

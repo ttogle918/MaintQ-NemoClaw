@@ -33,12 +33,19 @@ chunk_id/manual_id/model/page/section/text/char_len). 이 모듈은 인덱스를
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
+
+import psycopg
+
+from mcp_server.db import read_only
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_INDEX = (
     Path(__file__).resolve().parent.parent / "data" / "extracted" / "manual_chunks.jsonl"
@@ -172,6 +179,44 @@ def _load(path: Path) -> dict:
     return models
 
 
+_DB_CHUNK_COLUMNS = ("chunk_id", "manual_id", "model", "page", "section", "text", "char_len")
+
+
+def _db_chunks(model: str) -> list[dict]:
+    """`manual_chunks`(D117 §24)에서 이 기종의 온보딩 청크를 읽는다 (D148).
+
+    jsonl 에 이 기종 청크가 0건일 때만 호출된다 — 시드 3기종(D60 파일 정본)은 이
+    함수를 타지 않는다. 실패는 예외(`IndexNotBuilt`)로 승격해 호출부(`search`)가
+    기존 미구축 경로와 동일하게 처리하게 한다 (D9 는 도구 레이어 규칙이라 이 내부
+    모듈은 예외를 던져도 된다 — `rag.py` 독스트링 "실패는 예외로 던진다" 참고).
+    """
+    try:
+        with read_only() as con:
+            rows = con.execute(
+                "SELECT chunk_id, manual_id, model, page, section, text, char_len"
+                " FROM manual_chunks WHERE model = ? ORDER BY chunk_id",
+                (model,),
+            ).fetchall()
+    except psycopg.Error as exc:
+        # 본문 미포함 (D40) — 타입명만 남긴다
+        raise IndexNotBuilt(
+            f"{model} 온보딩 청크를 읽지 못했습니다: {type(exc).__name__}"
+        ) from exc
+    return [{k: row[k] for k in _DB_CHUNK_COLUMNS} for row in rows]
+
+
+def _file_chunk_ids() -> frozenset[str]:
+    """현재 jsonl 캐시(`INDEX_PATH`)의 chunk_id 전체 — DB 온보딩분과의 충돌 판정용 (D148 ⓘⓘⓘ).
+
+    `_load()`(캐시됨)를 그대로 재사용한다 — `search()` 가 이미 로드해 둔 뒤라
+    파일을 다시 읽지 않는다.
+    """
+    models = _load(INDEX_PATH)
+    return frozenset(
+        d.chunk.get("chunk_id", "") for mi in models.values() for d in mi.docs
+    )
+
+
 def _keyword_scores(mi: _ModelIndex, q_tokens: list[str]) -> list[float]:
     """토큰 빈도 × IDF / 길이 정규화. q_tokens 는 **정렬된** 리스트여야 한다(합산 순서 고정)."""
     scores: list[float] = []
@@ -223,9 +268,29 @@ def search(
     # ── model 필터 **먼저** (04 §2 · D28 과 같은 논리)
     mi = models.get(model)
     if mi is None or not mi.docs:
-        # 인덱스는 있는데 이 기종 청크가 0건 = 부분 구축 상태. empty 로 주면
-        # "이 기종 매뉴얼엔 그 내용이 없다"는 거짓 신호가 된다 (IndexNotBuilt 참조)
-        raise IndexNotBuilt(f"인덱스에 {model} 청크가 없습니다 — 재구축이 필요합니다")
+        # jsonl 에 이 기종 청크가 0건 — **기종 단위 원천 선택** (D148). 시드 3기종은
+        # 파일이 정본이라 이 분기를 타지 않는다(D60) — 온보딩 승격분만 DB 를 본다.
+        db_rows = _db_chunks(model)
+        if db_rows:
+            file_ids = _file_chunk_ids()
+            kept = [r for r in db_rows if r.get("chunk_id") not in file_ids]
+            skipped = len(db_rows) - len(kept)
+            if skipped:
+                # 파일 우선(D148 ⓘⓘⓘ, D60 정본 보호) — 충돌 원인 조사는 chunk_id 로
+                logger.warning(
+                    "%s: manual_chunks 청크 %d건이 jsonl 과 chunk_id 충돌해 제외됨"
+                    " (파일 우선, D148)",
+                    model,
+                    skipped,
+                )
+            if kept:
+                mi = _ModelIndex([_Doc(r) for r in kept])  # 캐시 없음 — 승격 직후 즉시 반영
+        if mi is None or not mi.docs:
+            # jsonl 도 DB 도 0건 = 아직 온보딩 승격 전 (D146·D148). empty 로 주면
+            # "이 기종 매뉴얼엔 그 내용이 없다"는 거짓 신호가 된다 (IndexNotBuilt 참조)
+            raise IndexNotBuilt(
+                f"{model} 은 아직 온보딩 승격 전입니다 — 매뉴얼 청크가 없습니다 (D146·D148)"
+            )
 
     q_tokens = sorted(set(tokenize(query)))
     kw = _normalize(_keyword_scores(mi, q_tokens))

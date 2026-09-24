@@ -348,6 +348,31 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   `SKILL.md:50` 에서 `.claude/` 를 `grep`(에이전트 설정 디렉터리 접근) · `stage` **RP1 MEDIUM ×2** — `SKILL.md:73` 버전 미고정 `npx`.
   나머지 5종 0점. `run-eval` 은 실제로 고칠 가치가 있다(비밀 파일을 셸로 읽는 관행)
 
+- 🟡 **온보딩 적재기의 멱등 검사가 쓰기 트랜잭션 밖에 있다** (2026-09-25, Sprint 19 Stage 2 리뷰 발견,
+  고치지 않음). `mcp_server/onboarding_load.py::_already_loaded()` 는 `read_only()` 커넥션으로
+  "이미 적재됐는가" 를 먼저 보고, 그 다음 **별도 트랜잭션**인 `onboarding_writer()` 로 INSERT 한다 —
+  이 둘 사이에 경합 창이 있다. 같은 `(manual_id, candidates_sha256)` 후보 파일을 **동시에** 두 프로세스가
+  적재하면 둘 다 "아직 없음" 을 보고 둘 다 INSERT 를 시도해, 두 번째는 `onboarding_batches` 의 UNIQUE
+  제약을 어겨 `load()` 의 `except Exception` 블록(라인 202)에 걸린다 — 그러면 멱등 종료코드 **3**(이미
+  적재됨) 대신 **2**(입력 오류)로 끝난다. 실패가 fail-closed 이므로(아무것도 안 쓰고 종료) 데이터
+  무결성 사고는 아니지만, 재시도 스크립트가 종료코드 2 를 "입력이 잘못됐다"로 오해할 수 있다.
+  고치려면 `_already_loaded()` 조회와 INSERT 를 한 트랜잭션으로 묶거나 UNIQUE 위반을 3으로 재매핑해야
+  한다 — 이번 리뷰 반영 범위 밖이라 코드는 그대로 둔다.
+- 🟡 **`stage_code_normalization` 의 `state='staged'` 확인과 정규화 INSERT 가 다른 트랜잭션이다**
+  (2026-09-25, Sprint 19 Stage 2 리뷰 발견, 고치지 않음). `mcp_server/tools/stage_code_normalization.py`
+  는 `read_only()` 로 `onboarding_code_rows.state` 를 확인한 뒤 `onboarding_writer()` 로
+  `onboarding_normalizations` 에 INSERT 한다 — 그 사이 사람이 화면에서 그 행을 승인(`state` 전이)해도
+  이 도구는 그걸 모르고 정규화 행을 계속 붙일 수 있다. 영향은 낮다 — 승격은 특정 `norm_id` 를
+  명시적으로 골라 쓰므로, 승인 후 붙은 "고아" 정규화 행이 있어도 승격 결과에 섞여 들어가지 않는다.
+- 🟡 **full 프로필 A2A 도구 3종이 `policy_blocked` 와 `circuit_open` 을 구분하지 못한다**
+  (2026-09-25, D149 리뷰 발견, **MQ-1913 소관**). `assess_equipment_loan`·`assess_used_equipment_loan`·
+  `search_insurance_clause` (각 `mcp_server/tools/*.py`) 는 백엔드가 돌려준 503 을 전부
+  `reason: "circuit_open"` 으로 매핑한다 — 백엔드가 `A2APolicyBlockedError` 를 잡아 dict 형태
+  `{"reason":"policy_blocked", ...}` 를 돌려줘도(`backend/routers/a2a.py`) 이 세 도구는 `detail` 의
+  모양을 보지 않고 상태코드만 본다. 그래서 에이전트에게는 "우리가 연속 실패해서 막았다"(차단기)와
+  "샌드박스 정책이 애초에 막았다"(policy_blocked, D149)가 똑같이 보인다 — 재시도 안내 문구도
+  차단기 쪽 문구를 쓰게 된다. `docs/06_REPO_API.md` §2.9 참고.
+
 - 🟡 **요청자 식별자 `finallq_company_id` 가 빌더 5곳에서 `or ""` 로 뭉개진다** (2026-09-16 발견, D142 스코프 밖).
   `get_finallq_company_id()` 는 `link_state != 'LINKED'` 면 `None` 을 돌려주는데, 호출부가
   `or ""` 로 받아 **빈 문자열을 payload 에 싣는다**. 빈 요청자 식별자는 수신부에서

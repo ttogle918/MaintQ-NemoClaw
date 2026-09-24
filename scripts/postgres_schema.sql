@@ -476,3 +476,104 @@ CREATE TABLE manual_chunks (
 );
 
 CREATE INDEX idx_manual_chunks_model ON manual_chunks(model);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §25~§29 온보딩 스테이징 5테이블 (D154, Sprint 19 MQ-1905). 새 기종(HV600 등) 매뉴얼의
+-- 원문·정규화·안전 문구 후보가 사람 검수 전 머무는 자리다. 정본은 여전히 error_codes ·
+-- manual_chunks(§1·§24)다 — 이 5테이블 자체는 정본이 아니다(04 §23~§25 참고). 쓰기는
+-- MCP 도구 `stage_code_normalization` 하나(D10 개정)뿐이고, 상태 전이(staged→approved/
+-- rejected)·정본 승격은 사람 전용 API(backend/routers/onboarding.py, D156)만 한다.
+-- `data/seed.py` 의 SQLite SCHEMA 에는 넣지 않는다(Postgres 전용, §24 manual_chunks 선례).
+-- ─────────────────────────────────────────────────────────────────────────
+
+-- §25 onboarding_batches — 적재 배치. (manual_id, candidates_sha256) 유니크가 적재기의
+-- 멱등 키다 — 같은 후보 파일을 두 번 적재해도 두 번째는 아무것도 쓰지 않고 종료코드 3.
+CREATE TABLE onboarding_batches (
+  batch_id BIGSERIAL PRIMARY KEY,
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  manual_id TEXT NOT NULL,             -- manifest id ('hv600-iopm')
+  pdf_sha256 TEXT NOT NULL,            -- 후보 JSON _source.sha256
+  candidates_sha256 TEXT NOT NULL,     -- 후보 JSON 파일 자체의 sha256 (멱등 키)
+  loaded_by TEXT NOT NULL,             -- 감사 라벨 (D154 — users FK 아님)
+  loaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (manual_id, candidates_sha256)
+);
+
+-- §26 onboarding_code_rows — 원문 고장 표 행. code CHECK 는 D155(D33 개정)와 완전히 같은
+-- 정규식이다 — 스테이징에서 거부되는 코드는 정본에서도 거부돼야 한다. 같은 코드가 여러
+-- 구역에 걸치거나 같은 구역 안에서 이름이 반복(CE)돼도 합치지 않고 행을 각각 둔다(병합은
+-- 승격 시점 §29, D156).
+CREATE TABLE onboarding_code_rows (
+  row_id BIGSERIAL PRIMARY KEY,
+  batch_id BIGINT NOT NULL REFERENCES onboarding_batches,
+  ordinal INTEGER NOT NULL,            -- 후보 JSON codes[] 인덱스
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  code TEXT NOT NULL CHECK (length(code) BETWEEN 2 AND 5 AND code = upper(code) AND code ~ '^[A-Z0-9_-]+$'),
+  display_code TEXT NOT NULL,
+  section_en TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  causes_en TEXT NOT NULL CHECK (causes_en::jsonb IS NOT NULL),     -- [{cause, solutions[]}] 원문 그대로
+  pages TEXT NOT NULL CHECK (jsonb_array_length(pages::jsonb) >= 1), -- PDF 물리 페이지 (D26)
+  expanded_from TEXT,
+  source_flags TEXT NOT NULL DEFAULT '[]',                          -- 적재 시 onboarding_guard 판정
+  state TEXT NOT NULL DEFAULT 'staged' CHECK (state IN ('staged','approved','rejected')),
+  reviewed_by TEXT REFERENCES users, reviewed_at TIMESTAMP, review_note TEXT,
+  UNIQUE (batch_id, ordinal),
+  CHECK (state = 'staged' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+  CHECK (state <> 'rejected' OR length(trim(coalesce(review_note,''))) > 0)
+);
+
+CREATE INDEX idx_onb_rows_group ON onboarding_code_rows(model, code);
+
+-- §27 onboarding_normalizations — 한국어 정규화. UPDATE 경로가 코드 어디에도 없다 —
+-- 재정규화는 항상 새 행 INSERT 다. 같은 row_id 에 여러 norm_id 가 쌓일 수 있고 최신
+-- (norm_id 최댓값)이 기본 표시, 승격 시 사람이 화면에서 norm_id 를 고른다.
+CREATE TABLE onboarding_normalizations (
+  norm_id BIGSERIAL PRIMARY KEY,
+  row_id BIGINT NOT NULL REFERENCES onboarding_code_rows,
+  name_ko TEXT NOT NULL CHECK (length(trim(name_ko)) > 0),
+  causes_ko TEXT NOT NULL CHECK (causes_ko::jsonb IS NOT NULL),     -- causes_en 과 같은 모양
+  confidence TEXT NOT NULL CHECK (confidence IN ('high','low')),    -- 서버 판정 반영 후 최종값
+  flags TEXT NOT NULL DEFAULT '[]',
+  agent_note TEXT,
+  staged_by TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- §28 onboarding_safety_candidates — 안전 문구 후보 (원문 인용 + 승인). state='approved' 로
+-- 존재하려면 approved_text·approved_by·approved_at·text_reviewed_at 네 컬럼이 모두 있어야
+-- 한다는 CHECK 가 D157(안전 게이트 런타임 원천)의 fail-closed 전제를 스키마 레벨로 강제한다.
+CREATE TABLE onboarding_safety_candidates (
+  cand_id BIGSERIAL PRIMARY KEY,
+  batch_id BIGINT NOT NULL REFERENCES onboarding_batches,
+  ordinal INTEGER NOT NULL,
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  page INTEGER NOT NULL CHECK (page >= 1),
+  also_pages TEXT NOT NULL DEFAULT '[]',
+  kind TEXT NOT NULL CHECK (kind IN ('discharge_wait','live_work','qualified_worker','other')),
+  quote_en TEXT NOT NULL CHECK (length(trim(quote_en)) > 0),
+  wait_minutes_in_text INTEGER,
+  state TEXT NOT NULL DEFAULT 'staged' CHECK (state IN ('staged','approved','rejected')),
+  approved_text TEXT, approved_by TEXT REFERENCES users,
+  approved_at TIMESTAMP, text_reviewed_at TIMESTAMP, review_note TEXT,
+  UNIQUE (batch_id, ordinal),
+  CHECK (state <> 'approved' OR (length(trim(coalesce(approved_text,''))) > 0 AND approved_by IS NOT NULL
+                                  AND approved_at IS NOT NULL AND text_reviewed_at IS NOT NULL)),
+  CHECK (approved_text IS NULL OR state = 'approved'),
+  CHECK (state <> 'rejected' OR length(trim(coalesce(review_note,''))) > 0)
+);
+
+-- §29 onboarding_promotions — 승격 이력. UNIQUE (model, code) 가 재승격을 막는 마지막
+-- 방어선(D156)이다 — 애플리케이션 계층의 409 already_promoted 검증을 우회해도 DB 가 두
+-- 번째 승격을 거부한다.
+CREATE TABLE onboarding_promotions (
+  promo_id BIGSERIAL PRIMARY KEY,
+  model TEXT NOT NULL, code TEXT NOT NULL,
+  primary_row_id BIGINT NOT NULL REFERENCES onboarding_code_rows,
+  row_ids TEXT NOT NULL, norm_ids TEXT NOT NULL, chunk_ids TEXT NOT NULL,   -- JSON 배열
+  acknowledged_flags TEXT NOT NULL DEFAULT '[]',
+  promoted_by TEXT NOT NULL REFERENCES users,
+  promoted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (model, code),
+  FOREIGN KEY (model, code) REFERENCES error_codes(model, code)
+);

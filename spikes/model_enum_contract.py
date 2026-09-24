@@ -272,13 +272,35 @@ def check_promotion_gate(dsn: str) -> None:
 # ── ⑥·⑦ DB 밖 계약 ────────────────────────────────────────────────────────────────
 
 
-def check_rag_gate() -> None:
-    result = rag_search_manual(model="HV600", query="점검 절차")
-    check(
-        "⑥ rag_search_manual(HV600) → error/index_not_built (empty 아님, D50 논리)",
-        result.get("status") == "error" and result.get("reason") == "index_not_built",
-        f"result={ {k: v for k, v in result.items() if k != 'message'} }",
-    )
+def check_rag_gate(dsn: str) -> None:
+    """격리 스키마 **DROP 전**, `manual_chunks` 에 HV600 행이 아직 0건인 상태에서 돈다
+    (2026-09-25 리뷰 반영). 예전에는 이 검사가 DROP **뒤**에 `db_mod.DB_PATH=None` 인 채로
+    돌아 공유 `public` 스키마에 의존했다 — MQ-1909 가 HV600 을 승격하면 그 순간부터
+    `manual_chunks` 에 HV600 행이 생겨 이 검사가 FAIL 로 뒤집힌다. 격리 스키마 안에서
+    돌리고 "HV600 manual_chunks 0건"을 양성 축으로 함께 확인해야 지금 통과가
+    "판정 로직이 맞아서"인지 "격리 스키마가 원래 비어서"인지 구분된다."""
+    db_mod.DB_PATH = dsn
+    try:
+        con = dbcompat.connect_dsn(dsn)
+        try:
+            hv600_chunks = con.execute(
+                "SELECT count(*) FROM manual_chunks WHERE model = 'HV600'"
+            ).fetchone()[0]
+        finally:
+            con.close()
+
+        result = rag_search_manual(model="HV600", query="점검 절차")
+        check(
+            "⑥ rag_search_manual(HV600) → error/index_not_built (격리 스키마 안, DROP 전 —"
+            " HV600 manual_chunks 0건 양성 축 포함, empty 아님, D50 논리)",
+            hv600_chunks == 0
+            and result.get("status") == "error"
+            and result.get("reason") == "index_not_built",
+            f"HV600 manual_chunks={hv600_chunks} · "
+            f"result={ {k: v for k, v in result.items() if k != 'message'} }",
+        )
+    finally:
+        db_mod.DB_PATH = None
 
 
 def check_manifest_offset() -> None:
@@ -295,7 +317,7 @@ def main() -> None:
 
     if not dbcompat.USE_POSTGRES:
         check(
-            "② DB CHECK·③ D155 형식·④ 기존행·⑤ 승격 게이트",
+            "② DB CHECK·③ D155 형식·④ 기존행·⑤ 승격 게이트·⑥ RAG 게이트",
             False,
             "DATABASE_URL 미설정 — Postgres 격리 스키마 검사는 Postgres 타겟에서만 가능",
         )
@@ -309,11 +331,13 @@ def main() -> None:
             check_promotion_gate(dsn)
             check_d155_format(dsn)
             check_existing_rows(dsn)
+            # ⑥ 도 격리 스키마 DROP **전**에 돈다 — 2026-09-25 리뷰 반영, check_rag_gate 참고.
+            check_rag_gate(dsn)
         finally:
+            db_mod.DB_PATH = None
             for s in _pg_schemas:
                 pg_isolation.drop_isolated_schema(s)
 
-    check_rag_gate()
     check_manifest_offset()
 
     width = max(len(n) for n, _, _ in results)

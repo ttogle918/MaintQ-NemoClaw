@@ -1,0 +1,6 @@
+{"chunk_id": "syn-ig5a-p0100-00", "manual_id": "syn-ig5a-manual", "model": "iG5A", "page": 100, "section": "가상 점검", "text": "가상 인버터 출력측 누전 점검은 배선을 분리한 뒤 절연저항계로 측정한다. 결과가 기준 이하이면 배선을 교체한다.", "char_len": 62}
+{"chunk_id": "syn-ig5a-p0101-00", "manual_id": "syn-ig5a-manual", "model": "iG5A", "page": 101, "section": "가상 냉각", "text": "가상 냉각팬 소음이 커지면 베어링 마모를 의심하고 팬을 교체한다.", "char_len": 36}
+{"chunk_id": "syn-s100-p0200-00", "manual_id": "syn-s100-manual", "model": "S100", "page": 200, "section": "가상 트립", "text": "가상 트립 복귀 절차는 전원을 차단한 뒤 5분 대기 후 재기동한다.", "char_len": 37}
+{"chunk_id": "syn-s100-p0201-00", "manual_id": "syn-s100-manual", "model": "S100", "page": 201, "section": "가상 절연", "text": "가상 절연저항 측정값이 낮으면 모터 코일을 점검한다.", "char_len": 29}
+{"chunk_id": "syn-ie5-p0300-00", "manual_id": "syn-ie5-manual", "model": "IE5", "page": 300, "section": "가상 진단", "text": "가상 진단 절차는 표시창의 코드값을 확인하고 매뉴얼과 대조한다.", "char_len": 35}
+{"chunk_id": "syn-ie5-p0301-00", "manual_id": "syn-ie5-manual", "model": "IE5", "page": 301, "section": "가상 배선", "text": "가상 배선 점검은 단자대 나사 조임 상태를 확인한다.", "char_len": 29}

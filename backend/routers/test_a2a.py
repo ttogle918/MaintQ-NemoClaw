@@ -19,7 +19,12 @@ from fastapi.testclient import TestClient
 from data import dbcompat
 
 import backend.routers.a2a as a2a_router_module
-from backend.a2a.client import A2AClientError, A2ATimeoutError, A2AUpstreamUnavailableError
+from backend.a2a.client import (
+    A2AClientError,
+    A2APolicyBlockedError,
+    A2ATimeoutError,
+    A2AUpstreamUnavailableError,
+)
 
 
 @pytest.fixture()
@@ -182,6 +187,24 @@ def test_generic_client_error_without_status_code_defaults_to_400(monkeypatch: p
     assert resp.status_code == 400
 
 
+def test_policy_blocked_maps_to_503(monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str):
+    """샌드박스 정책상 발신을 시도조차 안 했으면 503 `policy_blocked` 다 (D149)."""
+
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2APolicyBlockedError("blocked")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/lookup-clause", json={"question": "질문"})
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["reason"] == "policy_blocked"
+    rows = _traces(db_path)
+    assert [r["event_type"] for r in rows] == ["tool_call", "tool_result"]
+    result_payload = json.loads(rows[1]["payload"])
+    assert result_payload["status"] == "policy_blocked"
+
+
 def test_blank_question_is_rejected_by_validation(client: TestClient):
     resp = client.post("/api/a2a/lookup-clause", json={"question": ""})
     assert resp.status_code == 422
@@ -325,6 +348,22 @@ def test_assess_loan_generic_client_error_uses_its_own_status_code(
     assert result_payload["status"] == "error"
 
 
+def test_assess_loan_policy_blocked_maps_to_503(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, db_path: str
+):
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2APolicyBlockedError("blocked")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    resp = client.post("/api/a2a/assess-loan", json=_LOAN_BODY)
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["reason"] == "policy_blocked"
+    result_payload = json.loads(_traces(db_path)[1]["payload"])
+    assert result_payload["status"] == "policy_blocked"
+
+
 def test_assess_loan_missing_required_field_rejected_by_validation(client: TestClient):
     resp = client.post(
         "/api/a2a/assess-loan",
@@ -385,6 +424,28 @@ def test_assess_used_equipment_loan_unknown_asset_is_400(
 
     assert res.status_code == 400
     assert "AST-NOPE" in res.json()["detail"]
+
+
+def test_assess_used_equipment_loan_policy_blocked_maps_to_503(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seed_assets, db_path: str
+) -> None:
+    """`_dispatch` 헬퍼 경로(:70 부근)도 정책 차단을 먼저 잡는다 (D149)."""
+
+    async def _fake_call_skill(**kwargs: Any):
+        raise A2APolicyBlockedError("blocked")
+
+    monkeypatch.setattr(a2a_router_module, "call_skill", _fake_call_skill)
+
+    res = client.post(
+        "/api/a2a/assess-used-equipment-loan",
+        json={"asset_id": "AST-L3-CONV", "loan_amount": 5_000_000},
+    )
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["reason"] == "policy_blocked"
+    rows = _traces(db_path)
+    result_payload = json.loads(rows[1]["payload"])
+    assert result_payload["status"] == "policy_blocked"
 
 
 # ---- S12: request-settlement -------------------------------------------------

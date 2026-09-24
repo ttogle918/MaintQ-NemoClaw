@@ -144,3 +144,29 @@ async def test_call_skill_failure_is_recorded_as_error_trace_and_reraised(
 
     result_payload = json.loads(rows[1]["payload"])
     assert result_payload["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_policy_blocked_is_recorded_as_policy_blocked_trace_and_reraised(
+    monkeypatch: pytest.MonkeyPatch, db_path: str, link_finallq, seed_po
+):
+    """샌드박스 정책 차단은 `circuit_open`·`error` 와 구분되는 status 로 남는다 (D149)."""
+    link_finallq()
+    seed_po(po_id="PO-001", session_id="sess-42", state="approved")
+
+    async def _fake_call_skill(**kwargs: Any):
+        raise a2a_client.A2APolicyBlockedError("blocked")
+
+    monkeypatch.setattr(a2a_client, "call_skill", _fake_call_skill)
+
+    with pytest.raises(a2a_client.A2APolicyBlockedError):
+        await dispatch_a2a_withdrawal_request(
+            "PO-001", base_url="http://finallq-adapter.local", db_path=db_path
+        )
+
+    rows = _traces(db_path)
+    assert [r["event_type"] for r in rows] == ["tool_call", "tool_result"]
+    import json
+
+    result_payload = json.loads(rows[1]["payload"])
+    assert result_payload["status"] == "policy_blocked"

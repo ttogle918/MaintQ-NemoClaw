@@ -489,8 +489,11 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
     def finalize(row: dict, name_ko: str, causes_ko: list[dict], confidence: str, flags: list[str]) -> tuple[str, list[str], list[str]]
         # → (최종 confidence, 최종 flags(정렬·중복 제거), 서버가 강제한 사유 목록)
     ```
-    `suspect_reasons` 패턴(대소문자 무시): `ignore (all |any )?(previous|prior|above|the) (instructions?|prompts?|rules?)` →
-    `ignore_instructions` · `disregard` → `disregard` · `system prompt|developer message|assistant:` → `role_marker` ·
+    `suspect_reasons` 패턴(대소문자 무시): `(ignore|disregard|forget) (all |any |the |your |my )*(previous|prior|above|earlier)?\s*(instructions?|prompts?|rules?)` →
+    `ignore_instructions`(2026-09-25 Stage 2 리뷰 반영 — 한정사 1개·동사 "ignore" 고정이던 옛 패턴은
+    "ignore THE PREVIOUS instructions"·"ignore YOUR instructions"·"FORGET previous instructions" 를 놓쳤다.
+    `data/extracted/hv600_code_candidates.json` 249행 원문 오탐 0건 실측 확인) · `disregard` → `disregard` ·
+    `system prompt|developer message|assistant:` → `role_marker` ·
     `you are (now )?(an?|the) ` → `persona` · `이전\s*(지시|명령|규칙)|(지시|명령|규칙)\S*\s*무시` → `ignore_instructions_ko` ·
     도구·API 이름(`stage_code_normalization|list_onboarding_rows|create_po_draft|lookup_error_code|promote|approve|승인하`) →
     `tool_or_action_mention` · `https?://` → `url` · ``` ``` ``` 또는 `<\s*/?\s*(system|tool|instructions?)` → `markup`.
@@ -937,3 +940,48 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 
 실행: `/stage 1`
 
+
+---
+
+## 실행 기록
+
+### Stage 1 완료 (2026-09-25)
+**커밋**: `bbd2fc8` — `[M4] feat(onboarding): Sprint 19 Stage 1 — HV600 enum 선등록 · D154~D157 · 안전 문구 후보 추출기 · NAT 스파이크`
+
+- MQ-1901: NAT 스파이크 — 채택 레벨 **L0**(day2 §9). `policy-nat.yaml` 은 스파이크 전용 8775 만 연다 → MQ-1908 이 8766 추가
+- MQ-1902: D154~D157 등재 · H0 사용자 확정(2026-09-24, 추천안 그대로) · 04 §23~§25 · 05 §25~§29 · 06 §2.11
+- MQ-1903: enum 10곳 + DB CHECK 3곳 · 신규 `spikes/model_enum_contract.py` 10건
+- MQ-1904: `data/extract_hv600_safety.py` — 후보 28(discharge_wait 9, 숫자 명시 p.29 5분 1건)
+- 회귀: seed 43 · pytest 364 · spikes 35종 기준값 일치 + model_enum 10 · 브라우저 7항목 PASS
+  (`law_fetch_contract ⓚ` 1건은 .env `LAW_API_OC` 값이 GitHub 아이디와 같아 생기는 기존 오탐)
+- 후속 커밋: `ec90e04` 디자인 산출물 채택(`docs/design/2026-09-25/`) · `44dff28` 기종 온보딩 뱃지를 MQ-1911 에 편입 + `GET /api/onboarding/status` 를 MQ-1909 에 추가
+
+### Stage 2 완료 (2026-09-25)
+**커밋**: 이 기록과 같은 커밋 — `[M4] feat(onboarding): Sprint 19 Stage 2 — …`
+
+#### MQ-1905
+- `scripts/postgres_schema.sql`(§25~§29) · `scripts/postgres_guards.sql`(`maintq_onboarding` 역할·GRANT·트리거 4) · `mcp_server/db.py`(`onboarding_writer()`) ·
+  `mcp_server/server.py`(프로필 `onboarding`) · `mcp_server/onboarding_guard.py` · `mcp_server/onboarding_load.py` · `mcp_server/tools/` 신규 3종 ·
+  `mcp_server/test_onboarding_guard.py`(33) · `spikes/onboarding_contract.py`(9)
+- 공유 DB 에 HV600 batch_id=1 적재 — 249행(Fault 127·Minor 77·Parameter 13·Auto-Tuning 22·Backup 10) · 안전 후보 28
+- ⚠ **`data/seed.py` 재실행은 온보딩 적재분을 지운다** — 재시드했다면 즉시
+  `uv run python -m mcp_server.onboarding_load --codes data/extracted/hv600_code_candidates.json --safety data/extracted/hv600_safety_candidates.json`(멱등)
+- 명세 이탈: 온보딩 등록 블록을 full 블록 **앞**에 둠(`prompt_rules ㉔` 문자열 슬라이스) · `onboarding_load --model` 기본값 HV600 ·
+  신원 해석은 `server.py` 래퍼(`create_po_draft` 선례, 노출 스키마는 04 §24 와 동일)
+
+#### MQ-1906
+- `mcp_server/rag.py`(jsonl 0건 기종만 DB `manual_chunks`, 충돌 시 파일 우선·경고 1회) · `spikes/onboarding_rag_contract.py`(6) · `spikes/fixtures/onboarding_chunks.jsonl`
+
+#### MQ-1907
+- `backend/a2a/client.py`(`A2APolicyBlockedError`, 차단기 앞 사전 차단) · `backend/routers/a2a.py`(3곳) · `backend/services/po.py` · 테스트 +6
+
+#### 리뷰 반영 (경미 11건 중 8건 수정, 3건은 07_BACKLOG 기록)
+- `onboarding_contract` ①(InsufficientPrivilege 로 좁힘 — GRANT 확대 뮤턴트로 FAIL 실증) · ②(DELETE + 트리거 자체 축) · ⑨(확장 15종 이름·순서 대조)
+- `model_enum_contract` ⑥ 을 격리 스키마 안으로(공유 DB 의존 제거 — MQ-1909 승격 후 위양성 방지)
+- `suspect_reasons` 정규식 확장(disregard/forget/the/your) — HV600 249행 오탐 0 실측 · 06 에 `policy_blocked` 503 문서화 · `server.py` docstring 정정
+- 07_BACKLOG: 적재기 동시 실행 exit 코드 · 정규화 staged 확인/INSERT 트랜잭션 분리 · full 프로필 A2A 도구 3종의 503 해석(**MQ-1913**)
+
+#### 회귀
+- seed 43 · error_codes 70 · 테이블 30 · pytest **403**(138 · A2A 168 · 서비스 20 · `mcp_server/` 77) ·
+  spikes 38종(35 + model_enum 10 · onboarding 9 · onboarding_rag 6) 전부 기준값 일치, `law_fetch ⓚ` 기존 오탐 1건 · ruff·tsc 통과
+- ⚠ `mcp_server/test_onboarding_guard.py` 는 `mcp_server/tools/` 밖이라 CLAUDE.md 의 기존 커맨드(`pytest mcp_server/tools/`)로 안 잡힌다 → **MQ-1913 이 `mcp_server/` 전체로 갱신**

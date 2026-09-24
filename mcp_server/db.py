@@ -155,6 +155,23 @@ def repair_writer() -> Iterator[psycopg.Connection]:
         yield con
 
 
+# ── 온보딩 스테이징 쓰기 커넥션 (D154) ───────────────────────────────
+# 쓰기 도구 4번째 `stage_code_normalization` 전용. `_guarded_writer()` 와 같은
+# 트랜잭션 규약(가드 GUC)에 전용 DB 역할(`SET LOCAL ROLE`)을 더한다 — GRANT 가 없는
+# 모든 테이블(정본 error_codes·manual_chunks·po_drafts·users·onboarding_promotions 포함)은
+# 권한 오류로 거부된다. 역할 자체는 scripts/postgres_guards.sql 이 스키마 적용 시 만든다.
+_ONBOARDING_ROLE = "SET LOCAL ROLE maintq_onboarding"
+
+
+@contextmanager
+def onboarding_writer() -> Iterator[psycopg.Connection]:
+    """스테이징 4테이블 INSERT 전용 (D154). `_guarded_writer()` 와 같은 트랜잭션 규약에
+    `SET LOCAL ROLE` 을 더한다 — GRANT 가 없는 모든 테이블은 권한 오류로 거부된다."""
+    with _guarded_writer() as con:
+        con.execute(_ONBOARDING_ROLE)
+        yield con
+
+
 def rows_to_dicts(rows: list) -> list[dict]:
     """결과 행을 dict로 변환 (기존 호환)."""
     if not rows:

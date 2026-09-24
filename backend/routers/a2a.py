@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from backend.a2a.client import (
     A2ACircuitOpenError,
     A2AClientError,
+    A2APolicyBlockedError,
     A2ATimeoutError,
     A2AUpstreamUnavailableError,
     call_skill,
@@ -35,6 +36,9 @@ from backend.services.lien import resolve_lien_consent
 
 router = APIRouter(prefix="/api/a2a", tags=["a2a"])
 logger = logging.getLogger(__name__)
+
+#: D149 — 샌드박스 정책상 발신을 시도조차 하지 않았을 때의 안내문. 세 발신 경로가 공유한다.
+_POLICY_BLOCKED_MESSAGE = "샌드박스 정책상 외부 A2A 발신이 차단돼 시도하지 않았습니다 (D149)"
 
 
 async def _dispatch(
@@ -80,6 +84,14 @@ async def _dispatch(
         res["request_chain_id"] = chain_id
         _trace("ok", res)
         return res
+    except A2APolicyBlockedError as exc:
+        # ⚠ A2ACircuitOpenError·A2AUpstreamUnavailableError 보다 **먼저** 잡는다 — 정책
+        #   차단은 상대 장애가 아니다 (D149).
+        _trace("policy_blocked", {"error": str(exc)})
+        raise HTTPException(
+            status_code=503,
+            detail={"reason": "policy_blocked", "message": _POLICY_BLOCKED_MESSAGE},
+        ) from exc
     except A2ATimeoutError as exc:
         _trace("timeout", {"error": str(exc)})
         raise HTTPException(
@@ -146,6 +158,21 @@ async def lookup_clause_endpoint(req: LookupClauseRequest) -> dict[str, Any]:
             status="ok",
         )
         return res
+
+    except A2APolicyBlockedError as exc:
+        # ⚠ A2ACircuitOpenError·A2AUpstreamUnavailableError 보다 **먼저** 와야 한다 (D149).
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="lookup-clause",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="policy_blocked",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={"reason": "policy_blocked", "message": _POLICY_BLOCKED_MESSAGE},
+        ) from exc
 
     except A2ATimeoutError as exc:
         record_a2a_trace(
@@ -259,6 +286,21 @@ async def assess_loan_endpoint(req: AssessLoanRequest) -> dict[str, Any]:
             status="ok",
         )
         return res
+
+    except A2APolicyBlockedError as exc:
+        # ⚠ A2ACircuitOpenError·A2AUpstreamUnavailableError 보다 **먼저** 와야 한다 (D149).
+        record_a2a_trace(
+            session_id=req.session_id or "",
+            skill_id="assess-loan",
+            request_payload=payload,
+            response_payload={"error": str(exc)},
+            request_chain_id=chain_id,
+            status="policy_blocked",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={"reason": "policy_blocked", "message": _POLICY_BLOCKED_MESSAGE},
+        ) from exc
 
     except A2ATimeoutError as exc:
         record_a2a_trace(

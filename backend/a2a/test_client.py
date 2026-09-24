@@ -16,6 +16,7 @@ from backend.a2a.circuit import OPEN, registry
 from backend.a2a.client import (
     A2ACircuitOpenError,
     A2AClientError,
+    A2APolicyBlockedError,
     A2ATimeoutError,
     A2AUpstreamUnavailableError,
     call_skill,
@@ -528,6 +529,64 @@ async def test_success_resets_the_failure_streak(monkeypatch: pytest.MonkeyPatch
         base_url="http://adapter.local",
     )
     assert registry().snapshot("finallq")["failure_count"] == 0
+
+
+# --- 샌드박스 정책 사전 차단 (D149) ------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sandbox_mode_blocks_before_network_and_leaves_circuit_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """샌드박스 on 이면 네트워크를 타지 않고 `A2APolicyBlockedError` 를 낸다.
+
+    차단기 상태·실패 카운터는 호출 전후 동일해야 한다 — `registry()` 자체를
+    부르지 않기 때문이다(정책 차단은 상대의 장애가 아니다).
+    """
+    before = registry().snapshot("finallq")
+
+    monkeypatch.setenv("MAINTQ_SANDBOX", "openshell")
+    captured = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    with pytest.raises(A2APolicyBlockedError):
+        await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=BASE_PAYLOAD,
+            request_chain_id="CHAIN-1",
+            base_url="http://adapter.local",
+        )
+    # 핵심 단언: HTTP 를 시도조차 하지 않았다.
+    assert "url" not in captured
+    after = registry().snapshot("finallq")
+    assert after["state"] == before["state"]
+    assert after["failure_count"] == before["failure_count"]
+
+    # 앵커 — 샌드박스를 끄면 같은 호출이 실제로 네트워크를 탄다(양성 축).
+    monkeypatch.delenv("MAINTQ_SANDBOX", raising=False)
+    captured2 = _patch_client(monkeypatch, response=_FakeResponse(200, json_data={"status": "completed"}))
+    result = await call_skill(
+        partner="finallq",
+        skill_id="request-withdrawal",
+        payload=BASE_PAYLOAD,
+        request_chain_id="CHAIN-1",
+        base_url="http://adapter.local",
+    )
+    assert result == {"status": "completed"}
+    assert "url" in captured2
+
+
+@pytest.mark.asyncio
+async def test_invalid_sandbox_value_raises_runtime_error(monkeypatch: pytest.MonkeyPatch):
+    """오타 등 잘못된 `MAINTQ_SANDBOX` 값은 설정 오류로 그대로 올린다(D143 태도)."""
+    monkeypatch.setenv("MAINTQ_SANDBOX", "bogus")
+    with pytest.raises(RuntimeError):
+        await call_skill(
+            partner="finallq",
+            skill_id="request-withdrawal",
+            payload=BASE_PAYLOAD,
+            request_chain_id="CHAIN-1",
+            base_url="http://adapter.local",
+        )
 
 
 @pytest.mark.asyncio
