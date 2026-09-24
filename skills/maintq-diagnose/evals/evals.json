@@ -1,0 +1,46 @@
+[
+  {
+    "id": "maintq-diagnose-s1-happy-path-001",
+    "question": "iG5A 인버터에 OHt 에러 떴어",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "lookup_error_code 로 OHt(냉각핀 과열)를 조회하고, rag_search_manual 로 점검 근거를 얻고, related_parts 첫 품번으로 재고를 확인한 뒤 공급사 견적을 비교해 제시한다. 이 턴에서는 발주 초안을 만들지 않고 공급사·수량 선택을 묻는다. 안전 확정 문구(10분 이상 방전 대기)가 붙는다.",
+    "expected_behavior": [
+      "maintq__lookup_error_code 를 model=iG5A, code=OHt 로 호출한다.",
+      "maintq__rag_search_manual 을 호출한다.",
+      "maintq__create_po_draft 를 이 턴에 호출하지 않는다.",
+      "안전 문구에 '10분 이상' 이 들어간다."
+    ]
+  },
+  {
+    "id": "maintq-diagnose-s4-unknown-code-001",
+    "question": "iG5A 에서 XY9 에러가 떴는데",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "lookup_error_code 가 not_found 를 돌려주면 매뉴얼에서 확인되지 않는 코드라고 알리고, 표시부 재확인과 제조사 A/S 로 안내한다. 비슷한 코드를 추측하거나 원인·조치를 만들어 내지 않는다.",
+    "expected_behavior": [
+      "maintq__lookup_error_code 를 호출하고 not_found 를 그대로 전달한다.",
+      "유사 코드(예: OHt, OCt)를 추측해 제시하지 않는다.",
+      "원인·조치를 생성하지 않는다."
+    ]
+  },
+  {
+    "id": "maintq-diagnose-missing-model-001",
+    "question": "OCt 에러 떴어",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "기종이 없으므로 도구를 호출하기 전에 iG5A / S100 / IE5 중 어느 기종인지 묻는다.",
+    "expected_behavior": [
+      "도구를 호출하기 전에 기종을 묻는다.",
+      "임의로 기종을 골라 조회하지 않는다."
+    ]
+  },
+  {
+    "id": "maintq-diagnose-s2-part-entry-001",
+    "question": "S100 인버터 제어보드 교체해야 해",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "에러코드를 되묻지 않고 search_inventory 를 part_name + model=S100 으로 호출한다. 재고가 없거나 단종이면 find_alternative_parts 로 compat_confirmed=true 대체품만 제안한다.",
+    "expected_behavior": [
+      "에러코드를 되묻지 않는다.",
+      "maintq__search_inventory 를 model=S100 과 함께 호출한다.",
+      "compat_confirmed 가 false 인 대체품을 제안하지 않는다."
+    ]
+  }
+]

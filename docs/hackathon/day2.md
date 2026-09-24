@@ -142,4 +142,19 @@ non-interactive provider selections still require a local key."* 등록된 샌�
     읽는 정당한 접근이라 **수용된 위험**
   - ⚠ 재스캔 판정을 한 번 잘못 읽었다 — 결과 키는 `findings` 가 아니라 **`issues`** 다. 빈 키를 읽어
     "3종 모두 0건" 이 나왔다(부재 검사 + liveness 앵커 규칙이 여기에도 적용된다)
+- ✅ **OpenClaw workspace + 제품 스킬 `maintq-diagnose` (2026-09-24, 샌드박스 `maintq-agent`)**
+  - `deploy/nemoclaw/workspace/build.py` 가 `AGENTS.md`·`TOOLS.md`·`IDENTITY.md` 를 생성한다 — 안전 확정 문구·
+    근거 페이지는 `prompts.py` 의 `SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE` 에서 읽는다(복사 금지, `--check` 로 드리프트 검사).
+    **백엔드와 다른 점**: 웹 콘솔은 안전 블록·인용 칩을 시스템(`loop.py`)이 붙이지만 OpenClaw 에는 그 계층이 없어
+    에이전트가 확정 문구를 그대로 붙이도록 규칙을 옮겨 적었다. 원본 기본 파일은 배포 전 백업
+  - `skills/maintq-diagnose/`: 흐름 A~D(S1·S2·S3·S4) + `evals/evals.json` 4건 + `skill-card.md`(NVIDIA `skill-card-generator`).
+    SkillSpector **0점 · 커버리지 100%** — ⚠ 처음엔 0점이었지만 `permissions` 를 맵으로 써서 `manifest_parse_error`
+    (커버리지 50%, MCP 분석기 미실행)였다. 표준 `allowed-tools` 리스트로 바꿔 전 분석기가 돈 뒤의 0점이다
+  - 도구는 OpenClaw 에서 `maintq__<이름>` 으로 보인다(코어 7종 + prompts/resources 4종)
+  - 실행 결과(세션 JSONL 로 도구 호출 확인): S1 1턴 lookup→history→rag→inventory→quotes, 발주 없음, 페이지 202/43/205 전부
+    도구 결과에 존재, 안전 문구 원문 그대로 · S1 2턴 `PO-0122` `state=draft` (DB 확인) · S4 `not_found` 전달, 추측 0 ·
+    기종 누락 → 도구 호출 전 되물음 · **S2 미실행**
+  - 약점: S1 1턴에서 수량을 묻지 않고 1개로 가정해 견적을 냈다(규칙상 수량은 묻는 자리) · `requested_by` 가 NULL —
+    MCP-HTTP 경로엔 사람 신원이 없다(데모 전 결정 필요)
+  - 스킬 카드 `validate_submission.py` 는 **소유자 VERIFY 표시 1건**으로 FAIL — 사람이 확인하고 지울 항목이라 남겨 둠
 - 온보딩 에이전트 런타임 선택(NAT / LangGraph / `loop.py` 확장) — **미결정**
