@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif}
+  a{color:#3b8fd4;text-decoration:none}a:hover{color:#5aa2e0}
+  .app-root{
+    --page:#0a0c0f;--surface:#12151a;--head:#0e1116;--panel:#0d1014;--raise:#171b21;
+    --line:#262c35;--line2:#313842;--ink:#e6e9ed;--ink2:#cdd3da;--dim:#9aa3ad;--dim2:#6b7480;--dim3:#5c646e;
+    --evi:#0f1319;--sel:#151c27;--aibub:#161a20;
+    --blue:#1C5D99;--blue-br:#3b8fd4;--blue-tx:#7fb3e0;--cite-bd:#2f6da8;--cite-bg:rgba(47,127,196,.10);
+    --orange:#E8590C;--orange-tx:#ff8a4d;--saf-bd:#E8590C;--saf-bg:linear-gradient(90deg,rgba(232,89,12,.12),rgba(232,89,12,.04));
+    --saf-tx:#f0d9cb;--saf-strong:#ffb98a;--saf-cite-tx:#f0a877;--saf-cite-bd:#a6521f;--saf-cite-bg:rgba(232,89,12,.10);
+    --ok-tx:#5cc98f;--ok-bd:#2f6e4f;--ok-bg:rgba(46,158,106,.14);
+    --sw:#12151a;--sw-line:#262c35;
+  }
+  .app-root[data-theme="dgray"]{
+    --page:#191d23;--surface:#22272e;--head:#1b2027;--panel:#1b2026;--raise:#2a3038;
+    --line:#343b44;--line2:#3f4650;--ink:#eef1f4;--ink2:#d3d9e0;--dim:#9aa3ad;--dim2:#727b85;--dim3:#5f6771;
+    --evi:#1c222a;--sel:#243040;--aibub:#252b32;
+    --blue-br:#4a97d8;--blue-tx:#8fbce6;--cite-bd:#37658f;--cite-bg:rgba(47,127,196,.14);
+    --orange-tx:#ff9a5c;--saf-bg:linear-gradient(90deg,rgba(232,89,12,.16),rgba(232,89,12,.05));
+    --saf-tx:#f2ddd0;--saf-strong:#ffc39c;--saf-cite-tx:#f2b085;--saf-cite-bd:#b0592a;--saf-cite-bg:rgba(232,89,12,.13);
+    --ok-tx:#6fd3a3;--ok-bd:#357a58;--ok-bg:rgba(46,158,106,.16);
+    --sw:#22272e;--sw-line:#343b44;
+  }
+  .app-root[data-theme="gray"]{
+    --page:#b9bec6;--surface:#eceef1;--head:#e2e5e9;--panel:#e6e9ec;--raise:#f4f5f7;
+    --line:#d4d8de;--line2:#c4c9d1;--ink:#171b21;--ink2:#2f353d;--dim:#5a626c;--dim2:#7c848e;--dim3:#98a0aa;
+    --evi:#e6e9ee;--sel:#e2edf7;--aibub:#f5f6f8;
+    --blue-tx:#1b5488;--cite-bd:#9cc0e0;--cite-bg:#e8f1fa;
+    --orange-tx:#c2410c;--saf-bg:#fdf1ea;--saf-tx:#7a3410;--saf-strong:#b23c08;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
+    --ok-tx:#1f7d52;--ok-bd:#9ccbb2;--ok-bg:#e4f4ec;
+    --sw:#eceef1;--sw-line:#d4d8de;
+  }
+  .app-root[data-theme="light"]{
+    --page:#e7e9ec;--surface:#ffffff;--head:#f7f8fa;--panel:#fafbfc;--raise:#f1f3f5;
+    --line:#e6e9ed;--line2:#d7dce2;--ink:#12151a;--ink2:#2f353d;--dim:#5a626c;--dim2:#828a94;--dim3:#a2a9b2;
+    --evi:#f5f7f9;--sel:#eef5fc;--aibub:#f7f8fa;
+    --blue-tx:#1b5488;--cite-bd:#a9cae7;--cite-bg:#eef5fc;
+    --orange-tx:#c2410c;--saf-bg:#fff4ee;--saf-tx:#7a3410;--saf-strong:#b23c08;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
+    --ok-tx:#1f7d52;--ok-bd:#a9d8bf;--ok-bg:#eaf7f0;
+    --sw:#ffffff;--sw-line:#e6e9ed;
+  }
+</style>
+</helmet>
+
+<div class="app-root" data-theme="{{ theme }}" style="min-height:100vh;background:var(--page);padding:26px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:18px">
+
+  <sc-if value="{{ showToolbar }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;align-items:center;gap:14px;width:1392px;max-width:100%">
+    <span style="font:700 13px 'Pretendard';color:var(--ink)">안전 문구 승인 <span style="color:var(--dim2);font-weight:500">· 화면 D · 보전팀장</span></span>
+    <div style="flex:1"></div>
+    <span style="font:11px 'Pretendard';color:var(--dim2)">테마</span>
+    <div style="display:flex;gap:4px;background:var(--sw);border:1px solid var(--sw-line);border-radius:9px;padding:4px">
+      <button onClick="{{ pickDark }}" style="{{ swDark }}">다크</button>
+      <button onClick="{{ pickDgray }}" style="{{ swDgray }}">다크 그레이</button>
+      <button onClick="{{ pickGray }}" style="{{ swGray }}">그레이</button>
+      <button onClick="{{ pickLight }}" style="{{ swLight }}">라이트</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <div style="width:1392px;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.28)">
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--head)">
+      <div style="width:24px;height:24px;border-radius:5px;background:var(--blue);display:flex;align-items:center;justify-content:center;font:700 12px 'JetBrains Mono',monospace;color:#fff">M</div>
+      <span style="font:600 13px 'Pretendard';color:var(--ink)">MaintQ</span>
+      <span style="width:1px;height:16px;background:var(--line);margin:0 4px"></span>
+      <span style="font:700 13px 'Pretendard';color:var(--ink)">새 기종 안전 문구 승인</span>
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise);display:inline-flex;align-items:center;gap:7px;margin-left:6px">기종 · <span style="font-family:'JetBrains Mono',monospace">HV600</span>
+        <span style="{{ modelBadgeStyle }}">{{ modelBadge }}</span>
+      </span>
+      <div style="flex:1"></div>
+      <span style="font:12px 'Pretendard';color:var(--dim)">팀장 박OO</span>
+      <div style="width:26px;height:26px;border-radius:50%;background:var(--raise);border:1px solid var(--line)"></div>
+    </div>
+
+    <!-- 상태 배너 -->
+    <div style="padding:14px 16px 0">
+      <sc-if value="{{ blocked }}" hint-placeholder-val="{{ true }}">
+      <div style="border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:7px;padding:11px 15px;display:flex;align-items:center;gap:13px">
+        <svg width="20" height="22" viewBox="0 0 20 22" fill="none" style="flex-shrink:0"><rect x="2.5" y="9.5" width="15" height="11" rx="1.5" stroke="var(--blue-tx)" stroke-width="1.8"></rect><path d="M6 9.5V6.5a4 4 0 0 1 8 0v3" stroke="var(--blue-tx)" stroke-width="1.8"></path></svg>
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+          <span style="font:700 13.5px 'Pretendard';color:var(--ink)">이 기종의 점검·교체 절차 안내가 차단되어 있습니다</span>
+          <span style="font:12px/1.5 'Pretendard';color:var(--dim)">방전 대기 문구 승인 전까지 걸어 둔 의도된 차단입니다. 에러코드 진단은 사용할 수 있고, 커버 개방·부품 교체 절차 안내만 보류됩니다.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+          <span style="font:700 12px 'JetBrains Mono',monospace;color:var(--blue-tx)">방전 대기 승인 0 / 1</span>
+          <span style="font:10.5px 'Pretendard';color:var(--dim2)">해제 조건: 방전 대기 후보 1건 승인</span>
+        </div>
+      </div>
+      </sc-if>
+      <sc-if value="{{ unblocked }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:7px;padding:11px 15px;display:flex;align-items:center;gap:13px">
+        <span style="font:700 16px 'Pretendard';color:var(--ok-tx)">✓</span>
+        <span style="flex:1;font:700 13.5px 'Pretendard';color:var(--ink)">차단 해제 — 방전 대기 문구 <span style="font-family:'JetBrains Mono',monospace">{{ dischargeId }}</span> 승인됨. HV600 점검·교체 절차 안내가 열립니다</span>
+        <span style="font:700 12px 'JetBrains Mono',monospace;color:var(--ok-tx)">방전 대기 승인 1 / 1</span>
+      </div>
+      </sc-if>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 520px;min-height:620px">
+      <!-- 후보 카드 -->
+      <div style="padding:14px 16px 18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)">안전 문구 후보 · 4</span>
+          <span style="font:11px 'Pretendard';color:var(--dim2)">AI는 원문 위치만 찾습니다 · TOEPC71061732 · 한국어 문안은 사람이 작성</span>
+        </div>
+        <sc-for list="{{ cands }}" as="c" hint-placeholder-count="3">
+          <div onClick="{{ c.onSelect }}" style="{{ c.cardStyle }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+              <span style="font:700 12px 'JetBrains Mono',monospace;color:var(--ink)">{{ c.id }}</span>
+              <span style="{{ c.typeStyle }}">{{ c.type }}</span>
+              <sc-if value="{{ c.isDischarge }}" hint-placeholder-val="{{ false }}"><span style="font:600 10px 'Pretendard';color:var(--blue-tx)">← 차단 해제 조건</span></sc-if>
+              <span style="{{ c.statusStyle }}">{{ c.statusLabel }}</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;gap:4px;font:500 10px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:4px;padding:1px 6px">▤ HV600 매뉴얼 p.○○</span>
+            </div>
+            <div style="border-left:2px solid var(--line2);background:var(--evi);padding:9px 12px;border-radius:0 4px 4px 0">
+              <div style="font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2);margin-bottom:4px">원문 발췌 (영문)</div>
+              <div style="font:12.5px/1.6 'JetBrains Mono',monospace;color:var(--ink)">{{ c.en }}</div>
+            </div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;font:11.5px 'Pretendard';color:var(--dim)">
+              <span style="font:700 9.5px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);border-radius:3px;padding:1px 6px">원문 수치</span>
+              <sc-if value="{{ c.hasNum }}" hint-placeholder-val="{{ false }}"><b style="font:700 12.5px 'JetBrains Mono',monospace;color:var(--ink);border:1.5px solid var(--ink);border-radius:3px;padding:0 5px">{{ c.numEn }}</b><span style="color:var(--dim2)">· 문안에서 달라지면 안 되는 값</span></sc-if>
+              <sc-if value="{{ c.noNum }}" hint-placeholder-val="{{ false }}"><span>원문에 숫자 없음 — 라벨 참조형</span></sc-if>
+            </div>
+
+            <sc-if value="{{ c.pending }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:11px;display:flex;flex-direction:column;gap:6px">
+              <div style="font:700 11px 'Pretendard';color:var(--ink2)">한국어 안전 문구 <span style="font-weight:400;color:var(--dim2)">· 사람이 작성 (AI 제안 없음)</span></div>
+              <textarea value="{{ c.draft }}" onChange="{{ c.onDraft }}" onClick="{{ c.stop }}" placeholder="원문을 보고 한국어 안전 문구를 작성하세요" style="width:100%;min-height:64px;resize:vertical;border:1px solid var(--line2);border-radius:5px;background:var(--surface);color:var(--ink);padding:8px 10px;font:13.5px/1.6 'Pretendard'"></textarea>
+              <div style="{{ c.checkStyle }}">{{ c.checkMsg }}</div>
+              <label onClick="{{ c.stop }}" style="display:flex;align-items:center;gap:7px;font:12.5px 'Pretendard';color:var(--ink2);cursor:pointer;width:fit-content">
+                <input type="checkbox" checked="{{ c.checked }}" onChange="{{ c.onCheck }}" style="width:15px;height:15px;margin:0;accent-color:#1C5D99"></input>
+                원문과 대조해 확인했습니다
+              </label>
+            </div>
+            </sc-if>
+            <sc-if value="{{ c.approvedText }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:11px;border:1px solid var(--line2);border-radius:5px;padding:8px 11px;font:13.5px/1.6 'Pretendard';color:var(--ink)">{{ c.draft }}</div>
+            </sc-if>
+            <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:11px;padding-top:10px;border-top:1px solid var(--line)">
+              <sc-if value="{{ c.locked }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span style="font:12px 'Pretendard';color:var(--dim);border:1px dashed var(--line2);border-radius:5px;padding:5px 10px">이 기종은 이미 승인된 방전 대기 문구가 있습니다 <span style="font-family:'JetBrains Mono',monospace;color:var(--ink2)">({{ dischargeId }})</span></span>
+                  <button onClick="{{ c.onReject }}" style="border:1.5px solid var(--line2);background:transparent;color:var(--ink2);border-radius:7px;padding:8px 16px;font:700 12.5px 'Pretendard';cursor:pointer">반려</button>
+                  <button disabled="{{ true }}" style="border:none;background:var(--raise);color:var(--dim3);border-radius:7px;padding:8px 20px;font:700 12.5px 'Pretendard';cursor:not-allowed">승인</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ c.canApprove }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:8px">
+                  <button onClick="{{ c.onReject }}" style="border:1.5px solid var(--line2);background:transparent;color:var(--ink2);border-radius:7px;padding:8px 16px;font:700 12.5px 'Pretendard';cursor:pointer">반려</button>
+                  <button onClick="{{ c.onApprove }}" disabled="{{ c.approveDisabled }}" style="{{ c.approveStyle }}">승인</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ c.done }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:10px;align-items:center">
+                  <span style="font:12px 'Pretendard';color:var(--dim)">{{ c.doneNote }}</span>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- 적용 미리보기 -->
+      <div style="border-left:1px solid var(--line);background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <div style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)">승인 시 적용되는 곳</div>
+          <div style="font:12px 'Pretendard';color:var(--dim);margin-top:3px">정비사 진단 콘솔 (화면 A) · HV600 점검·교체 절차 응답에 자동 삽입</div>
+        </div>
+        <div style="border:1px solid var(--line2);border-radius:8px;background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="align-self:flex-end;max-width:80%;background:var(--raise);border:1px solid var(--line2);border-radius:8px;padding:8px 11px;font:13px/1.5 'Pretendard';color:var(--ink2)">{{ p.ask }}</div>
+          <div style="align-self:flex-start;max-width:88%;background:var(--aibub);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:13px/1.5 'Pretendard';color:var(--ink2)">절차 안내 전에 안전 확인부터 합니다.</div>
+          <div style="align-self:flex-start;max-width:88%;border:1px solid var(--saf-bd);border-left:4px solid var(--saf-bd);border-radius:7px;background:var(--saf-bg);padding:11px 13px">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="font-size:13px">⚠</span><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--orange-tx)">SAFETY · {{ p.kind }} 위험</span></div>
+            <sc-if value="{{ p.hasText }}" hint-placeholder-val="{{ false }}"><div style="font:13px/1.6 'Pretendard';color:var(--saf-tx);white-space:pre-wrap">{{ p.pre }}<b style="color:var(--saf-strong)">{{ p.num }}</b>{{ p.post }}</div></sc-if>
+            <sc-if value="{{ p.noText }}" hint-placeholder-val="{{ true }}"><div style="font:italic 12.5px/1.6 'Pretendard';color:var(--dim2)">문안 입력 대기 — 왼쪽 카드에 작성하면 여기에 실시간으로 표시됩니다.</div></sc-if>
+            <div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:5px;font:500 10.5px 'JetBrains Mono',monospace;color:var(--saf-cite-tx);border:1px solid var(--saf-cite-bd);background:var(--saf-cite-bg);border-radius:4px;padding:2px 7px"><span>▤</span> HV600 매뉴얼 p.○○</span></div>
+          </div>
+          <div style="align-self:flex-start;border:1px dashed var(--line2);border-radius:6px;padding:7px 11px;font:12px 'Pretendard';color:var(--dim2)">{{ p.after }}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:86px minmax(0,1fr);gap:6px 10px;font:12px/1.5 'Pretendard';color:var(--ink2)">
+          <span style="color:var(--dim)">삽입 위치</span><span>HV600 점검·교체 절차 응답의 첫 블록</span>
+          <span style="color:var(--dim)">문구 출처</span><span>사람이 작성한 승인본 그대로 — 모델이 다시 쓰지 않음</span>
+          <span style="color:var(--dim)">반려 시</span><span>후보 폐기 → 같은 페이지에서 재추출 요청</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ showModal }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(10,12,15,.45);display:flex;align-items:center;justify-content:center;z-index:50">
+    <div style="width:440px;max-width:calc(100% - 40px);background:var(--surface);border:1px solid var(--line2);border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">
+        <span style="font:700 14px 'Pretendard';color:var(--ink)">안전 문구 승인 확정</span>
+        <span style="font:700 12px 'JetBrains Mono',monospace;color:var(--dim)">{{ modalId }}</span>
+      </div>
+      <div style="padding:16px 18px;font:13.5px/1.65 'Pretendard';color:var(--ink2)">승인하면 되돌릴 수 없습니다. 이 문구가 HV600 정비사 화면의 안전 경고로 표시됩니다.</div>
+      <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:var(--head)">
+        <button onClick="{{ closeModal }}" style="border:1.5px solid var(--line2);background:transparent;color:var(--ink2);border-radius:7px;padding:9px 18px;font:700 13px 'Pretendard';cursor:pointer">취소</button>
+        <button onClick="{{ confirmApprove }}" style="border:none;background:var(--blue);color:#fff;border-radius:7px;padding:9px 20px;font:700 13px 'Pretendard';cursor:pointer">승인 확정</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CANDS = [
+  { id:'SC-01', type:'방전 대기', kind:'감전', pre:'커버 개방 전 전원 차단 후 ', num:'○분', post:' 이상 대기, 테스터로 직류 전압 방전 확인. 활선 상태 접촉·측정 금지.',
+    ppost:', 테스터로 직류 전압 방전 확인. 활선 상태 접촉·측정 금지.', numEn:'○ minutes',
+    en:'WARNING — Electrical Shock Hazard. After shutting off power, wait at least ○ minutes before removing the cover. Confirm the DC bus has discharged.',
+    ask:'HV600 제어보드 교체 절차 알려줘', after:'→ 이어서 제어보드 교체 절차 1~6단계' },
+  { id:'SC-02', type:'방전 대기', kind:'감전', pre:'전원 차단 후 ', num:'○분', post:' 이상 대기, 충전 표시등 소등 확인 후 단자 접촉.',
+    ppost:', 충전 표시등 소등 확인 후 단자 접촉.', numEn:'○ minutes',
+    en:'WARNING — Electrical Shock Hazard. Do not touch terminals for ○ minutes after power is removed. Confirm the CHARGE indicator is off.',
+    ask:'HV600 주회로 단자 점검', after:'→ 이어서 주회로 단자 점검 절차' },
+  { id:'SC-03', type:'활선 작업', kind:'감전', pre:'통전 중 배선 변경·단자 체결 금지. 측정은 절연 공구와 보호구 착용 후에만.', num:'', post:'',
+    en:'DANGER — Do not change wiring or tighten terminals while power is on. Use insulated tools for any live measurement.',
+    ask:'HV600 입력 전압 측정 방법', after:'→ 이어서 입력 전압 측정 절차' },
+  { id:'SC-04', type:'기타', kind:'정전기', pre:'제어보드 취급 시 정전기 방지 조치 필수. 손목 접지 후 단자부 접촉.', num:'', post:'',
+    en:'NOTICE — Use static-safe procedures when handling the control board.',
+    ask:'HV600 제어보드 커넥터 점검', after:'→ 이어서 커넥터 점검 절차' },
+];
+class Component extends DCLogic {
+  state = { theme:'light', sel:'SC-01', st:{}, at:{}, confirm:null, drafts:{}, checked:{} };
+  numCheck(c, text){
+    const m = (text||'').match(/(\d+|○)\s*분/);
+    const origNum = c.numEn ? c.numEn.split(' ')[0] : null;
+    if (!m) return { err:false, msg: origNum ? `문안에 원문 수치(${origNum}분)가 아직 없습니다` : '수치 검사: 원문·문안 모두 숫자 없음' };
+    if (!origNum) return { err:true, msg:`⚠ 원문에 없는 숫자 — 문안의 "${m[0]}"를 지우세요` };
+    if (m[1] !== origNum) return { err:true, msg:`⚠ 원문 수치와 다름 — 원문 ${c.numEn}, 문안 "${m[0]}"` };
+    return { err:false, ok:true, msg:`✓ 원문 수치와 일치 — ${c.numEn} ↔ ${m[0]}` };
+  }
+  componentDidMount(){ this.syncBody(); }
+  componentDidUpdate(){ this.syncBody(); }
+  syncBody(){
+    if (this.props.embedded) return;
+    const map = { dark:'#0a0c0f', dgray:'#191d23', gray:'#b9bec6', light:'#e7e9ec' };
+    document.body.style.background = map[this.state.theme];
+  }
+  sw(a){ const b="border:none;border-radius:6px;padding:6px 14px;font:600 12px 'Pretendard';cursor:pointer;white-space:nowrap;"; return a ? b+"background:var(--blue);color:#fff;" : b+"background:transparent;color:var(--dim);"; }
+  setSt(id, s){ this.setState({ st:{ ...this.state.st, [id]:s } }); }
+  renderVals(){
+    const embedded = !!this.props.embedded;
+    const t = embedded ? (this.props.theme || 'light') : this.state.theme;
+    const S = this.state;
+    const f = "font:700 9px 'JetBrains Mono',monospace;border-radius:3px;padding:2px 6px;";
+    const approvedDis = CANDS.find(c => c.type==='방전 대기' && S.st[c.id]==='승인');
+    const tag = "font:700 10px 'Pretendard';border-radius:3px;padding:1px 7px;";
+    const cands = CANDS.map(c => {
+      const s = S.st[c.id] || '대기', on = c.id===S.sel;
+      const isDis = c.type==='방전 대기';
+      const locked = s==='대기' && isDis && !!approvedDis;
+      const draft = S.drafts[c.id] || '', chk = this.numCheck(c, draft), checked = !!S.checked[c.id];
+      const ready = draft.trim().length>0 && !chk.err && checked;
+      const ab = "border:none;border-radius:7px;padding:8px 20px;font:700 12.5px 'Pretendard';";
+      return { ...c, hasNum:!!c.numEn, noNum:!c.numEn, isDischarge:isDis,
+        draft, checked, approvedText: s==='승인',
+        checkMsg: chk.msg,
+        checkStyle: "font:11.5px 'Pretendard';" + (chk.err ? "color:var(--orange-tx);font-weight:600;" : chk.ok ? "color:var(--ok-tx);font-weight:600;" : "color:var(--dim2);"),
+        approveDisabled: !ready,
+        approveStyle: ready ? ab+"background:var(--blue);color:#fff;cursor:pointer;" : ab+"background:var(--raise);color:var(--dim3);cursor:not-allowed;",
+        stop: e => e.stopPropagation(),
+        onDraft: e => this.setState({ sel:c.id, drafts:{ ...this.state.drafts, [c.id]: e.target.value } }),
+        onCheck: e => this.setState({ checked:{ ...this.state.checked, [c.id]: e.target.checked } }),
+        typeStyle: isDis ? tag+"color:var(--blue-tx);border:1.5px solid var(--blue);background:var(--cite-bg);" : tag+"color:var(--dim);border:1px solid var(--line2);background:var(--raise);",
+        locked, canApprove: s==='대기' && !locked,
+        statusLabel: s==='승인'?'✓ 승인':s==='반려'?'✕ 반려':'◔ 대기',
+        statusStyle: s==='승인' ? f+"color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);" : s==='반려' ? f+"color:var(--dim);border:1px solid var(--line2);background:var(--raise);text-decoration:line-through;" : f+"color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);",
+        cardStyle: "border-radius:8px;padding:13px 15px;cursor:pointer;background:var(--surface);"+(on?"border:2px solid var(--blue);":"border:1px solid var(--line2);")+(s==='반려'?"opacity:.6;":""),
+        pending:s==='대기', done:s!=='대기',
+        doneNote: s==='승인' ? `✓ 승인 확정 · 박OO · ${S.at[c.id]||''}` : '반려됨 · 재추출 요청 전송',
+        onSelect:()=>this.setState({ sel:c.id }),
+        onApprove:e=>{ e.stopPropagation(); if (ready) this.setState({ sel:c.id, confirm:c.id }); },
+        onReject:e=>{ e.stopPropagation(); this.setSt(c.id,'반려'); } };
+    });
+    const sel = CANDS.find(c=>c.id===S.sel);
+    const all = !!approvedDis;
+    const b = "font:700 9px 'JetBrains Mono',monospace;border-radius:3px;padding:2px 6px;";
+    return {
+      theme:t, showToolbar:!embedded,
+      pickDark:()=>this.setState({theme:'dark'}), pickDgray:()=>this.setState({theme:'dgray'}), pickGray:()=>this.setState({theme:'gray'}), pickLight:()=>this.setState({theme:'light'}),
+      swDark:this.sw(t==='dark'), swDgray:this.sw(t==='dgray'), swGray:this.sw(t==='gray'), swLight:this.sw(t==='light'),
+      showModal:!!S.confirm, modalId:S.confirm||'',
+      closeModal:()=>this.setState({ confirm:null }),
+      confirmApprove:()=>{
+        const id = S.confirm, d = new Date(), p = n => String(n).padStart(2,'0');
+        const ts = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        this.setState({ confirm:null, st:{ ...S.st, [id]:'승인' }, at:{ ...S.at, [id]:ts } });
+      },
+      cands, blocked:!all, unblocked:all, dischargeId: approvedDis ? approvedDis.id : '',
+      modelBadge: all ? '✓ 진단 가능' : '◑ 안전 문구 대기',
+      modelBadgeStyle: all ? b+"color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);" : b+"color:var(--blue-tx);border:1px dashed var(--cite-bd);",
+      p:(() => {
+        const txt = (S.drafts[sel.id]||'').trim();
+        const m = txt.match(/(\d+|○)\s*분(\s*이상)?(\s*대기)?/);
+        const i = m ? m.index : -1;
+        return { kind:sel.kind, ask:sel.ask, after:sel.after, hasText:!!txt, noText:!txt,
+          pre: m ? txt.slice(0,i) : txt, num: m ? m[0] : '', post: m ? txt.slice(i+m[0].length) : '' };
+      })(),
+    };
+  }
+}
+</script>
+</body>
+</html>

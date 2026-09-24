@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif}
+  a{color:#3b8fd4;text-decoration:none}a:hover{color:#5aa2e0}
+  .app-root{
+    --page:#0a0c0f;--surface:#12151a;--head:#0e1116;--line:#262c35;--line2:#313842;
+    --ink:#e6e9ed;--ink2:#cdd3da;--dim:#9aa3ad;--dim2:#6b7480;--raise:#171b21;
+    --blue:#1C5D99;--blue-tx:#7fb3e0;--cite-bd:#2f6da8;--cite-bg:rgba(47,127,196,.10);
+    --orange:#E8590C;--orange-tx:#ff8a4d;--sw:#12151a;--sw-line:#262c35;
+  }
+  .app-root[data-theme="dgray"]{
+    --page:#191d23;--surface:#22272e;--head:#1b2027;--line:#343b44;--line2:#3f4650;
+    --ink:#eef1f4;--ink2:#d3d9e0;--dim:#9aa3ad;--dim2:#727b85;--raise:#2a3038;
+    --blue-tx:#8fbce6;--cite-bd:#37658f;--cite-bg:rgba(47,127,196,.14);--orange-tx:#ff9a5c;--sw:#22272e;--sw-line:#343b44;
+  }
+  .app-root[data-theme="gray"]{
+    --page:#b9bec6;--surface:#eceef1;--head:#e2e5e9;--line:#d4d8de;--line2:#c4c9d1;
+    --ink:#171b21;--ink2:#2f353d;--dim:#5a626c;--dim2:#7c848e;--raise:#f4f5f7;
+    --blue-tx:#1b5488;--cite-bd:#9cc0e0;--cite-bg:#e8f1fa;--orange-tx:#c2410c;--sw:#eceef1;--sw-line:#d4d8de;
+  }
+  .app-root[data-theme="light"]{
+    --page:#e7e9ec;--surface:#ffffff;--head:#f7f8fa;--line:#e6e9ed;--line2:#d7dce2;
+    --ink:#12151a;--ink2:#2f353d;--dim:#5a626c;--dim2:#828a94;--raise:#f1f3f5;
+    --blue-tx:#1b5488;--cite-bd:#a9cae7;--cite-bg:#eef5fc;--orange-tx:#c2410c;--sw:#ffffff;--sw-line:#e6e9ed;
+  }
+  @keyframes mq-toast{0%{opacity:0;transform:translate(-50%,10px)}12%{opacity:1;transform:translate(-50%,0)}88%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,8px)}}
+</style>
+</helmet>
+
+<div class="app-root" data-theme="{{ theme }}" style="min-height:100vh;background:var(--page);transition:background .2s">
+
+  <!-- 상단 앱바 -->
+  <div style="position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:11px 20px;background:var(--head);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)">
+    <div style="width:26px;height:26px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center;font:700 13px 'JetBrains Mono',monospace;color:#fff">M</div>
+    <span style="font:700 15px 'Pretendard';color:var(--ink)">MaintQ</span>
+    <span style="font:11px 'Pretendard';color:var(--dim2)">설비보전 AI 콘솔</span>
+    <span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span>
+
+    <!-- 역할 전환 -->
+    <div style="display:flex;gap:5px;background:var(--sw);border:1px solid var(--sw-line);border-radius:10px;padding:4px">
+      <button onClick="{{ goTech }}" style="{{ tabTech }}">
+        <span style="font-size:14px">🔧</span> 정비사 · 진단 콘솔
+      </button>
+      <button onClick="{{ goLead }}" style="{{ tabLead }}">
+        <span style="font-size:14px">🗂</span> 보전팀장 · 승인 큐
+        <span style="display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--orange);color:#fff;font:700 10px 'JetBrains Mono',monospace">{{ pendingCount }}</span>
+      </button>
+    </div>
+
+    <div style="flex:1"></div>
+    <span style="font:11px 'Pretendard';color:var(--dim2)">테마</span>
+    <div style="display:flex;gap:4px;background:var(--sw);border:1px solid var(--sw-line);border-radius:9px;padding:4px">
+      <button onClick="{{ pickDark }}" style="{{ swDark }}">다크</button>
+      <button onClick="{{ pickDgray }}" style="{{ swDgray }}">다크 그레이</button>
+      <button onClick="{{ pickGray }}" style="{{ swGray }}">그레이</button>
+      <button onClick="{{ pickLight }}" style="{{ swLight }}">라이트</button>
+    </div>
+  </div>
+
+  <!-- 화면 -->
+  <sc-if value="{{ isTech }}" hint-placeholder-val="{{ true }}">
+    <dc-import name="MaintQ-ScreenA" embedded="{{ true }}" theme="{{ theme }}" on-request-approval="{{ goApprove }}" hint-size="100%,760px"></dc-import>
+  </sc-if>
+  <sc-if value="{{ isLead }}" hint-placeholder-val="{{ false }}">
+    <dc-import name="MaintQ-ScreenB" embedded="{{ true }}" theme="{{ theme }}" hint-size="100%,760px"></dc-import>
+  </sc-if>
+
+  <!-- 토스트 -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:34px;z-index:40;display:flex;align-items:center;gap:9px;padding:12px 18px;border-radius:10px;background:var(--surface);border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.35);animation:mq-toast 2.6s ease forwards">
+      <span style="width:20px;height:20px;border-radius:50%;background:var(--cite-bg);border:1px solid var(--cite-bd);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--blue-tx)">→</span>
+      <span style="font:600 13px 'Pretendard';color:var(--ink)"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">#PO-0117</span> 발주 요청이 팀장 승인 큐로 전달되었습니다</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'dark', role: 'tech', toast: false };
+
+  componentDidMount(){ this.syncBody(); }
+  componentDidUpdate(){ this.syncBody(); }
+  syncBody(){
+    const map = { dark:'#0a0c0f', dgray:'#191d23', gray:'#b9bec6', light:'#e7e9ec' };
+    document.body.style.background = map[this.state.theme] || '#0a0c0f';
+  }
+
+  sw(active){
+    const base = "border:none;border-radius:6px;padding:6px 12px;font:600 12px 'Pretendard';cursor:pointer;transition:all .15s;white-space:nowrap;";
+    return active ? base + "background:var(--blue);color:#fff;" : base + "background:transparent;color:var(--dim);";
+  }
+  tab(active){
+    const base = "display:inline-flex;align-items:center;gap:7px;border:none;border-radius:7px;padding:8px 14px;font:600 12.5px 'Pretendard';cursor:pointer;transition:all .15s;white-space:nowrap;";
+    return active ? base + "background:var(--blue);color:#fff;" : base + "background:transparent;color:var(--dim);";
+  }
+
+  goApprove(){
+    this.setState({ role:'lead', toast:true });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast:false }), 2600);
+  }
+
+  renderVals(){
+    const t = this.state.theme, r = this.state.role;
+    return {
+      theme: t,
+      isTech: r === 'tech',
+      isLead: r === 'lead',
+      toast: this.state.toast,
+      pendingCount: '3',
+      goTech: () => this.setState({ role:'tech' }),
+      goLead: () => this.setState({ role:'lead' }),
+      goApprove: () => this.goApprove(),
+      tabTech: this.tab(r === 'tech'),
+      tabLead: this.tab(r === 'lead'),
+      pickDark: () => this.setState({ theme:'dark' }),
+      pickDgray: () => this.setState({ theme:'dgray' }),
+      pickGray: () => this.setState({ theme:'gray' }),
+      pickLight: () => this.setState({ theme:'light' }),
+      swDark: this.sw(t==='dark'), swDgray: this.sw(t==='dgray'), swGray: this.sw(t==='gray'), swLight: this.sw(t==='light'),
+    };
+  }
+}
+</script>
+</body>
+</html>

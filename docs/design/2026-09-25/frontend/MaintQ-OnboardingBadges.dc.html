@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif}
+  a{color:#3b8fd4;text-decoration:none}a:hover{color:#5aa2e0}
+  .app-root{
+    --page:#0a0c0f;--surface:#12151a;--head:#0e1116;--raise:#171b21;--line:#262c35;--line2:#313842;--ink:#e6e9ed;--ink2:#cdd3da;--dim:#9aa3ad;--dim2:#6b7480;
+    --blue:#1C5D99;--blue-tx:#7fb3e0;--cite-bd:#2f6da8;--cite-bg:rgba(47,127,196,.10);
+    --ok-tx:#5cc98f;--ok-bd:#2f6e4f;--ok-bg:rgba(46,158,106,.14);--sw:#12151a;--sw-line:#262c35;
+  }
+  .app-root[data-theme="light"]{
+    --page:#e7e9ec;--surface:#ffffff;--head:#f7f8fa;--raise:#f1f3f5;--line:#e6e9ed;--line2:#d7dce2;--ink:#12151a;--ink2:#2f353d;--dim:#5a626c;--dim2:#828a94;
+    --blue-tx:#1b5488;--cite-bd:#a9cae7;--cite-bg:#eef5fc;
+    --ok-tx:#1f7d52;--ok-bd:#a9d8bf;--ok-bg:#eaf7f0;--sw:#ffffff;--sw-line:#e6e9ed;
+  }
+</style>
+</helmet>
+
+<div class="app-root" data-theme="{{ theme }}" style="min-height:100vh;background:var(--page);padding:26px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:16px">
+  <div style="display:flex;align-items:center;gap:14px;width:900px;max-width:100%">
+    <span style="font:700 13px 'Pretendard';color:var(--ink)">기종 온보딩 상태 뱃지 <span style="color:var(--dim2);font-weight:500">· 결재 상태 아님</span></span>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:4px;background:var(--sw);border:1px solid var(--sw-line);border-radius:9px;padding:4px">
+      <button onClick="{{ pickLight }}" style="{{ swLight }}">라이트</button>
+      <button onClick="{{ pickDark }}" style="{{ swDark }}">다크</button>
+    </div>
+  </div>
+
+  <div style="width:900px;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:150px 150px 170px minmax(0,1fr);padding:9px 16px;border-bottom:1px solid var(--line);font:10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)">
+      <span>STATE</span><span>SM · 장비 칩</span><span>MD · 설비 화면</span><span>의미</span>
+    </div>
+    <div style="display:grid;grid-template-columns:150px 150px 170px minmax(0,1fr);align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">
+      <span style="font:500 11.5px 'JetBrains Mono',monospace;color:var(--ink)">onboarding</span>
+      <span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);background:var(--raise);border-radius:3px;padding:2px 6px">◌ 온보딩 중</span></span>
+      <span><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);background:var(--raise);border-radius:4px;padding:3px 8px">◌ 온보딩 중</span></span>
+      <span style="font:12px/1.5 'Pretendard';color:var(--ink2)">에러코드 표 검수 중. 진단 불가 — 중립 회색</span>
+    </div>
+    <div style="display:grid;grid-template-columns:150px 150px 170px minmax(0,1fr);align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">
+      <span style="font:500 11.5px 'JetBrains Mono',monospace;color:var(--ink)">safety_pending</span>
+      <span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px dashed var(--cite-bd);border-radius:3px;padding:2px 6px">◑ 안전 문구 대기</span></span>
+      <span><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px dashed var(--cite-bd);border-radius:4px;padding:3px 8px">◑ 안전 문구 대기</span></span>
+      <span style="font:12px/1.5 'Pretendard';color:var(--ink2)">진단 가능. 점검·교체 절차 안내만 차단 — 시스템 진행 블루, 점선</span>
+    </div>
+    <div style="display:grid;grid-template-columns:150px 150px 170px minmax(0,1fr);align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">
+      <span style="font:500 11.5px 'JetBrains Mono',monospace;color:var(--ink)">ready</span>
+      <span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:3px;padding:2px 6px">✓ 진단 가능</span></span>
+      <span><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:4px;padding:3px 8px">✓ 진단 가능</span></span>
+      <span style="font:12px/1.5 'Pretendard';color:var(--ink2)">온보딩 완료 직후 표시 — 기존 ok 톤</span>
+    </div>
+    <div style="display:grid;grid-template-columns:150px 150px 170px minmax(0,1fr);align-items:center;padding:12px 16px">
+      <span style="font:500 11.5px 'JetBrains Mono',monospace;color:var(--ink)">(기존 기종)</span>
+      <span style="font:11px 'Pretendard';color:var(--dim2)">뱃지 없음</span>
+      <span style="font:11px 'Pretendard';color:var(--dim2)">뱃지 없음</span>
+      <span style="font:12px/1.5 'Pretendard';color:var(--ink2)">iG5A · S100 — 정상 상태는 표시하지 않음</span>
+    </div>
+  </div>
+
+  <div style="width:900px;max-width:100%;display:flex;flex-direction:column;gap:8px">
+    <span style="font:700 12px 'Pretendard';color:var(--ink)">헤더 장비 칩 적용 예</span>
+    <div style="background:var(--head);border:1px solid var(--line);border-radius:8px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px">
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise)">장비 · <span style="font-family:'JetBrains Mono',monospace">iG5A</span></span>
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise)">장비 · <span style="font-family:'JetBrains Mono',monospace">S100</span></span>
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise);display:inline-flex;align-items:center;gap:7px">장비 · <span style="font-family:'JetBrains Mono',monospace">HV600</span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);background:var(--surface);border-radius:3px;padding:2px 6px">◌ 온보딩 중</span></span>
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise);display:inline-flex;align-items:center;gap:7px">장비 · <span style="font-family:'JetBrains Mono',monospace">HV600</span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px dashed var(--cite-bd);border-radius:3px;padding:2px 6px">◑ 안전 문구 대기</span></span>
+      <span style="border:1px solid var(--line2);border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:var(--ink2);background:var(--raise);display:inline-flex;align-items:center;gap:7px">장비 · <span style="font-family:'JetBrains Mono',monospace">HV600</span><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:3px;padding:2px 6px">✓ 진단 가능</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme:'light' };
+  componentDidMount(){ this.syncBody(); }
+  componentDidUpdate(){ this.syncBody(); }
+  syncBody(){ document.body.style.background = this.state.theme==='light' ? '#e7e9ec' : '#0a0c0f'; }
+  sw(a){ const b="border:none;border-radius:6px;padding:6px 14px;font:600 12px 'Pretendard';cursor:pointer;"; return a ? b+"background:var(--blue);color:#fff;" : b+"background:transparent;color:var(--dim);"; }
+  renderVals(){
+    const t = this.state.theme;
+    return { theme:t, pickDark:()=>this.setState({theme:'dark'}), pickLight:()=>this.setState({theme:'light'}), swDark:this.sw(t==='dark'), swLight:this.sw(t==='light') };
+  }
+}
+</script>
+</body>
+</html>

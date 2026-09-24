@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif}
+  a{color:#3b8fd4;text-decoration:none}a:hover{color:#5aa2e0}
+  .app-root{
+    --page:#0a0c0f;--surface:#12151a;--head:#0e1116;--panel:#0d1014;--raise:#171b21;
+    --line:#262c35;--line2:#313842;--ink:#e6e9ed;--ink2:#cdd3da;--dim:#9aa3ad;--dim2:#6b7480;--dim3:#5c646e;
+    --evi:#0f1319;--sel:#151c27;--step-line:#1b2733;
+    --blue:#1C5D99;--blue-br:#3b8fd4;--blue-tx:#7fb3e0;--blue-tx2:#6fa8d8;--cite-bd:#2f6da8;--cite-bg:rgba(47,127,196,.10);
+    --orange:#E8590C;--orange-tx:#ff8a4d;--orange-tx2:#ff9a5c;--saf-cite-tx:#f0a877;--saf-cite-bd:#a6521f;--saf-cite-bg:rgba(232,89,12,.10);
+    --ok-tx:#5cc98f;--ok-bd:#2f6e4f;--ok-bg:rgba(46,158,106,.14);
+    --sw:#12151a;--sw-line:#262c35;
+  }
+  .app-root[data-theme="dgray"]{
+    --page:#191d23;--surface:#22272e;--head:#1b2027;--panel:#1b2026;--raise:#2a3038;
+    --line:#343b44;--line2:#3f4650;--ink:#eef1f4;--ink2:#d3d9e0;--dim:#9aa3ad;--dim2:#727b85;--dim3:#5f6771;
+    --evi:#1c222a;--sel:#243040;--step-line:#2c3742;
+    --blue-br:#4a97d8;--blue-tx:#8fbce6;--blue-tx2:#7fb3e0;--cite-bd:#37658f;--cite-bg:rgba(47,127,196,.14);
+    --orange-tx:#ff9a5c;--orange-tx2:#ff9a5c;--saf-cite-tx:#f2b085;--saf-cite-bd:#b0592a;--saf-cite-bg:rgba(232,89,12,.13);
+    --ok-tx:#6fd3a3;--ok-bd:#357a58;--ok-bg:rgba(46,158,106,.16);
+    --sw:#22272e;--sw-line:#343b44;
+  }
+  .app-root[data-theme="gray"]{
+    --page:#b9bec6;--surface:#eceef1;--head:#e2e5e9;--panel:#e6e9ec;--raise:#f4f5f7;
+    --line:#d4d8de;--line2:#c4c9d1;--ink:#171b21;--ink2:#2f353d;--dim:#5a626c;--dim2:#7c848e;--dim3:#98a0aa;
+    --evi:#e6e9ee;--sel:#e2edf7;--step-line:#c6d2de;
+    --blue-tx:#1b5488;--blue-tx2:#1f6099;--cite-bd:#9cc0e0;--cite-bg:#e8f1fa;
+    --orange-tx:#c2410c;--orange-tx2:#c2410c;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
+    --ok-tx:#1f7d52;--ok-bd:#9ccbb2;--ok-bg:#e4f4ec;
+    --sw:#eceef1;--sw-line:#d4d8de;
+  }
+  .app-root[data-theme="light"]{
+    --page:#e7e9ec;--surface:#ffffff;--head:#f7f8fa;--panel:#fafbfc;--raise:#f1f3f5;
+    --line:#e6e9ed;--line2:#d7dce2;--ink:#12151a;--ink2:#2f353d;--dim:#5a626c;--dim2:#828a94;--dim3:#a2a9b2;
+    --evi:#f5f7f9;--sel:#eef5fc;--step-line:#d2dde8;
+    --blue-tx:#1b5488;--blue-tx2:#1f6099;--cite-bd:#a9cae7;--cite-bg:#eef5fc;
+    --orange-tx:#c2410c;--orange-tx2:#c2410c;--saf-cite-tx:#b23c08;--saf-cite-bd:#e0a888;--saf-cite-bg:#fbe9df;
+    --ok-tx:#1f7d52;--ok-bd:#a9d8bf;--ok-bg:#eaf7f0;
+    --sw:#ffffff;--sw-line:#e6e9ed;
+  }
+</style>
+</helmet>
+
+<div class="app-root" data-theme="{{ theme }}" style="min-height:100vh;background:var(--page);padding:26px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:18px;transition:background .2s">
+
+  <sc-if value="{{ showToolbar }}" hint-placeholder-val="{{ true }}">
+  <!-- 툴바 -->
+  <div style="display:flex;align-items:center;gap:14px;width:1020px;max-width:100%">
+    <span style="font:700 13px 'Pretendard';color:var(--ink)">승인 큐 <span style="color:var(--dim2);font-weight:500">· 화면 B · 보전팀장</span></span>
+    <div style="display:flex;gap:4px;background:var(--sw);border:1px solid var(--sw-line);border-radius:9px;padding:4px;margin-left:6px">
+      <button onClick="{{ pickQueue }}" style="{{ segQueue }}">대기 있음</button>
+      <button onClick="{{ pickEmpty }}" style="{{ segEmpty }}">빈 상태</button>
+    </div>
+    <div style="flex:1"></div>
+    <span style="font:11px 'Pretendard';color:var(--dim2)">테마</span>
+    <div style="display:flex;gap:4px;background:var(--sw);border:1px solid var(--sw-line);border-radius:9px;padding:4px">
+      <button onClick="{{ pickDark }}" style="{{ swDark }}">다크</button>
+      <button onClick="{{ pickDgray }}" style="{{ swDgray }}">다크 그레이</button>
+      <button onClick="{{ pickGray }}" style="{{ swGray }}">그레이</button>
+      <button onClick="{{ pickLight }}" style="{{ swLight }}">라이트</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- 콘솔 -->
+  <div style="width:1020px;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.28)">
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--head)">
+      <div style="width:24px;height:24px;border-radius:5px;background:var(--blue);display:flex;align-items:center;justify-content:center;font:700 12px 'JetBrains Mono',monospace;color:#fff">M</div>
+      <span style="font:600 13px 'Pretendard';color:var(--ink)">MaintQ</span>
+      <span style="width:1px;height:16px;background:var(--line);margin:0 4px"></span>
+      <span style="font:700 13px 'Pretendard';color:var(--ink)">승인 대기 <span style="color:var(--orange-tx)">{{ pendingCount }}</span></span>
+      <div style="flex:1"></div>
+      <span style="font:12px 'Pretendard';color:var(--dim)">팀장 박OO</span>
+      <div style="width:26px;height:26px;border-radius:50%;background:var(--raise);border:1px solid var(--line)"></div>
+    </div>
+
+    <sc-if value="{{ isQueue }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:280px 1fr;min-height:560px">
+      <!-- 큐 리스트 -->
+      <div style="border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--panel)">
+        <div style="padding:13px 14px 8px;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)">승인 대기 · 3</div>
+        <div style="padding:0 12px;display:flex;flex-direction:column;gap:8px">
+          <!-- selected -->
+          <div style="border:2px solid var(--blue);border-radius:7px;padding:10px 11px;background:var(--sel);cursor:pointer">
+            <div style="display:flex;gap:5px;margin-bottom:6px">
+              <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:#fff;background:var(--orange);border-radius:3px;padding:2px 6px">▲ 긴급</span>
+              <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:3px;padding:2px 6px">◔ pending</span>
+            </div>
+            <div style="font:700 13px 'Pretendard';color:var(--ink)"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">#PO-0117</span> 냉각팬 ×2</div>
+            <div style="font:11px 'JetBrains Mono',monospace;color:var(--dim2);margin-top:3px">1번 라인 · 김OO · 10분 전</div>
+          </div>
+          <div style="border:1px solid var(--line2);border-radius:7px;padding:10px 11px;background:var(--surface);cursor:pointer">
+            <div style="display:flex;gap:5px;margin-bottom:6px">
+              <span style="font:700 9px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);border-radius:3px;padding:2px 6px">일반</span>
+              <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:3px;padding:2px 6px">◔ pending</span>
+            </div>
+            <div style="font:700 13px 'Pretendard';color:var(--ink)"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">#PO-0116</span> 제어보드 <span style="font-size:11px;color:var(--dim)">(대체품)</span></div>
+            <div style="font:11px 'JetBrains Mono',monospace;color:var(--dim2);margin-top:3px">1번 라인 · 이OO · 2시간 전</div>
+          </div>
+          <div style="border:1px solid var(--line2);border-radius:7px;padding:10px 11px;background:var(--surface);cursor:pointer">
+            <div style="display:flex;gap:5px;margin-bottom:6px">
+              <span style="font:700 9px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);border-radius:3px;padding:2px 6px">일반</span>
+              <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:3px;padding:2px 6px">◔ pending</span>
+            </div>
+            <div style="font:700 13px 'Pretendard';color:var(--ink)"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">#PO-0115</span> 퓨즈 ×10</div>
+            <div style="font:11px 'JetBrains Mono',monospace;color:var(--dim2);margin-top:3px">2번 라인 · 김OO · 어제</div>
+          </div>
+        </div>
+        <div style="height:1px;background:var(--line);margin:14px 12px 0"></div>
+        <div style="padding:11px 14px 8px;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--dim2)">최근 처리</div>
+        <div style="padding:0 12px 14px;display:flex;flex-direction:column;gap:8px">
+          <div style="border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:var(--surface);opacity:.72;cursor:pointer">
+            <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:3px;padding:2px 6px;margin-bottom:5px">✓ approved</span>
+            <div style="font:600 12.5px 'Pretendard';color:var(--ink2)"><span style="font-family:'JetBrains Mono',monospace;font-size:11px">#PO-0114</span> V벨트 ×1</div>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:var(--surface);opacity:.72;cursor:pointer">
+            <span style="display:inline-flex;align-items:center;gap:3px;font:700 9px 'JetBrains Mono',monospace;color:var(--orange-tx);border:1px solid var(--saf-cite-bd);background:var(--saf-cite-bg);border-radius:3px;padding:2px 6px;margin-bottom:5px">✕ rejected</span>
+            <div style="font:600 12.5px 'Pretendard';color:var(--ink2)"><span style="font-family:'JetBrains Mono',monospace;font-size:11px">#PO-0113</span> 인버터 ×1 <span style="font-size:11px;color:var(--dim2)">· 사유: 예산</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 상세 -->
+      <div style="display:flex;flex-direction:column;padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">
+          <span style="font:700 17px 'Pretendard';color:var(--ink)"><span style="font-family:'JetBrains Mono',monospace;font-size:15px">#PO-0117</span> 냉각팬 ×2</span>
+          <span style="display:inline-flex;align-items:center;gap:3px;font:700 10px 'JetBrains Mono',monospace;color:#fff;background:var(--orange);border-radius:4px;padding:3px 8px">▲ 긴급</span>
+          <span style="display:inline-flex;align-items:center;gap:3px;font:700 10px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:4px;padding:3px 8px">◔ pending</span>
+          <div style="flex:1"></div>
+          <span style="font:11px 'JetBrains Mono',monospace;color:var(--dim2)">요청 · 김OO · 10분 전</span>
+        </div>
+
+        <!-- 근거 요약 카드 -->
+        <div style="border:1px solid var(--line2);border-radius:8px;background:var(--evi);padding:15px 16px;margin-bottom:14px">
+          <div style="font:700 10px 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--dim2);margin-bottom:12px">근거 요약 · 대화 전체를 읽지 않아도 판단 가능</div>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;gap:12px;align-items:baseline"><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--dim);width:82px;flex-shrink:0">ERROR</span><span style="font:12.5px/1.5 'Pretendard';color:var(--ink)">iG5A · <span style="font-family:'JetBrains Mono',monospace;font-size:11px">OHt</span> (과열) — 1번 라인 <span style="font-family:'JetBrains Mono',monospace;font-size:11px">INV-L1-01</span></span></div>
+            <div style="display:flex;gap:12px;align-items:baseline"><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--dim);width:82px;flex-shrink:0">DIAGNOSIS</span><span style="font:12.5px/1.5 'Pretendard';color:var(--ink)">냉각팬 고장 유력 <span style="display:inline-flex;align-items:center;gap:4px;font:500 10px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:4px;padding:1px 6px">▤ 매뉴얼 p.208</span></span></div>
+            <div style="display:flex;gap:12px;align-items:baseline"><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--dim);width:82px;flex-shrink:0">INVENTORY</span><span style="font:12.5px/1.5 'Pretendard';color:var(--ink)">재고 1 / 안전재고 3 — <span style="color:var(--orange-tx);font-weight:600">부족분 2</span> · 자재창고 A-12</span></div>
+            <div style="display:flex;gap:12px;align-items:baseline"><span style="font:700 10px 'JetBrains Mono',monospace;color:var(--dim);width:82px;flex-shrink:0">TRACE</span><a href="#" style="font:12.5px/1.5 'Pretendard';color:var(--blue-br);text-decoration:underline">에이전트 실행 로그 전체 보기 →</a></div>
+          </div>
+        </div>
+
+        <!-- 공급사 비교 -->
+        <div style="font:700 10px 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--dim2);margin-bottom:9px">공급사 비교 · 선택은 사람이</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:16px">
+          <div style="border:2px solid var(--blue);border-radius:8px;background:var(--surface);padding:13px 14px;position:relative">
+            <span style="position:absolute;top:-9px;left:12px;font:700 9px 'JetBrains Mono',monospace;color:#fff;background:var(--blue);border-radius:3px;padding:2px 7px">추천</span>
+            <div style="font:700 14px 'Pretendard';color:var(--ink);margin-bottom:8px">A사</div>
+            <div style="display:flex;justify-content:space-between;font:12px 'Pretendard';color:var(--ink2);margin-bottom:5px"><span style="color:var(--dim2)">리드타임</span><span style="color:var(--ink);font-weight:600">3일</span></div>
+            <div style="display:flex;justify-content:space-between;font:12px 'Pretendard';color:var(--ink2)"><span style="color:var(--dim2)">단가</span><span style="font-family:'JetBrains Mono',monospace">₩38,000</span></div>
+            <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font:11px/1.4 'Pretendard';color:var(--blue-tx2)">긴급도 高 → 최단 납기 우선</div>
+          </div>
+          <div style="border:1px solid var(--line2);border-radius:8px;background:var(--surface);padding:13px 14px">
+            <div style="font:700 14px 'Pretendard';color:var(--ink);margin-bottom:8px">B사</div>
+            <div style="display:flex;justify-content:space-between;font:12px 'Pretendard';color:var(--ink2);margin-bottom:5px"><span style="color:var(--dim2)">리드타임</span><span style="color:var(--ink)">14일</span></div>
+            <div style="display:flex;justify-content:space-between;font:12px 'Pretendard';color:var(--ink2)"><span style="color:var(--dim2)">단가</span><span style="font-family:'JetBrains Mono',monospace">₩29,000</span></div>
+            <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font:11px/1.4 'Pretendard';color:var(--dim2)">단가 최저 · MOQ 10</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;margin-top:auto;padding-top:14px;border-top:1px solid var(--line)">
+          <span style="font:11px/1.4 'Pretendard';color:var(--dim2);flex:1">승인 시 A사 발주서가 <b style="color:var(--ink2)">확정</b>됩니다. 반려 시 요청자에게 사유가 전달됩니다.</span>
+          <button style="border:1.5px solid var(--orange);background:transparent;color:var(--orange-tx);border-radius:7px;padding:11px 18px;font:700 13px 'Pretendard';cursor:pointer">반려 (사유 입력)</button>
+          <button style="border:none;background:var(--blue);color:#fff;border-radius:7px;padding:11px 22px;font:700 13px 'Pretendard';cursor:pointer">승인 — 발주서 확정</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 빈 상태 -->
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+    <div style="min-height:560px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px">
+      <div style="width:66px;height:66px;border-radius:14px;border:2px solid var(--ok-bd);background:var(--ok-bg);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ok-tx)">✓</div>
+      <div style="font:700 17px 'Pretendard';color:var(--ink)">승인 대기 없음</div>
+      <div style="font:13px/1.6 'Pretendard';color:var(--dim);text-align:center;max-width:340px">모든 발주 요청이 처리되었습니다. 새 발주 요청이 오면 여기에 표시됩니다.</div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <span style="font:11px 'JetBrains Mono',monospace;color:var(--dim2);border:1px solid var(--line2);border-radius:14px;padding:5px 12px">오늘 승인 4 · 반려 1</span>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <!-- 상태 뱃지 범례 -->
+  <div style="width:1020px;max-width:100%;display:flex;align-items:center;gap:18px;flex-wrap:wrap;font:11px 'Pretendard';color:var(--dim2)">
+    <span style="font-weight:600;color:var(--dim)">승인 워크플로우 상태</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--dim);border:1px solid var(--line2);border-radius:3px;padding:2px 6px">draft</span>정비사 작성 중</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--blue-tx);border:1px solid var(--cite-bd);background:var(--cite-bg);border-radius:3px;padding:2px 6px">◔ pending</span>승인 대기</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--ok-tx);border:1px solid var(--ok-bd);background:var(--ok-bg);border-radius:3px;padding:2px 6px">✓ approved</span>발주 확정</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="font:700 9px 'JetBrains Mono',monospace;color:var(--orange-tx);border:1px solid var(--saf-cite-bd);background:var(--saf-cite-bg);border-radius:3px;padding:2px 6px">✕ rejected</span>반려</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'dark', view: 'queue' };
+
+  componentDidMount(){ this.syncBody(); }
+  componentDidUpdate(){ this.syncBody(); }
+  syncBody(){
+    if (this.props.embedded) return;
+    const map = { dark:'#0a0c0f', dgray:'#191d23', gray:'#b9bec6', light:'#e7e9ec' };
+    document.body.style.background = map[this.state.theme] || '#0a0c0f';
+  }
+
+  sw(active){
+    const base = "border:none;border-radius:6px;padding:6px 14px;font:600 12px 'Pretendard';cursor:pointer;transition:all .15s;";
+    return active ? base + "background:var(--blue);color:#fff;" : base + "background:transparent;color:var(--dim);";
+  }
+  seg(active){
+    const base = "border:none;border-radius:6px;padding:6px 12px;font:600 11.5px 'Pretendard';cursor:pointer;transition:all .15s;white-space:nowrap;";
+    return active ? base + "background:var(--blue);color:#fff;" : base + "background:transparent;color:var(--dim);";
+  }
+
+  renderVals(){
+    const embedded = !!this.props.embedded;
+    const t = embedded ? (this.props.theme || 'dark') : this.state.theme;
+    const v = this.state.view;
+    return {
+      theme: t,
+      showToolbar: !embedded,
+      pickDark: () => this.setState({ theme:'dark' }),
+      pickDgray: () => this.setState({ theme:'dgray' }),
+      pickGray: () => this.setState({ theme:'gray' }),
+      pickLight: () => this.setState({ theme:'light' }),
+      swDark: this.sw(t==='dark'), swDgray: this.sw(t==='dgray'), swGray: this.sw(t==='gray'), swLight: this.sw(t==='light'),
+      isQueue: v==='queue', isEmpty: v==='empty',
+      pickQueue: () => this.setState({ view:'queue' }),
+      pickEmpty: () => this.setState({ view:'empty' }),
+      segQueue: this.seg(v==='queue'), segEmpty: this.seg(v==='empty'),
+      pendingCount: v==='queue' ? '(3)' : '(0)',
+    };
+  }
+}
+</script>
+</body>
+</html>

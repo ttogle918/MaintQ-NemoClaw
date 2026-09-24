@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0a0c0f;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;color:#e6e9ed}
+  a{color:#4a97d8;text-decoration:none}a:hover{color:#6fb0e6}
+  .dv-turn{padding:44px 48px 40px;border-bottom:1px solid rgba(255,255,255,.06);scroll-margin-top:16px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+  .dv-tid{font:600 10px 'JetBrains Mono',monospace;padding:3px 7px;background:#e6e9ed;color:#0a0c0f;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 13px/1.3 'Pretendard',sans-serif;color:#e6e9ed}
+  .dv-intro{max-width:760px;margin:0 0 26px;font:13px/1.7 'Pretendard',sans-serif;color:#9aa3ad}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:11px;scroll-margin-top:16px}
+  .dv-oid{font:600 10.5px 'JetBrains Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.1);color:#e6e9ed;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 12px/1.4 'Pretendard',sans-serif;color:#9aa3ad}
+  .dv-olabel b{color:#e6e9ed;font-weight:600}
+  .dv-opt:target .dv-oid{background:#3b8fd4;color:#fff}
+  .dv-next{margin:30px 0 0;font:12.5px/1.7 'Pretendard',sans-serif;color:#7a828c}
+  @keyframes mq-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes mq-spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">진단 콘솔(화면 A) — 디자인 방향 3안</span></div>
+  <p class="dv-intro">셋 다 다크 모드·산업 콘솔 톤을 공유하고, 안전 오렌지 <span style="font-family:'JetBrains Mono',monospace;color:#ff8a4d">#E8590C</span>는 안전·긴급에만, 트레이스 블루 <span style="font-family:'JetBrains Mono',monospace;color:#5aa2e0">#1C5D99</span>는 도구 타임라인에만 씁니다. 상태는 색만이 아니라 아이콘·모양으로도 구분(색맹 대비). 세 안은 <b style="color:#cdd3da">트레이스 패널의 무게·타이포 스케일·상태 표기 방식</b>에서 갈립니다. 각 시안엔 안전 경고·발주 카드·인용 칩 3종 블록이 들어 있습니다.</p>
+
+  <div class="dv-opts">
+
+    <!-- ============ OPTION 1A — 관제실 ============ -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a><b>관제실</b>&nbsp;와이어프레임 정석 · 균형 잡힌 밀도 · 좌 채팅 / 우 타임라인</div>
+      <div style="width:940px;background:#12151a;border:1px solid #262c35;border-radius:8px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.4)">
+        <!-- header -->
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #262c35;background:#0e1116">
+          <div style="width:24px;height:24px;border-radius:5px;background:#1C5D99;display:flex;align-items:center;justify-content:center;font:700 12px 'JetBrains Mono',monospace;color:#fff">M</div>
+          <span style="font:600 13px 'Pretendard';color:#e6e9ed">MaintQ</span>
+          <span style="width:1px;height:16px;background:#262c35;margin:0 4px"></span>
+          <span style="border:1px solid #313842;border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:#cdd3da;background:#171b21">라인 · 1번 조립 <span style="color:#6b7480">▾</span></span>
+          <span style="border:1px solid #313842;border-radius:14px;padding:4px 11px;font:12px 'Pretendard';color:#cdd3da;background:#171b21">장비 · <span style="font-family:'JetBrains Mono',monospace;font-size:11px">LS iG5A</span> <span style="color:#6b7480">▾</span></span>
+          <div style="flex:1"></div>
+          <span style="font:12px 'Pretendard';color:#9aa3ad">정비사 김OO</span>
+          <div style="width:26px;height:26px;border-radius:50%;background:#262c35"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.25fr 1fr;min-height:560px">
+          <!-- chat -->
+          <div style="display:flex;flex-direction:column;border-right:1px solid #262c35">
+            <div style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+              <div style="align-self:flex-end;max-width:78%;background:#1e232b;border:1px solid #313842;border-radius:9px 9px 3px 9px;padding:9px 13px;font:13px/1.5 'Pretendard';color:#e6e9ed">iG5A 인버터에 <span style="font-family:'JetBrains Mono',monospace;font-size:12px">OHt</span> 에러 떴어</div>
+
+              <div style="align-self:flex-start;max-width:86%;background:#161a20;border:1px solid #262c35;border-radius:9px 9px 9px 3px;padding:11px 13px;font:13px/1.62 'Pretendard';color:#cdd3da">
+                <span style="font-weight:700;color:#e6e9ed"><span style="font-family:'JetBrains Mono',monospace">OHt</span> — 인버터 과열</span>입니다. 유력 원인은 냉각팬 고장·주위 온도 초과. 냉각팬 상태 점검을 권장합니다.
+                <div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:5px;font:500 10.5px 'JetBrains Mono',monospace;color:#7fb3e0;border:1px solid #2f6da8;background:rgba(47,127,196,.1);border-radius:4px;padding:2px 7px"><span style="color:#5aa2e0">▤</span> iG5A 매뉴얼 p.208</span></div>
+              </div>
+
+              <!-- safety block -->
+              <div style="align-self:flex-start;max-width:88%;border:1px solid #E8590C;border-left:4px solid #E8590C;border-radius:7px;background:linear-gradient(90deg,rgba(232,89,12,.12),rgba(232,89,12,.04));padding:11px 13px">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="font-size:13px">⚠</span><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#ff8a4d">SAFETY · 감전 위험</span></div>
+                <div style="font:13px/1.6 'Pretendard';color:#f0d9cb">커버 개방 전 전원 차단 후 <b style="color:#ffb98a">10분 이상 대기</b>, 테스터로 직류 전압 방전 확인. 활선 상태 접촉·측정 금지.</div>
+                <div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:5px;font:500 10.5px 'JetBrains Mono',monospace;color:#f0a877;border:1px solid #a6521f;background:rgba(232,89,12,.1);border-radius:4px;padding:2px 7px"><span>▤</span> iG5A 매뉴얼 p.4</span></div>
+              </div>
+
+              <!-- po card -->
+              <div style="align-self:flex-start;width:88%;border:1px solid #313842;border-radius:8px;background:#141821;overflow:hidden">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-bottom:1px solid #262c35;background:#171d27">
+                  <span style="font:700 12.5px 'Pretendard';color:#e6e9ed">발주서 초안 <span style="font-family:'JetBrains Mono',monospace">#PO-0117</span></span>
+                  <span style="font:600 9.5px 'JetBrains Mono',monospace;letter-spacing:.05em;color:#9aa3ad;border:1px solid #3a424d;border-radius:3px;padding:2px 6px">DRAFT</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;padding:12px 13px;font:12px 'Pretendard'">
+                  <div><span style="color:#6b7480">품목</span><br><span style="color:#e6e9ed">냉각팬 <span style="font-family:'JetBrains Mono',monospace;font-size:11px">FAN-IG5-01</span></span></div>
+                  <div><span style="color:#6b7480">수량</span><br><span style="color:#e6e9ed">2 EA <span style="color:#ff8a4d;font-size:11px">· 부족분 포함</span></span></div>
+                  <div><span style="color:#6b7480">공급사</span><br><span style="color:#e6e9ed">A사 · 리드타임 3일</span></div>
+                  <div><span style="color:#6b7480">단가</span><br><span style="color:#e6e9ed;font-family:'JetBrains Mono',monospace">₩38,000</span></div>
+                </div>
+                <div style="display:flex;gap:8px;padding:11px 13px;border-top:1px solid #262c35">
+                  <button style="border:none;background:#1C5D99;color:#fff;border-radius:6px;padding:9px 16px;font:600 12px 'Pretendard';cursor:pointer">팀장 승인 요청</button>
+                  <button style="border:1px solid #3a424d;background:transparent;color:#cdd3da;border-radius:6px;padding:9px 14px;font:600 12px 'Pretendard';cursor:pointer">수정</button>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #262c35;background:#0e1116">
+              <div style="flex:1;height:38px;border:1px solid #313842;border-radius:7px;background:#171b21;display:flex;align-items:center;padding:0 12px;font:12.5px 'Pretendard';color:#5c646e">공급사를 선택하거나 메시지를 입력…</div>
+              <button style="width:38px;height:38px;border:1px solid #313842;background:#171b21;border-radius:7px;color:#9aa3ad;cursor:pointer">📷</button>
+              <button style="height:38px;border:none;background:#1C5D99;color:#fff;border-radius:7px;padding:0 18px;font:600 12.5px 'Pretendard';cursor:pointer">전송</button>
+            </div>
+          </div>
+          <!-- trace -->
+          <div style="display:flex;flex-direction:column;background:#0d1014">
+            <div style="display:flex;border-bottom:1px solid #262c35">
+              <div style="padding:11px 15px;font:700 12px 'Pretendard';color:#e6e9ed;border-bottom:2px solid #3b8fd4">실행 로그</div>
+              <div style="padding:11px 15px;font:500 12px 'Pretendard';color:#7a828c">근거 문서</div>
+              <div style="padding:11px 15px;font:500 12px 'Pretendard';color:#7a828c">발주 이력</div>
+            </div>
+            <div style="padding:16px 16px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1a1f26">
+              <span style="font:600 10px 'JetBrains Mono',monospace;color:#5aa2e0;letter-spacing:.08em">SESSION #S1 · 오케스트레이션</span>
+              <div style="flex:1"></div>
+              <span style="font:10px 'JetBrains Mono',monospace;color:#6b7480">2.1s · 5 calls</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column">
+              <!-- step done -->
+              <div style="display:flex;gap:12px;position:relative;padding-bottom:16px">
+                <div style="position:absolute;left:8px;top:20px;bottom:0;width:1.5px;background:#1b2733"></div>
+                <div style="width:17px;height:17px;border-radius:50%;background:#1C5D99;border:2px solid #3b8fd4;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 9px 'JetBrains Mono';color:#fff;z-index:1">✓</div>
+                <div style="flex:1">
+                  <div style="font:700 12px 'JetBrains Mono',monospace;color:#cfd6dd">lookup_error_code</div>
+                  <div style="font:11px/1.4 'JetBrains Mono',monospace;color:#6b7480;margin-top:2px">in: {model:"iG5A", code:"OHt"}</div>
+                  <div style="font:10.5px 'JetBrains Mono',monospace;color:#6fa8d8;margin-top:3px">✓ 0.4s · 과열 · related: FAN-IG5-01</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;position:relative;padding-bottom:16px">
+                <div style="position:absolute;left:8px;top:20px;bottom:0;width:1.5px;background:#234"></div>
+                <div style="width:17px;height:17px;border-radius:50%;background:#1C5D99;border:2px solid #3b8fd4;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 9px 'JetBrains Mono';color:#fff;z-index:1">✓</div>
+                <div style="flex:1">
+                  <div style="font:700 12px 'JetBrains Mono',monospace;color:#cfd6dd">rag_search_manual</div>
+                  <div style="font:11px/1.4 'JetBrains Mono',monospace;color:#6b7480;margin-top:2px">in: {query:"OHt 점검 절차"}</div>
+                  <div style="font:10.5px 'JetBrains Mono',monospace;color:#6fa8d8;margin-top:3px">✓ 1.2s · p.208 인용 2건</div>
+                </div>
+              </div>
+              <!-- step warn -->
+              <div style="display:flex;gap:12px;position:relative;padding-bottom:16px">
+                <div style="position:absolute;left:8px;top:20px;bottom:0;width:1.5px;background:#234"></div>
+                <div style="width:17px;height:17px;border-radius:50%;background:#E8590C;border:2px solid #ff8a4d;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 10px 'JetBrains Mono';color:#fff;z-index:1">!</div>
+                <div style="flex:1">
+                  <div style="font:700 12px 'JetBrains Mono',monospace;color:#cfd6dd">search_inventory</div>
+                  <div style="font:11px/1.4 'JetBrains Mono',monospace;color:#6b7480;margin-top:2px">in: {part:"FAN-IG5-01"}</div>
+                  <div style="font:10.5px/1.5 'JetBrains Mono',monospace;color:#ff9a5c;margin-top:3px">⚠ 분기 · 재고 1 &lt; 안전재고 3 → 부족분 2 제안</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;position:relative;padding-bottom:16px">
+                <div style="position:absolute;left:8px;top:20px;bottom:0;width:1.5px;background:#234"></div>
+                <div style="width:17px;height:17px;border-radius:50%;background:#1C5D99;border:2px solid #3b8fd4;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 9px 'JetBrains Mono';color:#fff;z-index:1">✓</div>
+                <div style="flex:1">
+                  <div style="font:700 12px 'JetBrains Mono',monospace;color:#cfd6dd">get_supplier_quotes</div>
+                  <div style="font:11px/1.4 'JetBrains Mono',monospace;color:#6b7480;margin-top:2px">in: {part:"FAN-IG5-01", qty:2}</div>
+                  <div style="font:10.5px 'JetBrains Mono',monospace;color:#6fa8d8;margin-top:3px">✓ 0.3s · A사 3일 vs B사 14일</div>
+                </div>
+              </div>
+              <!-- step pending -->
+              <div style="display:flex;gap:12px;position:relative">
+                <div style="width:17px;height:17px;border-radius:50%;background:transparent;border:2px dashed #4a545f;flex-shrink:0;z-index:1"></div>
+                <div style="flex:1">
+                  <div style="font:700 12px 'JetBrains Mono',monospace;color:#89929c">create_po_draft</div>
+                  <div style="font:11px/1.4 'JetBrains Mono',monospace;color:#5c646e;margin-top:2px">대기: 사용자 공급사 선택 필요</div>
+                  <div style="font:10.5px 'JetBrains Mono',monospace;color:#7a828c;margin-top:3px">○ pending</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OPTION 1B — 텔레메트리 ============ -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a><b>텔레메트리</b>&nbsp;트레이스가 주인공 · 계측기 같은 채널 로그 · 실행 중 펄스</div>
+      <div style="width:940px;background:#0f1217;border:1px solid #232a33;border-radius:4px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.4)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #232a33;background:#0b0e12">
+          <div style="width:24px;height:24px;border-radius:3px;background:#101418;border:1px solid #2f7fc4;display:flex;align-items:center;justify-content:center;font:700 12px 'JetBrains Mono',monospace;color:#5aa2e0">M</div>
+          <span style="font:700 13px 'JetBrains Mono',monospace;letter-spacing:.04em;color:#e6e9ed">MAINTQ</span>
+          <div style="flex:1"></div>
+          <span style="font:11px 'JetBrains Mono',monospace;color:#89929c">라인:1번조립 · <span style="color:#5aa2e0">iG5A</span></span>
+          <span style="width:1px;height:14px;background:#232a33"></span>
+          <span style="font:11px 'JetBrains Mono',monospace;color:#89929c">정비사 김OO</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.15fr;min-height:560px">
+          <!-- chat (compact) -->
+          <div style="display:flex;flex-direction:column;border-right:1px solid #232a33;background:#0d1014">
+            <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+              <div style="align-self:flex-end;max-width:80%;background:#1a1f27;border-radius:6px;padding:8px 11px;font:12.5px/1.5 'Pretendard';color:#e6e9ed">iG5A 인버터에 <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8fbce6">OHt</span> 에러 떴어</div>
+              <div style="align-self:flex-start;max-width:88%;padding:2px 0;font:12.5px/1.6 'Pretendard';color:#cdd3da">
+                <span style="font-weight:700;color:#e6e9ed"><span style="font-family:'JetBrains Mono',monospace">OHt</span> — 인버터 과열.</span> 유력 원인: 냉각팬 고장·주위 온도 초과. 냉각팬 점검 권장.
+                <div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:4px;font:500 10px 'JetBrains Mono',monospace;color:#7fb3e0;border-bottom:1px dashed #2f6da8;padding-bottom:1px">↳ iG5A p.208</span></div>
+              </div>
+              <!-- safety: alarm strip -->
+              <div style="align-self:stretch;border:1px solid #E8590C;border-radius:4px;background:#1a1210;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:7px;padding:6px 11px;background:#E8590C">
+                  <span style="font-size:12px">⚠</span><span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#fff">SAFETY — 감전 위험</span>
+                </div>
+                <div style="padding:9px 12px;font:12.5px/1.6 'Pretendard';color:#f0d9cb">전원 차단 후 <b style="color:#ffb98a">10분 이상 대기</b>, 테스터로 직류 전압 방전 확인. 활선 접촉·측정 금지. <span style="font:500 10px 'JetBrains Mono',monospace;color:#f0a877">[iG5A p.4]</span></div>
+              </div>
+              <!-- po card compact -->
+              <div style="align-self:stretch;border:1px solid #2a323d;border-radius:4px;background:#111621">
+                <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #232a33">
+                  <span style="font:700 12px 'JetBrains Mono',monospace;color:#e6e9ed">#PO-0117</span>
+                  <span style="font:600 9px 'JetBrains Mono',monospace;color:#89929c;border:1px solid #3a424d;border-radius:2px;padding:1px 5px">DRAFT</span>
+                </div>
+                <table style="width:100%;border-collapse:collapse;font:11.5px 'JetBrains Mono',monospace">
+                  <tr style="border-bottom:1px solid #1a1f26"><td style="padding:6px 12px;color:#6b7480">품목</td><td style="padding:6px 12px;color:#e6e9ed;text-align:right">FAN-IG5-01 ×2</td></tr>
+                  <tr style="border-bottom:1px solid #1a1f26"><td style="padding:6px 12px;color:#6b7480">공급사</td><td style="padding:6px 12px;color:#e6e9ed;text-align:right">A사 · 3일</td></tr>
+                  <tr><td style="padding:6px 12px;color:#6b7480">단가</td><td style="padding:6px 12px;color:#e6e9ed;text-align:right">₩38,000</td></tr>
+                </table>
+                <div style="padding:10px 12px;border-top:1px solid #232a33"><button style="width:100%;border:none;background:#1C5D99;color:#fff;border-radius:4px;padding:9px;font:600 12px 'Pretendard';cursor:pointer">팀장 승인 요청 →</button></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;padding:11px 13px;border-top:1px solid #232a33;background:#0b0e12">
+              <div style="flex:1;height:34px;border:1px solid #2a323d;border-radius:4px;background:#111621;display:flex;align-items:center;padding:0 11px;font:12px 'Pretendard';color:#5c646e">메시지…</div>
+              <button style="height:34px;border:none;background:#1C5D99;color:#fff;border-radius:4px;padding:0 15px;font:600 12px 'Pretendard';cursor:pointer">전송</button>
+            </div>
+          </div>
+          <!-- trace hero -->
+          <div style="display:flex;flex-direction:column;background:#0a0d11;background-image:linear-gradient(rgba(47,127,196,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(47,127,196,.05) 1px,transparent 1px);background-size:22px 22px">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid #232a33;background:rgba(11,14,18,.7)">
+              <span style="width:6px;height:6px;border-radius:50%;background:#3b8fd4;box-shadow:0 0 6px #3b8fd4"></span>
+              <span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#5aa2e0">TOOL ORCHESTRATION</span>
+              <div style="flex:1"></div>
+              <span style="font:10px 'JetBrains Mono',monospace;color:#6b7480">실행 로그 · 근거 · 이력</span>
+            </div>
+            <div style="padding:14px 15px;display:flex;flex-direction:column;gap:10px">
+              <!-- channel done -->
+              <div style="border:1px solid #234a6b;border-radius:4px;background:rgba(28,93,153,.1);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(28,93,153,.22);border-bottom:1px solid #234a6b">
+                  <span style="font:700 9px 'JetBrains Mono',monospace;color:#5aa2e0">01</span>
+                  <span style="font:700 11.5px 'JetBrains Mono',monospace;color:#bfe0ff">lookup_error_code</span>
+                  <div style="flex:1"></div>
+                  <span style="font:600 9.5px 'JetBrains Mono',monospace;color:#6fa8d8">✓ 0.40s</span>
+                </div>
+                <div style="padding:6px 10px;font:10.5px/1.5 'JetBrains Mono',monospace;color:#8a94a0">code:OHt → 과열 · related: <span style="color:#bfe0ff">FAN-IG5-01</span></div>
+              </div>
+              <div style="border:1px solid #234a6b;border-radius:4px;background:rgba(28,93,153,.1);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(28,93,153,.22);border-bottom:1px solid #234a6b">
+                  <span style="font:700 9px 'JetBrains Mono',monospace;color:#5aa2e0">02</span>
+                  <span style="font:700 11.5px 'JetBrains Mono',monospace;color:#bfe0ff">rag_search_manual</span>
+                  <div style="flex:1"></div>
+                  <span style="font:600 9.5px 'JetBrains Mono',monospace;color:#6fa8d8">✓ 1.20s</span>
+                </div>
+                <div style="padding:6px 10px;font:10.5px/1.5 'JetBrains Mono',monospace;color:#8a94a0">query:"OHt 점검 절차" → p.208 인용 2건</div>
+              </div>
+              <!-- channel warn -->
+              <div style="border:1px solid #a6521f;border-radius:4px;background:rgba(232,89,12,.09);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(232,89,12,.18);border-bottom:1px solid #a6521f">
+                  <span style="font:700 9px 'JetBrains Mono',monospace;color:#ff9a5c">03</span>
+                  <span style="font:700 11.5px 'JetBrains Mono',monospace;color:#ffcdac">search_inventory</span>
+                  <div style="flex:1"></div>
+                  <span style="font:600 9.5px 'JetBrains Mono',monospace;color:#ff9a5c">⚠ 분기</span>
+                </div>
+                <div style="padding:6px 10px;font:10.5px/1.5 'JetBrains Mono',monospace;color:#e0b498">재고 1 &lt; 안전재고 3 → 부족분 2 포함 제안</div>
+              </div>
+              <div style="border:1px solid #234a6b;border-radius:4px;background:rgba(28,93,153,.1);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(28,93,153,.22);border-bottom:1px solid #234a6b">
+                  <span style="font:700 9px 'JetBrains Mono',monospace;color:#5aa2e0">04</span>
+                  <span style="font:700 11.5px 'JetBrains Mono',monospace;color:#bfe0ff">get_supplier_quotes</span>
+                  <div style="flex:1"></div>
+                  <span style="font:600 9.5px 'JetBrains Mono',monospace;color:#6fa8d8">✓ 0.30s</span>
+                </div>
+                <div style="padding:6px 10px;font:10.5px/1.5 'JetBrains Mono',monospace;color:#8a94a0">qty:2 → A사 3일/₩38,000 · B사 14일/₩29,000</div>
+              </div>
+              <!-- channel running/pending -->
+              <div style="border:1px solid #2a323d;border-radius:4px;background:#0e1218;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #232a33">
+                  <span style="font:700 9px 'JetBrains Mono',monospace;color:#6b7480">05</span>
+                  <span style="font:700 11.5px 'JetBrains Mono',monospace;color:#89929c">create_po_draft</span>
+                  <div style="flex:1"></div>
+                  <span style="display:inline-block;width:11px;height:11px;border:2px solid #3b8fd4;border-top-color:transparent;border-radius:50%;animation:mq-spin .8s linear infinite"></span>
+                </div>
+                <div style="padding:6px 10px;font:10.5px/1.5 'JetBrains Mono',monospace;color:#6b7480;animation:mq-pulse 1.6s ease-in-out infinite">대기: 사용자 공급사 선택 필요…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OPTION 1C — 현장 HUD ============ -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a><b>현장 HUD</b>&nbsp;큰 글씨·현장 가독성 우선 · 상태를 아이콘+라벨 칩으로(색맹 대비 강화)</div>
+      <div style="width:960px;background:#13161b;border:1px solid #2a313a;border-radius:6px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.4)">
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid #2a313a;background:#0e1116">
+          <div style="width:28px;height:28px;border-radius:6px;background:#1C5D99;display:flex;align-items:center;justify-content:center;font:700 14px 'JetBrains Mono',monospace;color:#fff">M</div>
+          <span style="font:700 15px 'Pretendard';color:#e6e9ed">MaintQ</span>
+          <span style="border:1px solid #3a424d;border-radius:6px;padding:6px 12px;font:13px 'Pretendard';color:#e6e9ed;background:#1a1f27">1번 조립 · <b style="font-family:'JetBrains Mono',monospace;font-size:12px">iG5A</b></span>
+          <div style="flex:1"></div>
+          <span style="display:inline-flex;align-items:center;gap:6px;font:13px 'Pretendard';color:#cdd3da"><span style="width:9px;height:9px;border-radius:50%;background:#3b8fd4"></span>정비사 김OO</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;min-height:580px">
+          <div style="display:flex;flex-direction:column;border-right:1px solid #2a313a">
+            <div style="flex:1;padding:18px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+              <div style="align-self:flex-end;max-width:80%;background:#1C5D99;border-radius:11px 11px 3px 11px;padding:11px 15px;font:15px/1.5 'Pretendard';color:#fff">iG5A 인버터에 <b style="font-family:'JetBrains Mono',monospace;font-size:14px">OHt</b> 에러 떴어</div>
+              <div style="align-self:flex-start;max-width:88%">
+                <div style="background:#1a1f27;border-radius:11px 11px 11px 3px;padding:13px 15px;font:15px/1.65 'Pretendard';color:#dfe4e9">
+                  <b style="color:#fff;font-size:16px"><span style="font-family:'JetBrains Mono',monospace">OHt</span> — 인버터 과열</b><br>유력 원인은 <b>냉각팬 고장</b>·주위 온도 초과. 냉각팬 상태를 먼저 점검하세요.
+                </div>
+                <div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:6px;font:600 12px 'JetBrains Mono',monospace;color:#8fbce6;background:#152332;border:1px solid #2f6da8;border-radius:6px;padding:4px 10px"><span>▤</span> iG5A 매뉴얼 p.208</span></div>
+              </div>
+              <!-- safety = full alarm banner -->
+              <div style="align-self:stretch;border:2px solid #E8590C;border-radius:8px;overflow:hidden;box-shadow:0 0 0 4px rgba(232,89,12,.12)">
+                <div style="display:flex;align-items:center;gap:9px;padding:9px 15px;background:#E8590C">
+                  <span style="font-size:17px">⚠</span><span style="font:800 14px 'Pretendard';letter-spacing:.02em;color:#fff">안전 경고 — 감전 위험</span>
+                </div>
+                <div style="padding:13px 16px;background:#1c1512">
+                  <div style="font:15px/1.65 'Pretendard';color:#f5e2d6">커버 개방 전 <b style="color:#ffbf95">전원 차단 후 10분 이상 대기</b>, 테스터로 직류 전압 방전을 확인하세요. 활선 상태 접촉·측정 금지.</div>
+                  <div style="margin-top:9px"><span style="display:inline-flex;align-items:center;gap:6px;font:600 12px 'JetBrains Mono',monospace;color:#f0a877;background:#241611;border:1px solid #a6521f;border-radius:6px;padding:4px 10px"><span>▤</span> iG5A 매뉴얼 p.4</span></div>
+                </div>
+              </div>
+              <!-- po card big -->
+              <div style="align-self:stretch;border:1px solid #3a424d;border-radius:9px;background:#161b23;overflow:hidden">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #2a313a;background:#1a2029">
+                  <span style="font:700 15px 'Pretendard';color:#fff">발주서 초안 <span style="font-family:'JetBrains Mono',monospace;font-size:14px">#PO-0117</span></span>
+                  <span style="font:700 11px 'JetBrains Mono',monospace;color:#9aa3ad;border:1px solid #3a424d;border-radius:4px;padding:3px 8px">DRAFT</span>
+                </div>
+                <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;font:14px 'Pretendard'">
+                  <div style="display:flex;justify-content:space-between"><span style="color:#89929c">품목</span><span style="color:#fff">냉각팬 <span style="font-family:'JetBrains Mono',monospace;font-size:12px">FAN-IG5-01</span></span></div>
+                  <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#89929c">수량</span><span style="display:inline-flex;align-items:center;gap:7px;color:#fff">2 EA <span style="font:600 11px 'JetBrains Mono',monospace;color:#ff9a5c;background:#2a1810;border:1px solid #a6521f;border-radius:4px;padding:2px 7px">재고부족 · 부족분 2</span></span></div>
+                  <div style="display:flex;justify-content:space-between"><span style="color:#89929c">공급사</span><span style="color:#fff">A사 · 리드타임 3일</span></div>
+                  <div style="display:flex;justify-content:space-between"><span style="color:#89929c">단가</span><span style="color:#fff;font-family:'JetBrains Mono',monospace">₩38,000</span></div>
+                </div>
+                <div style="display:flex;gap:10px;padding:14px 16px;border-top:1px solid #2a313a">
+                  <button style="flex:1;border:none;background:#1C5D99;color:#fff;border-radius:8px;padding:13px;font:700 14px 'Pretendard';cursor:pointer">팀장 승인 요청</button>
+                  <button style="border:1px solid #3a424d;background:transparent;color:#cdd3da;border-radius:8px;padding:13px 20px;font:700 14px 'Pretendard';cursor:pointer">수정</button>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;padding:14px 18px;border-top:1px solid #2a313a;background:#0e1116">
+              <div style="flex:1;height:46px;border:1px solid #3a424d;border-radius:9px;background:#1a1f27;display:flex;align-items:center;padding:0 15px;font:14px 'Pretendard';color:#5c646e">메시지를 입력하세요…</div>
+              <button style="height:46px;border:none;background:#1C5D99;color:#fff;border-radius:9px;padding:0 24px;font:700 14px 'Pretendard';cursor:pointer">전송</button>
+            </div>
+          </div>
+          <!-- trace with status chips -->
+          <div style="display:flex;flex-direction:column;background:#0e1116">
+            <div style="display:flex;border-bottom:1px solid #2a313a">
+              <div style="padding:13px 17px;font:700 14px 'Pretendard';color:#fff;border-bottom:3px solid #3b8fd4">실행 로그</div>
+              <div style="padding:13px 17px;font:500 14px 'Pretendard';color:#7a828c">근거 문서</div>
+              <div style="padding:13px 17px;font:500 14px 'Pretendard';color:#7a828c">발주 이력</div>
+            </div>
+            <div style="padding:18px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:13px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;margin-top:1px;font:700 11px 'JetBrains Mono',monospace;color:#6fa8d8;background:#122234;border:1px solid #2f6da8;border-radius:5px;padding:4px 8px">✓ 완료</span>
+                <div><div style="font:700 14px 'JetBrains Mono',monospace;color:#e6e9ed">lookup_error_code</div><div style="font:12px/1.5 'JetBrains Mono',monospace;color:#7a828c;margin-top:3px">OHt → 과열 · related FAN-IG5-01 · 0.4s</div></div>
+              </div>
+              <div style="height:1px;background:#1e242c"></div>
+              <div style="display:flex;gap:13px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;margin-top:1px;font:700 11px 'JetBrains Mono',monospace;color:#6fa8d8;background:#122234;border:1px solid #2f6da8;border-radius:5px;padding:4px 8px">✓ 완료</span>
+                <div><div style="font:700 14px 'JetBrains Mono',monospace;color:#e6e9ed">rag_search_manual</div><div style="font:12px/1.5 'JetBrains Mono',monospace;color:#7a828c;margin-top:3px">"OHt 점검 절차" → p.208 인용 2건 · 1.2s</div></div>
+              </div>
+              <div style="height:1px;background:#1e242c"></div>
+              <div style="display:flex;gap:13px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;margin-top:1px;font:700 11px 'JetBrains Mono',monospace;color:#ff9a5c;background:#2a1810;border:1px solid #a6521f;border-radius:5px;padding:4px 8px">⚠ 분기</span>
+                <div><div style="font:700 14px 'JetBrains Mono',monospace;color:#e6e9ed">search_inventory</div><div style="font:12px/1.55 'JetBrains Mono',monospace;color:#e0a888;margin-top:3px">재고 1 &lt; 안전재고 3 → 부족분 2 포함 제안</div></div>
+              </div>
+              <div style="height:1px;background:#1e242c"></div>
+              <div style="display:flex;gap:13px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;margin-top:1px;font:700 11px 'JetBrains Mono',monospace;color:#6fa8d8;background:#122234;border:1px solid #2f6da8;border-radius:5px;padding:4px 8px">✓ 완료</span>
+                <div><div style="font:700 14px 'JetBrains Mono',monospace;color:#e6e9ed">get_supplier_quotes</div><div style="font:12px/1.5 'JetBrains Mono',monospace;color:#7a828c;margin-top:3px">A사 3일 vs B사 14일 · 0.3s</div></div>
+              </div>
+              <div style="height:1px;background:#1e242c"></div>
+              <div style="display:flex;gap:13px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;margin-top:1px;font:700 11px 'JetBrains Mono',monospace;color:#9aa3ad;background:#1a1f27;border:1px dashed #4a545f;border-radius:5px;padding:4px 8px">○ 대기</span>
+                <div><div style="font:700 14px 'JetBrains Mono',monospace;color:#9aa3ad">create_po_draft</div><div style="font:12px/1.5 'JetBrains Mono',monospace;color:#6b7480;margin-top:3px">사용자 공급사 선택 필요</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">다음에 이렇게 말해보세요: "<a class="dv-oid" href="#1a">1a</a>로 가되 트레이스는 <a class="dv-oid" href="#1b">1b</a>의 채널 스타일로" · "<a class="dv-oid" href="#1c">1c</a> 확정, 상세로 진행" · "S3 반복고장 버전(발주 보류 블록)도 보여줘" · "라이트 테마 변형도 궁금해"</p>
+</section>
+</x-dc>
+</body>
+</html>
