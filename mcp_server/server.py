@@ -44,9 +44,10 @@ from typing import Annotated
 # 스크립트로 직접 실행될 때도 `mcp_server` 패키지로 임포트되게 한다
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
 from pydantic import Field  # noqa: E402
 
+from mcp_server import identity  # noqa: E402
 from mcp_server.tools.create_po_draft import (  # noqa: E402
     DESCRIPTION as PO_DESC,
     create_po_draft as _create_po_draft,
@@ -139,9 +140,21 @@ def create_po_draft(
     model: str | None = None,
     error_code: str | None = None,
     evidence: dict | None = None,
+    ctx: Context = None,  # FastMCP 가 주입한다 — 입력 스키마에 노출되지 않는다
 ) -> dict:
     """⚠️ 유일한 쓰기 도구. 신원(requested_by)·session_id 는 **파라미터에 없다** —
-    스키마에 없으므로 LLM 이 위조할 수 없고, 백엔드가 INSERT 직후 stamp 한다 (D23·D37)."""
+    스키마에 없으므로 LLM 이 위조할 수 없다 (D23).
+
+    - stdio: 백엔드가 INSERT 직후 stamp 한다 (D37)
+    - MCP-HTTP: `X-User` 헤더에서 서버가 읽는다. 없거나 미등록이면 **초안을 만들지 않는다** (D152)
+    """
+    who = identity.resolve(ctx)
+    if who.error:
+        return {
+            "status": "error",
+            "reason": who.error,
+            "message": "요청자 신원(X-User 헤더)이 없거나 형식이 틀립니다 — 초안을 만들지 않았습니다 (D152)",
+        }
     return _create_po_draft(
         part_no=part_no,
         qty=qty,
@@ -151,6 +164,8 @@ def create_po_draft(
         model=model,
         error_code=error_code,
         evidence=evidence,
+        requested_by=who.user_id,
+        session_id=who.session_id,
     )
 
 

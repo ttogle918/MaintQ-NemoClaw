@@ -9,8 +9,11 @@
 이 파일에 남는 것:
   D10  read_only()로 조회 → draft_writer()로 INSERT. 두 커넥션을 분리해 MCP 프로세스가
        INSERT 밖의 어떤 것도 못 하게 만든다(트리거는 `mcp_server/db.py`).
-  D23  requested_by·session_id 는 파라미터가 아니다 — 스키마에 없으므로 LLM 이 위조할 수
-       없다. INSERT 시점엔 항상 None(백엔드가 사후 stamp, D37).
+  D23  requested_by·session_id 는 **MCP 스키마의** 파라미터가 아니다 — LLM 이 위조할 수 없다.
+       stdio 경로는 INSERT 시점엔 None(백엔드가 사후 stamp, D37). MCP-HTTP 경로는 서버가
+       `X-User` 헤더에서 읽어(`mcp_server/identity.py`) 아래 `requested_by` 로 넘긴다 (D152).
+       ⚠ 이 함수의 `requested_by` 는 server.py 가 채우는 **서버 측 인자**다 — server.py 의
+       `@mcp.tool` 시그니처에 올리면 그 순간 D23 이 깨진다.
   D80  필수 파라미터에 기본값을 두지 않는다 — 인자 누락은 MCP 스키마가 앞단에서 막는다.
        urgency만 optional(기본 "normal").
   스키마 경계 검증(필수값·enum·model/error_code 쌍)은 "산출 로직"이 아니라 이 진입점의
@@ -47,6 +50,9 @@ def create_po_draft(
     model: str | None = None,
     error_code: str | None = None,
     evidence: dict | None = None,
+    *,
+    requested_by: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     # ── 입력 검증 (실패는 전부 status 로, D9) — 스키마 경계이지 산출 로직이 아니다
     if not part_no or not supplier_id:
@@ -98,6 +104,19 @@ def create_po_draft(
                 model=model,
                 error_code=code,
             )
+            if result["status"] == "ok" and requested_by is not None:
+                # 헤더 형식만으로는 부족하다 — 발주 귀속이라 **등록된 사용자**여야 한다 (D152).
+                # 백엔드 `deps.caller()` 가 미등록 ID 를 department=None 으로 흘리는 것과 다른
+                # 태도는 의도적이다: 거기는 소속 표시, 여기는 쓰기의 주체다.
+                known = con.execute(
+                    "SELECT 1 FROM users WHERE user_id = ?", (requested_by,)
+                ).fetchone()
+                if not known:
+                    return {
+                        "status": "error",
+                        "reason": "unknown_user",
+                        "message": "요청자 ID 가 등록된 사용자가 아닙니다 — 초안을 만들지 않았습니다 (D152)",
+                    }
         if result["status"] != "ok":
             return result
 
@@ -115,6 +134,8 @@ def create_po_draft(
                 unit_price=result["unit_price"],
                 reason=reason.strip(),
                 urgency=urgency,
+                requested_by=requested_by,
+                session_id=session_id,
             )
     except sqlite3.IntegrityError as e:
         # FK·CHECK 위반은 계약 위반이므로 그대로 드러낸다 (조용히 넘기지 않는다)

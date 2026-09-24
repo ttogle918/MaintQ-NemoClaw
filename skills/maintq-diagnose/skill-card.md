@@ -4,7 +4,7 @@
 This skill is for demonstration purposes and not for production usage. <br>
 
 ## Third-Party Community Consideration
-<span style="color:#d73a49">This skill is not owned or developed by NVIDIA. This skill has been developed and built to a third-party's requirements for this application and use case; see link to Non-NVIDIA [MaintQ (ttogle918/MaintQ-NemoClaw) Agent Card](https://github.com/ttogle918/MaintQ-NemoClaw/blob/main/skills/maintq-diagnose/skill-card.md).</span> <!-- VERIFY: frontmatter metadata.author 'MaintQ' and git remote; no formal owner record --> <br>
+This skill is not owned or developed by NVIDIA. This skill has been developed and built to a third-party's requirements for this application and use case; see link to Non-NVIDIA [MaintQ (ttogle918/MaintQ-NemoClaw) Agent Card](https://github.com/ttogle918/MaintQ-NemoClaw/blob/main/skills/maintq-diagnose/skill-card.md). <br>
 
 ### License/Terms of Use: <br>
 Apache 2.0 <br>

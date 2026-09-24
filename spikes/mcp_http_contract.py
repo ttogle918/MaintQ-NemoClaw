@@ -23,6 +23,12 @@ NemoClaw 는 stdio MCP 를 받지 않아서(원문: *"Stdio-only MCP servers are
      ↔ 양성 축: 기본 목록에 loopback 이 들어 있다 (빈 목록이면 "안 껐다" 로 통과한다)
   ⑨ `MAINTQ_MCP_ALLOWED_HOSTS` 로 **더할 수는 있어도 기본값을 지울 수는 없다**
   ⑩ loopback 밖 바인딩은 TLS 없이 기동 거부 (D150 개정) ↔ 양성 축: TLS 를 주면 통과
+  ⑪~⑯ 요청자 신원 (D152) — MCP-HTTP 쓰기는 `X-User` 헤더에서 신원을 받는다.
+     ⑪ 스키마에 신원 필드가 없다(D23) ↔ 양성 축: `part_no` 는 있다
+     ⑫ 헤더 없음 → `identity_missing`, 행 0 증가  ⑬ 형식 위반 → `identity_invalid`
+     ⑭ 미등록 ID → `unknown_user`, 행 0 증가     ⑮ `tech-01` → `requested_by=tech-01` 로 INSERT
+     ⑯ stdio 는 그대로 — `requested_by` NULL (D37 백엔드 stamp 경로 불변)
+     ⚠ 이 절은 실제로 INSERT 하므로 **격리 스키마**에서만 돈다 (공유 public 오염 금지)
 
 실행:  uv run python spikes/mcp_http_contract.py
 """
@@ -43,6 +49,7 @@ import anyio
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from data import dbcompat, pg_isolation  # noqa: E402
 from mcp_server import http_entry  # noqa: E402
 
 TOKEN = "spike-token-4f2a9c"
@@ -86,8 +93,10 @@ def _env(**extra: str) -> dict[str, str]:
     return env
 
 
-def start_server(port: int, token: str | None) -> subprocess.Popen:
+def start_server(port: int, token: str | None, db: str | None = None) -> subprocess.Popen:
     env = _env()
+    if db is not None:
+        env["DATABASE_URL"] = db  # 격리 스키마 DSN — 자식은 이것만 본다 (MAINTQ_DB 는 안 읽는다)
     if token is not None:
         env["MAINTQ_MCP_TOKEN"] = token
     env["MAINTQ_MCP_HTTP_PORT"] = str(port)
@@ -153,6 +162,118 @@ async def tools_over_stdio() -> list[str]:
             return sorted(t.name for t in (await s.list_tools()).tools)
 
 
+PO_ARGS = {
+    "part_no": "FAN-IG5-01",
+    "qty": 1,
+    "supplier_id": "SUP-A",
+    "reason": "spike D152 신원 검사",
+    "model": "iG5A",
+    "error_code": "OHt",
+}
+
+
+async def po_over_http(port: int, user: str | None) -> dict:
+    import json
+
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamablehttp_client
+
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    if user is not None:
+        headers["X-User"] = user
+    async with streamablehttp_client(f"http://127.0.0.1:{port}/mcp", headers=headers) as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool("create_po_draft", PO_ARGS)
+            return json.loads(res.content[0].text)
+
+
+async def po_over_stdio(db: str) -> dict:
+    import json
+
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "mcp_server.server"],
+        env={**os.environ, "DATABASE_URL": db},
+    )
+    async with stdio_client(params) as (r, w):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool("create_po_draft", PO_ARGS)
+            return json.loads(res.content[0].text)
+
+
+async def po_schema_props() -> list[str]:
+    from mcp_server.server import mcp
+
+    tool = next(t for t in await mcp.list_tools() if t.name == "create_po_draft")
+    return sorted(tool.inputSchema["properties"])
+
+
+def po_rows(db: str) -> list[tuple]:
+    con = dbcompat.connect_dsn(db)
+    try:
+        rows = con.execute("SELECT po_id, requested_by, session_id FROM po_drafts").fetchall()
+        return [tuple(r) for r in rows]
+    finally:
+        con.close()
+
+
+def identity_checks(port: int, db: str) -> None:
+    props = anyio.run(po_schema_props)
+    leaked = {"ctx", "requested_by", "session_id"} & set(props)
+    check(
+        "⑪ 신원 필드가 스키마에 없다 (D23)",
+        not leaked and "part_no" in props,
+        f"속성 {len(props)}개 · 누출 {sorted(leaked) or '없음'} · part_no {'있음' if 'part_no' in props else '없음'}",
+    )
+
+    before = len(po_rows(db))
+    r_none = anyio.run(po_over_http, port, None)
+    after_none = len(po_rows(db))
+    check(
+        "⑫ X-User 없음 → identity_missing, INSERT 없음",
+        r_none.get("reason") == "identity_missing" and after_none == before,
+        f"reason={r_none.get('reason')} · 행 {before}→{after_none}",
+    )
+
+    r_bad = anyio.run(po_over_http, port, "tech 01;DROP")
+    check(
+        "⑬ X-User 형식 위반 → identity_invalid",
+        r_bad.get("reason") == "identity_invalid" and len(po_rows(db)) == before,
+        f"reason={r_bad.get('reason')} · 행 {len(po_rows(db))}",
+    )
+
+    r_ghost = anyio.run(po_over_http, port, "ghost-99")
+    check(
+        "⑭ 미등록 ID → unknown_user, INSERT 없음",
+        r_ghost.get("reason") == "unknown_user" and len(po_rows(db)) == before,
+        f"reason={r_ghost.get('reason')} · 행 {len(po_rows(db))}",
+    )
+
+    r_ok = anyio.run(po_over_http, port, "tech-01")
+    rows = {row[0]: row for row in po_rows(db)}
+    got = rows.get(r_ok.get("po_id"))
+    check(
+        "⑮ tech-01 → requested_by=tech-01 로 INSERT",
+        r_ok.get("status") == "ok" and got is not None and got[1] == "tech-01" and bool(got[2]),
+        f"status={r_ok.get('status')} · po={r_ok.get('po_id')} · requested_by={got[1] if got else None} · "
+        f"session_id {'있음' if got and got[2] else '없음'}",
+    )
+
+    r_stdio = anyio.run(po_over_stdio, db)
+    rows = {row[0]: row for row in po_rows(db)}
+    got = rows.get(r_stdio.get("po_id"))
+    check(
+        "⑯ stdio 는 requested_by NULL 그대로 (D37 경로 불변)",
+        r_stdio.get("status") == "ok" and got is not None and got[1] is None,
+        f"status={r_stdio.get('status')} · po={r_stdio.get('po_id')} · requested_by={got[1] if got else '행 없음'}",
+    )
+
+
 def main() -> None:
     print("MCP HTTP 입구 계약 — D150 (토큰 가드 · 전송 간 도구 동일성 · loopback)\n")
 
@@ -171,8 +292,10 @@ def main() -> None:
     )
 
     # ①-b 양성 축 — 토큰이 있으면 실제로 뜬다
+    # ⑪~⑯ 이 INSERT 하므로 서버는 처음부터 격리 스키마를 본다 (공유 public 오염 금지)
+    schema, db = pg_isolation.create_isolated_schema("mcp_http_contract")
     port = free_port()
-    proc = start_server(port, token=TOKEN)
+    proc = start_server(port, token=TOKEN, db=db)
     try:
         ready = wait_ready(port, proc)
         check("①-b 양성 축 — 토큰 있으면 기동", ready, f"port={port} · ready={ready}")
@@ -264,12 +387,15 @@ def main() -> None:
             no_tls_refused and with_tls == ("0.0.0.0", "/tmp/x.crt", "/tmp/x.key"),
             f"TLS 없음 거부={no_tls_refused} · TLS 있음 통과={with_tls[0]!r}",
         )
+
+        identity_checks(port, db)
     finally:
         proc.terminate()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+        pg_isolation.drop_isolated_schema(schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 46))
