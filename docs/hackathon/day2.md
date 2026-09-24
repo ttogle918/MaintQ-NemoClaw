@@ -157,4 +157,51 @@ non-interactive provider selections still require a local key."* 등록된 샌�
   - 약점: S1 1턴에서 수량을 묻지 않고 1개로 가정해 견적을 냈다(규칙상 수량은 묻는 자리) · `requested_by` 가 NULL —
     MCP-HTTP 경로엔 사람 신원이 없다(데모 전 결정 필요)
   - 스킬 카드 `validate_submission.py` 는 **소유자 VERIFY 표시 1건**으로 FAIL — 사람이 확인하고 지울 항목이라 남겨 둠
-- 온보딩 에이전트 런타임 선택(NAT / LangGraph / `loop.py` 확장) — **미결정**
+- 온보딩 에이전트 런타임 선택(NAT / LangGraph / `loop.py` 확장) — **미결정** →
+  **D153 으로 NAT 결정, 미확인 3건은 아래 §9 에서 확인 완료**
+
+## 9. NAT 스파이크 결과 (2026-09-24, MQ-1901 — D153 미확인 3건)
+
+재현 명령: `onboarding/nat/spike/README.md`. `cd onboarding/nat && uv run nat --version` →
+`nat, version 1.9.0`(nvidia-nat==1.9.0 + nvidia-nat-mcp==1.9.0, 레포 본 프로젝트와 분리된
+uv 프로젝트).
+
+| 항목 | 판정 | 근거 |
+|---|---|---|
+| ⓘ 헤더(`Authorization`·`X-User`) 도달 | **확인** | echo 서버(127.0.0.1:8799) 로그에 `authorization: Bearer nat-spike-token` · `x-user: nat-onboarding` 둘 다 기록. 실 MCP(스파이크 전용 127.0.0.1:8775, core 프로필) 왕복: `lookup_error_code(model=iG5A, code=OHt)` → `manual_page=202`·`error_name=냉각핀 과열`(D151 과 동일 기대값, 환각 아님) |
+| ⓘⓘ 샌드박스 추론 — 키 없이 `inference.local` | **확인** | 샌드박스 `maintq-nat`(BYOC, `deploy/openshell/Dockerfile.nat` 빌드) 안에서 더미 키로 `https://inference.local/v1/chat/completions` 호출 — 로그 `ALLOWED inference.local:443` + `routing proxy inference request … endpoint=https://integrate.api.nvidia.com/v1`. 1회차 `503 Service temporarily overloaded`(day2 §8 의 O1 과 같은 무료 티어 과부하) → 재시도 3회 전부 `200`(재시도로 통과 사실 기록) |
+| ⓘⓘ 샌드박스 추론 — MCP(`host.openshell.internal`) | **확인** | 같은 샌드박스에서 `mcp_client_check.py real http://host.openshell.internal:8775/mcp <토큰>` → `lookup_error_code` 정상 응답(위와 동일 payload). 정책 로그 `HTTP:POST … ALLOWED … [policy:maintq_mcp_spike engine:l7]` + `engine:opa` 둘 다 통과 |
+| ⓘⓘⓘ NAT 가 `SKILL.md` 를 런타임에 읽는가 | **불가** | `grep -rln "SKILL.md" onboarding/nat/.venv/lib/python3.13/site-packages/nat*` → 0건(스캔 대상 504개 `.py` 파일, liveness 앵커로 스캐너 생존 확인). NAT 패키지 안에 NVIDIA 스킬 규격(`SKILL.md`) 로더가 없다 — OpenClaw 와 다른 지점 |
+
+**채택 레벨: L0 (샌드박스 안 NAT + streamable-http 헤더 + `inference.local`, 목표 그대로).**
+ⓘ·ⓘⓘ 가 둘 다 확인돼 폴백(L1/L2)으로 물러날 필요가 없었다. ⓘⓘⓘ 만 「불가」이고, 이는
+애초에 폴백 사다리가 아니라 별도 분기(SKILL.md 생성 방식, MQ-1908 이 이어받음)로 처리하게
+설계돼 있었다 — L0 채택에 영향 없음.
+
+**엔지니어링 메모 (재현 시 참고)**:
+- `nat mcp client tool call` CLI 는 `custom_headers`(X-User 등)를 지원하지 않는다
+  (`--bearer-token` 만) — 그래서 `WorkflowBuilder.add_function_group()` 을 코드로 직접
+  호출해 `MCPClientConfig`(streamable-http + `custom_headers`)를 검증했다. 이것이
+  워크플로 YAML 이 내부적으로 거치는 것과 같은 코드 경로다.
+- `mcp_client` 는 `functions:` 가 아니라 **`function_groups:`** 최상위 키에 둔다
+  (`nat/data_models/config.py:281` — `register_function_group()` 으로 등록된 컴포넌트).
+- 함수 그룹의 도구를 전역 함수 레지스트리에 편입해 다른 컴포넌트가 참조하려면
+  `include: [<tool_name>]` 를 명시해야 한다(`get_included_functions()` 는 `include` 가
+  비어 있으면 빈 dict 를 돌려준다 — 실측으로 드러남).
+- `openshell sandbox exec` 는 `-n/--name` 플래그가 필요하다(위치 인자 아님) ·
+  `sandbox upload` 는 `<NAME> <LOCAL> [DEST]` 위치 인자다(`-n` 플래그 없음) · 정책의
+  `filesystem_policy.read_only`(`/app`) 때문에 빌드 후 파일을 얹으려면 `/tmp` 로 올려야
+  한다.
+
+**🔴 사고 기록 — 운영 중이던 MCP-HTTP(127.0.0.1:8765, `maintq-agent`용) 를 실수로 내렸다
+(발견 즉시 오케스트레이터가 복구, pid 40032 → 52442).**
+스파이크 서버를 정리하며 `pkill -f "mcp_server.http_entry"` 를 썼는데, 운영 서버와 스파이크
+서버(127.0.0.1:8775, 이 스파이크 전용)가 **같은 모듈 문자열**(`mcp_server.http_entry`)로
+떠 있어 패턴이 둘 다 잡았다. 이 세션이 정확히 같은 커맨드라인으로 재기동을 시도했으나
+샌드박스 권한 정책(auto-mode 분류기)이 "Interfere With Workloads" 로 재기동 자체를 막아
+직접 복구하지 못했고, 오케스트레이터가 대신 재기동해 확인했다(새 pid 52442).
+
+재발 방지: 앞으로 스파이크용 MCP 서버는 `pkill -f`(패턴 매치) 대신 **PID 를 직접 기록해
+`kill <pid>`** 로 종료할 것 — 운영 프로세스와 모듈 이름이 같은 이상 패턴 매치는 원리적으로
+구분하지 못한다. **PID 를 기억하지 못하면 이름으로 죽이지 말고 사람/오케스트레이터에게
+넘길 것** — 이번처럼 자기 복구 시도가 권한 게이트에 막히는 경우 공백 시간이 생긴다.

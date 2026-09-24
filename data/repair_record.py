@@ -36,7 +36,7 @@ from data import txn
 WORK_TYPES: tuple[str, ...] = ("PLANNED", "UNPLANNED")
 
 #: `model` enum (D6·D13·D109). IE5는 정의 조회 경로만이지만 수리 이력에는 남을 수 있다.
-VALID_MODELS: tuple[str, ...] = ("iG5A", "S100", "IE5")
+VALID_MODELS: tuple[str, ...] = ("iG5A", "S100", "IE5", "HV600")
 
 
 def fail(reason: str, message: str, *, status: str = "error", **extra: Any) -> dict:

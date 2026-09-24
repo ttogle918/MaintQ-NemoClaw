@@ -769,6 +769,94 @@ GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
 - **`GET /api/chat` SSE `tool_result` 의 `a2a_chain_id`(D113, §2.1 참조)** 로 채팅 화면이 이 엔드포인트를
   찾아가는 상관관계 키를 받는다 — 실시간 스트림엔 키만 흐르고, 구조화된 원문은 이 GET 이 연다.
 
+### 2.11 온보딩 승격·안전 승인 (`backend/routers/onboarding.py`, D154·D156·D157, Sprint 19 신설)
+**신규 절 — D154~D157(확정 2026-09-24, Sprint 19 H0). 인터페이스는 MQ-1909 명세 그대로다.**
+
+> 새 기종(HV600 등) 스테이징 데이터(`05 §25~§29`)를 **정본으로 승격**하는 유일한 문이다 —
+> MCP 온보딩 도구(`04 §23~§25`)는 스테이징 INSERT 만 하고, 정본(`error_codes`·`manual_chunks`)
+> 쓰기와 상태 전이(`staged→approved/rejected`)는 전부 이 라우터를 거친다(D10·D81·D154 그대로).
+> 모든 쓰기는 `deps.caller()` + `deps.require(c, "manager", ...)`. `c.user_id` 가 `users` 에
+> 없으면 400.
+
+```
+GET  /api/onboarding/batches
+  → [{ batch_id, model, manual_id, loaded_at, rows, staged, approved, rejected, normalized_rows }]
+
+GET  /api/onboarding/batches/{batch_id}/groups?state=staged|all
+  → [{ model, code, promoted: bool,
+       rows: [{ row_id, ordinal, display_code, section_en, section_ko, name_en, causes_en,
+                 pages, source_flags, state,
+                 norms: [{ norm_id, name_ko, causes_ko, confidence, flags, staged_by, created_at }] }] }]
+  # norms 는 norm_id 내림차순 — 첫 항목이 최신
+
+POST /api/onboarding/promote
+  body: { model: str, code: str, primary_row_id: int,
+          rows: [{ row_id: int, norm_id: int }], acknowledged_flags: list[str] = [] }
+  → 201 { promo_id, model, code,
+          error_code: { code, display_code, error_name, severity, causes, actions,
+                        manual_page, actions_source },
+          chunk_ids: [...] }
+
+POST /api/onboarding/rows/{row_id}/reject
+  body: { note: str }
+  → 200 { row_id, state: "rejected" }
+
+GET  /api/onboarding/safety?model=HV600
+  → [{ cand_id, page, also_pages, kind, quote_en, wait_minutes_in_text, state,
+       approved_text, approved_by, approved_at, text_reviewed_at }]
+
+POST /api/onboarding/safety/{cand_id}/approve
+  body: { approved_text: str, text_reviewed: true }
+  → 200
+
+POST /api/onboarding/safety/{cand_id}/reject
+  body: { note: str }
+  → 200
+```
+
+**`POST /promote` 검증 (하나라도 실패하면 아무것도 쓰지 않는다, D156)**:
+
+| 조건 | HTTP | reason |
+|---|---|---|
+| `model` 이 `prompts.MODELS` 밖 | 422 | `invalid_model` |
+| `model` 이 `{iG5A, S100, IE5}`(시드 기종 — 파일이 정본, D148) | 422 | `seed_model_not_onboardable` |
+| `error_codes` 에 이미 같은 `(model, code)` | **409** | `already_promoted` |
+| `row_id` 가 존재하지 않음 | 404 | — |
+| `rows` 가 서로 다른 `(model, code)` 그룹을 섞음 | 422 | `mixed_group` |
+| 대상 행이 `state='staged'` 가 아님 | 409 | `row_not_staged` |
+| `primary_row_id` 가 `rows` 목록 안에 없음 | 422 | — |
+| `norm_id` 가 그 `row_id` 소속이 아님 | 422 | `norm_mismatch` |
+| 그룹의 `staged` 행 중 body 에 없는 행이 있음(누락 방지) | 422 | `group_incomplete` + 누락 `row_ids` |
+| 선택된 `norm.flags ∪ row.source_flags` 가 `acknowledged_flags` 에 다 포함되지 않음 | 422 | `flags_not_acknowledged` + 목록 |
+
+통과하면 **한 트랜잭션**(`backend.db.connect()`)으로 `INSERT error_codes` 1행 →
+`INSERT manual_chunks` N행(`embedding NULL`) → 포함 행 `UPDATE onboarding_code_rows SET
+state='approved', reviewed_by, reviewed_at=now` → `INSERT onboarding_promotions`. 병합 규칙
+(순서·`error_name`·`severity`·`causes`/`actions` 접두·청크 분할)은 **D156 전문 참조** —
+이 문서에서 다시 옮기지 않는다(정본은 결정록 하나).
+
+**`POST /safety/{cand_id}/approve` 검증 (D157·safety-guardrail 규칙 3)**:
+
+| 조건 | HTTP | reason |
+|---|---|---|
+| 대상 행이 `state='staged'` 가 아님 | 409 | — |
+| `approved_text` 공백 | 422 | — |
+| `text_reviewed` 가 `true` 가 아님 | 422 | — |
+| `wait_minutes_in_text IS NULL` 인데 `approved_text` 에 `\d+\s*분` 이 있음(원문에 없는 숫자를 지어냄) | 422 | `number_not_in_source` |
+| `wait_minutes_in_text = n` 인데 `approved_text` 에 `f"{n}분"` 이 없음(임의 단축·변형) | 422 | `wait_value_mismatch` |
+| 같은 `model` 에 이미 `approved` 상태 `discharge_wait` 가 있고 이번도 `discharge_wait`(D157 fail-closed 모호성 사전 차단) | **409** | `already_approved_for_model` |
+
+통과하면 `UPDATE ... SET state='approved', approved_text, approved_by=c.user_id,
+approved_at=now, text_reviewed_at=now`.
+
+⛔ **승격 취소 API 는 없다** (범위 밖) — 잘못 승격하면 `error_codes`·`manual_chunks`
+(`onboarding_promotions.chunk_ids` 로 대상 특정)·`onboarding_promotions` 행을 사람이 SQL 로
+직접 정리한다(`TODO_직접할일.md` H10).
+
+**교정 경로**: `POST /rows/{row_id}/reject`(반려, 재정규화 유도) 또는 `safety/{cand_id}/reject` —
+승격·안전 승인 자체를 되돌리는 PATCH 는 없다(위 한계 참고). 화면(§ MQ-1911, 컷 후보)이 붙기
+전까지는 `curl`/FastAPI `/docs` 로 위 엔드포인트를 직접 호출한다(컷 라인 C2).
+
 ---
 
 ## 3. 평가셋 스키마 (`eval/testset.json`)

@@ -1,0 +1,44 @@
+# MaintQ — 온보딩 NAT 샌드박스용 이미지 (D153, MQ-1901)
+#
+# `deploy/openshell/Dockerfile.sandbox` 가 요구하는 OpenShell 슈퍼바이저 도구
+# (iproute2·nftables)와 비root 실행(uid 1000)을 따르되, 내용물은 완전히 별개다 —
+# 이 이미지는 MaintQ 백엔드·Postgres 를 담지 않는다. `onboarding/nat`(별도 uv 프로젝트,
+# 레포 본 pyproject.toml 과 분리) 만 복사해 `uv sync` 한다.
+#
+# ⛔ 키를 넣지 않는다. NVIDIA 추론 키는 게이트웨이 provider 에만 등록돼 있고
+#    (`openshell provider list`), 샌드박스는 `https://inference.local` 로만 부른다(D143).
+#    MCP bearer(`MAINTQ_MCP_TOKEN`)도 이미지에 없다 — `--env` 로 기동 시 주입한다.
+#
+# 빌드 (레포 루트에서):
+#   docker build -f deploy/openshell/Dockerfile.nat -t maintq-nat:spike .
+FROM python:3.13-slim
+
+# OpenShell 슈퍼바이저가 요구하는 호스트 도구 — 없으면 컨테이너가 즉시 종료된다
+# (Dockerfile.sandbox 주석 · 0.0.116 실측과 동일한 요구사항).
+#   iproute2 (`ip`)  — 네트워크 네임스페이스 생성.
+#   nftables (`nft`) — 정책 DNS·투명 TCP.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 nftables curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+RUN groupadd -g 1000 maintq \
+    && useradd -u 1000 -g 1000 -M -d /app -s /usr/sbin/nologin maintq \
+    && mkdir -p /app/onboarding/nat \
+    && chown -R 1000:1000 /app
+
+WORKDIR /app/onboarding/nat
+COPY --chown=1000:1000 onboarding/nat/pyproject.toml onboarding/nat/uv.lock ./
+
+USER 1000:1000
+
+# 별도 uv 프로젝트 — 레포 본 pyproject.toml/uv.lock 과 완전히 분리된 lockfile.
+# `--frozen` 으로 이 스파이크에서 실측 확인한 버전(nvidia-nat==1.9.0 등)을 그대로 고정한다.
+RUN uv sync --frozen
+
+ENV MAINTQ_SANDBOX=openshell
+
+# 샌드박스는 대화형 exec 대상이다(`openshell sandbox exec maintq-nat -- ...`) —
+# 이미지 자체는 아무 서비스도 열지 않고 계속 살아만 있는다.
+CMD ["sleep", "infinity"]

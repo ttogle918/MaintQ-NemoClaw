@@ -27,24 +27,32 @@
 
 ## 절대 규칙 (위반 금지)
 
-1. **MCP 도구는 `po_drafts`·`decisions`·`repair_records` 에 draft INSERT만 가능.** UPDATE 코드를 도구에 추가하지 말 것.
+1. **MCP 도구는 `po_drafts`·`decisions`·`repair_records` 에 draft INSERT, 온보딩 스테이징 테이블에 staged INSERT만 가능** (D154). UPDATE 코드를 도구에 추가하지 말 것.
    상태 전이는 사람 전용 API만 — `backend/routers/po.py`(발주) · `backend/routers/decisions.py`(처분) ·
    `backend/routers/repairs.py`(수리, D98) (D10·D81)
    - 🔵 **`get_document_facts` 는 읽기 전용이다** (D125) — 결재 문서에 찍힐 값을 조회만 한다.
      교정은 UPDATE 가 아니라 `create_po_draft` **새 draft INSERT** 또는 사람의 화면 수정
      (`PATCH /api/po`·`/api/repairs`·`/api/decisions`)이다. 같은 요구가 다시 오면
      `docs/07_BACKLOG.md` 「아이디어 주차장」의 거부 경위를 볼 것
-   - 쓰기 도구는 **3종**: `create_po_draft` · `generate_disposal_document` · `create_repair_record`.
-     커넥션도 분리한다(`db.draft_writer()` / `db.decision_writer()` / `db.repair_writer()`) —
-     섞으면 TEMP TRIGGER 잠금이 사라진다
+   - 쓰기 도구는 **진단·발주·처분 쓰기 도구 3종 + 온보딩 스테이징 쓰기 도구 1종 = 4종**:
+     `create_po_draft` · `generate_disposal_document` · `create_repair_record` (이 3종은 각각
+     `po_drafts`·`decisions`·`repair_records` draft INSERT 만) + **`stage_code_normalization`**
+     (`onboarding_writer()`, 스테이징 4테이블 INSERT 만 — D154, 확정 2026-09-24).
+     커넥션도 대상 테이블별로 분리한다(`db.draft_writer()` / `db.decision_writer()` /
+     `db.repair_writer()` / `mcp_server.db.onboarding_writer()`) — 섞으면 TEMP TRIGGER·역할
+     GRANT 잠금이 사라진다
    - `generate_disposal_document` 에 `override`·`override_reason`·`reviewed_by` 파라미터를 **추가하지 말 것** (D81)
    - 🔵 **화면 직접 생성(`POST /api/po`)은 이 규칙(D10) 대상이 아니다** (D111) — MCP 도구가 아니라
      백엔드 쓰기라 처음부터 UPDATE 권한이 있다. 산출 로직은 `data/po_draft.py` 공유 계층에서
      `create_po_draft`(MCP)와 동일하게 검증된다
 2. **에러코드 정의 조회는 lookup(exact match), 절차 서술은 RAG.** 이 경계를 흐리는 코드 금지 (D1)
 3. **점검 절차 출력에는 안전 경고 필수** — safety-guardrail 스킬 규칙 준수. 안전 문구는 매뉴얼 근거(페이지) 없이 생성 금지
-4. **model 파라미터는 enum('iG5A','S100','IE5') 강제** (D6, D13, D109 — IE5 는 정의 조회 경로만.
-   `equipment.model` CHECK 는 여전히 2종, 안전 문구·RAG 청킹은 IE5 미확장)
+4. **model 파라미터는 enum('iG5A','S100','IE5','HV600') 강제** (D6, D13, D109, **D146**(Sprint 19 H0
+   확정 2026-09-24) — IE5 는 정의 조회 경로만. `equipment.model` CHECK 는 여전히 2종(D109) +
+   **HV600 1종(D146 — 설비 행이 필요해 IE5 와 다르게 CHECK 에도 넣는다)**, 안전 문구·RAG 청킹은
+   IE5 미확장. **HV600 은 enum 에 먼저 등록만 되고 「진단 가능」은 DB 온보딩 승격 상태로 게이트한다**
+   (D146) — 승격 전 `lookup_error_code(model="HV600")` 는 `not_found`(절대규칙 6 그대로), 안전
+   문구는 매뉴얼에 정적으로 넣지 않고 **DB 승인분만** 런타임에 읽는다(D157))
 5. **`data/raw/`는 읽기 전용** — 매뉴얼 원본 수정 금지, git에도 올리지 않음 (.gitignore 확인)
    - 🔴 **예외가 셋 있다 (D103, Sprint 13)**:
      ㉠ **git 추적 예외** — `data/raw/external/<source>/*.json`(외부 API 응답 원본) +

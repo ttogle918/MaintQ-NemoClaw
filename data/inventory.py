@@ -16,7 +16,7 @@ from data.dbcompat import DbConnection
 import json
 import sqlite3
 
-VALID_MODELS = ("iG5A", "S100", "IE5")
+VALID_MODELS = ("iG5A", "S100", "IE5", "HV600")
 
 
 def search(

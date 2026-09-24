@@ -27,7 +27,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 #: model enum — 기종은 3개로 고정 (D6 · D13 · D109)
-MODELS: tuple[str, ...] = ("iG5A", "S100", "IE5")
+MODELS: tuple[str, ...] = ("iG5A", "S100", "IE5", "HV600")
 
 MANIFEST_PATH: Path = Path(__file__).resolve().parent.parent / "data" / "raw" / "manifest.json"
 

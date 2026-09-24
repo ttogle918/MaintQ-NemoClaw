@@ -38,7 +38,7 @@ DESCRIPTION = (
     "수량이 공급사 MOQ에 미달하면 거부되므로 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 )
 
-VALID_MODELS = ("iG5A", "S100", "IE5")
+VALID_MODELS = ("iG5A", "S100", "IE5", "HV600")
 
 
 def create_po_draft(

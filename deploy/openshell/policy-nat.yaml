@@ -1,0 +1,52 @@
+# MaintQ 온보딩 NAT 샌드박스 정책 (D153, MQ-1901)
+#
+# `deploy/openshell/policy.yaml`(진단 샌드박스 `maintq`/`maintq-agent` 용) 의 복제 —
+# 기본 전부 차단은 그대로 두고 network_policies 에 두 항목만 더한다:
+#   1) NVIDIA 추론 — 게이트웨이의 inference.local 경유 (D143, network_policies 에 적지
+#      않는다 — 게이트웨이가 가로채 키를 주입한다).
+#   2) MaintQ MCP-HTTP — **이 스파이크에서는 host.openshell.internal:8775 만 연다.**
+#      운영 중인 core 프로필 서버(127.0.0.1:8765, OpenClaw `maintq-agent`가 이미 붙어
+#      있음)를 공유 스파이크가 건드리지 않도록 **별도 포트 + 별도 토큰**으로 띄운 MCP
+#      서버(`MAINTQ_MCP_HTTP_PORT=8775`, D150 http_entry)만 허용한다. 실 배포 시
+#      포트 배선은 MQ-1905 명세(core=8765, onboarding=8766)를 따른다 — 여기 8775 는
+#      이 스파이크 세션 한정 값이다.
+#
+# binary 는 실체 경로(day1 §7 함정 — 심링크 아님). uv venv 의
+# `/app/onboarding/nat/.venv/bin/python` 은 **심링크**다 —
+# `readlink -f`(이미지 실측)로 확인한 실체는 `/usr/local/bin/python3.13`.
+version: 1
+
+filesystem_policy:
+  include_workdir: false
+  read_only:
+    - /usr
+    - /lib
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /app
+  read_write:
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: "1000"
+  run_as_group: "1000"
+
+network_policies:
+  maintq_mcp_spike:
+    name: maintq-mcp-spike
+    endpoints:
+      - host: host.openshell.internal
+        port: 8775
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/mcp" }
+          - allow: { method: GET, path: "/mcp" }
+          - allow: { method: DELETE, path: "/mcp" }
+    binaries:
+      - { path: /usr/local/bin/python3.13 }

@@ -17,10 +17,10 @@ CREATE TABLE error_codes (
   actions_page      INTEGER,
   PRIMARY KEY (model, code),
   CHECK (severity IN ('warning','fault','critical')),
-  -- code 형식 (D33): 대문자·숫자·언더스코어 2~4자
-  CHECK (length(code) BETWEEN 2 AND 4
+  -- code 형식 (D33 → D155 개정): 대문자·숫자·언더스코어·하이픈 2~5자
+  CHECK (length(code) BETWEEN 2 AND 5
          AND code = upper(code)
-         AND code ~ '^[A-Z0-9_]+$'),
+         AND code ~ '^[A-Z0-9_-]+$'),
   CHECK ((actions_manual_id IS NULL) = (actions_page IS NULL))
 );
 
@@ -86,7 +86,7 @@ CREATE TABLE equipment (
   installed_at DATE,
   location     TEXT,
   asset_id     TEXT REFERENCES assets,     -- D68. NULL 허용 = 호스트 자산 없음(분전반 등)
-  CHECK (model IN ('iG5A','S100'))
+  CHECK (model IN ('iG5A','S100','HV600'))
 );
 
 CREATE TABLE error_history (
@@ -168,9 +168,9 @@ CREATE TABLE po_drafts (
   CHECK (state IN ('draft','pending','approved','rejected','finance_approved','finance_rejected')),
   CHECK (urgency IN ('urgent','normal')),
   CHECK (error_code IS NULL OR (
-           length(error_code) BETWEEN 2 AND 4
+           length(error_code) BETWEEN 2 AND 5
            AND error_code = upper(error_code)
-           AND error_code ~ '^[A-Z0-9_]+$')),
+           AND error_code ~ '^[A-Z0-9_-]+$')),
   CHECK ((model IS NULL) = (error_code IS NULL)),
   CHECK (evidence IS NULL OR (evidence::jsonb IS NOT NULL))
 );
@@ -472,7 +472,7 @@ CREATE TABLE manual_chunks (
   char_len   INTEGER NOT NULL,
   embedding  vector(2048),
   embedded_at TIMESTAMP,
-  CHECK (model IN ('iG5A','S100','IE5'))
+  CHECK (model IN ('iG5A','S100','IE5','HV600'))
 );
 
 CREATE INDEX idx_manual_chunks_model ON manual_chunks(model);

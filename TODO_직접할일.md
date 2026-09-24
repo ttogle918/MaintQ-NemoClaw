@@ -490,3 +490,41 @@ Claude가 대신 못 하는 것들. 순서대로.
 알려주지 않는다"*).
 
 ⚠ Claude 가 대신 판단하지 않는다 — 법적 효력이 있는 서류의 문안이다.
+
+## Sprint 19 — HV600 온보딩 사람 대기 (2026-09-24 신설, MQ-1902)
+
+상세: `docs/sprints/sprint-19.md §5`(수동 체크리스트 원본) · 대상 결정 D154~D157(✅ 2026-09-24 확정,
+`docs/10_DECISIONS.md`). **아래 표는 §5 를 그대로 옮긴 것**이다 — 이 절이 최신본이면 그쪽을
+갱신하지 않고 이 표만 고친다(중복 관리 금지, `_notice()` 관행과 같은 이유).
+
+- [x] **H0 (Stage 1 끝) — D154~D157 문안 확인·승인.** ✅ 2026-09-24 사용자 확정(추천안 그대로) 이 스프린트 계획이 제안한 결정 4건
+      (`docs/10_DECISIONS.md` D154~D157, 확정 후 ✅ 표시)을 사람이 읽고 승인해야 **Stage 2 전체**가
+      착수된다 — 온보딩 스테이징 테이블·역할·도구 프로필(D154)·에러코드 형식 확장(D155)·승격
+      병합 규칙(D156)·안전 문구 런타임 원천(D157) 중 하나라도 다시 뒤집히면 Stage 2~4 가 그 위에서
+      돌기 때문이다.
+- [ ] **H1 (Stage 1 중) — NAT 스파이크 중 `sudo`·게이트웨이 복구.** MQ-1901 진행 중 필요해지면
+      수행(`docs/hackathon/day2.md §5` 절차). 막는 것: MQ-1901 L0(샌드박스 안 NAT) 달성.
+- [ ] **H2 (Stage 3 끝) — HV600 정규화 검수.** 최소 데모 코드(`GF`·`OC`·`OV`·`UV1`·`OH`·`CPF06`·
+      `EF1`·`CE`)의 전 구역 행을 원문과 대조, `confidence=low` 행을 우선 확인. 막는 것: 승격(H3).
+- [ ] **H3 (H2 뒤) — 승격 클릭.** 화면(MQ-1911, 컷 후보) 또는 `curl`(`POST /api/onboarding/promote`,
+      manager 권한)로 승격, `flags` 확인 체크를 반드시 포함한다. 막는 것: 데모 ④(승격 후 정의 응답).
+- [ ] **H4 (Stage 3 끝) — HV600 안전 문구 승인.** 원문 인용·페이지를 직접 대조하고 한국어 문안을
+      **직접 작성**한다(자동 채우기 없음, D147). ⚠ 대기 시간이 원문에 숫자로 없고 "경고 라벨 표시
+      시간"만 있으면 **숫자를 넣지 않는다** — API 가 `number_not_in_source` 로 거부한다. ⚠
+      safety-guardrail 규칙 3 의 "10분 이상"은 iG5A·S100 확정값이다 — HV600 원문 값이 다르면
+      **스킬 문구의 적용 범위를 기종별로 개정할지는 사람이 결정**한다(Claude 가 스킬을 고치지
+      않는다). 막는 것: 데모 ⑤(승인 후 경로).
+- [ ] **H5 (H3·H4 뒤) — `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent`
+      에 재설치.** 막는 것: OpenClaw 진단 흐름에서 HV600 안전 문구가 실제로 나오는 것.
+- [ ] **H6 (Stage 4) — SkillSpector 결과(신규·수정 스킬) 수용 판정.** 막는 것: 제출물.
+- [ ] **H7 (Stage 4) — 데모 녹화** (과부하 O1 대비 — 라이브 시연보다 녹화 권장). 막는 것: 제출.
+- [ ] **H8 (필요 시) — 웹 콘솔 샌드박스(`maintq`)에서 HV600 을 보이려면** 호스트 DB 덤프 →
+      `Dockerfile.sandbox` 재빌드 → 샌드박스 재생성(`docs/hackathon/day1.md §6`). 막는 것: 웹 콘솔
+      데모. ⚠ `--no-privileges` 덤프라 온보딩 역할·GRANT 가 옮겨지지 않는다 — 샌드박스 안에서
+      온보딩을 다시 돌리지 않으므로 무관하다.
+- [ ] **H9 (상시) — 데모 전 `data/seed.py` 재실행 금지.** 재실행은 `DROP SCHEMA public CASCADE`
+      라 스테이징·승격분이 전부 사라진다. 실수로 재실행했다면 적재기(`mcp_server.onboarding_load`)·
+      정규화(`onboarding/nat/run_normalize.py`)·승격(H3)·안전 승인(H4)을 처음부터 다시 한다.
+- [ ] **H10 (잘못 승격 시) — 승격 취소 API 가 없다.** `error_codes`·`manual_chunks`(대상 `chunk_id`
+      는 `onboarding_promotions.chunk_ids` 에서 확인)·`onboarding_promotions` 행을 삭제하고
+      `onboarding_code_rows`/`onboarding_safety_candidates` 의 `state` 를 사람이 SQL 로 되돌린다.

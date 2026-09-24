@@ -118,7 +118,7 @@ class NotEditableError(Exception):
         )
 
 
-_VALID_MODELS = ("iG5A", "S100", "IE5")
+_VALID_MODELS = ("iG5A", "S100", "IE5", "HV600")
 
 
 def _validate_input(

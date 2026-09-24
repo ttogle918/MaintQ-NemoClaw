@@ -48,7 +48,7 @@ _DEFAULT_INDEX = (
 # (mcp_server/db.py 의 DB_PATH 와 같은 방식)
 INDEX_PATH = Path(os.environ.get("MAINTQ_CHUNKS") or _DEFAULT_INDEX)
 
-MODELS = ("iG5A", "S100", "IE5")
+MODELS = ("iG5A", "S100", "IE5", "HV600")
 
 DEFAULT_TOP_K = 3
 MAX_TOP_K = 10

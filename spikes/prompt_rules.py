@@ -117,8 +117,8 @@ def run() -> None:
         raised = True
     both_ok = all(build_system_prompt(m).endswith("이 값을 쓴다") for m in MODELS)
     check(
-        "⑤ build_system_prompt('iS7') → ValueError, enum 3종은 통과",
-        raised and both_ok and tuple(MODELS) == ("iG5A", "S100", "IE5"),
+        "⑤ build_system_prompt('iS7') → ValueError, enum 4종은 통과",
+        raised and both_ok and tuple(MODELS) == ("iG5A", "S100", "IE5", "HV600"),
         f"ValueError={raised}, MODELS={MODELS}",
     )
 
@@ -192,16 +192,17 @@ def run() -> None:
         for s in SAFETY_SOURCES
         if s["model"] == m and "10분 이상" in str(s["quote"])
     }
-    # IE5 는 SAFETY_BASELINE 근거 미확보 — 의도적 제외(D109 ⓐ, 절대규칙 3).
+    # IE5·HV600 은 SAFETY_BASELINE 근거 미확보 — 의도적 제외(D109 ⓐ, D157, 절대규칙 3).
+    # HV600 은 정적 상수가 아니라 DB 승인분(onboarding_safety_candidates)에서 나온다 — D157.
     # ⚠ `baseline_quoted <= set(MODELS)` 는 baseline_quoted 자체가 `for m in MODELS` 컴프리헨션
     # 산물이라 **항상 참인 항등식**이었다(뮤턴트로 실증: SAFETY_SOURCES 에서 "10분 이상" 문구를
-    # 전부 지워도 이 축은 여전히 통과한다 — reviewer 지적, P30 유형 무력화). 대신 "IE5 를 뺀
-    # 나머지 MODELS 는 반드시 원문 근거를 가져야 한다"는 실질 제약으로 되돌린다. 모델 누출 방지
-    # 축(SAFETY_SOURCES 가 가리키는 모델이 MODELS 밖으로 새지 않는가)은 `safety_models <=
+    # 전부 지워도 이 축은 여전히 통과한다 — reviewer 지적, P30 유형 무력화). 대신 "IE5·HV600 을
+    # 뺀 나머지 MODELS 는 반드시 원문 근거를 가져야 한다"는 실질 제약으로 되돌린다. 모델 누출
+    # 방지 축(SAFETY_SOURCES 가 가리키는 모델이 MODELS 밖으로 새지 않는가)은 `safety_models <=
     # set(MODELS)` 로 그대로 유지한다.
-    required_quoted = set(MODELS) - {"IE5"}
+    required_quoted = set(MODELS) - {"IE5", "HV600"}
     check(
-        "⑭ SAFETY_SOURCES 에 매뉴얼 원문·페이지 기록 (IE5 는 근거 미확보로 의도적 제외 — D109)",
+        "⑭ SAFETY_SOURCES 에 매뉴얼 원문·페이지 기록 (IE5·HV600 은 근거 미확보로 의도적 제외 — D109·D157)",
         {("iG5A", 4), ("S100", 2)} <= src_pages
         and safety_models <= set(MODELS)
         and required_quoted <= baseline_quoted  # iG5A·S100 은 "10분 이상" 원문 근거 필수

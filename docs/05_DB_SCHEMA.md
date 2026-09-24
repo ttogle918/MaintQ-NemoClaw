@@ -10,22 +10,31 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 → **Sprint 11 (기한·사고·실사 보존·위험 프로파일, F5·F6)에서 4개 추가** — `deadlines`·`incidents`·
 `ownership_checks`·`risk_profile` (§20~§23). `11_ASSET_LIFECYCLE.md §10-2` 가 초안으로 남겨 둔
 4테이블을 DDL로 확정한다 (MQ-1101).
+→ **D117(dense 임베딩)에서 1개 추가** — `manual_chunks` (§24). 테이블은 처음부터
+`scripts/postgres_schema.sql` 에 있었으나 이 문서에는 2026-09-04 까지 절이 비어 있었다(§24 참고).
+→ **Sprint 19(HV600 온보딩 스테이징, D154, 확정 2026-09-24)에서 5개 추가** —
+`onboarding_batches`·`onboarding_code_rows`·`onboarding_normalizations`·
+`onboarding_safety_candidates`·`onboarding_promotions` (§25~§29).
 
 > **세는 단위 주의 — 절과 `CREATE TABLE`은 다른 것을 센다.** 아래 두 숫자는 서로 다른 것을 센다.
 > 문장을 읽을 때 *"절"* 을 세는지 *"`CREATE TABLE`"* 을 세는지 반드시 구분할 것.
 >
-> - **`CREATE TABLE` 은 24개다** (`data/seed.py` 의 `SCHEMA` 기준) —
+> - **`CREATE TABLE` 은 (Sprint 19 반영 전 기준) 25개다** (`scripts/postgres_schema.sql` 기준,
+>   `data/seed.py` 의 SQLite `SCHEMA` 에는 `manual_chunks` 가 없어 24개 — §24 참고) —
 >   코어 **11개** + Sprint 6 **7개** + Sprint 8 **1개**(`partner_links`) + Sprint 10 **1개**
 >   (`part_lifecycle_mock`) + Sprint 11 **4개**(`deadlines`·`incidents`·`ownership_checks`·
->   `risk_profile`).
-> - **절(§)은 23절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17` **7절**, `§18` **1절**,
->   `§19` **1절**, `§20`~`§23` **4절**.
+>   `risk_profile`) + D117 **1개**(`manual_chunks`). **Sprint 19 MQ-1905 가 적용되면 30개**가 된다
+>   (+5, `onboarding_*` 5테이블 — MQ-1905, `data/seed.py` 에는 넣지 않는다, §24 선례와 동일).
+> - **절(§)은 (Sprint 19 반영 전 기준) 24절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17`
+>   **7절**, `§18` **1절**, `§19` **1절**, `§20`~`§23` **4절**, `§24` **1절**(`manual_chunks`).
+>   **Sprint 19 MQ-1905 가 적용되면 29절**이 된다(+5, `§25`~`§29`).
 > - 절보다 `CREATE TABLE` 이 1개 많은 이유는 **`§7`이 `suppliers`와 `supplier_parts`
 >   두 테이블을 함께 다루기 때문**이다.
 > - **`§10`은 존재하지 않는다** (`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
 >   `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
 >   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 `§18`을, Sprint 10 은
->   `§19`를, Sprint 11 은 `§20`~`§23`을 끝에 잇기만 한다.
+>   `§19`를, Sprint 11 은 `§20`~`§23`을, D117 은 `§24`를, Sprint 19 는 `§25`~`§29`를 끝에
+>   잇기만 한다.
 
 ---
 
@@ -81,11 +90,11 @@ CREATE TABLE error_codes (
   actions_manual_id TEXT,
   actions_page      INTEGER,
   PRIMARY KEY (model, code),           -- ★ 복합키 = "같은 코드, 다른 의미" 구현
-  -- code 형식 제약 (D33): 대문자·숫자·언더스코어 2~4자.
-  -- 실측 64건 전부 이 범위 (3자 51 / 4자 12 / 2자 1, 최장 'FLTL'·'RERR' 등 4자)
-  CHECK (length(code) BETWEEN 2 AND 4
+  -- code 형식 제약 (D33 → D155 개정): 대문자·숫자·언더스코어·하이픈 2~5자.
+  -- 기존 실측 64건은 2~4자 [A-Z0-9_] (좁은 조건 ⊂ 넓은 조건). HV600 에 5자(CPF06)·하이픈(ER-01) 코드가 있다
+  CHECK (length(code) BETWEEN 2 AND 5
          AND code = upper(code)
-         AND code NOT GLOB '*[^A-Z0-9_]*'),
+         AND code ~ '^[A-Z0-9_-]+$'),
   -- ★ Sprint 9 신설 (D100) — 둘 다 있거나 둘 다 없거나
   CHECK ((actions_manual_id IS NULL) = (actions_page IS NULL))
 );
@@ -289,11 +298,11 @@ CREATE TABLE po_drafts (
 
   CHECK (state IN ('draft','pending','approved','rejected','finance_approved','finance_rejected')),
   CHECK (urgency IN ('urgent','normal')),
-  -- code 형식: 대문자 canonical, 2~4자 (실측 64건 전부 이 범위 — 3자 51 / 4자 12 / 2자 1)
+  -- code 형식: 대문자 canonical, 2~5자·하이픈 허용 (D33 → D155 개정)
   CHECK (error_code IS NULL OR (
-           length(error_code) BETWEEN 2 AND 4
+           length(error_code) BETWEEN 2 AND 5
            AND error_code = upper(error_code)
-           AND error_code NOT GLOB '*[^A-Z0-9_]*')),
+           AND error_code ~ '^[A-Z0-9_-]+$')),
   -- 둘 다 있거나 둘 다 없거나 (model만 있고 code가 없는 상태를 막음)
   CHECK ((model IS NULL) = (error_code IS NULL)),
   CHECK (evidence IS NULL OR json_valid(evidence))
@@ -1116,7 +1125,7 @@ CREATE TABLE manual_chunks (
   char_len    INTEGER NOT NULL,
   embedding   vector(2048),                   -- NULL = 아직 임베딩 안 됨
   embedded_at TIMESTAMP,
-  CHECK (model IN ('iG5A','S100','IE5'))
+  CHECK (model IN ('iG5A','S100','IE5','HV600'))   -- D146 (Sprint 19 MQ-1903)
 );
 
 CREATE INDEX idx_manual_chunks_model ON manual_chunks(model);
@@ -1161,6 +1170,155 @@ MCP 쓰기 도구 3종은 이 테이블에 관여하지 않는다 — **D10 대�
 됐고, `public` 도 0행이던 동안은 차이가 드러나지 않았다. 코퍼스를 임베딩한 뒤에는
 **격리 스파이크만 dense 결과가 비는** 상태가 됐을 것이다 — 실패가 아니라 "검색 결과 없음"
 으로 보여 알아채기 어려운 종류라, 그렇게 되기 전에 목록에 넣었다(2026-09-04, 25개).
+
+---
+
+# Sprint 19 확장 — HV600 온보딩 스테이징 (D154, 확정 2026-09-24)
+
+> 새 기종(HV600 등) 매뉴얼을 온보딩할 때 원문·정규화문·안전 문구 후보를 **정본에 바로 넣지
+> 않고** 스테이징하는 5테이블이다(MQ-1905). **DDL 정본은 `scripts/postgres_schema.sql`**이고
+> (§24 `manual_chunks` 와 같은 이유로 `data/seed.py` 의 SQLite `SCHEMA` 에는 넣지 않는다 —
+> Postgres 전용, D117 선례), 아래는 그 사본이다.
+>
+> ⛔ **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
+> ·`stage_code_normalization` 4종뿐이다(D154 — 절대규칙 1 개정).** 이 중 `stage_code_normalization`
+> 만 아래 스테이징 4테이블(`onboarding_batches`·`onboarding_code_rows`·`onboarding_normalizations`·
+> `onboarding_safety_candidates`)에 **INSERT** 한다 — 전용 DB 역할 `maintq_onboarding`(NOLOGIN)
+> 이 그 4테이블 `INSERT, SELECT` 만 GRANT 받고 그 밖은 GRANT 자체가 없어 기본 거부다. 상태 전이
+> (`staged→approved/rejected`)와 `error_codes`·`manual_chunks`·`onboarding_promotions` 에 대한
+> 쓰기는 **사람 전용 API**(`backend/routers/onboarding.py`, D156)만 한다 — 도구는 여전히 정본을
+> 만들지 못한다.
+
+## 25. onboarding_batches — 적재 배치
+
+```sql
+CREATE TABLE onboarding_batches (
+  batch_id BIGSERIAL PRIMARY KEY,
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  manual_id TEXT NOT NULL,             -- manifest id ('hv600-iopm')
+  pdf_sha256 TEXT NOT NULL,            -- 후보 JSON _source.sha256
+  candidates_sha256 TEXT NOT NULL,     -- 후보 JSON 파일 자체의 sha256 (멱등 키)
+  loaded_by TEXT NOT NULL,             -- 감사 라벨 (D154 — users FK 아님)
+  loaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (manual_id, candidates_sha256));
+```
+
+`(manual_id, candidates_sha256)` 유니크가 **적재기의 멱등 키**다 — 같은 후보 파일을 두 번
+적재해도 두 번째는 아무것도 쓰지 않고 종료코드 3을 낸다(`mcp_server/onboarding_load.py`).
+
+## 26. onboarding_code_rows — 원문 고장 표 행
+
+```sql
+CREATE TABLE onboarding_code_rows (
+  row_id BIGSERIAL PRIMARY KEY,
+  batch_id BIGINT NOT NULL REFERENCES onboarding_batches,
+  ordinal INTEGER NOT NULL,            -- 후보 JSON codes[] 인덱스
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  code TEXT NOT NULL CHECK (length(code) BETWEEN 2 AND 5 AND code = upper(code) AND code ~ '^[A-Z0-9_-]+$'),
+  display_code TEXT NOT NULL,
+  section_en TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  causes_en TEXT NOT NULL CHECK (causes_en::jsonb IS NOT NULL),     -- [{cause, solutions[]}] 원문 그대로
+  pages TEXT NOT NULL CHECK (jsonb_array_length(pages::jsonb) >= 1), -- PDF 물리 페이지 (D26)
+  expanded_from TEXT,
+  source_flags TEXT NOT NULL DEFAULT '[]',                          -- 적재 시 onboarding_guard 판정
+  state TEXT NOT NULL DEFAULT 'staged' CHECK (state IN ('staged','approved','rejected')),
+  reviewed_by TEXT REFERENCES users, reviewed_at TIMESTAMP, review_note TEXT,
+  UNIQUE (batch_id, ordinal),
+  CHECK (state = 'staged' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+  CHECK (state <> 'rejected' OR length(trim(coalesce(review_note,''))) > 0));
+
+CREATE INDEX idx_onb_rows_group ON onboarding_code_rows(model, code);
+```
+
+`code` CHECK 는 **D155**(D33 개정) 형식과 완전히 같다 — 스테이징에서 거부되는 코드는 정본에서도
+거부돼야 하므로 세 자리(`error_codes.code`·`po_drafts.error_code`·여기)가 항상 같은 정규식을 쓴다.
+**같은 코드가 여러 구역에 걸치거나 같은 구역 안에서 이름이 반복(CE)돼도 합치지 않고 행을 각각
+둔다** — 병합은 승격 시점(§29, D156)에만 일어난다.
+
+## 27. onboarding_normalizations — 한국어 정규화 (재정규화는 새 행)
+
+```sql
+CREATE TABLE onboarding_normalizations (
+  norm_id BIGSERIAL PRIMARY KEY,
+  row_id BIGINT NOT NULL REFERENCES onboarding_code_rows,
+  name_ko TEXT NOT NULL CHECK (length(trim(name_ko)) > 0),
+  causes_ko TEXT NOT NULL CHECK (causes_ko::jsonb IS NOT NULL),     -- causes_en 과 같은 모양
+  confidence TEXT NOT NULL CHECK (confidence IN ('high','low')),    -- 서버 판정 반영 후 최종값
+  flags TEXT NOT NULL DEFAULT '[]',
+  agent_note TEXT,
+  staged_by TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);
+```
+
+**UPDATE 경로가 코드 어디에도 없다** — 재정규화는 항상 새 행 INSERT 다(`stage_code_normalization`,
+`04 §24`). 같은 `row_id` 에 여러 `norm_id` 가 쌓일 수 있고, 최신(`norm_id` 최댓값)이 기본 표시,
+승격 시 사람이 화면에서 `norm_id` 를 고른다.
+
+## 28. onboarding_safety_candidates — 안전 문구 후보 (원문 인용 + 승인)
+
+```sql
+CREATE TABLE onboarding_safety_candidates (
+  cand_id BIGSERIAL PRIMARY KEY,
+  batch_id BIGINT NOT NULL REFERENCES onboarding_batches,
+  ordinal INTEGER NOT NULL,
+  model TEXT NOT NULL CHECK (model IN ('iG5A','S100','IE5','HV600')),
+  page INTEGER NOT NULL CHECK (page >= 1),
+  also_pages TEXT NOT NULL DEFAULT '[]',
+  kind TEXT NOT NULL CHECK (kind IN ('discharge_wait','live_work','qualified_worker','other')),
+  quote_en TEXT NOT NULL CHECK (length(trim(quote_en)) > 0),
+  wait_minutes_in_text INTEGER,
+  state TEXT NOT NULL DEFAULT 'staged' CHECK (state IN ('staged','approved','rejected')),
+  approved_text TEXT, approved_by TEXT REFERENCES users,
+  approved_at TIMESTAMP, text_reviewed_at TIMESTAMP, review_note TEXT,
+  UNIQUE (batch_id, ordinal),
+  CHECK (state <> 'approved' OR (length(trim(coalesce(approved_text,''))) > 0 AND approved_by IS NOT NULL
+                                  AND approved_at IS NOT NULL AND text_reviewed_at IS NOT NULL)),
+  CHECK (approved_text IS NULL OR state = 'approved'),
+  CHECK (state <> 'rejected' OR length(trim(coalesce(review_note,''))) > 0));
+```
+
+`state='approved'` 로 존재하려면 `approved_text`·`approved_by`·`approved_at`·`text_reviewed_at`
+**네 컬럼이 모두** 있어야 한다는 CHECK 가 **D157**(안전 게이트 런타임 원천)의 fail-closed
+전제를 스키마 레벨로 강제한다 — 이 CHECK 를 통과하지 못한 행은 애초에 `resolve()` 후보가 될
+수 없다. `quote_en` 은 **매뉴얼 원문 인용**이지만(D144 예외 대상 — git 에는 올리지 않는다,
+아래 참고), `approved_text` 는 사람이 원문과 대조하며 직접 쓰는 한국어 문안이다.
+
+## 29. onboarding_promotions — 승격 이력
+
+```sql
+CREATE TABLE onboarding_promotions (
+  promo_id BIGSERIAL PRIMARY KEY,
+  model TEXT NOT NULL, code TEXT NOT NULL,
+  primary_row_id BIGINT NOT NULL REFERENCES onboarding_code_rows,
+  row_ids TEXT NOT NULL, norm_ids TEXT NOT NULL, chunk_ids TEXT NOT NULL,   -- JSON 배열
+  acknowledged_flags TEXT NOT NULL DEFAULT '[]',
+  promoted_by TEXT NOT NULL REFERENCES users,
+  promoted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (model, code),
+  FOREIGN KEY (model, code) REFERENCES error_codes(model, code));
+```
+
+`UNIQUE (model, code)` 가 **재승격을 막는 마지막 방어선**이다(D156) — 애플리케이션 계층의
+409 `already_promoted` 검증이 먼저 걸리지만, 이 제약이 있어 그 검증을 우회해도 DB 가 두 번째
+승격을 거부한다. `row_ids`·`norm_ids`·`chunk_ids` 는 "이 정본 행이 어느 스테이징 행들에서
+왔는가"를 추적하는 감사 기록이다 — 같은 canonical 코드에 다른 `display_code` 표기(예: `oH`/`OH`)
+가 섞였을 때 primary 아닌 표기를 여기서 찾는다(D156 엣지 케이스).
+
+### 정본 관계 — 이 5테이블 중 무엇이 "정본"인가
+
+| | 정본 | 비고 |
+|---|---|---|
+| 스테이징 원문·정규화·안전 후보 | 이 5테이블 자체(§25~§29) | 사람 검수 전 상태 — D106 의 "런타임 DB 질의 소비자가 생겼을 때만 승격" 전 단계 |
+| 승격 후 정의·본문 | `error_codes`·`manual_chunks`(§1·§24) | 승격(`POST /api/onboarding/promote`, D156)이 유일한 경로 |
+| 승격 후 안전 문구 | `onboarding_safety_candidates.approved_text`(이 테이블 자체) | `SAFETY_BASELINE` 코드 상수로 옮기지 않는다 — D157 이 런타임에 직접 읽는다 |
+
+### D144 와의 관계 — 원문 인용은 여전히 git 밖이다
+
+`onboarding_code_rows.causes_en`·`onboarding_safety_candidates.quote_en` 은 매뉴얼 원문
+문장을 그대로 담는다. **DB 값이지 이 문서의 값이 아니다** — 이 문서·산출물 JSON 은 코드·
+페이지·구조만 보여주고 원문 문장은 인용하지 않는다(절대규칙: D144 준수). 적재기 산출물
+(`data/extracted/hv600_code_candidates.json` 류)도 `.gitignore` 로 제외된다(MQ-1904).
 
 ---
 
