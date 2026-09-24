@@ -251,6 +251,7 @@ async def normalize(args: argparse.Namespace, level: str) -> dict:
     from nat.runtime.loader import load_config
 
     codes = {c.strip().upper() for c in (args.codes or "").split(",") if c.strip()}
+    rerows: set[int] = set(args.renormalize_rows or ())
     config = load_config(WORKFLOW)
     summary: dict = {
         "batch_id": args.batch_id,
@@ -290,8 +291,10 @@ async def normalize(args: argparse.Namespace, level: str) -> dict:
                     await list_fn.acall_invoke(
                         batch_id=args.batch_id,
                         after_row_id=cursor,
-                        limit=20 if codes else args.page,
-                        pending_only=True,
+                        limit=20 if (codes or rerows) else args.page,
+                        # 재정규화는 이미 정규화가 있는 행을 고른다 — 지정 row_id 만, 새 INSERT(행당 norm 2개,
+                        # 승격 화면은 norm_id 최신을 기본으로 보인다). 그 외엔 정규화 0건 행만(중복 방지)
+                        pending_only=not rerows,
                     )
                 )
                 if listed.get("status") == "empty":
@@ -305,6 +308,10 @@ async def normalize(args: argparse.Namespace, level: str) -> dict:
                 rows = listed["rows"]
                 if codes:
                     rows = [r for r in rows if str(r["display_code"]).upper() in codes]
+                if rerows:
+                    rows = [r for r in rows if int(r["row_id"]) in rerows]
+                    if cursor >= max(rerows):
+                        exhausted = True
                 buffer.extend(rows)
             page = buffer[:want]
             del buffer[:want]
@@ -423,6 +430,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--page", type=int, default=8)
     p.add_argument("--mcp-url", default=None)
     p.add_argument("--codes", default=None, help="쉼표 구분 코드 필터(대소문자 무시, 예: GF,OC,UV1)")
+    p.add_argument(
+        "--renormalize-rows",
+        default=None,
+        help="쉼표 구분 row_id — 이미 정규화된 행을 다시 정규화(새 INSERT). 프롬프트 수정 뒤 과탐 행 재처리용",
+    )
     p.add_argument("--report", default=None, help="행별 결과(번역문 제외) JSON 경로 — 선택")
     p.add_argument(
         "--token-stdin",
@@ -434,6 +446,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         p.error("--page 는 1~20")
     if args.max_rows < 1:
         p.error("--max-rows 는 1 이상")
+    if args.renormalize_rows:
+        try:
+            args.renormalize_rows = {int(x) for x in args.renormalize_rows.split(",") if x.strip()}
+        except ValueError:
+            p.error("--renormalize-rows 는 쉼표 구분 정수")
+        if args.codes:
+            p.error("--renormalize-rows 와 --codes 는 함께 쓰지 않는다")
     return args
 
 

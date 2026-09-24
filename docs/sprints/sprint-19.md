@@ -1017,3 +1017,9 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 - pytest **406**(138 · 168 · 20 · `mcp_server/` 80) · spikes 40종 전부 기준값(disposal 37 · promote 53 · safety_gate 22 신규/증가분 포함), `law_fetch ⓚ` 기존 오탐 1 ·
   NAT `build_prompt --check` 0 · 주입 게이트 5/5 · ruff·tsc 통과. **seed 자가검증은 생략**(시드가 LLM 정규화 249행을 지운다 — 복구 불가)
 - `build.py --check` → stale `AGENTS.md`(의도된 드리프트, `out/` 재생성은 H5)
+
+#### Stage 3 후속 (2026-09-25, 커밋 후)
+- 12행 재정규화(사용자 승인 — 공유 DB 쓰기): 첫 프롬프트 과탐 11행(End5~End9·Er-01·Er-02·PWEr·rdEr·vAEr·vFyE, 원문 `source_flags` 0) + CPF06(row 40).
+  `run_normalize.py --renormalize-rows` 옵션 추가, **L0** 실행 → 12/12 high(End5 는 shape_mismatch 1회 후 재실행 성공), 주입 표시 0.
+  최신 정규화 기준 **high 248 · low 1**(oL1 `untranslated_term`). 정규화 행 261(= 249 + 재정규화 12)
+- 공유 DB 의 스파이크 누수 처분서 DEC-0001·0002 삭제(사용자가 직접 실행) — decisions 0

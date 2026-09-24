@@ -47,6 +47,11 @@ printf '%s\n' "$TOKEN" | openshell sandbox exec -n maintq-nat --workdir /tmp/mq/
 - 셸에서 stdin 을 주지 않는 `exec` 은 `</dev/null` 을 붙인다(안 붙이면 멈춘 채 기다린다).
 - ⚠ 실행 stderr 에 매뉴얼 원문이 찍힌다 — **`2>` 로 파일에 리다이렉트하지 말 것**(D144 — 원문·번역문을 산출물로 남기지 않는다).
 
+### 재정규화 (이미 정규화된 행)
+
+프롬프트를 고친 뒤 과탐 행 등을 다시 돌릴 때 `--renormalize-rows 40,222,...` (쉼표 구분 row_id, `--codes` 와 함께 못 씀).
+새 INSERT 라 행당 정규화가 2개가 된다 — 승격 화면은 `norm_id` 최신을 기본으로 보인다.
+
 ## L1 — 호스트 실행
 
 ```bash
