@@ -4,7 +4,13 @@
 # 기본 전부 차단은 그대로 두고 network_policies 에 두 항목만 더한다:
 #   1) NVIDIA 추론 — 게이트웨이의 inference.local 경유 (D143, network_policies 에 적지
 #      않는다 — 게이트웨이가 가로채 키를 주입한다).
-#   2) MaintQ MCP-HTTP — **이 스파이크에서는 host.openshell.internal:8775 만 연다.**
+#   2) MaintQ MCP-HTTP — 두 항목:
+#      ⓐ `maintq_mcp_onboarding` — **운영** onboarding 프로필 MCP-HTTP #2
+#         (`host.openshell.internal:8766`, 데모 토폴로지 §3 · MQ-1908 추가). 정규화 드라이버
+#         `onboarding/nat/run_normalize.py` 가 여기로 붙는다. core 프로필 #1(8765)은 이 샌드박스에
+#         열지 않는다 — 온보딩 에이전트는 진단·발주 도구에 닿을 길이 없다(D154 프로필 배타).
+#      ⓑ `maintq_mcp_spike` — MQ-1901 스파이크 전용 8775(재현용으로 남긴다).
+#   (아래는 MQ-1901 원문) **이 스파이크에서는 host.openshell.internal:8775 만 연다.**
 #      운영 중인 core 프로필 서버(127.0.0.1:8765, OpenClaw `maintq-agent`가 이미 붙어
 #      있음)를 공유 스파이크가 건드리지 않도록 **별도 포트 + 별도 토큰**으로 띄운 MCP
 #      서버(`MAINTQ_MCP_HTTP_PORT=8775`, D150 http_entry)만 허용한다. 실 배포 시
@@ -37,6 +43,19 @@ process:
   run_as_group: "1000"
 
 network_policies:
+  maintq_mcp_onboarding:
+    name: maintq-mcp-onboarding
+    endpoints:
+      - host: host.openshell.internal
+        port: 8766
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/mcp" }
+          - allow: { method: GET, path: "/mcp" }
+          - allow: { method: DELETE, path: "/mcp" }
+    binaries:
+      - { path: /usr/local/bin/python3.13 }
   maintq_mcp_spike:
     name: maintq-mcp-spike
     endpoints:

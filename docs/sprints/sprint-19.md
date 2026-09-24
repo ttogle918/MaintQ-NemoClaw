@@ -769,6 +769,8 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
      0행·2행 이상·DB 예외(테이블 없음 포함) → None + `logger.warning`(2행 이상은 데이터 오류로 명시)
   2. `loop.py`: `_TurnState` 에 `self._safety` 캐시(턴당 1회 조회). `safety_page()` 는 `entry.page` 반환(None 이면 None). 블록 발행부의
      `prompts.SAFETY_BASELINE["title"]`/`["text"]` 를 `entry.title`/`entry.text` 로. **억제 분기(`:433-436`)·트리거 조건은 한 글자도 바꾸지 않는다**
+     - ⚠ **구현 편차 (2026-09-25, 리뷰 수용)**: 캐시는 「턴당 1회」가 아니라 **모델별 1회 조회**다 — 빈 모델(`None`)은
+       캐시하지 않는다(도구 호출로 모델이 관측되기 전의 `None` 을 턴 끝까지 붙들지 않기 위해, `onboarding_safety_gate ⓖ`)
   3. `build.py`: 기존 정적 안전 절 뒤에 「온보딩 승인 기종」 절 — `resolve("HV600")` 결과가 있으면 문구·근거 페이지·승인일, 없으면
      「HV600: 승인된 안전 문구 없음 — 위험 작업 절차를 안내하지 않는다(D147)」. DB 를 못 읽으면 **실패 종료**(조용히 「없음」으로 쓰지 않는다 — 부재가 사실인지 알 수 없다).
      `--check` 는 DB 상태까지 포함해 드리프트 판정
@@ -990,3 +992,28 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 - seed 43 · error_codes 70 · 테이블 30 · pytest **403**(138 · A2A 168 · 서비스 20 · `mcp_server/` 77) ·
   spikes 38종(35 + model_enum 10 · onboarding 9 · onboarding_rag 6) 전부 기준값 일치, `law_fetch ⓚ` 기존 오탐 1건 · ruff·tsc 통과
 - ⚠ `mcp_server/test_onboarding_guard.py` 는 `mcp_server/tools/` 밖이라 CLAUDE.md 의 기존 커맨드(`pytest mcp_server/tools/`)로 안 잡힌다 → **MQ-1913 이 `mcp_server/` 전체로 갱신**
+
+### Stage 3 완료 (2026-09-25)
+**커밋**: 이 기록과 같은 커밋 — `[M4] feat(onboarding): Sprint 19 Stage 3 — …`
+⚠ 서브에이전트 Sonnet 5 주간 한도(9/27 04:00 KST 리셋)에 걸려 1차 에이전트 3개가 중단 → Opus 로 재기동해 이어받았다.
+
+#### MQ-1908 (실행 레벨: 실데이터 **L0** · 주입 회귀 L1)
+- `onboarding/nat/{workflow.yml,glossary.json,build_prompt.py,run_normalize.py,run_injection_check.py,README.md}` · `maintq_nat/guarded_stage.py` · `fixtures/injection_candidates.json` ·
+  `skills/maintq-manual-onboarding/{SKILL.md,evals/evals.json}` · `deploy/openshell/policy-nat.yaml`(8766 추가)
+- 공유 DB batch 1 **249/249 정규화**(staged_by `nat-onboarding`, low 13 — injection_suspect 11(프롬프트 과탐) · token_dropped 5 · untranslated_term 1), 전량 2,588초
+- 주입 회귀 게이트 5/5 · SkillSpector 점수 20 · HIGH 1(`evals.json` 합성 주입 문장 — 리뷰 수용 권고, **H6 판정**)
+- 명세 이탈: `nvidia-nat-langchain[nvidia]` 추가 · 가드 래퍼 `guarded_stage.py`(페이지 밖·중복·행당 2회 상한) · `--codes`/`--report`/`--token-stdin` · Heatsink=「냉각핀」(기존 OHT 에 맞춤) · L0 aiohttp `trust_env`
+#### MQ-1909
+- `backend/services/onboarding.py` · `backend/routers/onboarding.py`(8 엔드포인트, `GET /status` 포함) · `backend/main.py` · `spikes/onboarding_promote_contract.py`(53)
+- `check_safety_text` 는 명세보다 엄격 — 원문 수치 외 다른 「k분」 동반 시 mismatch, 한국어 「N분」 표기만 대조
+#### MQ-1910
+- `backend/agent/safety_source.py` · `backend/agent/loop.py`(캐시: 모델별 1회, 빈 모델 비캐시 — 턴 도중 모델 확정 시 안전 블록 누락 회귀를 고침) · `deploy/nemoclaw/workspace/build.py`(DB 못 읽으면 exit 2) · `spikes/onboarding_safety_gate.py`(22)
+#### 리뷰(PASS, 경고 4 · 경미 8) 반영
+- IE5 안전 승인 차단 이중화(API 422 + `resolve()` DB 미조회) · `build.py` 「10분 이상」 적용 범위를 iG5A·S100 으로 좁히고 HV600 게이트 명시(**안전 문구 본문 무변경 — 적용 범위 문장 변경이라 H5 전 사람 확인**) ·
+  D39(`now_utc_sql()`·`iso_utc` Z) · NAT 드라이버의 공백 보정 제거(서버 `onboarding_guard` 정규식을 ASCII 경계로 근본 수정, pytest +3) · evals.json 합성 표기
+- 기존 결함 수정: `spikes/disposal_api_contract.py` 가 공유 public 에 decisions 를 새던 것(DEC-0001·0002 의 출처) → 격리 + 공유 행 수 불변 단언(36→37)
+- 경미 7건은 07_BACKLOG
+#### 회귀
+- pytest **406**(138 · 168 · 20 · `mcp_server/` 80) · spikes 40종 전부 기준값(disposal 37 · promote 53 · safety_gate 22 신규/증가분 포함), `law_fetch ⓚ` 기존 오탐 1 ·
+  NAT `build_prompt --check` 0 · 주입 게이트 5/5 · ruff·tsc 통과. **seed 자가검증은 생략**(시드가 LLM 정규화 249행을 지운다 — 복구 불가)
+- `build.py --check` → stale `AGENTS.md`(의도된 드리프트, `out/` 재생성은 H5)

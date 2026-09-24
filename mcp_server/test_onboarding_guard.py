@@ -128,6 +128,28 @@ def test_preserved_tokens_extracts_param_ids_and_numbers():
     assert "A-12" in tokens
 
 
+def test_preserved_tokens_finds_param_id_followed_by_hangul_particle():
+    # 유니코드 \b 는 한글을 단어 문자로 봐서 "A1-03을" 을 놓쳤다(HV600 row 40 실측)
+    tokens = guard.preserved_tokens("A1-03을 확인하고 H5-4를 설정하세요.")
+    assert "A1-03" in tokens
+    assert "H5-4" in tokens
+
+
+def test_preserved_tokens_ignores_param_like_inside_longer_ascii_word():
+    assert "B1-02" not in guard.preserved_tokens("XB1-02Y")
+
+
+def test_finalize_keeps_high_when_param_id_has_hangul_particle():
+    row = _row(
+        name_en="Set A1-03",
+        causes_en=[{"cause": "A1-03 is invalid.", "solutions": ["Check A1-03."]}],
+    )
+    causes_ko = [{"cause": "A1-03이 잘못되었습니다.", "solutions": ["A1-03을 확인하세요."]}]
+    confidence, flags, forced = guard.finalize(row, "A1-03 설정", causes_ko, "high", [])
+    assert "token_dropped" not in forced
+    assert confidence == "high"
+
+
 def test_preserved_tokens_empty_for_empty_text():
     assert guard.preserved_tokens("") == set()
     assert guard.preserved_tokens(None) == set()  # type: ignore[arg-type]

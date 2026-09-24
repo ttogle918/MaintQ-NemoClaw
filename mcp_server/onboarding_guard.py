@@ -75,8 +75,10 @@ ALLOWED_AGENT_FLAGS = frozenset(
 
 # 파라미터 ID: "H5-34" · "A-12" 류(문자 + 선택 숫자 1개 + 하이픈 + 숫자 2자리),
 # "H5-4" 류(문자 + 숫자 1개 필수 + 하이픈 + 숫자 1~2자리).
-_PARAM_ID_RE1 = re.compile(r"\b[A-Za-z]\d?-\d{2}\b")
-_PARAM_ID_RE2 = re.compile(r"\b[A-Za-z]\d-\d{1,2}\b")
+# 경계는 ASCII 로 판정한다 — `\b` 는 유니코드라 한글을 단어 문자로 보고 "A1-03을" 의 토큰을 놓쳐
+# `token_dropped` 로 떨어뜨렸다(2026-09-25 MQ-1908 실측, HV600 row 40).
+_PARAM_ID_RE1 = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]\d?-\d{2}(?![A-Za-z0-9])")
+_PARAM_ID_RE2 = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]\d-\d{1,2}(?![A-Za-z0-9])")
 _NUMBER_RUN_RE = re.compile(r"\d+(?:\.\d+)?")
 
 

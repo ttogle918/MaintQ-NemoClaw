@@ -1,0 +1,71 @@
+# MaintQ 온보딩 정규화 — NAT 워크플로 (MQ-1908, D153).
+#
+# 역할 분리 (D153): 표 추출은 결정적 코드(`data/extract_hv600_codes.py` → 적재기)가 이미 끝냈다.
+# NAT 는 **한국어 정규화와 저신뢰 표시만** 한다. 행 순회는 LLM 이 아니라 드라이버
+# (`run_normalize.py`)가 `list_onboarding_rows` 커서로 결정적으로 한다 — 에이전트는 드라이버가
+# 넘긴 한 페이지의 행에 대해 `stage_code_normalization` 만 부른다.
+#
+# 값은 전부 env 로 덮어쓴다(NAT `${VAR:-기본값}` 보간). **키·토큰을 이 파일에 적지 않는다.**
+#   MAINTQ_NAT_MCP_URL     — 기본 샌드박스(L0) 경로 host.openshell.internal:8766 (데모 토폴로지 §3)
+#   MAINTQ_NAT_MCP_TOKEN   — MCP-HTTP #2(onboarding 프로필)의 bearer. #1(core, 8765)과 다른 토큰
+#   MAINTQ_NAT_LLM_BASE_URL — 기본 샌드박스(L0) 게이트웨이 inference.local (키는 게이트웨이가 주입, D143)
+#   NVIDIA_API_KEY         — L1(호스트 실행)일 때만. 샌드박스 안에서는 비어 있어야 한다(D143)
+#
+# 직접 실행(드라이버 없이 한 번 시험): 드라이버가 가드(`maintq_nat.guarded_stage`)를 먼저 import
+# 해야 `maintq_guarded_stage` 타입이 등록되므로 `nat run` 이 아니라 `run_normalize.py` 로 돌린다.
+
+general:
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: WARNING
+
+llms:
+  nemotron:
+    _type: nim
+    model_name: nvidia/nemotron-3-super-120b-a12b
+    base_url: "${MAINTQ_NAT_LLM_BASE_URL:-https://inference.local/v1}"
+    api_key: "${NVIDIA_API_KEY:-sandbox-gateway-injects-key}"
+    temperature: 0.0
+    max_tokens: 16384
+    # O1(무료 티어 "Service temporarily overloaded") 대응 — NAT RetryMixin 이 429/5xx 를 재시도한다.
+    # 그래도 실패하면 드라이버가 페이지 단위로 한 번 더 재시도하고 errors 에 센다.
+    num_retries: 3
+    retry_on_status_codes: [429, 500, 502, 503, 504]
+
+function_groups:
+  maintq:
+    _type: mcp_client
+    server:
+      transport: streamable-http
+      url: "${MAINTQ_NAT_MCP_URL:-http://host.openshell.internal:8766/mcp}"
+      # custom_headers 는 streamable-http 전용 — 매 요청에 실린다(MQ-1901 ⓘ 확인).
+      # X-User 는 신원(D152) — stage_code_normalization 의 staged_by 가 된다.
+      custom_headers:
+        Authorization: "Bearer ${MAINTQ_NAT_MCP_TOKEN}"
+        X-User: "nat-onboarding"
+    # 드라이버가 직접 부르는 두 도구 + 가드가 감쌀 쓰기 도구. 에이전트에게는 아래
+    # `stage_code_normalization`(가드) 하나만 준다 — list/status 는 에이전트 도구 목록에 없다.
+    include:
+      - list_onboarding_rows
+      - stage_code_normalization
+      - get_onboarding_status
+
+functions:
+  stage_code_normalization:
+    _type: maintq_guarded_stage
+    target: maintq__stage_code_normalization
+
+workflow:
+  _type: tool_calling_agent
+  llm_name: nemotron
+  description: MaintQ 매뉴얼 온보딩 — 고장 표 행 한국어 정규화
+  tool_names:
+    - stage_code_normalization
+  system_prompt: "file://out/system_prompt.md"
+  handle_tool_errors: true
+  # 한 페이지(기본 8행) × 행당 최대 2회 + 마무리 여유. 드라이버가 페이지 수를 따로 제한한다.
+  max_iterations: 24
+  max_history: 60
+  max_empty_response_retries: 1

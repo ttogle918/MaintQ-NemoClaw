@@ -358,6 +358,23 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   무결성 사고는 아니지만, 재시도 스크립트가 종료코드 2 를 "입력이 잘못됐다"로 오해할 수 있다.
   고치려면 `_already_loaded()` 조회와 INSERT 를 한 트랜잭션으로 묶거나 UNIQUE 위반을 3으로 재매핑해야
   한다 — 이번 리뷰 반영 범위 밖이라 코드는 그대로 둔다.
+
+- 🟡 **Sprint 19 Stage 3 설계 리뷰 경미 지적 7건** (2026-09-25, MQ-1908·1909·1910 리뷰, **고치지 않음** —
+  경고 4건·부수 2건은 같은 날 커밋 전에 반영했다. 아래는 그 밖의 경미 항목이다):
+  - `backend/services/onboarding.py::_integrity_reason()` 가 제약 위반을 **예외 메시지 문자열**(`"manual_chunks" in msg`)로
+    분류한다 — Postgres 메시지 문구·로캘이 바뀌면 조용히 422 `integrity` 로 떨어진다. `exc.sqlstate`(23505 등) +
+    `diag.constraint_name` 으로 바꿀 것
+  - `promote()` 의 `group_incomplete` 판정이 **배치 구분 없이 `(model, code)`** 로 staged 행을 모은다 — 같은 기종
+    배치가 2개가 되면(개정판 재적재) 옛 배치의 staged 행까지 "누락" 으로 요구한다. 지금은 HV600 배치 1개라 잠재 결함
+  - `check_safety_text()` 는 `\d+\s*분` 만 본다 — `10 minutes`·`600초`·`십 분` 표기는 숫자 검증을 **통과해 버린다**
+    (규칙 1·3 의 사각지대). 승인자가 한국어 `N분` 으로 쓰는 것을 전제로 한다
+  - `reject_safety()` 는 반려자를 기록하지 않는다 — `onboarding_safety_candidates` 에 `reviewed_by` 류 컬럼이 없다
+    (승인은 `approved_by` 가 있다). 스키마 변경이 필요해 보류
+  - `deploy/openshell/policy-nat.yaml` 에 스파이크 때 쓴 포트 **8775** 허용이 남아 있다 — 데모 토폴로지는 8766 만 쓴다
+  - NAT 실행 stderr 에 매뉴얼 원문(행 `name_en`·`causes_en`)이 찍힌다 — **파일로 리다이렉트하지 말 것**(D144 —
+    원문·번역문을 산출물로 남기지 않는다). `onboarding/nat/README.md` 에 경고 1줄을 넣었다
+  - `onboarding/nat/README.md` L1 예시가 토큰을 `MAINTQ_NAT_MCP_TOKEN=<토큰> uv run …` 처럼 **셸 env 로 앞에 붙여**
+    셸 히스토리에 남긴다 — L0 처럼 `--token-stdin` 을 쓰는 예시로 바꿀 것
 - 🟡 **`stage_code_normalization` 의 `state='staged'` 확인과 정규화 INSERT 가 다른 트랜잭션이다**
   (2026-09-25, Sprint 19 Stage 2 리뷰 발견, 고치지 않음). `mcp_server/tools/stage_code_normalization.py`
   는 `read_only()` 로 `onboarding_code_rows.state` 를 확인한 뒤 `onboarding_writer()` 로

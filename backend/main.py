@@ -47,6 +47,7 @@ from backend.routers import (  # noqa: E402
     hotspot_status,
     inventory,
     maint_value,
+    onboarding,
     po,
     repairs,
     session,
@@ -131,6 +132,7 @@ app.include_router(hotspot_status.router)
 app.include_router(asset_monitoring.router)
 app.include_router(session.router)
 app.include_router(a2a.router)
+app.include_router(onboarding.router)
 
 
 

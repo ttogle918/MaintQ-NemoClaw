@@ -8,9 +8,17 @@
 (prompts.py 규칙 10·11). OpenClaw 에는 그 계층이 없으므로 에이전트가 **확정 문구를
 그대로** 붙이고, 페이지는 **도구 결과 값만** 인용하도록 규칙을 바꿔 적는다.
 
-사용:
-    uv run python deploy/nemoclaw/workspace/build.py          # out/ 에 생성
-    uv run python deploy/nemoclaw/workspace/build.py --check  # out/ 이 정본과 같은지 검사
+온보딩 기종(D157): HV600 등 새 기종의 안전 문구는 prompts.py 가 아니라 DB 승인 행에서 온다
+(`backend/agent/safety_source.resolve()`). 그래서 이 스크립트는 **DB 를 읽는다** —
+`DATABASE_URL` 이 필요하고, DB 를 못 읽으면 「승인 없음」으로 조용히 쓰지 않고 **실패 종료**한다
+(부재가 사실인지 알 수 없다). `--check` 의 드리프트 판정도 DB 상태를 포함한다 — 사람이 안전
+문구를 승인하면 코드 변경 없이도 `--check` 가 stale 을 낸다(재생성·재업로드 필요 신호).
+
+사용 (DATABASE_URL 필수):
+    DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)" \
+        uv run python deploy/nemoclaw/workspace/build.py          # out/ 에 생성
+    DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)" \
+        uv run python deploy/nemoclaw/workspace/build.py --check  # out/ 이 정본(+DB)과 같은지 검사
 배포:
     nemoclaw maintq-agent upload deploy/nemoclaw/workspace/out/AGENTS.md /sandbox/.openclaw/workspace/
 """
@@ -23,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+from backend.agent import safety_source  # noqa: E402
 from backend.agent.prompts import QUALIFIED_WORKER_NOTE, SAFETY_BASELINE  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -31,13 +40,67 @@ OUT = HERE / "out"
 PAGES = SAFETY_BASELINE["pages"]
 SAFETY_MODELS = " / ".join(PAGES)  # 확정 문구가 승인된 기종 (현재 iG5A / S100)
 
+#: 온보딩으로 새로 들어온 기종 중 안전 절차를 다룰 대상 (D157). 현재는 HV600 하나뿐이다.
+ONBOARDING_SAFETY_MODEL = "HV600"
+
 
 def _refs(pages: dict) -> str:
     return " · ".join(f"{m} p.{p}" for m, p in pages.items())
 
 
+class OnboardingDbUnreadable(RuntimeError):
+    """온보딩 안전 문구 상태를 DB 에서 확정할 수 없다 — 생성을 중단한다."""
+
+
+def _approved_count(model: str) -> int:
+    """승인 행 수를 **직접** 센다 — 실패하면 예외를 그대로 올린다.
+
+    `safety_source.resolve()` 는 런타임 안전(D157 fail-closed)을 위해 DB 예외(테이블 없음
+    포함)까지 삼켜 `None` 을 돌려준다 — 그 함수만으로는 "승인 0건"과 "DB 를 못 읽었다"를
+    구분할 수 없다. `SELECT 1` 만으로도 부족하다(접속은 되는데 테이블이 없으면 통과한다).
+    그래서 resolve 와 **같은 조건**으로 표를 직접 읽어 부재를 양성으로 확인한다.
+    """
+    from backend import db  # noqa: PLC0415 — 임포트 시점 접속 시도를 피한다
+
+    with db.connect() as con:
+        row = con.execute(
+            "SELECT count(*) AS n FROM onboarding_safety_candidates"
+            " WHERE model = ? AND kind = 'discharge_wait' AND state = 'approved'",
+            (model,),
+        ).fetchone()
+    return int(row["n"])
+
+
+def onboarding_safety_section() -> str:
+    """온보딩 승인 기종(D157)의 안전 문구 상태 — `resolve()` 결과 그대로, LLM 생성 없음."""
+    model = ONBOARDING_SAFETY_MODEL
+    try:
+        n = _approved_count(model)
+    except Exception as e:  # noqa: BLE001 — 원인을 붙여 명시적 실패로 바꾼다
+        raise OnboardingDbUnreadable(
+            f"{model} 안전 문구 승인 상태를 DB 에서 읽지 못했다 — 「없음」으로 쓰지 않고 중단한다: {e}"
+        ) from e
+    entry = safety_source.resolve(model)
+    # 교차 확인: 직접 센 값과 resolve 가 어긋나면(1건인데 None 등) 어느 쪽도 믿지 않는다.
+    if (n == 1) != (entry is not None):
+        raise OnboardingDbUnreadable(
+            f"{model}: 승인 행 {n}건인데 resolve()={'값' if entry else 'None'} — 판정 불일치, 중단"
+        )
+    if entry is None:
+        note = "" if n == 0 else f" (승인 행 {n}건 — 모호해 채택하지 않음, D157)"
+        return f"- {model}: 승인된 안전 문구 없음 — 위험 작업 절차를 안내하지 않는다(D147){note}"
+    approved_day = (entry.approved_at or "")[:10]
+    return (
+        f"- {model}: 아래 확정 문구를 **그대로** 붙인다(요약·수정 금지).\n\n"
+        f"  > {entry.text}\n"
+        f"  >\n"
+        f"  > 근거: {model} p.{entry.page} (PDF 물리 페이지) · 승인일 {approved_day}"
+    )
+
+
 def agents_md() -> str:
     page_refs = _refs(PAGES)
+    onboarding_section = onboarding_safety_section()
     # 전문 기술자 문구는 근거 페이지가 안전 기준과 다르다 (prompts.py — 섞지 않는다)
     worker_refs = _refs(QUALIFIED_WORKER_NOTE["pages"])
     return f"""\
@@ -59,7 +122,10 @@ def agents_md() -> str:
 2. **미지 코드에 추측 금지.** `not_found` 면 비슷한 코드를 추측하지 않는다 — "해당 기종 매뉴얼에서
    확인되지 않는 코드" 라고 알리고, 표시부 재확인 · 제조사 A/S 안내로 넘어간다.
    `reason:"catalog_not_loaded"` 는 "코드 없음" 이 아니라 관리자 문의 대상이다.
-3. **기종은 iG5A / S100 / IE5 중 하나.** 모르면 도구 호출 전에 기종부터 묻는다. 임의로 고르지 않는다.
+3. **기종은 iG5A / S100 / IE5 / {ONBOARDING_SAFETY_MODEL} 중 하나.** 모르면 도구 호출 전에 기종부터 묻는다.
+   임의로 고르지 않는다. {ONBOARDING_SAFETY_MODEL} 은 **온보딩 기종**이다 — 사람이 승격한 코드만
+   조회되고(승격 전 `not_found` 는 규칙 2 그대로), 안전 문구는 아래 「온보딩 승인 기종」 절에
+   승인분이 있을 때만 쓴다(D146·D157).
 4. **부품은 데이터로 특정.** `related_parts` 의 품번을 `maintq__search_inventory` 의 `part_no` 로
    그대로 넘긴다. 품번을 지어내지 않는다. 목록 첫 항목을 이번 조치 대상으로 명시한다.
 5. **반복 고장이면 발주 보류.** `maintq__get_error_history` 의 `repeated: true` 면 부품 교체 대신
@@ -74,7 +140,8 @@ def agents_md() -> str:
 ## 안전 — 백엔드와 다른 점 (여기서는 네가 직접 붙인다)
 
 MaintQ 웹 콘솔에서는 시스템이 안전 블록을 붙이지만, **여기에는 그 계층이 없다.**
-점검·교체·커버 개방·배선이 들어가는 답에는 아래 **확정 문구를 한 글자도 바꾸지 말고** 붙인다.
+{SAFETY_MODELS} 의 점검·교체·커버 개방·배선이 들어가는 답에는 아래 **확정 문구를 한 글자도 바꾸지
+말고** 붙인다.
 
 > {SAFETY_BASELINE["text"]}
 >
@@ -82,11 +149,22 @@ MaintQ 웹 콘솔에서는 시스템이 안전 블록을 붙이지만, **여기�
 >
 > {QUALIFIED_WORKER_NOTE["text"]} — 근거: {worker_refs}
 
-- 확정 문구가 승인된 기종은 **{SAFETY_MODELS}** 뿐이다. 그 밖의 기종(IE5 등)은 **승인된 안전 문구가
-  없으므로 위험 작업 절차를 안내하지 않는다** — "이 기종은 승인된 안전 기준이 없어 절차를 안내할 수
-  없다" 고 말하고 제조사 A/S 로 넘긴다. 문구를 다른 기종용으로 지어내지 않는다.
-- 방전 대기 시간은 "10분 이상" 이다. 줄여 적지 않는다.
+- 위 확정 문구가 적용되는 기종은 **{SAFETY_MODELS}** 뿐이다. 온보딩 기종은 아래 「온보딩 승인 기종」
+  절에 사람이 승인한 문구가 있을 때만 그 문구를 쓴다. 그 밖(IE5, 그리고 승인 문구가 없는 온보딩
+  기종)은 **승인된 안전 문구가 없으므로 위험 작업 절차를 안내하지 않는다** — "이 기종은 승인된 안전
+  기준이 없어 절차를 안내할 수 없다" 고 말하고 제조사 A/S 로 넘긴다. 문구를 다른 기종용으로 지어내지
+  않는다.
+- **{SAFETY_MODELS}** 의 방전 대기 시간은 "10분 이상" 이다. 줄여 적지 않는다.
+- 온보딩 승인 기종은 아래 온보딩 절의 **승인 문구·수치를 그대로** 쓴다 — 위 {SAFETY_MODELS} 문구로
+  바꾸거나 대기 시간을 10분으로 고치지 않는다(그 기종 매뉴얼 명시값이 승인된 값이다).
 - 매뉴얼 근거(도구 결과의 페이지)가 없으면 위험 작업을 서술하지 않는다.
+
+## 온보딩 승인 기종
+
+새로 온보딩된 기종의 안전 문구는 사람 승인 전까지 존재하지 않는다(D147·D157) — 아래는
+`backend/agent/safety_source.resolve()` 가 지금 시점에 실제로 돌려주는 값이다.
+
+{onboarding_section}
 
 ## 인용
 
@@ -148,9 +226,15 @@ def main(argv: list[str]) -> int:
     check = "--check" in argv
     OUT.mkdir(exist_ok=True)
     stale = []
-    for name, fn in FILES.items():
+    rendered: dict[str, str] = {}
+    try:
+        for name, fn in FILES.items():
+            rendered[name] = fn()
+    except OnboardingDbUnreadable as e:
+        print(f"[중단] {e}", file=sys.stderr)
+        return 2
+    for name, text in rendered.items():
         path = OUT / name
-        text = fn()
         if check:
             if not path.exists() or path.read_text(encoding="utf-8") != text:
                 stale.append(name)
@@ -159,8 +243,12 @@ def main(argv: list[str]) -> int:
             print(f"wrote {path.relative_to(ROOT)}")
     if check:
         # 양성 축: 검사한 파일 수와 안전 문구 생존을 함께 찍는다 (부재 검사 liveness 규칙)
-        anchor = SAFETY_BASELINE["text"] in agents_md()
-        print(f"checked={len(FILES)} stale={stale} safety_text_embedded={anchor}")
+        anchor = SAFETY_BASELINE["text"] in rendered["AGENTS.md"]
+        onboarding = "approved" if safety_source.resolve(ONBOARDING_SAFETY_MODEL) else "none"
+        print(
+            f"checked={len(FILES)} stale={stale} safety_text_embedded={anchor}"
+            f" onboarding_{ONBOARDING_SAFETY_MODEL}={onboarding}"
+        )
         return 0 if not stale and anchor else 1
     return 0
 

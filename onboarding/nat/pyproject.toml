@@ -1,10 +1,11 @@
 [project]
 name = "maintq-onboarding-nat"
 version = "0.1.0"
-description = "MaintQ 온보딩 NAT 스파이크 — 레포 본 프로젝트와 분리된 uv 프로젝트 (MQ-1901, D153)"
+description = "MaintQ 온보딩 NAT — 한국어 정규화 워크플로 (MQ-1901 스파이크 · MQ-1908). 레포 본 프로젝트와 분리된 uv 프로젝트 (D153)"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "nvidia-nat==1.9.0",
+    "nvidia-nat-langchain[nvidia]==1.9.0",
     "nvidia-nat-mcp==1.9.0",
 ]
 

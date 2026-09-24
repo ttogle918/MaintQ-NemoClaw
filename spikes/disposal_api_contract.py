@@ -67,6 +67,14 @@ def row_counts(db: Path) -> dict[str, int]:
         con.close()
 
 
+def _count_decisions(dsn: str) -> int:
+    con = dbcompat.connect_dsn(dsn)
+    try:
+        return con.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+    finally:
+        con.close()
+
+
 def probe_dates(db) -> dict[str, str]:
     """`acquired_at + DISPOSAL_PROBE_MONTHS` — 시드가 만든 규칙을 그대로 재사용한다."""
     sys.path.insert(0, str(ROOT))
@@ -372,8 +380,14 @@ def run_static_checks(captured: dict) -> None:
 
 
 
-def run_screen_create_axis(client, db: Path, probe: dict[str, str]) -> None:
+def run_screen_create_axis(client, db: Path, probe: dict[str, str], iso_dsn: str | None = None) -> None:
     """P39 — 화면이 처분 초안을 **직접 생성·수정**한다 (`POST/PATCH /api/decisions`).
+
+    🔴 **쓰기 축이다 — 격리 스키마에서만 돈다** (2026-09-25). 이 축은 오래 공유 `public` 에
+    `POST /api/decisions` 를 해서 실행마다 `decisions` 행이 1개씩 샜다(공유 DB 의 DEC-0001·
+    DEC-0002 가 그 산물이다) — 요약 줄은 "무저장 확인" 이라고 찍으면서. 이제 ㉓ 처럼
+    `backend.db.DB_PATH` 를 격리 DSN(`iso_dsn`)으로 갈아끼운 채 돈다. `read_only()` 도
+    `DB_PATH` 를 호출 시점에 읽으므로 재판정 경로까지 같은 스키마를 본다.
 
     발주(D111)·수리(P39)와 같은 경로지만 **처분에만 있는 문제**가 하나 있다:
     입력을 고치면 **재판정**이 필요하다(`disposal_mode`·`disposal_date` 가 룰 입력이라
@@ -383,6 +397,18 @@ def run_screen_create_axis(client, db: Path, probe: dict[str, str]) -> None:
 
     ⛔ **D81 경계는 그대로다** — override·override_reason·reviewed_by 는 body 에 없다.
     """
+    import backend.db as bdb  # noqa: PLC0415
+
+    original = bdb.DB_PATH
+    if iso_dsn:
+        bdb.DB_PATH = iso_dsn
+    try:
+        _screen_create_checks(client, probe)
+    finally:
+        bdb.DB_PATH = original
+
+
+def _screen_create_checks(client, probe: dict[str, str]) -> None:
     body = {
         "asset_id": "AST-L3-CONV",
         "disposal_mode": "SALE",
@@ -493,15 +519,38 @@ def main() -> None:
 
         probe = probe_dates(db)
         captured: dict = {}
+        # 쓰기 축(㉠~㉩) 전용 격리 스키마 — 공유 public 에 decisions 행을 남기지 않는다.
+        iso_schema, iso_dsn = (
+            pg_isolation.create_isolated_schema("disposal_screen_create")
+            if dbcompat.USE_POSTGRES
+            else (None, None)
+        )
+        shared_before = row_counts(db)["decisions"]
+        iso_before = _count_decisions(iso_dsn) if iso_dsn else None
         try:
             with TestClient(app) as client:
                 run(client, db, probe, captured)
-                run_screen_create_axis(client, db, probe)
+                run_screen_create_axis(client, db, probe, iso_dsn)
                 run_catalog_outage(client, empty)
             run_static_checks(captured)
+            shared_after = row_counts(db)["decisions"]
+            iso_after = _count_decisions(iso_dsn) if iso_dsn else None
+            # 부재 검사(공유 불변) + 양성 축(격리 스키마에 실제로 썼다) — 둘이 함께여야
+            # "격리가 됐다" 와 "쓰기 축이 아무것도 안 했다" 를 구분한다.
+            check(
+                "㉪ 공유 DB decisions 행 수 실행 전후 동일 · 쓰기 축은 격리 스키마에 기록"
+                " (앵커: 격리 decisions 증가 ≥1)",
+                shared_after == shared_before
+                and iso_before is not None
+                and iso_after is not None
+                and iso_after - iso_before >= 1,
+                f"공유 {shared_before}→{shared_after} · 격리 {iso_before}→{iso_after}",
+            )
         finally:
             if schema:
                 pg_isolation.drop_isolated_schema(schema)
+            if iso_schema:
+                pg_isolation.drop_isolated_schema(iso_schema)
 
     width = max(len(n) for n, _, _ in results)
     print("─" * (width + 30))

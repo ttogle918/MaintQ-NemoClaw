@@ -23,7 +23,7 @@ import time
 from collections.abc import AsyncIterator
 
 from backend import sse
-from backend.agent import prompts
+from backend.agent import prompts, safety_source
 from backend.agent.llm import LlmClient, ToolUse, stream_failure_message
 from backend.agent.mcp_client import TOOL_TIMEOUT_SEC, McpClient, summarize_result
 from backend.agent.trace import TraceWriter
@@ -346,21 +346,36 @@ class _TurnState:
         self.repeat_window_days: int = 30
         self.po_created: dict | None = None
         self.results: dict[str, dict] = {}  # tool -> 마지막 payload
+        #: 안전 게이트 런타임 원천 (D157) — **모델별** 캐시(턴당 모델 하나면 조회 1회).
+        #: 키가 모델인 이유: `observed_model` 은 도구 호출 뒤에야 채워진다. 모델을 모를 때
+        #: 받은 `None` 을 턴 끝까지 붙들면, 뒤에 모델이 확정돼도 차단이 풀리지 않는다
+        #: (이전 `safety_page()` 는 매번 새로 계산했다 — 그 동작을 보존한다).
+        #: 값 `None` 은 유효한 결과("승인 없음")라 dict 키 존재로 "조회함"을 구분한다.
+        self._safety_cache: dict[str, safety_source.SafetyEntry | None] = {}
 
     def safety_model(self) -> str:
         return self.model or self.observed_model or ""
 
-    def safety_page(self) -> int | None:
-        """안전 문구의 **실제 근거 페이지** (SAFETY_BASELINE["pages"]).
+    def safety_entry(self) -> safety_source.SafetyEntry | None:
+        """안전 문구 원천 (D157) — `backend.agent.safety_source.resolve()` 턴당 1회 캐시.
 
-        모델을 끝내 모르면 None — 그때는 안전 블록도 위험 서술도 내지 않는다.
+        iG5A·S100 은 `source="static"`(SAFETY_BASELINE 그대로, 출력 바이트 무변경).
+        그 밖의 기종은 DB 승인 행이 정확히 1건일 때만 `source="onboarding"`.
         """
-        pages = prompts.SAFETY_BASELINE.get("pages")
         model = self.safety_model()
-        if not isinstance(pages, dict) or not model:
-            return None
-        page = pages.get(model)
-        return page if isinstance(page, int) else None
+        if not model:
+            return None  # resolve("") 도 None — DB 조회 없이 같은 결과
+        if model not in self._safety_cache:
+            self._safety_cache[model] = safety_source.resolve(model)
+        return self._safety_cache[model]
+
+    def safety_page(self) -> int | None:
+        """안전 문구의 **실제 근거 페이지** (safety_source.resolve() 의 SafetyEntry.page).
+
+        모델을 끝내 모르거나 근거가 없으면 None — 그때는 안전 블록도 위험 서술도 내지 않는다.
+        """
+        entry = self.safety_entry()
+        return entry.page if entry is not None else None
 
 
 async def run_turn(
@@ -412,22 +427,25 @@ async def run_turn(
         #      즉 근거 없는 턴의 답변이 새로 잘려 나가는 일이 없다.
         grounded_replacement = bool(st.pages) and st.replacement_ctx
         if (prompts.needs_safety_block(text) or grounded_replacement) and not st.safety_sent:
-            safety_page = st.safety_page()
+            entry = st.safety_entry()
             # `st.pages` 는 "이 턴에 매뉴얼 근거를 실제로 조회했는가"의 **게이트**일 뿐이다.
-            # 인용 페이지는 거기서 오지 않는다 — 아래 참조.
-            if st.pages and safety_page is not None:
+            # 인용 페이지는 거기서 오지 않는다 — 아래 참조. `entry` 는 D157 원천이다:
+            # iG5A·S100 은 SAFETY_BASELINE(source="static"), 그 밖은 DB 승인 행 정확히
+            # 1건(source="onboarding"). 0건·2건 이상·DB 예외는 전부 None(fail closed) —
+            # 그때는 이 분기가 아니라 아래 else(기존 차단)로 떨어진다.
+            if st.pages and entry is not None:
                 st.safety_sent = True
                 yield trace.block(
                     "safety",
                     {
-                        "title": prompts.SAFETY_BASELINE["title"],
-                        "text": prompts.SAFETY_BASELINE["text"],
-                        # ★ 안전 문구의 근거는 SAFETY_BASELINE["pages"] 다 (iG5A 4 / S100 2).
-                        # 그 턴의 lookup/rag 페이지(202·204 등)를 붙이면 **승인된 안전 문구를
-                        # 엉뚱한 매뉴얼 면에 귀속**시키게 된다 — 정비사가 칩을 눌러 그 쪽을
-                        # 펴면 방전 대기 문구가 없다. prompts.py 가 QUALIFIED_WORKER_NOTE 를
-                        # 분리한 것과 같은 이유다.
-                        "citation": sse.citation_payload(st.safety_model(), safety_page),
+                        "title": entry.title,
+                        "text": entry.text,
+                        # ★ 안전 문구의 근거는 entry.page 다 (iG5A 4 / S100 2 / 온보딩 승인
+                        # 기종은 승인 행의 page). 그 턴의 lookup/rag 페이지(202·204 등)를
+                        # 붙이면 **승인된 안전 문구를 엉뚱한 매뉴얼 면에 귀속**시키게 된다 —
+                        # 정비사가 칩을 눌러 그 쪽을 펴면 방전 대기 문구가 없다. prompts.py 가
+                        # QUALIFIED_WORKER_NOTE 를 분리한 것과 같은 이유다.
+                        "citation": sse.citation_payload(st.safety_model(), entry.page),
                     },
                 )
             else:
