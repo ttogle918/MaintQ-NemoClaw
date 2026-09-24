@@ -801,6 +801,11 @@ POST /api/onboarding/rows/{row_id}/reject
   body: { note: str }
   → 200 { row_id, state: "rejected" }
 
+GET  /api/onboarding/status?model=HV600          (2026-09-25 추가 — 기종 온보딩 뱃지, 읽기 전용)
+  → { model, state: "none" | "onboarding" | "safety_pending" | "ready" }
+     none=배치 0(기존 기종) · onboarding=승격 코드 0 · safety_pending=승격 ≥1 + safety_source.resolve()=None ·
+     ready=승격 ≥1 + resolve 값 있음. model ∉ MODELS → 422
+
 GET  /api/onboarding/safety?model=HV600
   → [{ cand_id, page, also_pages, kind, quote_en, wait_minutes_in_text, state,
        approved_text, approved_by, approved_at, text_reviewed_at }]

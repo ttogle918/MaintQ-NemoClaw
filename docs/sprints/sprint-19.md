@@ -89,7 +89,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
 
 | TASK | 제목 | 범위 | 규모 | 선행 |
 |------|------|------|------|------|
-| MQ-1911 | 승격 검수 화면 — 원문·정규화문 나란히 + 승격/반려 (**컷 후보**) | `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규) · `frontend/lib/api.ts` · `spikes/ui_honesty_contract.py`(게이트 등재) | M | MQ-1909 |
+| MQ-1911 | 승격 검수 화면 — 원문·정규화문 나란히 + 승격/반려 + **기종 온보딩 뱃지** (**컷 후보**) | `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규) · `frontend/components/onboarding/OnboardingBadge.tsx`(신규) · `frontend/components/asset/EquipmentCard.tsx` · `frontend/lib/api.ts` · `spikes/ui_honesty_contract.py`(게이트 등재) | M→L | MQ-1909 |
 | MQ-1912 | 데모 E2E — OpenClaw 진단 스킬 HV600 반영 + 데모 시나리오 | `skills/maintq-diagnose/SKILL.md` · `skills/maintq-diagnose/evals/evals.json` · `deploy/nemoclaw/workspace/out/*`(재생성) · `docs/hackathon/day2.md` | S | MQ-1909 · MQ-1910 |
 | MQ-1913 | 회귀 목록·기준선·문서 동기화 | `CLAUDE.md`(회귀 절) · `docs/README.md` · `docs/10_DECISIONS.md`(D153 주석) · `docs/07_BACKLOG.md` | S | Stage 1~3 전부 |
 
@@ -688,6 +688,11 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   - `POST /promote` body `{model: str, code: str, primary_row_id: int, rows: [{row_id: int, norm_id: int}], acknowledged_flags: list[str] = []}`
     → 201 `{promo_id, model, code, error_code: {code, display_code, error_name, severity, causes, actions, manual_page, actions_source}, chunk_ids: [...]}`
   - `POST /rows/{row_id}/reject` body `{note: str}` → 200 `{row_id, state:"rejected"}`
+  - 🔵 **(2026-09-25 추가 — 온보딩 뱃지)** `GET /status?model=` (읽기 전용, 역할 무관) → `{model, state}` —
+    `state`: `"none"`(배치 0 — iG5A·S100 등 기존 기종, 뱃지 없음) · `"onboarding"`(배치 ≥1, 승격 코드 0) ·
+    `"safety_pending"`(승격 코드 ≥1, `safety_source.resolve(model)` 이 `None`) · `"ready"`(승격 ≥1 + `resolve` 가 값).
+    판정은 MQ-1910 `resolve()` 를 **그대로 호출**한다(D157 fail-closed 판정을 두 벌로 만들지 않는다 — resolve 가 없으면
+    `safety_pending` 으로 떨어뜨린다). `model ∉ MODELS` → 422. 회귀: 네 상태 각각 픽스처 1건씩(`onboarding_promote_contract` +4)
   - `GET /safety?model=HV600` → `[{cand_id, page, also_pages, kind, quote_en, wait_minutes_in_text, state, approved_text, approved_by, approved_at, text_reviewed_at}]`
   - `POST /safety/{cand_id}/approve` body `{approved_text: str, text_reviewed: true}` → 200
   - `POST /safety/{cand_id}/reject` body `{note: str}` → 200
@@ -783,15 +788,25 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
 #### MQ-1911 — 승격 검수 화면 (컷 후보 C2)
 
 - **복무 시나리오**: S1·S4 (사람 승격의 화면 — D145 「원문과 정규화문을 나란히 보고 승인」)
+- **디자인 참고**: `docs/design/2026-09-25/frontend/` 의 `MaintQ-ScreenC-Onboarding` · `MaintQ-ScreenD-SafetyApproval` · `MaintQ-OnboardingBadges`
+  (`docs/08_DESIGN_BRIEF.md` 「산출물」). **레이아웃·톤만 따르고 코드는 붙이지 않는다.** 디자인 C 는 행 단위 승인이지만
+  API 는 코드 **그룹** 승격(D156 — primary 라디오 · `acknowledged_flags`)이다 — **동작은 API 를 따른다**
 - **변경 파일**: `frontend/app/(console)/manager/onboarding/page.tsx`(신규) · `frontend/lib/onboarding.ts`(신규, React·`@/` 별칭 미사용 순수 함수) ·
+  `frontend/components/onboarding/OnboardingBadge.tsx`(신규 — 2026-09-25 추가) · `frontend/components/asset/EquipmentCard.tsx`(수정 — 뱃지 부착) ·
   `frontend/lib/api.ts`(수정 — 온보딩 API 클라이언트 함수) · `spikes/ui_honesty_contract.py`(수정 — `lib/onboarding.ts` 를 제약 게이트에 등재, `lib/a2a.ts` C9·C10 선례)
-- **인터페이스**: `lib/onboarding.ts` — `groupStatusView(group): {label, tone}` · `flagLabel(flag): string` · `confidenceTone(c): "ok"|"warn"` (상태 문자열 직접 비교는 여기만 — D87)
+- **인터페이스**: `lib/onboarding.ts` — `groupStatusView(group): {label, tone}` · `flagLabel(flag): string` · `confidenceTone(c): "ok"|"warn"` ·
+  **`onboardingBadgeView(state): {label, tone} | null`**(`none` → `null` = 뱃지 없음) (상태 문자열 직접 비교는 여기만 — D87)
+- 🔵 **기종 온보딩 뱃지 (2026-09-25 사용자 결정 — 권장안 A)**: `OnboardingBadge` 가 MQ-1909 `GET /api/onboarding/status?model=` 를 읽어
+  「온보딩 중」(중립) / 「안전 문구 대기」 / 「진단 가능」(ok 톤)을 그린다. 붙는 곳: ⓐ `/manager/onboarding` 기종 헤더 카드 ⓑ `EquipmentCard`.
+  ⚠ **HV600 설비 행은 MQ-1914(Stage 5, 선택) 전까지 0건**이라 ⓑ 는 데모에 안 보인다 — **데모 화면의 뱃지는 ⓐ 가 담당**하고,
+  ⓑ 는 배선만 해 두고 iG5A·S100 에서 `none` → 뱃지 없음(기존 화면 무변화)을 회귀로 확인한다
 - **핵심 로직**: 배치 선택 → 코드 그룹 목록(승격됨/대기/저신뢰 배지) → 그룹 펼침: 행마다 **좌 원문(en) · 우 정규화(ko)**, 원문 페이지 표시, flags 경고 →
   행별 norm 선택(기본 최신) · primary 라디오 · 반려(사유 필수) · 「플래그 확인」 체크(=`acknowledged_flags`) · 승격 버튼 → 결과(403/409/422 메시지 그대로 표시).
   안전 후보 탭: 원문 인용 + 페이지 + `wait_minutes_in_text` 표시, 승인 문안 입력 + 「원문과 대조했다」 체크. **정규화문을 안전 문안 입력란에 미리 채우지 않는다**(D147)
 - **엣지 케이스**: 매니저가 아니면 쓰기 버튼 비활성 + 서버 403 그대로 · 한국어 정규화 없음 행은 승격 불가 표시 · 긴 원문은 접기
 - **지켜야 할 결정**: D87(화면이 거짓말하지 않는다 — 상태 문자열 직접 비교 금지) · D145 · D147 · D156
-- **DoD**: `cd frontend && ./node_modules/.bin/tsc --noEmit` · `npx next build` 라우트 **25→26** · `uv run python spikes/ui_honesty_contract.py` 327 + 신규(페이지 1×6 + lib 게이트 2) PASS(러너 출력 기준)
+- **DoD**: `cd frontend && ./node_modules/.bin/tsc --noEmit` · `npx next build` 라우트 **25→26** · `uv run python spikes/ui_honesty_contract.py` 327 + 신규(페이지 1×6 + `OnboardingBadge` 는 L2 글롭 편입 여부를 실측해 적는다 + lib 게이트 2) PASS(러너 출력 기준) ·
+  브라우저 확인: iG5A·S100 설비 카드에 뱃지 없음(기존과 동일)
 
 ---
 
