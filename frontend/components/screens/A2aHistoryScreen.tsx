@@ -8,7 +8,7 @@ import {
   getA2aHistory,
   type ApiA2aHistoryItem,
 } from "@/lib/api";
-import { a2aStatusTone, skillView, type Tone } from "@/lib/a2a";
+import { a2aStatusLabel, a2aStatusTone, skillView, type Tone } from "@/lib/a2a";
 import { ConsoleFrame, ConsoleHeader, ScreenStack, Spacer } from "@/components/layout/ConsoleFrame";
 import { Divider, Logo } from "@/components/ui/Chip";
 import { sx } from "@/lib/sx";
@@ -138,8 +138,14 @@ function A2aHistoryRow({ item }: { item: ApiA2aHistoryItem }) {
       >
         <span style={sx("font:700 12px 'Pretendard';color:var(--ink)")}>{skill.label}</span>
         <span style={sx(`font:700 11px 'Pretendard';color:${TONE_COLOR[tone]}`)}>
-          {item.status ?? "(진행 중)"}
+          {a2aStatusLabel(item.status)}
         </span>
+        {/* 원 어휘도 함께 — 감사 화면이라 라벨만 두면 원문이 사라진다 (MQ-1911) */}
+        {item.status != null && (
+          <span style={sx(`font:10.5px 'JetBrains Mono',monospace;color:${TONE_COLOR[tone]}`)}>
+            {item.status}
+          </span>
+        )}
         <span style={sx("font:10.5px 'JetBrains Mono',monospace;color:var(--dim2)")}>
           {item.request_chain_id}
         </span>

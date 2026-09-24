@@ -33,6 +33,8 @@ import { estimateNotice, isHoldVerdict, showMetric, showTrend } from "../maintVa
 import { stateView } from "../queueState";
 import { deadlineStateView } from "../deadlines";
 import { gradeView } from "../riskGrade";
+import { groupStatusView, onboardingBadgeView, rowStateView, safetyStateView } from "../onboarding";
+import { a2aStatusLabel, a2aStatusTone } from "../a2a";
 
 /* -------------------------------------------------------------------------- */
 /* 러너                                                                        */
@@ -447,6 +449,87 @@ function nineRows(extra: Row[] = []): Row[] {
     bad.length
       ? bad.join(" / ")
       : `null→{${nullGrade.label},${nullGrade.tone}} LOW→{${low.label},${low.tone}} · 맵 밖 ${unknowns.length}종 전부 unknown+원문`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-16 — 온보딩: 모르는 상태(프로토타입 키 포함)는 ok 로 떨어지지 않는다 (D87·D145, MQ-1911) */
+
+{
+  // 프로토타입 키를 일부러 섞는다 — `x in MAP` 으로 판정하면 이 키들이 「아는 값」으로 새어
+  // 라벨 대신 함수가 튀어나온다(리뷰 지적, MQ-1911). 기대값은 여기 독립 하드코딩.
+  const unknowns = ["toString", "constructor", "__proto__", "hasOwnProperty", "READY", "promoted", ""];
+  const bad: string[] = [];
+  const views: [string, (s: string) => { label: string; tone: string; known: boolean } | null][] = [
+    ["onboardingBadgeView", onboardingBadgeView],
+    ["rowStateView", rowStateView],
+    ["safetyStateView", safetyStateView],
+  ];
+  for (const [name, fn] of views) {
+    for (const s of unknowns) {
+      const v = fn(s);
+      const tag = `${name}(${s || "(빈문자열)"})`;
+      if (v === null) {
+        bad.push(`${tag}→null (뱃지가 사라짐)`);
+        continue;
+      }
+      if (v.tone === "ok") bad.push(`${tag}→tone=ok (초록 누수)`);
+      if (v.tone !== "unknown") bad.push(`${tag}→tone=${String(v.tone)} (전용 톤 아님)`);
+      if (v.known !== false) bad.push(`${tag}→known=${String(v.known)}`);
+      if (typeof v.label !== "string" || !v.label.includes(s)) bad.push(`${tag}→label=${String(v.label)} (원문 미보존)`);
+    }
+  }
+  // groupStatusView — 행 상태에 모르는 값(프로토타입 키 포함)이 섞이면 ok 도 「대기」도 아니다
+  for (const s of unknowns) {
+    const g = groupStatusView({
+      promoted: false,
+      rows: [{ state: s, norms: [{ confidence: "high", flags: [] }], source_flags: [] }],
+    });
+    const tag = `groupStatusView(row.state=${s || "(빈문자열)"})`;
+    if (g.tone === "ok") bad.push(`${tag}→tone=ok (초록 누수)`);
+    if (g.tone !== "unknown" || g.key !== "unknown") bad.push(`${tag}→{${g.key},${g.tone}} (unknown 아님)`);
+  }
+  // 양성 축 — 사람이 확정한 사실만 ok 다. AI 초안(high 정규화만 있는 staged 그룹)은 ok 가 아니다.
+  const ready = onboardingBadgeView("ready");
+  const promoted = groupStatusView({ promoted: true, rows: [] });
+  const draft = groupStatusView({
+    promoted: false,
+    rows: [{ state: "staged", norms: [{ confidence: "high", flags: [] }], source_flags: [] }],
+  });
+  const none = onboardingBadgeView("none");
+  if (ready?.tone !== "ok") bad.push(`ready→${ready?.tone} (양성 앵커 ok 아님)`);
+  if (promoted.tone !== "ok") bad.push(`promoted→${promoted.tone} (양성 앵커 ok 아님)`);
+  if (draft.tone === "ok") bad.push("AI 초안(staged·high)→tone=ok (사람 확정과 구분 안 됨, D145)");
+  if (none !== null) bad.push(`none→${JSON.stringify(none)} (기존 기종에 뱃지가 붙음)`);
+  check(
+    "온보딩 뷰 — 미지 값·프로토타입 키 7종 × 4함수는 unknown+원문 · ready/승격만 ok · AI 초안은 ok 아님",
+    bad.length === 0,
+    bad.length
+      ? bad.join(" / ")
+      : `미지 ${unknowns.length}종 × 4함수 전부 unknown · ready=${ready?.tone} promoted=${promoted.tone} draft=${draft.tone} none=null`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-17 — A2A status: 프로토타입 키는 실패(error)로도 성공(ok)으로도 분류되지 않는다 (D87, MQ-1911) */
+
+{
+  const unknowns = ["toString", "constructor", "__proto__", "valueOf", "OK", ""];
+  const bad: string[] = [];
+  for (const s of unknowns) {
+    const t = a2aStatusTone(s);
+    const l = a2aStatusLabel(s);
+    if (t !== "unknown") bad.push(`${s || "(빈문자열)"}→tone=${t}`);
+    if (typeof l !== "string" || !l.includes(`미상(${s})`)) bad.push(`${s || "(빈문자열)"}→label=${String(l)} (원문 미보존)`);
+  }
+  const ok = a2aStatusTone("ok");
+  const blocked = a2aStatusTone("policy_blocked");
+  if (ok !== "ok") bad.push(`ok→${ok} (양성 앵커)`);
+  if (blocked !== "error") bad.push(`policy_blocked→${blocked} (양성 앵커)`);
+  check(
+    "a2aStatusTone/Label — 프로토타입 키 포함 미지 값 6종은 unknown+미상(원문) · ok/policy_blocked 앵커",
+    bad.length === 0,
+    bad.length ? bad.join(" / ") : `미지 ${unknowns.length}종 전부 unknown · ok=${ok} policy_blocked=${blocked}`
   );
 }
 

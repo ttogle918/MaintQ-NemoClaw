@@ -875,7 +875,7 @@ MQ-1902 가 `TODO_직접할일.md` 에 같은 목록을 옮긴다.
 | H2 | Stage 3 끝 | HV600 **정규화 검수** — 최소 데모 코드(`GF`·`OC`·`OV`·`UV1`·`OH`·`CPF06`·`EF1`·`CE`) 전 구역 행을 원문과 대조, `low` 행 우선 | 승격 |
 | H3 | H2 뒤 | **승격 클릭**(화면 또는 curl, manager) — `flags` 확인 체크 포함 | 데모 ④ |
 | **H4** | Stage 3 끝 | **HV600 안전 문구 승인** — 원문 인용·페이지 대조, 한국어 문안 직접 작성. ⚠ 대기 시간이 원문에 숫자로 없고 「경고 라벨 표시 시간」만 있으면 **숫자를 넣지 않는다**(API 가 거부). ⚠ safety-guardrail 규칙 3 의 「10분 이상」은 iG5A·S100 확정값이다 — HV600 원문 값이 그와 다르면 **스킬 문구의 적용 범위를 기종별로 개정할지 사람이 결정**(Claude 가 스킬을 고치지 않는다) | 데모 ⑤ 승인 후 경로 |
-| H5 | H3·H4 뒤 | `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent` 에 재설치 | OpenClaw HV600 안전 |
+| H5 | **두 번**(2026-09-25 사용자 결정 ㉠): ⓐ H3 **전** — 현재 판 설치 후 데모 ①(GF 승격 전 not_found) 녹화 ⓑ H3·H4 **뒤** — 재생성·재설치 후 ④⑤ 녹화 | `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent` 에 재설치 | OpenClaw HV600 안전 · 데모 ① |
 | H6 | Stage 4 | SkillSpector 결과(신규 스킬·수정 스킬) 수용 판정 | 제출물 |
 | H7 | Stage 4 | 데모 녹화(과부하 O1 대비 — 라이브 금지 권장) | 제출 |
 | H8 | 필요 시 | 웹 콘솔 샌드박스(`maintq`)에서 HV600 을 보이려면 호스트 DB 덤프 → `Dockerfile.sandbox` 재빌드 → 샌드박스 재생성 (day1 §6) | 웹 콘솔 데모 |
@@ -1023,3 +1023,25 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
   `run_normalize.py --renormalize-rows` 옵션 추가, **L0** 실행 → 12/12 high(End5 는 shape_mismatch 1회 후 재실행 성공), 주입 표시 0.
   최신 정규화 기준 **high 248 · low 1**(oL1 `untranslated_term`). 정규화 행 261(= 249 + 재정규화 12)
 - 공유 DB 의 스파이크 누수 처분서 DEC-0001·0002 삭제(사용자가 직접 실행) — decisions 0
+
+### Stage 4 완료 (2026-09-25) — 자동 파이프라인분 (사람 작업 H2~H7 은 이후)
+**커밋**: 이 기록과 같은 커밋 — `[M4] feat(onboarding): Sprint 19 Stage 4 — …`
+
+#### MQ-1911
+- `frontend/app/(console)/manager/onboarding/page.tsx` · `lib/onboarding.ts` · `components/onboarding/OnboardingBadge.tsx` · `components/asset/EquipmentCard.tsx` ·
+  `lib/a2a.ts`(policy_blocked·circuit_open 라벨) · `lib/api.ts` · `components/screens/A2aHistoryScreen.tsx`(범위 밖 — 라벨이 화면에 안 보여 추가) ·
+  `lib/__checks__/ui_honesty.ts` · `spikes/ui_honesty_contract.py`
+- 라우트 25→**26** · ui_honesty 327→**345** · 격리 스키마 백엔드로 승격 201 · 안전 422/409/200 · 뱃지 전환 · iG5A·S100 뱃지 없음 확인
+- 디자인 이탈: 행 단위 승인 → 코드 그룹 승격(D156) · 「번역 수정 후 승인」 없음(API 에 번역 수정 경로 없음 — 틀린 번역은 **반려 → 재정규화**) · 1320px 프레임
+- 리뷰 경미 반영: `text_reviewed` 를 체크박스 상태로 · 문안 수정 시 대조 체크 해제 · acknowledged_flags = 필요 ∩ 체크(norm 바꾸면 재체크) ·
+  방전 대기 승인 ≥2 fail-closed 경고 · 상태 조회 실패와 차단 구분 · `hasKey`(프로토타입 키 누출 방지)
+#### MQ-1912
+- `skills/maintq-diagnose/SKILL.md`(HV600 — 승격 전 not_found→흐름 D, 승인분만 안전 문구) · `evals.json` +2 · `docs/hackathon/day2.md` §10 데모 시나리오(미실행 단계는 미실행으로)
+- SkillSpector `maintq-diagnose` 0점 유지
+- ⚠ **DoD 이탈(의도)**: `build.py` 재생성·`--check` 0 은 **H5 로 이월** — 현재 `stale=['AGENTS.md']`(Stage 3 적용 범위 문장 변경)
+- 사용자 결정(2026-09-25): 녹화 순서 ㉠(H5 두 번) · 데모 ⑥(A2A policy_blocked) 제외 — A2A 는 이 레포에서 더 확장하지 않고, 외부 연동이 필요하면 카카오톡 알림(MCP)(07_BACKLOG)
+#### MQ-1913
+- `CLAUDE.md`(pytest 406 · spikes 40종/1,348 · 라우트 26 · `mcp_server/` 커맨드 · D1~D157 · seed 함정 2) · `docs/README.md` · `docs/10_DECISIONS.md`(D153 주석) · `docs/07_BACKLOG.md` ·
+  (코디네이터) `README.md` · `docs/00_MVP_SCOPE.md` · `.claude/agents/reviewer.md` D 범위 · `TODO_직접할일.md` H5 두 번 + ⓐ 선행 확인
+#### 회귀
+- tsc · next build 26 · ui_honesty 345 · sp2 20 · write_tool 30 · api 52 · sp3 22 · prompt_rules 24 · s10 17 · agent_loop 37 · pytest 406 · ruff · evals JSON — 전부 PASS, 공유 DB 불변

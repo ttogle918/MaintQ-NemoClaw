@@ -205,3 +205,86 @@ uv 프로젝트).
 `kill <pid>`** 로 종료할 것 — 운영 프로세스와 모듈 이름이 같은 이상 패턴 매치는 원리적으로
 구분하지 못한다. **PID 를 기억하지 못하면 이름으로 죽이지 말고 사람/오케스트레이터에게
 넘길 것** — 이번처럼 자기 복구 시도가 권한 게이트에 막히는 경우 공백 시간이 생긴다.
+
+## 10. 데모 시나리오 (MQ-1912 — 초안, 2026-09-25)
+
+> 흐름: HV600 코드를 모름 → NAT 가 한국어로 정규화 → 사람이 검수·승격 → 진단할 수 있게 됨 → 안전 문구도 사람이 승인해야 붙음.
+> 🔴 **아직 실행하지 않은 단계에는 결과를 적지 않는다.** 사람 작업 H2(검수)·H3(승격)·H4(안전 승인)·H5(워크스페이스 재설치)·
+> H7(녹화)을 아직 하지 않았다. 이 초안을 쓸 때(2026-09-25) 공유 DB 상태: `error_codes` 70행(HV600 0) · `onboarding_promotions` 0 ·
+> 안전 후보 `approved` 0 · HV600 정규화 249/249(최신 기준 high 248 · low 1).
+> 매뉴얼 원문·번역문은 여기 옮기지 않는다(D144) — 코드·상태·페이지 번호·건수만 적는다.
+
+**실행 레벨** — `L0`·`L1`·`L2` 는 §9 의 NAT 폴백 사다리다(L0 = 샌드박스 안 NAT + `inference.local` · L1 = 호스트 NAT ·
+L2 = 호스트 stdio). NAT 를 거치지 않는 단계는 `—` 로 두고 **어디서 돌렸는지**를 따로 적는다.
+
+| # | 단계 | 실행 레벨 | 상태 | 근거 |
+|---|---|---|---|---|
+| ① | 승격 전: OpenClaw 에 "HV600 GF 떴어" → `not_found` → 흐름 D(A/S 안내, S4) | — | **도구 단위만 확인** · OpenClaw 대화 **미실행(H5 후)** | 아래 ① |
+| ② | NAT 한국어 정규화 | **L0** | 실행 완료 | Stage 3 MQ-1908 |
+| ③ | 사람 검수·승격(화면 `/manager/onboarding` 또는 curl) | — | **미실행(H2/H3)** | — |
+| ④ | 승격 후 같은 질문 → 한국어 정의 + 원문 페이지 | — | **미실행(H3 후)** | — |
+| ⑤ | 위험 절차 질문 → 승인 전 차단 → 안전 승인 → 워크스페이스 재생성 → 안전 문구 동반 | — | 백엔드 게이트는 스파이크로 확인 · 실데이터·OpenClaw **미실행(H4/H5 후)** | 아래 ⑤ |
+| ⑥ | ~~샌드박스 A2A 발신 → `policy_blocked` trace~~ **데모 제외(2026-09-25)** | — | 확인됨 (Stage 2) · 녹화 안 함 | 아래 ⑥ |
+| ⑦ | 주입 픽스처 회귀 | **L1** | 확인됨 (Stage 3) — 게이트 5/5 | 아래 ⑦ |
+
+### ① 승격 전 `not_found`
+
+- **확인한 것** (2026-09-25, 호스트에서 도구 함수를 직접 호출, 공유 DB): `lookup_error_code(model="HV600", code="GF")` →
+  `status=not_found`(`manual_page`·`error_name` 없음). liveness 앵커 — 같은 실행에서 `lookup_error_code(model="iG5A", code="OHt")` →
+  `ok` · `manual_page=202` · `냉각핀 과열`(카탈로그가 비어서 not_found 가 난 게 아님). 격리 스키마 회귀는 `spikes/model_enum_contract.py` ⑤
+- **확인 안 한 것**: OpenClaw 대화. 샌드박스 `maintq-agent` 의 워크스페이스·스킬이 아직 HV600 이전 판이라(아래 `build.py --check`)
+  지금 물으면 옛 규칙 3(기종 3종)으로 답한다
+- ⚠ **녹화 순서 주의**: 표 H5 는 "H3·H4 뒤" 이지만, ①을 OpenClaw 로 녹화하려면 **H3(GF 승격) 전에** 현재 판 워크스페이스·스킬을
+  한 번 설치해야 한다. GF 를 승격한 뒤에는 ①을 재현할 수 없다(승격 취소 API 없음, H10). 선택지는 두 가지 — ㉠ H3 전에 한 번 설치하고
+  H4 뒤에 한 번 더 설치 ㉡ ①에는 승격 대상이 아닌 코드를 쓴다 → **㉠ 채택(2026-09-25 사용자 결정)** — 같은 GF 로 승격 전·후를 보인다
+
+### ② NAT 정규화 — L0
+
+Stage 3 MQ-1908 에서 샌드박스 안 NAT 로 batch 1 을 **249/249** 정규화했다(2,588초). low 13 중 첫 프롬프트의 주입 과탐 11행과 CPF06 을
+`--renormalize-rows` 로 다시 돌려(L0) 12/12 high → 최신 기준 **high 248 · low 1**(oL1 `untranslated_term`).
+재현 명령은 `onboarding/nat/README.md`. 데모에서는 녹화본을 쓰거나(전량 43분) `--codes GF,OC,OV,UV1,OH,CPF06,EF1,CE` 로 데모 코드만 돌린다.
+
+### ③·④ 승격과 승격 후 조회 — 미실행
+
+H2(데모 코드 원문 대조) → H3(승격, `flags` 확인 체크 포함)을 사람이 한 뒤에 채운다. ④에서 볼 것:
+`lookup_error_code(HV600, GF)` 가 `ok` 이고 인용 페이지가 도구 결과의 `manual_page` 값뿐인지(세션 JSONL 로 도구 호출 확인 — §8 선례).
+스킬 평가 문항: `skills/maintq-diagnose/evals/evals.json` 의 `hv600-pre-promotion-001` · `hv600-post-promotion-001`.
+
+### ⑤ 안전 문구 — 백엔드는 확인, OpenClaw 는 미실행
+
+- **웹 콘솔 경로(백엔드 `loop.py`)**: `spikes/onboarding_safety_gate.py`(22건, Stage 3 MQ-1910, 격리 스키마 + 가짜 LLM)가
+  승인 전 차단(안전 블록 없음 · 절차 문장 없음 · "근거 문서를 확인하지 못해" 안내 있음) · 승인 후 승인 문안 그대로 블록 ·
+  승인 행 2건이면 차단 · iG5A 출력 바이트 동일을 확인했다. **실데이터 HV600 승인은 아직 0건**(H4)
+- **OpenClaw 경로**: `build.py` 가 DB 승인 상태를 AGENTS.md 「온보딩 승인 기종」 절에 쓴다. 지금은 `onboarding_HV600=none` — 승인 후
+  재생성·재설치(H5)하기 전까지는 AGENTS.md 에 HV600 안전 문구가 없다
+- 🔴 **한계**: OpenClaw 에는 `loop.py` 의 안전 게이트 계층이 없다. HV600 안전은 **에이전트가 AGENTS.md 규칙을 지키는지에 달려 있다**
+  (§8 "백엔드와 다른 점" 과 같은 구조). 시스템이 강제하는 것은 웹 콘솔 경로뿐이다
+
+### ⑥ 샌드박스 A2A `policy_blocked` — Stage 2 확인분
+
+> ⏸ **데모에서 제외(2026-09-25 사용자 결정)** — A2A 는 이 레포에서 더 신경 쓰지 않는다. 구현(D149)과 회귀는 그대로 두고,
+> 녹화 시나리오에서는 ⑥을 뺀다. 외부 연동을 보여 줄 필요가 생기면 A2A 대신 **카카오톡 알림 같은 MCP 연동**으로 한다(07_BACKLOG 참고).
+
+
+- `MAINTQ_SANDBOX` 가 켜져 있으면 A2A 발신을 **시도하기 전에** 막는다(D149) — 라우터 HTTP 503 · `detail.reason="policy_blocked"` ·
+  trace `status="policy_blocked"` · 차단기 카운터 불변. 근거: Stage 2 MQ-1907 pytest(`backend/routers/test_a2a.py`·
+  `backend/a2a/test_client.py`·`backend/services/test_po_a2a_dispatch.py`, 격리 스키마)
+- Stage 2 브라우저 검증에서 `/manager/a2a` 이력에 `policy_blocked` 행이 보였다. 다만 라벨이 없어 원문 그대로 `unknown` 톤으로 나왔다 →
+  라벨·톤은 MQ-1911 이 추가한다. 데모 전에 이 화면을 다시 확인할 것
+- 이 표에 적은 것은 위 두 가지뿐이다. OpenShell 샌드박스 안의 웹 콘솔에서 실제로 발신해 본 결과는 아니다
+
+### ⑦ 주입 픽스처 — L1, 게이트 5/5
+
+`onboarding/nat/run_injection_check.py`(격리 스키마, **합성** 픽스처 `fixtures/injection_candidates.json`)가 Stage 3 에서 5/5 통과했다.
+실데이터 249행에서는 첫 프롬프트가 주입 의심을 11행 과탐했는데, 원문 `source_flags` 는 0이었다. 재정규화 뒤 주입 표시는 0이다(②).
+`maintq-manual-onboarding` SkillSpector HIGH 1건(evals 의 합성 주입 문장)을 받아들일지는 사람이 판정한다(H6).
+
+### 이 초안을 쓸 때 실측한 것 (2026-09-25)
+
+- `DATABASE_URL=… uv run python deploy/nemoclaw/workspace/build.py --check` →
+  `checked=3 stale=['AGENTS.md'] safety_text_embedded=True onboarding_HV600=none` (exit 1). Stage 3 에서 AGENTS.md 생성 문구(HV600 게이트·
+  "10분 이상" 적용 범위)를 고쳤으니 **의도된 드리프트**다. `out/` 재생성과 샌드박스 재설치는 H5(사람)의 일이다.
+  재생성 전에 Stage 3 기록의 "적용 범위 문장 변경 — H5 전 사람 확인" 을 먼저 처리한다
+- SkillSpector `maintq-diagnose` 재스캔(`skillspector:local`, `--no-llm`, 스킬 사본을 스캔) → `risk_assessment.score=0` · `SAFE` ·
+  `issues` 0 · suppressed 0 · 커버리지 100%(3/3 파일). 이전과 같은 0점이다
+- 수동 체크리스트 H5~H7: **미수행**

@@ -1082,6 +1082,170 @@ export const getA2aHistory = (
   return apiFetch<ApiA2aHistory>(`/api/a2a/history${qs ? `?${qs}` : ""}`, role);
 };
 
+/* -------------------------------------------------------------------------- */
+/* 기종 온보딩 검수 · 안전 문구 승인 (MQ-1909·MQ-1911, D154·D156·D157)            */
+/* `backend/routers/onboarding.py` — 읽기는 역할 무관, 쓰기는 manager 만(아니면 403) */
+
+export interface ApiOnboardingBatch {
+  batch_id: number;
+  model: string;
+  manual_id: string;
+  /** UTC ISO (`...Z`, D39) */
+  loaded_at: string;
+  rows: number;
+  staged: number;
+  approved: number;
+  rejected: number;
+  normalized_rows: number;
+}
+
+/** `causes_en` / `causes_ko` 의 원소 — 원인 1건과 그 조치들. */
+export interface ApiOnboardingCause {
+  cause: string;
+  solutions: string[];
+}
+
+export interface ApiOnboardingNorm {
+  norm_id: number;
+  name_ko: string;
+  causes_ko: ApiOnboardingCause[];
+  /** 원 어휘(`high`·`low`) — 표시는 `lib/onboarding.confidenceTone` */
+  confidence: string;
+  flags: string[];
+  staged_by: string;
+  created_at: string;
+}
+
+export interface ApiOnboardingRow {
+  row_id: number;
+  ordinal: number;
+  display_code: string;
+  section_en: string;
+  section_ko: string;
+  name_en: string;
+  causes_en: ApiOnboardingCause[];
+  /** PDF 물리 페이지 */
+  pages: number[];
+  source_flags: string[];
+  /** 원 어휘(`staged`·`approved`·`rejected`) — 표시는 `lib/onboarding.rowStateView` */
+  state: string;
+  /** `norm_id` 내림차순 — 첫 항목이 최신 */
+  norms: ApiOnboardingNorm[];
+}
+
+export interface ApiOnboardingGroup {
+  model: string;
+  code: string;
+  promoted: boolean;
+  rows: ApiOnboardingRow[];
+}
+
+export interface ApiOnboardingStatus {
+  model: string;
+  /** `none`·`onboarding`·`safety_pending`·`ready` — 표시는 `lib/onboarding.onboardingBadgeView` */
+  state: string;
+}
+
+export interface ApiSafetyCandidate {
+  cand_id: number;
+  page: number;
+  also_pages: number[];
+  kind: string;
+  quote_en: string;
+  wait_minutes_in_text: number | null;
+  state: string;
+  approved_text: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  text_reviewed_at: string | null;
+}
+
+export interface PromoteBody {
+  model: string;
+  code: string;
+  primary_row_id: number;
+  rows: { row_id: number; norm_id: number }[];
+  acknowledged_flags: string[];
+}
+
+export interface ApiPromoteResult {
+  promo_id: number;
+  model: string;
+  code: string;
+  error_code: {
+    code: string;
+    display_code: string;
+    error_name: string;
+    severity: string;
+    causes: string[];
+    actions: string[];
+    manual_page: number;
+    actions_source: { manual_id: string; page: number };
+  };
+  chunk_ids: string[];
+}
+
+export const getOnboardingBatches = (role: Role) =>
+  apiFetch<ApiOnboardingBatch[]>("/api/onboarding/batches", role);
+
+export const getOnboardingGroups = (role: Role, batchId: number, state: "staged" | "all" = "all") =>
+  apiFetch<ApiOnboardingGroup[]>(`/api/onboarding/batches/${batchId}/groups?state=${state}`, role);
+
+export const getOnboardingStatus = (role: Role, model: string) =>
+  apiFetch<ApiOnboardingStatus>(`/api/onboarding/status?model=${encodeURIComponent(model)}`, role);
+
+/**
+ * 뱃지용 캐시 조회 — 설비 카드 그리드가 카드마다 같은 기종을 반복 조회하지 않게 한다.
+ * 실패한 조회는 캐시에 남기지 않는다(다음 렌더에서 다시 묻는다). `force` 는 승격·승인 직후용.
+ */
+const onboardingStatusCache = new Map<string, Promise<ApiOnboardingStatus>>();
+export function getOnboardingStatusCached(role: Role, model: string, force = false) {
+  if (force) onboardingStatusCache.delete(model);
+  const hit = onboardingStatusCache.get(model);
+  if (hit) return hit;
+  const p = getOnboardingStatus(role, model).catch((e: unknown) => {
+    onboardingStatusCache.delete(model);
+    throw e;
+  });
+  onboardingStatusCache.set(model, p);
+  return p;
+}
+
+export const getSafetyCandidates = (role: Role, model: string) =>
+  apiFetch<ApiSafetyCandidate[]>(`/api/onboarding/safety?model=${encodeURIComponent(model)}`, role);
+
+/** 코드 그룹 승격 (D156). manager 가 아니면 서버가 403 — 화면은 그 메시지를 그대로 보여 준다. */
+export const promoteOnboardingGroup = (role: Role, body: PromoteBody) =>
+  apiFetch<ApiPromoteResult>("/api/onboarding/promote", role, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/** 행 반려 — 사유(`note`) 필수(공백이면 422). */
+export const rejectOnboardingRow = (role: Role, rowId: number, note: string) =>
+  apiFetch<{ row_id: number; state: string }>(`/api/onboarding/rows/${rowId}/reject`, role, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+
+/**
+ * 안전 문구 승인 (D147·D157) — **되돌리기 없음.** `textReviewed` 는 사람이 「원문과 대조했다」를
+ * 체크한 상태 **그대로** 싣는다 — 여기서 `true` 를 지어내지 않는다. 서버는 `true` 그 자체가
+ * 아니면 거부한다(D147). 수치 검사(`number_not_in_source`·`wait_value_mismatch`)와 기종당 방전
+ * 대기 1건(`already_approved_for_model`)도 서버가 최종 판정한다.
+ */
+export const approveSafetyCandidate = (role: Role, candId: number, approvedText: string, textReviewed: boolean) =>
+  apiFetch<{ cand_id: number; state: string }>(`/api/onboarding/safety/${candId}/approve`, role, {
+    method: "POST",
+    body: JSON.stringify({ approved_text: approvedText, text_reviewed: textReviewed }),
+  });
+
+export const rejectSafetyCandidate = (role: Role, candId: number, note: string) =>
+  apiFetch<{ cand_id: number; state: string }>(`/api/onboarding/safety/${candId}/reject`, role, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+
 export const endpoints = {
   chat: "/api/chat",
   trace: (sessionId: string) => `/api/chat/${sessionId}/trace`,
@@ -1124,4 +1288,13 @@ export const endpoints = {
   repairSubmit: (repairId: string) => `/api/repairs/${repairId}/submit`,
   repairSign: (repairId: string) => `/api/repairs/${repairId}/sign`,
   repairReject: (repairId: string) => `/api/repairs/${repairId}/reject`,
+  /** 기종 온보딩 (MQ-1909) — `backend/routers/onboarding.py` */
+  onboardingBatches: "/api/onboarding/batches",
+  onboardingGroups: (batchId: number) => `/api/onboarding/batches/${batchId}/groups`,
+  onboardingStatus: "/api/onboarding/status",
+  onboardingPromote: "/api/onboarding/promote",
+  onboardingRowReject: (rowId: number) => `/api/onboarding/rows/${rowId}/reject`,
+  onboardingSafety: "/api/onboarding/safety",
+  onboardingSafetyApprove: (candId: number) => `/api/onboarding/safety/${candId}/approve`,
+  onboardingSafetyReject: (candId: number) => `/api/onboarding/safety/${candId}/reject`,
 } as const;

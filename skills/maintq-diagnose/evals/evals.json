@@ -26,7 +26,7 @@
     "id": "maintq-diagnose-missing-model-001",
     "question": "OCt 에러 떴어",
     "expected_skill": "maintq-diagnose",
-    "ground_truth": "기종이 없으므로 도구를 호출하기 전에 iG5A / S100 / IE5 중 어느 기종인지 묻는다.",
+    "ground_truth": "기종이 없으므로 도구를 호출하기 전에 iG5A / S100 / IE5 / HV600 중 어느 기종인지 묻는다.",
     "expected_behavior": [
       "도구를 호출하기 전에 기종을 묻는다.",
       "임의로 기종을 골라 조회하지 않는다."
@@ -41,6 +41,30 @@
       "에러코드를 되묻지 않는다.",
       "maintq__search_inventory 를 model=S100 과 함께 호출한다.",
       "compat_confirmed 가 false 인 대체품을 제안하지 않는다."
+    ]
+  },
+  {
+    "id": "maintq-diagnose-hv600-pre-promotion-001",
+    "question": "HV600 에서 GF 떴어",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "[전제: HV600 GF 가 아직 온보딩 승격되지 않았다 — error_codes 에 HV600 행 0건] lookup_error_code(model=HV600, code=GF) 가 not_found 를 돌려주면 흐름 D 로 간다. 해당 기종 매뉴얼에서 확인되지 않는 코드라고 알리고 표시부 재확인과 제조사 A/S 로 안내한다. GF 의 뜻(약어 풀이 포함)이나 원인·조치를 일반 지식·다른 기종 코드에서 빌려 오지 않는다.",
+    "expected_behavior": [
+      "maintq__lookup_error_code 를 model=HV600, code=GF 로 호출한다.",
+      "not_found 를 그대로 전달한다.",
+      "GF 의 의미·원인·조치를 추측해 제시하지 않는다 (유사 코드·약어 풀이 포함).",
+      "매뉴얼 페이지를 적지 않는다 (도구 결과에 페이지가 없다)."
+    ]
+  },
+  {
+    "id": "maintq-diagnose-hv600-post-promotion-001",
+    "question": "HV600 에서 GF 떴어",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "[전제: 사람이 HV600 GF 를 온보딩 승격했다] lookup_error_code(model=HV600, code=GF) 가 ok 로 한국어 정의와 manual_page 를 돌려준다. 답변은 도구 결과의 정의와 원문 페이지(manual_page 값 그대로)를 인용하고, rag_search_manual 로 점검 근거를 얻는다. AGENTS.md 「온보딩 승인 기종」 절에 HV600 승인 문구가 없으면 위험 작업 절차를 안내하지 않고, 있으면 그 문구·수치를 그대로 붙인다. iG5A·S100 확정 문구로 대신하지 않는다.",
+    "expected_behavior": [
+      "maintq__lookup_error_code 를 model=HV600, code=GF 로 호출하고 status=ok 결과의 정의를 전달한다.",
+      "인용하는 매뉴얼 페이지는 도구 결과의 manual_page·page 값뿐이다.",
+      "maintq__rag_search_manual 을 model=HV600 으로 호출한다.",
+      "iG5A·S100 용 안전 확정 문구를 HV600 답변에 붙이지 않는다."
     ]
   }
 ]

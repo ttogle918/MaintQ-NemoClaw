@@ -10,16 +10,17 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   제약 게이트 8건  `lib/ownership.ts`·`lib/maintValue.ts`·`lib/deadlines.ts`·`lib/riskGrade.ts` 가
                     React 를 쓰지 않고 `@/` 별칭도 쓰지 않는다(이 두 가지가 성립해야 L1 이 단독
                     `tsc` 로 돌아간다 — 계약이자 전제다)
-  L1  순수 함수  15건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+  L1  순수 함수  17건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
                     (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다.
                      Sprint 12(MQ-1202)가 `deadlines.ts`(2함수)·`riskGrade.ts`(1함수) 관련
-                     L1-14·L1-15 를 더했다)
+                     L1-14·L1-15 를 더했다. MQ-1911 이 `onboarding.ts`·`a2a.ts` 의 미지 값·
+                     프로토타입 키 판정 L1-16·L1-17 을 더했다)
   L2  소스 정적      상태·판정 어휘를 다루는 **컴포넌트 전부**에 상태 문자열·색 토큰·
                     상태 비교가 0건 → **컴포넌트는 스스로 "확인/통과" 여부를 말할 수단이 없다**
   D64 성능 점수화 금지  스캔 대상 전체에 `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축
                     (스캔 파일수 > 0 · 다른 지표 문자열이 실제로 발견됨)
 
-  뮤턴트 8종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
+  뮤턴트 10종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
              원본 파일은 건드리지 않는다 — 임시 사본에 주입하고 사본만 컴파일한다.
 
 ★ Stage 6 W1 — L2 스캔 대상을 `VerificationMatrix.tsx` **한 파일**에서
@@ -74,6 +75,7 @@ MAINT_VALUE_TS = FRONTEND / "lib" / "maintValue.ts"
 DEADLINES_TS = FRONTEND / "lib" / "deadlines.ts"
 RISK_GRADE_TS = FRONTEND / "lib" / "riskGrade.ts"
 A2A_TS = FRONTEND / "lib" / "a2a.ts"
+ONBOARDING_TS = FRONTEND / "lib" / "onboarding.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
@@ -98,6 +100,10 @@ L2_EXTRA = (
     "components/queue/SignBar.tsx",
     "components/queue/RepairDetail.tsx",
     "components/queue/WithdrawalStatusPanel.tsx",
+    # MQ-1911(Sprint 19) — 기종 온보딩 뱃지. `components/onboarding/` 는 어느 글롭에도 없어
+    # 수동 등재한다(`WithdrawalStatusPanel.tsx` 선례). 「진단 가능」(ok) 을 그리는 상태 표시
+    # 컴포넌트라 D87 감시 밖에 두지 않는다 — 색은 `Badge` 프리미티브를 거치게 해 `--ok` 토큰 0건.
+    "components/onboarding/OnboardingBadge.tsx",
 )
 # 스캔 대상 하한. 줄면 파일이 빠진 것이다 (L1 건수 검사와 같은 취지)
 # MQ-1003(Sprint 10) — `RepairDetail.tsx` 를 L2_EXTRA 에 추가하고, MQ-1001(같은 스프린트)이 만든
@@ -122,7 +128,13 @@ L2_EXTRA = (
 # 가 이미 글롭에 편입시켜 놓은 것을 그동안 아무도
 # `L2_FILES_FLOOR` 에 반영하지 않아 생긴 누적 차이다 — Sprint 16 이 만든 회귀가 아니다.
 # 이 값은 실제 실행 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다 — 암산 아님.
-L2_FILES_FLOOR = 42
+# MQ-1911(Sprint 19) — `app/(console)/manager/onboarding/page.tsx`(app 글롭 자동 편입) +
+# `components/onboarding/OnboardingBadge.tsx`(`L2_EXTRA` 수동 등재) = +2. `EquipmentCard.tsx` 는
+# 이미 스캔 대상(수정만). ⚠ 착수 전 실측이 이미 **48**(하한 42 와 6 어긋남 — P39 수리증빙
+# 3파일·`DisposalDraftForm`·Sprint 17·18 대시보드 2파일이 글롭에 자동 편입된 뒤 하한을 아무도
+# 올리지 않았다. 327건 기준선의 L2 288건 = 48×6 과 일치). 48 → 50 이 이번 몫이다.
+# 이 값은 실행 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다.
+L2_FILES_FLOOR = 50
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
@@ -517,6 +529,7 @@ def run() -> None:
     constraint_gate("C5", "C6", "deadlines.ts", DEADLINES_TS, " (MQ-1202)")
     constraint_gate("C7", "C8", "riskGrade.ts", RISK_GRADE_TS, " (MQ-1202)")
     constraint_gate("C9", "C10", "a2a.ts", A2A_TS, " (MQ-1605)")
+    constraint_gate("C11", "C12", "onboarding.ts", ONBOARDING_TS, " (MQ-1911)")
 
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
@@ -527,12 +540,12 @@ def run() -> None:
         check("L1", f"L1-{idx} {name}", ok, detail)
     check(
         "L1",
-        "L1 건수 15건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
-        "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을 더했다)",
-        len(rows) == 15 and (code == 0) == all(o for _, o, _, _ in rows),
+        "L1 건수 17건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
+        "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을, MQ-1911 이 onboarding.ts·a2a.ts 2건을 더했다)",
+        len(rows) == 17 and (code == 0) == all(o for _, o, _, _ in rows),
         f"{len(rows)}건 · node exit={code}",
     )
-    # 위 '건수' 검사는 15건 밖의 메타 검사다 — 표에는 남기되 계약 15건에는 세지 않는다
+    # 위 '건수' 검사는 17건 밖의 메타 검사다 — 표에는 남기되 계약 17건에는 세지 않는다
     results[-1] = ("메타", results[-1][1], results[-1][2], results[-1][3])
 
     # ── L2 ────────────────────────────────────────────────────────────────
@@ -712,6 +725,25 @@ def run() -> None:
         det_h,
     )
 
+    # MQ-1911 리뷰 — `x in MAP` 은 프로토타입 키(`toString` 등)에도 참이라 라벨 대신 함수가 샌다.
+    # 소유 키 판정(`hasKey`)을 `in` 으로 되돌리면 L1-16·L1-17 이 FAIL 해야 한다.
+    hk_old = "  return typeof key === \"string\" && Object.prototype.hasOwnProperty.call(map, key);"
+    hk_new = "  return typeof key === \"string\" && key in map;"
+    ok_i, det_i = mutate_l1("ⓘ", "onboarding.ts", hk_old, hk_new)
+    check(
+        "뮤턴트",
+        "ⓘ onboarding.ts hasKey 를 `key in map` 으로 되돌리면 L1 이 FAIL 한다 (MQ-1911 · D87)",
+        ok_i,
+        det_i,
+    )
+    ok_j, det_j = mutate_l1("ⓙ", "a2a.ts", hk_old, hk_new)
+    check(
+        "뮤턴트",
+        "ⓙ a2a.ts hasKey 를 `key in map` 으로 되돌리면 L1 이 FAIL 한다 (MQ-1911 · D87)",
+        ok_j,
+        det_j,
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
@@ -726,6 +758,7 @@ def main() -> None:
         DEADLINES_TS,
         RISK_GRADE_TS,
         A2A_TS,
+        ONBOARDING_TS,
         CHECK_TS,
         MATRIX_TSX,
         DISPOSAL_TSX,

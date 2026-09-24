@@ -99,9 +99,10 @@
 - **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 13종**(`§8~§20`,
   읽기 11 + **쓰기 2** — 신규 2종(`search_insurance_clause`·`assess_equipment_loan`, §19·§20, Sprint 16,
   D112)도 읽기 전용, 프로파일 게이트 **D69**)
-  - ⚠ **쓰기 도구는 3종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
-    `create_repair_record`(§16, Sprint 9 신설, D98). 셋 다 draft INSERT 만 하고 UPDATE 권한이 없다 (D10·D81·D98)
-- **Postgres DB** (**23절·실제 테이블 24개** — 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
+  - ⚠ **쓰기 도구는 4종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
+    `create_repair_record`(§16, Sprint 9 신설, D98) — 셋 다 draft INSERT 만 — + `stage_code_normalization`(온보딩 프로필,
+    Sprint 19, D154 — 스테이징 INSERT 만). 전부 UPDATE 권한이 없다 (D10·D81·D98·D154)
+- **Postgres DB** (**29절·실제 테이블 30개**(2026-09-25 — Sprint 19 온보딩 5테이블 `onboarding_*` §25~§29 포함) — 아래는 옛 내역: 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
   UI목업 1(`part_lifecycle_mock`, Sprint 10) + F5·F6 4(`deadlines`·`incidents`·`ownership_checks`·
   `risk_profile`, Sprint 11, D102). 실측: `data/seed.py` 의 `CREATE TABLE` **24개**) + pgvector(매뉴얼
   임베딩, `manual_chunks`, D117) + `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`).
@@ -154,7 +155,7 @@
 | 목적 | 문서 |
 |---|---|
 | 무엇을 만드는가 (목록) | **이 문서** |
-| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D143) |
+| 왜 그렇게 정했는가 | `10_DECISIONS` (D1~D157) |
 | 어떻게 동작하는가 | `02_SCENARIOS` · `09_RUNTIME` |
 | 정확한 계약 | `04_MCP_TOOLS` · `05_DB_SCHEMA` · `06_REPO_API` |
 | 지금 만들지 **않는** 것 | `07_BACKLOG` (P1~P32) |

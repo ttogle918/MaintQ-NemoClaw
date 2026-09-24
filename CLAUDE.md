@@ -9,17 +9,18 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D153**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D157**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
-  이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정). 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 **24절(실제 25개)** + 시드 케이스 맵
+  이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정) + **온보딩 프로필 3종**
+  (§23~§25, `MAINTQ_TOOLS_PROFILE=onboarding` 전용 — `core`·`full` 어느 쪽에도 없다, D154). 임의 변경 금지
+- `docs/05_DB_SCHEMA.md` — 테이블 **29절(실제 30개)** + 시드 케이스 맵
   (2026-09-04: `§24 manual_chunks`(dense 임베딩, D117) 절을 추가해 문서와 실제 DB 를
   맞췄다 — D117 에서 스키마 문서화가 빠져 있었다. 절 수보다 테이블이 1개 많은 것은
   `§7` 이 `suppliers`·`supplier_parts` 둘을 함께 다루기 때문이다)
   (절 번호는 `§1`~`§9`+`§1-B` 로 10절, Sprint 6 이 `§11`~`§17` 로 이어받고 **Sprint 8 이 `§18`(`partner_links`) 을 더한다**,
    **Sprint 10 이 `§19`(`part_lifecycle_mock`), Sprint 11 이 `§20`~`§23`(F5·F6 4테이블),
-   D117 이 `§24`(`manual_chunks`) 를 더한다**
+   D117 이 `§24`(`manual_chunks`) 를, Sprint 19 가 `§25`~`§29`(`onboarding_*` 5테이블, D154) 를 더한다**
    — **`§10` 은 존재하지 않는다**.
    `§7` 이 `suppliers`·`supplier_parts` 두 테이블을 함께 다뤄 절 수보다 테이블이 1개 많다)
 - `docs/06_REPO_API.md` — 폴더 구조·API·SSE 이벤트 규격
@@ -109,7 +110,16 @@
   ⛔ `--today` 로 날짜를 핀하지 말 것 — 시드는 실행일 기준 상대일인데 검증 쿼리는 벽시계를 써서
   검사 ⑤(반복 고장)가 위양성 FAIL 한다.
   📌 이 두 함정으로 **에이전트가 두 번(MQ-708·MQ-713a) DB 를 망가뜨렸다.** 재시드 후에는
-  `SELECT count(*) FROM error_codes` 가 **65** 인지 확인한다.
+  `SELECT count(*) FROM error_codes` 가 **70** 인지 확인한다(🔴 2026-09-25 정정 — 오래 **65** 로
+  적혀 있었다. D109 IE5 5건 병합(65→70) 때 이 줄만 안 고쳤다).
+  ⚠ **seed 도 `DATABASE_URL` 을 실어야 한다** (2026-09-25 실측) — 안 실으면 SQLite 경로로 새다
+  `display_name()` 에서 `TypeError` 로 죽는다. 커맨드 앞에 pytest 와 같은
+  `DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"` 를 붙인다.
+  ⛔ **Sprint 19 이후 seed 는 온보딩 스테이징 5테이블도 비운다**(`DROP SCHEMA public CASCADE`).
+  원문(HV600 249행·안전 후보 28)은 `uv run python -m mcp_server.onboarding_load --codes
+  data/extracted/hv600_code_candidates.json --safety data/extracted/hv600_safety_candidates.json`(멱등)로
+  복구되지만 **LLM 정규화(`onboarding_normalizations`, 전량 약 43분)·승격·안전 승인은 복구되지 않는다.**
+  데모 전 재시드 금지(H9) — Stage 3 회귀도 이 때문에 seed 자가검증을 생략했다.
 - `data/rules/test_rules.py` · `backend/agent/test_llm_cache.py` · `data/external/test_elice_docvision.py` ·
   `data/test_expenditure_limits.py`
   — 룰 카탈로그(근거 무결성 · **발화 가능성**(D77) · **해제 가능성**(D78)) + **LLM 응답 카세트**
@@ -143,15 +153,18 @@
   새기 때문 — `docs/07_BACKLOG.md` 「알려진 결함」 참고).
 - `backend/a2a/test_auth_header.py` · `test_client.py` · `test_credentials.py` · `test_payloads.py` ·
   `test_trace.py` · `backend/routers/test_a2a.py` · `test_po_a2a_trigger.py` ·
-  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 162건**, A2A 아웃바운드(FinAllQ 출금·
+  `backend/services/test_po_a2a_dispatch.py` · `backend/a2a/test_circuit.py` — **9파일 168건**, A2A 아웃바운드(FinAllQ 출금·
   InsuQ 약관조회·assess-loan) 클라이언트·payload 조립·trace 기록·라우터 계약.
-  파일별 실측(2026-09-09): `test_auth_header` 5 · `test_client` **26**(16+차단기 연동 6+D139 4) ·
+  파일별 실측(2026-09-09, **162 시점 — 현재 168 은 아래 2026-09-25 문단**): `test_auth_header` 5 · `test_client` **26**(16+차단기 연동 6+D139 4) ·
   **`test_circuit` 17**(신규, D136) · `test_credentials` 12 · `test_payloads` **40**(25+S11 9+D138 3+D141 3) ·
   `test_trace` 8 · `routers/test_a2a` **33**(28+S11 5) · `test_po_a2a_trigger` 8 ·
   `test_po_a2a_dispatch` 5 = **162**(2026-09-10 D138 3 + D139 4 · 2026-09-11 D141 멱등키 5 ·
   **2026-09-16 D142 연결 승인 게이트 6** — `test_payloads` 40→46). ⚠ D142 는 **픽스처도 바꿨다** —
   `seed_signed_disposals` 가 `partner_links` 행 2개(insuq/BLD-C · finallq/company)를 함께 심고,
   `link_finallq` 는 **멱등**이 됐다(먼저 DELETE). 안 그러면 두 픽스처를 같이 쓰는 테스트가 PK 충돌로 죽는다.
+  🔵 **2026-09-25 — 162→168** (Sprint 19 MQ-1907, D149 `policy_blocked` +6). 러너 파일별 실측(`--collect-only`):
+  `test_auth_header` 5 · `test_client` 29 · `test_circuit` 17 · `test_credentials` 12 · `test_payloads` 46 ·
+  `test_trace` 8 · `routers/test_a2a` 37 · `test_po_a2a_trigger` 8 · `test_po_a2a_dispatch` 6 = **168**.
 
   🔴 **정정 (2026-09-04 실측)**: 오래 **88** 로 적혀 있었다. 그 값이 어떻게 나왔는지는
   이제 알 수 없지만 **러너 출력과 19건 어긋난다** — 이 문서가 스스로 정한
@@ -178,7 +191,7 @@
   backend/services/test_a2a_history.py backend/services/test_lien.py
   backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 22파일 364건이다** (7파일군 138 + A2A 9파일군 162 + 서비스 3파일 20 + mcp_server 3파일 44).
+  📌 **pytest 총계는 이제 23파일 406건이다** (7파일군 138 + A2A 9파일군 168 + 서비스 3파일 20 + `mcp_server/` 4파일 80, 2026-09-25 실측).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로
@@ -186,18 +199,22 @@
   상태**라 `test_client.py` 에 `registry().reset()` autouse 픽스처가 함께 들어갔다 —
   **없으면 전송 실패 테스트 3건이 차단기를 열어 뒤따르는 5건이 조용히 다른 예외를 받는다**
   (도입 즉시 실측으로 드러났다).
-  🔴 **2026-09-11 — `mcp_server/tools/test_*.py` 3파일 43건이 목록 밖이었다** (네 번째 누락).
+  🔴 **2026-09-11 — `mcp_server/tools/test_*.py` 3파일이 목록 밖이었다** (네 번째 누락. 당시 43건, 이후 44건 — 17+13+14).
   `test_assess_equipment_loan` **17**(2026-09-11 — D139 5xx 분리를 형제에서 이식, 16→17) · `test_search_insurance_clause` 13 · **`test_assess_used_equipment_loan` 14**(신규, D140).
   ⚠ **가드 자신에게 사각지대가 있었다** — 아래 확인 커맨드가 `backend data` 만 훑어
   `mcp_server/` 를 **아예 보지 않았다.** 누락을 막으려고 세운 검사가 그 누락을 못 봤다.
-  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/tools/ -q`** → **44건**
-  (A2A 자격증명을 안 다루는 얇은 HTTP 래퍼라 `httpx.post` monkeypatch 만으로 돈다 — DB 불필요)
+  ⚠ 실행 커맨드: **`uv run --with pytest python -m pytest mcp_server/ -q`** → **80건**
+  (= `tools/` 44 + **`mcp_server/test_onboarding_guard.py` 36**, Sprint 19 MQ-1905 신설).
+  🔴 **2026-09-25 정정 — 커맨드가 `mcp_server/tools/` 였다.** 새 파일이 `tools/` **밖**에 생겨 옛 커맨드로는
+  돌지 않았다 — 다섯 번째 누락이 될 뻔한 자리라 디렉터리를 `mcp_server/` 로 넓혔다.
+  (`tools/` 3파일은 A2A 자격증명을 안 다루는 얇은 HTTP 래퍼라 `httpx.post` monkeypatch 만으로 돈다 — DB 불필요.
+  `test_onboarding_guard.py` 도 순수 함수라 DB 불필요)
 
   목록이 맞는지 보려면 **`find backend data mcp_server -name 'test_*.py' -not -path '*__pycache__*'`**
   가 반환하는 파일이 전부 위 네 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
-  누락이 반복된다(이번까지 **네 번째**다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
+  누락이 반복된다(네 번 났고, 2026-09-25 다섯 번째가 날 뻔했다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
 
-- `spikes/` — **35종**(`ls spikes/*.py` 는 **38개**를 반환한다 = 35 + 목록 밖 3개:
+- `spikes/` — **40종**(`ls spikes/*.py` 는 **43개**를 반환한다 = 40 + 목록 밖 3개:
   `demo_recommendation_1_and_2`(PASS/FAIL 단언 없는 시연) · `a2a_outbound_contract` ·
   `a2a_e2e_integration_spike`(둘은 진짜 계약 스파이크인데 편입 여부 미결정).
   🔴 **2026-09-24 정정**: 오래 *"남는 4개"* 로 적혀 있었으나 4번째인 `test_elice_stream.py` 는
@@ -216,7 +233,12 @@
   deadline_risk_contract ·
   external_store_contract ·
   ie5_extract_contract ·
-  **a2a_partner_tools_contract** · **docx_contract** · **mcp_http_contract**(D150 8 → D151 11 → **D152 17건**)
+  **a2a_partner_tools_contract** · **docx_contract** · **mcp_http_contract**(D150 8 → D151 11 → **D152 17건**) ·
+  **model_enum_contract** · **onboarding_contract** · **onboarding_rag_contract** · **onboarding_safety_gate** ·
+  **onboarding_promote_contract**(Sprint 19 신설 5종)
+  ⚠ **`law_fetch_contract ⓚ` 는 이 레포에서 매번 1건 FAIL 한다 — 기존 오탐이다** (2026-09-25, Sprint 19 Stage 1~4 매번).
+  `.env` 의 `LAW_API_OC` 값이 GitHub 아이디와 같아 추적 파일에서 "인증값 유출" 로 잡힌다. 값을 실제 발급 OC 로
+  바꾸면 해소된다(`docs/07_BACKLOG.md` 「알려진 결함」). **ⓚ 외의 FAIL 은 오탐이 아니다.**
 - 정적: `ruff check` · `tsc --noEmit` · `next build`
 
 건수는 러너 출력이 기준이다. **직전 실행보다 줄었다면 테스트가 사라진 것** — 통과했다고 넘기지 말 것.
@@ -236,8 +258,14 @@
 > 뮤턴트로 실증했다 — `module_specifiers` 를 `return []` 로 망가뜨리면 새 오라클만 FAIL 하고
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
-**실측 기준선 (2026-08-23, Sprint 16 SQLite→Postgres 마이그레이션 완결 후 재실행 — 아래 문단 참고)** —
-spikes **34스위트 / 1,212건**(2026-09-06 — 1,202 + `eval_score_contract` **D135 오특정/미특정 분리 축 10건**(⑫-g~⑫-n, ⑫-k 는 3케이스 루프). 뮤턴트 2종으로 실증했다 — 판정을 `return PART_WRONG` 으로 망가뜨리면 3건이, 렌더를 지우면 **⑫-m 하나만** FAIL 한다(렌더 검사가 제 몫을 한다는 뜻).
+**실측 기준선 (최신 2026-09-25 Sprint 19 Stage 4 · 이력은 아래 문단 — 2026-08-23 Sprint 16 Postgres 마이그레이션 완결부터)** —
+spikes **40스위트 / 1,348건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 4 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
+1,348 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
+Sprint 19 신설 5스위트 **100**(`model_enum_contract` 10 · `onboarding_contract` 9 · `onboarding_rag_contract` 6 ·
+`onboarding_safety_gate` 22 · `onboarding_promote_contract` 53) + `disposal_api_contract` 36→**37**(㉪ 공유 DB 누수 단언) +
+`ui_honesty_contract` 327→**345**(MQ-1911 — L1 +2: L1-16·L1-17 미지 상태·프로토타입 키 → ok 금지 · 뮤턴트 +2: ⓘⓙ · L2 +12: 검수 페이지(app 글롭 자동)·`OnboardingBadge.tsx`(`L2_EXTRA` 수동 등재) 2파일 × 6 ·
+게이트 +2: `lib/onboarding.ts` C11·C12. `L2_FILES_FLOOR` 42 는 이미 낡아 있었다(실측 48) → 50).
+직전 1,212 = 2026-09-06 — 1,202 + `eval_score_contract` **D135 오특정/미특정 분리 축 10건**(⑫-g~⑫-n, ⑫-k 는 3케이스 루프). 뮤턴트 2종으로 실증했다 — 판정을 `return PART_WRONG` 으로 망가뜨리면 3건이, 렌더를 지우면 **⑫-m 하나만** FAIL 한다(렌더 검사가 제 몫을 한다는 뜻).
 직전 1,202 = 1,197 + `eval_score_contract` D133 견적 근거 축 5건(⑫-b~⑫-f).
 직전 1,197 = 1,192 + `eval_replay_guard` D132 스트림 실패 분모 축 5건(⑥-a~⑥-e).
 직전 1,192 = 1,190 + `db_concurrency` D126 채번 사본 정적 검사 2건(㉑㉒).
@@ -269,7 +297,7 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 뮤턴트로 실증했다) · pytest **138건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **25개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
+프론트 라우트 **26개**(2026-09-25 MQ-1911 `/manager/onboarding` +1 — `npx next build` 실측 · 이전 25 · ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이
 다르다**. '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라
 재실행 불필요**, Sprint 10 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence`
@@ -288,13 +316,15 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `agent_loop_contract 37` · `api_contract 52` · `approvals_contract 26` · `asset_tools_contract 49` ·
 `bundle_integrity 26`(Postgres 포팅 완료 — 아래 Sprint 16 문단 참고) ·
 `citation_render 19` · `db_concurrency 16`(Postgres 재설계 + D126 잠금 축 3건 + D127·D130 가드 4건 + D126 채번 사본 정적 검사 2건 — 아래 참고) · `deadline_risk_contract 18` ·
-`disposal_api_contract 36` · `docx_contract 63` ·
+`disposal_api_contract 37` · `docx_contract 63` ·
 `disposal_sign_contract 26` · `eval_replay_guard 21` · `eval_score_contract 51` · `external_store_contract 47` ·
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
-`llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `ownership_api_contract 10` ·
+`llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `mcp_http_contract 17` ·
+`model_enum_contract 10` · `onboarding_contract 9` · `onboarding_promote_contract 53` · `onboarding_rag_contract 6` ·
+`onboarding_safety_gate 22` · `ownership_api_contract 10` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 327` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 345` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**

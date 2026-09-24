@@ -514,8 +514,11 @@ Claude가 대신 못 하는 것들. 순서대로.
       safety-guardrail 규칙 3 의 "10분 이상"은 iG5A·S100 확정값이다 — HV600 원문 값이 다르면
       **스킬 문구의 적용 범위를 기종별로 개정할지는 사람이 결정**한다(Claude 가 스킬을 고치지
       않는다). 막는 것: 데모 ⑤(승인 후 경로).
-- [ ] **H5 (H3·H4 뒤) — `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent`
+- [ ] **H5 (두 번 — ⓐ H3 전: 데모 ① 녹화용 · ⓑ H3·H4 뒤: ④⑤ 녹화용, 2026-09-25 결정 ㉠) — `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent`
       에 재설치.** 막는 것: OpenClaw 진단 흐름에서 HV600 안전 문구가 실제로 나오는 것.
+      ⚠ **ⓐ 전 선행 확인(safety-guardrail 규칙 5)**: `build.py` 가 만드는 AGENTS.md 의 「10분 이상」 확정 문구 **적용 기종을
+      iG5A·S100 으로 좁힌 문장**과 `skills/maintq-diagnose/SKILL.md` 의 HV600 안전 적용 범위 문장(「시작 전」·「하지 않는 것」)을
+      사람이 읽고 승인한다 — 안전 문구 본문은 바뀌지 않았고 적용 범위만 바뀌었다(Stage 3·4 리뷰 지적)
 - [ ] **H6 (Stage 4) — SkillSpector 결과(신규·수정 스킬) 수용 판정.** 막는 것: 제출물.
 - [ ] **H7 (Stage 4) — 데모 녹화** (과부하 O1 대비 — 라이브 시연보다 녹화 권장). 막는 것: 제출.
 - [ ] **H8 (필요 시) — 웹 콘솔 샌드박스(`maintq`)에서 HV600 을 보이려면** 호스트 DB 덤프 →

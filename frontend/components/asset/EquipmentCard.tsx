@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OnboardingBadge } from "@/components/onboarding/OnboardingBadge";
 import { Mono } from "@/components/ui/Mono";
 import { type ApiAsset, type ApiHotspotStatus } from "@/lib/api";
 import { MODEL_BASE_IMAGE, MODEL_CITATION } from "@/lib/hotspots";
@@ -89,9 +90,13 @@ export function EquipmentCard({
         </div>
       )}
 
-      <div style={sx("font:11px 'Pretendard';color:var(--dim)")}>
-        라인 {asset.line_id ?? "미배정"}
-        {status?.model && ` · ${status.model}`}
+      <div style={sx("font:11px 'Pretendard';color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap")}>
+        <span>
+          라인 {asset.line_id ?? "미배정"}
+          {status?.model && ` · ${status.model}`}
+        </span>
+        {/* 기종 온보딩 뱃지(MQ-1911) — iG5A·S100 은 `none` 이라 아무것도 그리지 않는다(기존 화면 무변화) */}
+        {model && <OnboardingBadge model={model} />}
       </div>
 
       {citation && (

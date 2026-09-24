@@ -183,7 +183,16 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 ---
 
+- 🟡 `data/pg_isolation.py` `_CLONE_TABLES` 에 `onboarding_*` 5테이블이 없다 — `clone_data=True` 격리 스키마에서 온보딩 데이터가 0행이다
+  (MQ-1911 이 화면 검증 때 손으로 복사했다). **그대로 추가하면 안 된다** — `onboarding_contract`(적재기 멱등 ③)·`onboarding_promote_contract` 등이
+  「격리 스키마 온보딩 0행」을 전제로 자기 배치를 만든다. 넣으려면 옵트인 인자(`clone_onboarding=True`)로
+  (2026-09-25 Stage 4)
+
 ## 아이디어 주차장 (미분류)
+
+- 🔵 **외부 연동은 A2A 대신 카카오톡 알림(MCP)으로 (2026-09-25 사용자 방향)** — 이 레포에서 A2A(FinAllQ·InsuQ)는 더 확장하지 않는다
+  (구현·회귀는 유지, 데모 시나리오에서는 제외). 외부로 나가는 연동이 필요하면 예: 온보딩 검수 대기·안전 문구 승인 대기·발주 승인 대기를
+  팀장에게 카카오톡으로 알림. 착수 시 D 번호 먼저(채널·수신자·보내는 내용의 범위 — 매뉴얼 원문·안전 문구 본문은 보내지 않는다 D144)
 
 - 발주 이력 기반 소모성 부품 자동 재주문 제안 (안전재고 하회 시 선제 알림) — P17과 묶으면 시너지
 - 점검 체크리스트 완료 체크 → 정비 리포트 자동 생성 (S3의 `po_card` variant:`hold` 체크리스트가 입구)
@@ -305,8 +314,10 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 
 > 해커톤 작업은 제출용 새 레포(`~/MaintQ-NVIDIA`, WSL)로 옮겼다. 아래는 **MaintQ 본체에도 가치가 있는** 것만 추렸다.
 > 조사 원문·실측 근거: 브랜치 `feat/nvidia-hackathon` 의 `docs/hackathon/day1.md`·`day2-prep.md` (이 브랜치는 master 에 합치지 않는다).
+> 🔵 **2026-09-25 — 이 레포에서는 첫 두 항목을 Sprint 19 로 이관했다** (`docs/sprints/sprint-19.md`). 아래 각 항목의 표시 참고.
 
 - **매뉴얼 온보딩 에이전트 — 새 기종 매뉴얼을 읽어 진단 데이터를 제안하고, 사람이 승격해야만 진단에 쓰인다.**
+  → 🔵 **Sprint 19 로 이관·구현**(D153~D157, HV600). 아래 「착수 전 결정 필요 ①②」와 RAG 위치는 D146·D157·D148 로 확정됐다
   새 사업장·새 기종 도입 때마다 사람이 표를 옮겨 적던 일(D107·D109 의 IE5 추출이 그 수작업이었다)을 에이전트가 초안까지 한다.
   - 흐름: PDF 구조 파악 → 표 추출(D107 기하 기반 재사용) → 행 검증(코드 형식·중복·누락) → 저신뢰 행 표시 → **스테이징 draft 적재** → 사람 검수·승격
   - 스테이징 테이블: 근거(파일명·페이지) · 추출 신뢰도 · 상태(`staged`/`approved`/`rejected`). 승격은 **사람 전용 API**(D10·D81 과 같은 구조)
@@ -324,6 +335,7 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
 - **사업장 → 구역 → 설비(개별 대) → 기종 계층 + 설비 평면도(SVG)** — 온보딩 상태는 **기종 단위**로 관리
   (설비 수백 대라도 기종은 몇 종 — 기종 하나를 승격하면 그 기종 설비 전부가 진단 가능). 평면도는 외부 지도 API 없이 SVG,
   점 색으로 상태 구분, 설비 클릭 → 진단 콘솔. 목업 사업장은 실제 회사명을 쓰지 않고 목업임을 표시
+  → 🔵 **Sprint 19 MQ-1914(선택, Stage 5)로 이관** — 시간이 남을 때만
   - ⚠ 설비 테이블에 컬럼을 더해도 **A2A 발신 페이로드·QMesh 계약은 바뀌면 안 된다**
 - **NeMo Guardrails 입력 검사** — 업로드 문서·OCR 텍스트 같은 신뢰할 수 없는 입력에 `self check input`
   (메인 LLM 하나로 동작, 추가 모델 불필요). `nemoguardrails` 0.24.1 · Python 3.10~3.13. 휴리스틱 jailbreak 탐지는 영어 최적화라 한국어엔 약함
@@ -382,7 +394,8 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   이 도구는 그걸 모르고 정규화 행을 계속 붙일 수 있다. 영향은 낮다 — 승격은 특정 `norm_id` 를
   명시적으로 골라 쓰므로, 승인 후 붙은 "고아" 정규화 행이 있어도 승격 결과에 섞여 들어가지 않는다.
 - 🟡 **full 프로필 A2A 도구 3종이 `policy_blocked` 와 `circuit_open` 을 구분하지 못한다**
-  (2026-09-25, D149 리뷰 발견, **MQ-1913 소관**). `assess_equipment_loan`·`assess_used_equipment_loan`·
+  (2026-09-25, D149 리뷰 발견 · **Sprint 19 범위 밖, 이월** — MQ-1913 은 문서 동기화만 한다. 샌드박스는 `core`
+  프로필이라 이 3종이 노출되지 않아 데모 경로에는 영향이 없다). `assess_equipment_loan`·`assess_used_equipment_loan`·
   `search_insurance_clause` (각 `mcp_server/tools/*.py`) 는 백엔드가 돌려준 503 을 전부
   `reason: "circuit_open"` 으로 매핑한다 — 백엔드가 `A2APolicyBlockedError` 를 잡아 dict 형태
   `{"reason":"policy_blocked", ...}` 를 돌려줘도(`backend/routers/a2a.py`) 이 세 도구는 `detail` 의
@@ -390,6 +403,27 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   "샌드박스 정책이 애초에 막았다"(policy_blocked, D149)가 똑같이 보인다 — 재시도 안내 문구도
   차단기 쪽 문구를 쓰게 된다. `docs/06_REPO_API.md` §2.9 참고.
 
+- 🟡 **Sprint 19 온보딩의 알려진 한계 3건** (2026-09-25, 계획 단계에서 인지 — 고치지 않음):
+  - **BYOC 덤프가 온보딩 역할·GRANT 를 옮기지 않는다** — 웹 콘솔 샌드박스 이미지용 덤프가 `--no-privileges` 라
+    `maintq_onboarding` 역할·GRANT 가 빠진다. 샌드박스 안에서는 온보딩을 돌리지 않아 지금은 무관하지만,
+    샌드박스 안 온보딩을 하려면 가드 SQL(`scripts/postgres_guards.sql`)을 따로 적용해야 한다(H8)
+  - **승격 취소 API 가 없다** — `backend/routers/onboarding.py` 는 승격·행 반려·안전 승인/반려만 있다. 잘못 승격한
+    `error_codes`·`manual_chunks` 행을 되돌리는 사람 경로가 없어 지금은 DB 직접 조작뿐이다(수동 절차는 `TODO_직접할일.md` H10)
+  - **OpenClaw 경로의 HV600 안전 문구는 모델의 규칙 준수에 기대고 있다** — 백엔드 루프는 `resolve()`(D157) + 안전
+    게이트로 강제하지만, OpenClaw 는 `deploy/nemoclaw/workspace/build.py` 가 생성한 워크스페이스 규칙을 모델이
+    따르기를 기대할 뿐 런타임 게이트가 없다
+- 🟡 **`law_fetch_contract ⓚ` 가 이 레포에서 매번 오탐 FAIL 한다** (2026-09-25, Sprint 19 Stage 1~3 회귀 매번).
+  `.env` 의 `LAW_API_OC` 값이 GitHub 아이디와 같아 추적 파일(커밋 저자·URL 등)에서 "인증값 유출" 로 걸린다.
+  코드 결함이 아니다 — **값을 실제 발급받은 OC 로 바꾸면 해소된다.** 그 전까지는 이 1건을 기존 오탐으로 보고하되,
+  **다른 검사의 FAIL 까지 함께 넘기지 말 것**
+- 🟡 **브라우저 검증에서 드러난 기존 UI·문구 이슈 4건** (2026-09-25, Sprint 19 Stage 1~3 브라우저 확인 중 발견 —
+  Sprint 19 가 만든 것이 아니다, 고치지 않음):
+  - 채팅 본문의 `**굵게**` 마크다운이 렌더되지 않고 별표가 그대로 보인다
+  - TracePanel 「근거 문서」·「발주 이력」 탭을 눌러도 내용이 바뀌지 않는다 + `borderBottom` 관련 React 경고
+    (콘솔이 가리킨 위치 `frontend/components/trace/TracePanel.tsx:70` — 원인 미조사)
+  - Nemotron 응답에 중국어 「参照」가 섞여 폰트에 따라 네모 글자로 보인다(모델 출력 — 프롬프트·후처리 미조치)
+  - `backend/routers/onboarding.py` docstring 의 *"`X-User` 기본값 `tech-01` 은 technician"* 은 부정확하다 —
+    기본 역할을 정하는 것은 **`X-Role` 기본값**이다(D108). 코드 파일 문구 정정 필요
 - 🟡 **요청자 식별자 `finallq_company_id` 가 빌더 5곳에서 `or ""` 로 뭉개진다** (2026-09-16 발견, D142 스코프 밖).
   `get_finallq_company_id()` 는 `link_state != 'LINKED'` 면 `None` 을 돌려주는데, 호출부가
   `or ""` 로 받아 **빈 문자열을 payload 에 싣는다**. 빈 요청자 식별자는 수신부에서
