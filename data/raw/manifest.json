@@ -53,6 +53,19 @@
       "license_note": "동일. 저작권 LS ELECTRIC. 비상업적 학습·포트폴리오 목적. 원본 재배포 금지(git 제외).",
       "print_page_offset": 0,
       "page_note": "물리 = 인쇄 (오프셋 없음, ig5a-manual과 동일 규약). 2026-08-21 IE5 자체를 실측 확인(물리 p.20→'2-1', p.50→'5-11', p.100→'10-13', p.125→'13-4') — iG5A 표준판과 동일한 장(章)-상대 쪽번호 표기이고, 선형 인쇄 페이지로 환산되는 축이 없어 offset=0이 맞는 규약이다(추측이 아니라 실측 확인, D9)."
+    },
+    {
+      "id": "hv600-iopm",
+      "model": "HV600",
+      "role": "primary",
+      "file": "TOEPC71061732.pdf",
+      "version": "TOEPC71061732H<7>-0 (PDF 메타 subject 기준, 작성 2026-04-20)",
+      "source_url": "https://www.yaskawa.com/products/drives/hvac-drives/fan-pump-drives/hv600-drive (Core Manuals > Installation & Primary Operation). ⚠ 직접 다운로드 URL(getAttachment)은 curl 로 403 — 브라우저로 받는다",
+      "sha256": "256c4d558dbd22f7d21b8c66fe0a1b6de73e95af5b7e32257b39918166a38e21",
+      "downloaded_at": "2026-09-24",
+      "license_note": "저작권 YASKAWA Electric Corporation. 해커톤 온보딩 데모 목적. 원본 재배포 금지(git 제외). 추출물의 원인·조치 문장도 공개 금지(D144) — 코드·페이지·에러명만 사실로 남긴다.",
+      "print_page_offset": 0,
+      "page_note": "물리 = 인쇄 (오프셋 없음). 2026-09-24 실측: 물리 p.5·21·61·107·124 의 쪽번호가 각각 5·21·61·107·124. 영문 매뉴얼이라 온보딩에 한국어 정규화 단계가 붙는다(D145). 고장 표는 p.107~124 괘선 4열(Code/Name/Causes/Possible Solutions), 코드 후보 약 133개(find_tables 1차 실측, 헤더·범위 표기 미정리)."
     }
   ],
   "update_policy": "매뉴얼 개정은 연 단위 이벤트. 자동 다운로드 워처는 백로그 P13. 신규 버전 반영 절차: 새 PDF를 raw/에 추가 → manifest에 항목 추가(구버전 유지) → 추출 파이프라인 재실행 → error_codes.json diff 확인 → testset 영향 검토."
