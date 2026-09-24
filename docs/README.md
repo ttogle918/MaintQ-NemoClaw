@@ -29,14 +29,14 @@
 
 ## 진행 상태 (최신 항목 2026-09-25 · 아래는 시간순이 아니라 주제별로 쌓인다)
 
-> **2026-09-25 (Sprint 19 — HV600 매뉴얼 온보딩, `docs/sprints/sprint-19.md`)** — **Stage 1~3 완료, Stage 4 진행 중**
-> (MQ-1911 승격 검수 화면 · MQ-1912 데모 E2E · MQ-1913 회귀·문서 동기화). 결정 **D153~D157**: NAT 온보딩 런타임
+> **2026-09-25 (Sprint 19 — HV600 매뉴얼 온보딩, `docs/sprints/sprint-19.md`)** — **Stage 1~4 완료 · 데모 녹화 완료**
+> (MQ-1911 승격 검수 화면 · MQ-1912 데모 E2E · MQ-1913 회귀·문서 동기화). 영상 설명: `memo/2026-09-25-hv600-onboarding-demo.md`. 결정 **D153~D157**: NAT 온보딩 런타임
 > (스파이크 L0 채택) · 스테이징 5테이블·전용 역할·`onboarding` 도구 프로필(쓰기 도구 4종째) · 에러코드 형식 확장 ·
 > 승격 병합 규칙 · 안전 문구 런타임 원천. model enum 4종(HV600 은 승격 전 `not_found`). 테이블 25→**30** ·
 > pytest **406** · spikes **40종**. 공유 DB 에 HV600 249행 적재·NAT 정규화 완료(high 248 · low 1).
 > ⛔ **데모 전 `data/seed.py` 재실행 금지**(H9 — LLM 정규화·승격·안전 승인이 복구되지 않는다).
-> **남은 사람 작업 H2~H7** — 정규화 검수(H2) → 승격(H3) · 안전 문구 승인(H4) → OpenClaw 워크스페이스 재설치(H5) ·
-> SkillSpector 판정(H6) · 데모 녹화(H7). 목록은 `TODO_직접할일.md` 「Sprint 19」.
+> 사람 작업 H2~H5·H7 완료 — 8코드 승격(CE·GF·OC·OV·UV1·OH·CPF06·EF1) · 안전 문구 SC-14(p.29, **5분**) 승인 ·
+> OpenClaw 재설치 · 녹화. **남은 것**: H6 SkillSpector 판정 · Stage 5(선택, MQ-1914). 목록은 `TODO_직접할일.md` 「Sprint 19」.
 
 > **2026-09-24 (NVIDIA 해커톤 Day 2, `docs/hackathon/day2.md`)** — 제출용 레포
 > **`ttogle918/MaintQ-NemoClaw`**(비공개 · Apache-2.0)로 옮겼다. 작업 위치도
