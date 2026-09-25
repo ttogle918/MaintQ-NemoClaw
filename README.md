@@ -1,5 +1,10 @@
 # MaintQ
 
+> **NVIDIA 해커톤 제출** (미션: Securing Agents with NemoClaw and OpenShell) — 영문 매뉴얼만 있는 새 기종(Yaskawa HV600)을
+> OpenShell 샌드박스 안의 NeMo Agent Toolkit + Nemotron 이 한국어로 온보딩하고, 사람이 검수·승격·안전 문구 승인을 해야만
+> OpenClaw(NemoClaw) 진단 에이전트가 그 기종을 진단한다.
+> 심사용 문서(채점 기준 매핑 · 보안 설계 · 데모 영상 · 재현 가이드 · 한계): **[docs/hackathon/SUBMISSION.md](docs/hackathon/SUBMISSION.md)**
+
 > 설비 진단부터 부품 발주까지 — 제조 현장 AI 보전 에이전트
 
 **설비 진단부터 부품 발주까지 연결하는 B2B 제조 보전 AI 에이전트**

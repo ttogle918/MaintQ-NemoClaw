@@ -539,3 +539,26 @@ Claude가 대신 못 하는 것들. 순서대로.
 - [ ] **H10 (잘못 승격 시) — 승격 취소 API 가 없다.** `error_codes`·`manual_chunks`(대상 `chunk_id`
       는 `onboarding_promotions.chunk_ids` 에서 확인)·`onboarding_promotions` 행을 삭제하고
       `onboarding_code_rows`/`onboarding_safety_candidates` 의 `state` 를 사람이 SQL 로 되돌린다.
+
+### 제출 전 체크리스트 (2026-09-25 신설 — 마감 2026-09-28 23:59)
+
+심사용 문서: `docs/hackathon/SUBMISSION.md`. H6 은 위 항목 그대로다(여기서 중복 관리하지 않는다 — 제출을 막는 항목이라 순서에만 넣었다).
+
+- [ ] **S1 — H6 SkillSpector 판정** (위 H6). `maintq-manual-onboarding` HIGH 1(evals 합성 주입 문장) 수용 여부.
+      판정 결과를 `SUBMISSION.md` §3.8 「판정 대기, H6」 자리에 반영한다.
+- [ ] **S2 — 데모 영상 링크 기입.** `SUBMISSION.md` §4 「(링크: 사람이 기입)」 과
+      `docs/memo/2026-09-25-hv600-onboarding-demo.md` §1 「영상 파일 위치」. 링크를 넣기 전에 영상에
+      대시보드 URL·토큰(`nemoclaw … dashboard-url` 출력)이 비치지 않는지, 중국어 「参照」 가 섞였는지 확인.
+- [ ] **S3 — 스킬 카드 사람 검토** (`skills/maintq-diagnose/skill-card.md`). `day2.md` §8 은 「소유자 VERIFY 표시 1건으로
+      `validate_submission.py` FAIL」 이라 적었으나 **2026-09-25 재실행은 OK(마커 0)** 다 — 표시는 이미 지워졌다.
+      남은 일은 내용 확인: 소유자·라이선스·카드 안 GitHub 링크(`ttogle918/MaintQ-NemoClaw`)가 공개 후 실제로 열리는지,
+      「Requires API Key: [Not Specified]」 가 맞는지. `maintq-manual-onboarding` 에는 스킬 카드가 없다(만들지 여부 결정).
+- [ ] **S4 — OpenClaw 워크스페이스·스킬 재설치.** 커밋 `4614b79`(에러코드 매번 lookup 재호출)·`1cf93e8` 이후
+      `build.py --check` 가 의도된 stale 을 낸다 → `build.py` 재생성 → `nemoclaw maintq-agent upload …` →
+      `skills/maintq-diagnose` 재설치 → `--check` stale 0 확인. 녹화본은 재설치 전 판이다(재녹화 여부는 사람 판단).
+- [ ] **S5 — 레포 공개·라이선스.** `ttogle918/MaintQ-NemoClaw` 는 비공개 — 제출 직전 공개(`day2-prep.md` §8 #1).
+      공개 전: `LICENSE`(Apache-2.0) 확인 · 매뉴얼 실데이터가 추적 파일에 없는지(D144) · `.env`·키 모양 문자열 0건 재확인
+      (`day2-prep.md` §9 방식) · 복구 번들(`~/maintq-backup-*.bundle`)은 올리지 않는다 · README 「빠른 시작」 의 clone URL
+      (`<YOUR_ID>/MaintQ`) 이 제출 레포와 다르다는 점 확인.
+- [ ] **S6 — `SUBMISSION.md` 최종 읽기.** 사실·수치(spikes 1,387 · pytest 406 · seed 44 · 라우트 27 · D1~D158)가
+      제출 시점 실측과 맞는지, 「확인 안 됨」 으로 둔 항목(build.nvidia.com HTTP Skill API)이 여전히 그런지.
