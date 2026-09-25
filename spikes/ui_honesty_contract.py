@@ -10,17 +10,19 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   제약 게이트 8건  `lib/ownership.ts`·`lib/maintValue.ts`·`lib/deadlines.ts`·`lib/riskGrade.ts` 가
                     React 를 쓰지 않고 `@/` 별칭도 쓰지 않는다(이 두 가지가 성립해야 L1 이 단독
                     `tsc` 로 돌아간다 — 계약이자 전제다)
-  L1  순수 함수  18건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+  L1  순수 함수  19건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
                     (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다.
                      Sprint 12(MQ-1202)가 `deadlines.ts`(2함수)·`riskGrade.ts`(1함수) 관련
                      L1-14·L1-15 를 더했다. MQ-1911 이 `onboarding.ts`·`a2a.ts` 의 미지 값·
-                     프로토타입 키 판정 L1-16·L1-17 을, MQ-1914 가 `floorplan.ts` 점 판정 L1-18 을 더했다)
+                     프로토타입 키 판정 L1-16·L1-17 을, MQ-1914 가 `floorplan.ts` 점 판정 L1-18 을 더했다.
+                     데모 다듬기(2026-09-25)가 `markdown.ts` 채팅 마크다운 L1-19 를 더했다 — 굵게·목록
+                     구조화 · 미종결 `**` 평문 보존 · `<script>` 글자 그대로)
   L2  소스 정적      상태·판정 어휘를 다루는 **컴포넌트 전부**에 상태 문자열·색 토큰·
                     상태 비교가 0건 → **컴포넌트는 스스로 "확인/통과" 여부를 말할 수단이 없다**
   D64 성능 점수화 금지  스캔 대상 전체에 `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축
                     (스캔 파일수 > 0 · 다른 지표 문자열이 실제로 발견됨)
 
-  뮤턴트 10종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
+  뮤턴트 11종  방어선이 실제로 깨지는지 매 실행 확인한다. 깨지지 않는 검사는 방어선이 아니다.
              원본 파일은 건드리지 않는다 — 임시 사본에 주입하고 사본만 컴파일한다.
 
 ★ Stage 6 W1 — L2 스캔 대상을 `VerificationMatrix.tsx` **한 파일**에서
@@ -77,6 +79,7 @@ RISK_GRADE_TS = FRONTEND / "lib" / "riskGrade.ts"
 A2A_TS = FRONTEND / "lib" / "a2a.ts"
 ONBOARDING_TS = FRONTEND / "lib" / "onboarding.ts"
 FLOORPLAN_TS = FRONTEND / "lib" / "floorplan.ts"
+MARKDOWN_TS = FRONTEND / "lib" / "markdown.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
@@ -534,6 +537,7 @@ def run() -> None:
     constraint_gate("C9", "C10", "a2a.ts", A2A_TS, " (MQ-1605)")
     constraint_gate("C11", "C12", "onboarding.ts", ONBOARDING_TS, " (MQ-1911)")
     constraint_gate("C13", "C14", "floorplan.ts", FLOORPLAN_TS, " (MQ-1914)")
+    constraint_gate("C15", "C16", "markdown.ts", MARKDOWN_TS, " (채팅 마크다운)")
 
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
@@ -544,13 +548,13 @@ def run() -> None:
         check("L1", f"L1-{idx} {name}", ok, detail)
     check(
         "L1",
-        "L1 건수 18건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
+        "L1 건수 19건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
         "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을, MQ-1911 이 onboarding.ts·a2a.ts 2건을, "
-        "MQ-1914 가 floorplan.ts 1건을 더했다)",
-        len(rows) == 18 and (code == 0) == all(o for _, o, _, _ in rows),
+        "MQ-1914 가 floorplan.ts 1건을, 채팅 마크다운이 markdown.ts 1건을 더했다)",
+        len(rows) == 19 and (code == 0) == all(o for _, o, _, _ in rows),
         f"{len(rows)}건 · node exit={code}",
     )
-    # 위 '건수' 검사는 18건 밖의 메타 검사다 — 표에는 남기되 계약 18건에는 세지 않는다
+    # 위 '건수' 검사는 19건 밖의 메타 검사다 — 표에는 남기되 계약 19건에는 세지 않는다
     results[-1] = ("메타", results[-1][1], results[-1][2], results[-1][3])
 
     # ── L2 ────────────────────────────────────────────────────────────────
@@ -749,6 +753,15 @@ def run() -> None:
         det_j,
     )
 
+    # 채팅 마크다운 — 닫히지 않은 `**` 를 삼키면(스트리밍 중 글자가 사라짐) L1-19 가 FAIL 해야 한다.
+    ok_k, det_k = mutate_l1("ⓚ", "markdown.ts", '      buf += "**";', '      buf += "";')
+    check(
+        "뮤턴트",
+        "ⓚ markdown.ts 가 미종결 `**` 를 삼키게 바꾸면 L1 이 FAIL 한다 (채팅 마크다운)",
+        ok_k,
+        det_k,
+    )
+
 
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
@@ -764,6 +777,7 @@ def main() -> None:
         RISK_GRADE_TS,
         A2A_TS,
         ONBOARDING_TS,
+        MARKDOWN_TS,
         CHECK_TS,
         MATRIX_TSX,
         DISPOSAL_TSX,

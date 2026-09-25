@@ -66,5 +66,16 @@
       "maintq__rag_search_manual 을 model=HV600 으로 호출한다.",
       "iG5A·S100 용 안전 확정 문구를 HV600 답변에 붙이지 않는다."
     ]
+  },
+  {
+    "id": "maintq-diagnose-hv600-same-session-requery-001",
+    "question": "HV600 GF 떴어",
+    "expected_skill": "maintq-diagnose",
+    "ground_truth": "[전제: 같은 세션 앞 턴에서 'HV600 GF 떴어' 에 lookup_error_code 가 not_found 를 돌려줘 흐름 D 로 답했고, 그 뒤 사람이 HV600 GF 를 온보딩 승격했다] 같은 질문이 다시 와도 앞 턴 답을 재사용하지 않고 lookup_error_code(model=HV600, code=GF) 를 새로 호출한다. 이번 결과가 ok 면 도구가 돌려준 정의와 manual_page 로 답하고, 여전히 not_found 면 흐름 D 로 답한다. '앞서 설명드린 것처럼' 같은 이전 답 반복으로 끝내지 않는다.",
+    "expected_behavior": [
+      "이 턴에서 maintq__lookup_error_code 를 model=HV600, code=GF 로 다시 호출한다.",
+      "앞 턴의 not_found 결과를 근거로 도구 호출 없이 답하지 않는다.",
+      "이번 호출 결과(status)에 따라 답한다 — ok 면 정의·manual_page, not_found 면 흐름 D."
+    ]
   }
 ]

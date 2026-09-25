@@ -36,6 +36,7 @@ import { gradeView } from "../riskGrade";
 import { groupStatusView, onboardingBadgeView, rowStateView, safetyStateView } from "../onboarding";
 import { a2aStatusLabel, a2aStatusTone } from "../a2a";
 import { equipmentStatusKey, onboardingRing, plainStatusView } from "../floorplan";
+import { inlineText, parseInline, parseMarkdown, type MdBlock, type MdInline } from "../markdown";
 
 /* -------------------------------------------------------------------------- */
 /* 러너                                                                        */
@@ -578,6 +579,63 @@ function nineRows(extra: Row[] = []): Row[] {
     "평면도 점 — 원천 없음·조회 실패·미지 값 11케이스 판정 · 정상과 모양 구분 · 미지 톤 6종은 ok 테두리 아님",
     bad.length === 0,
     bad.length ? bad.join(" / ") : `채움 ${cases.length}케이스 일치 · 비정상 3종 hollow · 미지 톤 6종 비-ok · none=테두리 없음`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-19 — 채팅 마크다운: 굵게·목록은 구조로, 미종결 표식·HTML 은 글자 그대로 (XSS 방지)      */
+{
+  const bad: string[] = [];
+  const kinds = (bs: MdBlock[]) => bs.map((b) => b.t).join(",");
+  const has = (ns: MdInline[], t: MdInline["t"]): boolean =>
+    ns.some((n) => n.t === t || (n.t === "strong" && has(n.children, t)));
+
+  // ① **a** → strong("a"), 표식 `**` 는 보이는 글자에 남지 않는다
+  const b1 = parseInline("원인은 **냉각팬 고장**입니다");
+  const strong = b1.find((n) => n.t === "strong");
+  if (!strong || inlineText(strong.t === "strong" ? strong.children : []) !== "냉각팬 고장")
+    bad.push(`굵게 미인식 ${JSON.stringify(b1)}`);
+  if (inlineText(b1) !== "원인은 냉각팬 고장입니다") bad.push(`굵게 표식 잔존 "${inlineText(b1)}"`);
+
+  // ② 미종결 `**` (스트리밍 중간) → 평문 그대로, strong 없음
+  for (const partial of ["원인은 **냉각팬", "**", "a ** b", "끝**"]) {
+    const ns = parseInline(partial);
+    if (has(ns, "strong")) bad.push(`미종결 "${partial}"→strong 생성`);
+    if (inlineText(ns) !== partial) bad.push(`미종결 "${partial}"→글자 손실 "${inlineText(ns)}"`);
+  }
+
+  // ③ 목록 — `- `·`* ` 는 ul, `1. ` 은 ol(start 보존), 문단과 분리
+  const b3 = parseMarkdown("점검 순서:\n- 전원 차단\n* 팬 확인\n\n3. 첫째\n4. 둘째");
+  if (kinds(b3) !== "p,ul,ol") bad.push(`목록 블록 ${kinds(b3)} (기대 p,ul,ol)`);
+  const ul = b3[1];
+  if (!ul || ul.t !== "ul" || ul.items.length !== 2 || inlineText(ul.items[0]) !== "전원 차단")
+    bad.push(`ul 항목 ${JSON.stringify(ul)}`);
+  const ol = b3[2];
+  if (!ol || ol.t !== "ol" || ol.start !== 3 || ol.items.length !== 2) bad.push(`ol ${JSON.stringify(ol)}`);
+
+  // ④ 문단 안 줄바꿈 보존 · 빈 줄 = 문단 구분
+  const b4 = parseMarkdown("첫 줄\n둘째 줄\n\n새 문단");
+  if (kinds(b4) !== "p,p" || (b4[0].t === "p" && b4[0].lines.length !== 2)) bad.push(`문단 ${JSON.stringify(b4)}`);
+
+  // ⑤ HTML·스크립트는 태그가 아니라 글자다 — text 노드에 원문 그대로, 다른 노드 없음
+  const xss = "<script>alert(1)</script><img src=x onerror=alert(1)>";
+  const b5 = parseMarkdown(xss);
+  if (!(b5.length === 1 && b5[0].t === "p" && b5[0].lines.length === 1 && b5[0].lines[0].length === 1 &&
+        b5[0].lines[0][0].t === "text" && b5[0].lines[0][0].text === xss))
+    bad.push(`HTML 원문 보존 실패 ${JSON.stringify(b5)}`);
+  const b5b = parseInline("**<b>x</b>**");
+  if (!(b5b.length === 1 && b5b[0].t === "strong" && inlineText(b5b) === "<b>x</b>")) bad.push(`굵게 안 HTML ${JSON.stringify(b5b)}`);
+
+  // ⑥ 인라인 코드 — 안쪽 `**` 는 굵게가 아니다 · 미종결 백틱은 평문
+  const b6 = parseInline("파라미터 `F**1` 확인");
+  if (has(b6, "strong") || !b6.some((n) => n.t === "code" && n.text === "F**1")) bad.push(`코드 ${JSON.stringify(b6)}`);
+  const b6b = parseInline("값 `F1");
+  if (has(b6b, "code") || inlineText(b6b) !== "값 `F1") bad.push(`미종결 백틱 ${JSON.stringify(b6b)}`);
+
+  check(
+    "채팅 마크다운 — 굵게·목록·문단 구조화 · 미종결 ** 4종 평문 보존 · <script> 글자 그대로 · 코드 안 ** 무시",
+    bad.length === 0,
+    bad.length ? bad.join(" / ") : "굵게 1 · 미종결 4 · 목록 p/ul/ol · 문단 2 · HTML 원문 2 · 코드 2 일치"
   );
 }
 

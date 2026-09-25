@@ -5,6 +5,7 @@ import type { ChatItem } from "@/lib/types";
 import { A2aResultCard } from "./A2aResultCard";
 import { AgentBubble, UserBubble } from "./Bubble";
 import { ErrorLogAction } from "./ErrorLogAction";
+import { MarkdownText } from "./MarkdownText";
 import { PoDraftCard } from "./PoDraftCard";
 import { PoHoldCard } from "./PoHoldCard";
 import { RepeatFaultBanner } from "./RepeatFaultBanner";
@@ -30,7 +31,12 @@ export function ChatThread({
           case "agent":
             return (
               <AgentBubble key={item.id} citations={item.citations}>
-                {item.content}
+                {/* 라이브 token 누적분은 문자열 → 최소 마크다운. 목업(ReactNode)은 그대로 */}
+                {typeof item.content === "string" ? (
+                  <MarkdownText text={item.content} />
+                ) : (
+                  item.content
+                )}
               </AgentBubble>
             );
           case "safety":

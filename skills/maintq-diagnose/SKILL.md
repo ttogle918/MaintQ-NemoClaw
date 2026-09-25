@@ -43,7 +43,8 @@ allowed-tools:
 
 ### A. 에러코드가 있다 (S1 · S3 · S4)
 
-1. `maintq__lookup_error_code(model, code)`
+1. `maintq__lookup_error_code(model, code)` — **에러코드를 물을 때마다 새로 호출한다.** 같은 대화에서
+   앞서 답한 코드라도 이전 결과를 재사용하지 않는다(사람이 그 사이 승격했을 수 있다 — D146).
    - `not_found` → **흐름 D** 로. 비슷한 코드를 추측하지 않는다.
    - `error` + `catalog_not_loaded` → "카탈로그 미적재 — 관리자 문의" 로 종료. 미지 코드로 다루지 않는다.
 2. `maintq__get_error_history(...)` — `repeated: true` 면 **흐름 C** 로.
@@ -84,6 +85,8 @@ allowed-tools:
 
 - `maintq__create_po_draft` 는 유일한 쓰기 도구이며 **초안 INSERT 만** 한다 — 상태 전이는 사람 전용 API 다
 
+- 같은 대화에서 이미 답한 에러코드라도 `maintq__lookup_error_code` 를 건너뛰고 이전 결과("앞서 설명드린
+  것처럼")로 답하지 않는다 — 코드를 물을 때마다 새로 조회한다(온보딩 승격으로 결과가 바뀔 수 있다, D146)
 - 품번·단가·재고 수치·요청자 신원을 지어내지 않는다
 - 발주를 "완료했다"·"승인됐다" 고 말하지 않는다 (초안뿐이다)
 - 승인된 안전 문구가 없는 기종(IE5 · 안전 문구 승인 전 HV600 — AGENTS.md 확인)에 위험 작업 절차를 안내하지 않는다

@@ -437,6 +437,33 @@ def run() -> None:
     )
 
 
+    # ── ㉖ 응답 언어 고정 (2026-09-25 데모 다듬기) — Nemotron 답에 중국어 한자가 섞여 네모 글자.
+    #    양성: 「응답은 한국어로만 쓴다」 문장이 **모든 조립 경로**(기종 미상·정적 기종·온보딩
+    #    기종·full 프로파일·도구 0종)에 실린다 — `_STYLE` 은 `_compose` 한 곳에서 붙지만 경로별로
+    #    직접 확인한다. 음성: 프롬프트 자체에 한자(CJK 통합)·가나 0글자 — 금지 예시를 원문으로
+    #    싣지 않는다. liveness: 같은 프롬프트에서 한글 음절을 실제로 센다(스캐너가 빈 문자열을
+    #    보고 음성 축을 위장 통과하지 않게) + 정규식 자체가 픽스처의 한자·가나를 잡는다.
+    lang_sentence = "**응답은 한국어로만 쓴다**"
+    cjk = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+    variants = {
+        "기종미상": build_system_prompt(None),
+        "iG5A": build_system_prompt("iG5A", equipment_id="INV-L3-01"),
+        "HV600": build_system_prompt("HV600", equipment_id="INV-HV-01"),
+        "full": build_system_prompt("S100", tool_names=list(CORE_TOOLS) + list(EXT_TOOLS)),
+        "도구0종": build_system_prompt("iG5A", tool_names=[]),
+    }
+    missing = [k for k, p in variants.items() if p.count(lang_sentence) != 1]
+    cjk_hits = {k: cjk.findall(p) for k, p in variants.items() if cjk.search(p)}
+    hangul = sum(len(re.findall(r"[\uac00-\ud7a3]", p)) for p in variants.values())
+    oracle = len(cjk.findall("参照 カタカナ ひらがな 한글")) == 2 + 4 + 4
+    check(
+        "㉖ 응답 언어 고정 — 5개 조립 경로 전부에 문장 1회 · 프롬프트 한자·가나 0글자 (양성·음성·liveness)",
+        not missing and not cjk_hits and hangul > 0 and oracle,
+        f"문장 누락 경로={missing or '없음'} · 한자/가나 적발={cjk_hits or '0건'} · "
+        f"한글 음절={hangul} · 정규식 오라클={'OK' if oracle else 'FAIL'}",
+    )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
