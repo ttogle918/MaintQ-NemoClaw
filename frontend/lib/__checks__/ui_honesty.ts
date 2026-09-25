@@ -35,6 +35,7 @@ import { deadlineStateView } from "../deadlines";
 import { gradeView } from "../riskGrade";
 import { groupStatusView, onboardingBadgeView, rowStateView, safetyStateView } from "../onboarding";
 import { a2aStatusLabel, a2aStatusTone } from "../a2a";
+import { equipmentStatusKey, onboardingRing, plainStatusView } from "../floorplan";
 
 /* -------------------------------------------------------------------------- */
 /* 러너                                                                        */
@@ -530,6 +531,53 @@ function nineRows(extra: Row[] = []): Row[] {
     "a2aStatusTone/Label — 프로토타입 키 포함 미지 값 6종은 unknown+미상(원문) · ok/policy_blocked 앵커",
     bad.length === 0,
     bad.length ? bad.join(" / ") : `미지 ${unknowns.length}종 전부 unknown · ok=${ok} policy_blocked=${blocked}`
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* L1-18 — 평면도 점: 원천 없음·조회 실패·모르는 값은 「정상」도 「진단 가능」도 아니다 (D87·D158, MQ-1914) */
+
+{
+  const bad: string[] = [];
+  // 채움(설비 상태) — 기대값은 여기 독립 하드코딩
+  const cases: [string, string | null, { status: string; parts?: { color?: string | null }[] } | null | undefined, string][] = [
+    ["호스트 자산 없음(HV600·분전반)", null, { status: "ok", parts: [] }, "no_host"],
+    ["호스트 자산 빈 문자열", "", { status: "ok", parts: [] }, "no_host"],
+    ["조회 중", "AST-1", undefined, "loading"],
+    ["조회 실패", "AST-1", null, "unknown"],
+    ["status≠ok", "AST-1", { status: "not_found", parts: [] }, "unknown"],
+    ["프로토타입 키 status", "AST-1", { status: "toString", parts: [] }, "unknown"],
+    ["모르는 색(프로토타입 키)", "AST-1", { status: "ok", parts: [{ color: "constructor" }] }, "unknown"],
+    ["모르는 색 + 빨강", "AST-1", { status: "ok", parts: [{ color: "red" }, { color: "purple" }] }, "unknown"],
+    ["색 없음", "AST-1", { status: "ok", parts: [{ color: null }] }, "normal"],
+    ["빨강이 이긴다", "AST-1", { status: "ok", parts: [{ color: "blue" }, { color: "red" }, { color: "orange" }] }, "red"],
+    ["주황 > 파랑", "AST-1", { status: "ok", parts: [{ color: "blue" }, { color: "orange" }] }, "orange"],
+  ];
+  for (const [name, asset, status, want] of cases) {
+    const got = equipmentStatusKey(asset, status);
+    if (got !== want) bad.push(`${name}→${got} (기대 ${want})`);
+  }
+  // 「정상」 표시는 normal 하나만 — 원천 없음·미상·조회 중은 속이 빈 점으로 모양부터 다르다
+  const normal = plainStatusView("normal");
+  for (const k of ["no_host", "unknown", "loading"] as const) {
+    const v = plainStatusView(k);
+    if (v.label === normal.label) bad.push(`${k}→label=${v.label} (정상과 같음)`);
+    if (!v.hollow) bad.push(`${k}→hollow=false (정상과 모양이 같음)`);
+  }
+  if (normal.hollow) bad.push("normal→hollow=true (양성 앵커)");
+  // 테두리(기종 온보딩) — 미지 톤은 ok 테두리를 받지 못한다
+  const okRing = onboardingRing("ok");
+  for (const t of ["toString", "constructor", "__proto__", "READY", "unknown", ""]) {
+    const r = onboardingRing(t);
+    if (r === null) bad.push(`ring(${t || "(빈문자열)"})→null (기존 기종으로 뭉개짐)`);
+    else if (okRing && r.stroke === okRing.stroke) bad.push(`ring(${t || "(빈문자열)"})→ok 색 (초록 누수)`);
+  }
+  if (onboardingRing(null) !== null) bad.push("ring(null=none)→테두리 있음 (기존 기종에 표시가 붙음)");
+  if (!okRing) bad.push("ring(ok)→null (양성 앵커)");
+  check(
+    "평면도 점 — 원천 없음·조회 실패·미지 값 11케이스 판정 · 정상과 모양 구분 · 미지 톤 6종은 ok 테두리 아님",
+    bad.length === 0,
+    bad.length ? bad.join(" / ") : `채움 ${cases.length}케이스 일치 · 비정상 3종 hollow · 미지 톤 6종 비-ok · none=테두리 없음`
   );
 }
 

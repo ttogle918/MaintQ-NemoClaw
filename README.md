@@ -212,9 +212,9 @@ D135 축으로 열면 **틀린 부품을 확신하는 경우가 16.7% → 1.1% �
 > 존재하지 않는 회귀를 보고하게 된다.** 개선을 주장하기 전에 "이 차이가 노이즈보다 큰가"를 먼저 잰다.
 > 원자료는 `docs/memo/2026-09-06-noise-floor-20rounds.md`.
 
-**회귀 현황**(2026-09-25 기준, `CLAUDE.md` 실측 기준선): spikes **40스위트 / 1,349건** · pytest **406건**
+**회귀 현황**(2026-09-25 기준, `CLAUDE.md` 실측 기준선): spikes **41스위트 / 1,377건** · pytest **406건**
 (계약·룰·캐시 7파일 138건 + A2A 9파일 168건 + 서비스 3파일 20건 + `mcp_server/` 4파일 80건 = 23파일) ·
-seed **43건** · `error_codes` **70건** · 프론트 라우트 **26개**(`next build`).
+seed **44건** · `error_codes` **70건**(+ HV600 승격 8 = 공유 DB 78) · 프론트 라우트 **27개**(`next build`).
 
 **재현 방법**:
 
@@ -235,7 +235,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 15 = 22종** + 온보딩 프로필 3종(Sprint 19) 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D157** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D158** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 

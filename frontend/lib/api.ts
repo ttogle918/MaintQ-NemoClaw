@@ -1040,6 +1040,50 @@ export const getEquipment = () =>
     "technician"
   ).then((r) => r.items);
 
+/* 사업장 평면도 (D158, MQ-1914 — docs/06_REPO_API.md §2.12). 읽기 전용 · 역할 무관.
+ * 설비 상태·온보딩 상태는 여기 없다 — 화면이 getHotspotStatus·getOnboardingStatusCached 로 조합한다. */
+export interface ApiSite {
+  site_id: string;
+  name: string;
+  is_mock: boolean;
+  width: number;
+  height: number;
+}
+
+export interface ApiZone {
+  zone_id: string;
+  name: string;
+  kind: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ApiFloorplanEquipment {
+  equipment_id: string;
+  model: string;
+  zone_id: string;
+  x: number;
+  y: number;
+  location: string | null;
+  /** 호스트 자산 — null 이면 하이라이트 상태 원천이 없다(D68) */
+  asset_id: string | null;
+  asset_name: string | null;
+}
+
+export interface ApiFloorplan {
+  site: ApiSite;
+  zones: ApiZone[];
+  equipment: ApiFloorplanEquipment[];
+}
+
+export const getSites = (role: Role) =>
+  apiFetch<{ items: ApiSite[] }>("/api/sites", role).then((r) => r.items);
+
+export const getFloorplan = (role: Role, siteId: string) =>
+  apiFetch<ApiFloorplan>(`/api/sites/${encodeURIComponent(siteId)}/floorplan`, role);
+
 /** 에러 발생 이력 기록 — 정비사의 명시적 액션만 (D29·A7). */
 export const recordError = (equipmentId: string, code: string, actionTaken?: string) =>
   apiFetch<{ status: string; id: number; code: string; occurred_at: string }>(

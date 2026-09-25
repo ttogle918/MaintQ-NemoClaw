@@ -9,6 +9,7 @@
        + Sprint 11 deadlines·incidents·ownership_checks·risk_profile DDL 확정(㉜~㉟, MQ-1101)
        + Sprint 15 error_codes IE5 병합(㊱) + Sprint 17 po_drafts finance 확장(㊲~㊵, MQ-1702)
        + InsuQ 발급 증권번호 체계 고정(㊶~㊷, 2026-09-16)
+       + 사업장→구역→설비 위치 · HV600 설비 2행(㊸, D158 — Sprint 19 MQ-1914)
        를 SQL로 자가 검증하고 통과/실패 표를 출력
 
 원칙
@@ -49,6 +50,13 @@ if str(ROOT.parent) not in sys.path:
     sys.path.insert(0, str(ROOT.parent))
 from data import dbcompat  # noqa: E402
 from data.dbcompat import DbConnection, DbRow  # noqa: E402
+from data.site_layout import (  # noqa: E402 — D158 평면도 데이터 정본(마이그레이션과 공유)
+    EQUIPMENT_LOCATIONS,
+    HV600_EQUIPMENT,
+    SITES,
+    ZONES,
+    location_inside_zone,
+)
 EXTRACTED = ROOT / "extracted"
 ERROR_CODES_JSON = EXTRACTED / "error_codes.json"
 RELATED_PARTS_JSON = ROOT / "related_parts.seed.json"
@@ -513,6 +521,34 @@ CREATE TABLE risk_profile (
   CHECK (power_capacity IS NULL OR power_capacity IN ('LOW','MEDIUM','HIGH')),
   CHECK (risk_grade     IS NULL OR risk_grade     IN ('LOW','MEDIUM','HIGH'))
 );
+
+-- §30~§32 사업장 → 구역 → 설비 위치 (D158, Sprint 19 MQ-1914). equipment 에 컬럼을 추가하지
+-- 않는다(D158 ⓐ). Postgres 판은 scripts/postgres_schema.sql 의 `-- BEGIN D158` 블록.
+CREATE TABLE sites (
+  site_id TEXT PRIMARY KEY,
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  is_mock BOOLEAN NOT NULL,
+  width   INTEGER NOT NULL CHECK (width > 0),
+  height  INTEGER NOT NULL CHECK (height > 0)
+);
+
+CREATE TABLE zones (
+  zone_id TEXT PRIMARY KEY,
+  site_id TEXT NOT NULL REFERENCES sites,
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  kind    TEXT NOT NULL CHECK (kind IN ('assembly','machining','packaging','utility')),
+  x INTEGER NOT NULL CHECK (x >= 0),
+  y INTEGER NOT NULL CHECK (y >= 0),
+  w INTEGER NOT NULL CHECK (w > 0),
+  h INTEGER NOT NULL CHECK (h > 0)
+);
+
+CREATE TABLE equipment_locations (
+  equipment_id TEXT PRIMARY KEY REFERENCES equipment,
+  zone_id      TEXT NOT NULL REFERENCES zones,
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL
+);
 """
 
 # ────────────────────────────────────────────────────────────── 마스터 데이터
@@ -628,6 +664,10 @@ EQUIPMENT = [
     ("INV-L4-02", 4, "S100", "2023-06-01", "4번 포장라인 랩핑기", "AST-L4-WRAP"),
     ("INV-L4-03", 4, "iG5A", "2019-08-22", "4번 포장라인 집진기", "AST-L4-DUST"),
 ]
+# ⚠ HV600 설비 2행(D158)은 여기 넣지 않는다 — `data/site_layout.HV600_EQUIPMENT` 에 따로 있다.
+#   이 목록은 `seed_error_history` 의 잡음 풀·`seed_assets` 의 자산 매핑이 읽는다. 여기 섞으면
+#   HV600 설비에 iG5A/S100 코드가 아닌 가짜 이력이 생기고(HV600 은 CODES_BY_MODEL 에 없어
+#   KeyError) error_history 가 바뀐다 — D158 은 다른 테이블을 건드리지 않는다.
 
 # ── parts.part_class 40종 (12 §9) ─────────────────────────────────────────
 # **LLM 추측 금지 (D12 태도).** 40종을 전부 여기 명시하고, 누락되면 시드가 중단된다.
@@ -1363,7 +1403,20 @@ def seed_masters(con: DbConnection) -> None:
         ],
     )
     con.executemany("INSERT INTO equipment VALUES (?,?,?,?,?,?)", EQUIPMENT)
+    con.executemany("INSERT INTO equipment VALUES (?,?,?,?,?,?)", HV600_EQUIPMENT)  # D158
     con.executemany("INSERT INTO part_alternatives VALUES (?,?,?,?)", ALTERNATIVES)
+
+
+def seed_site_layout(con: DbConnection) -> int:
+    """사업장 → 구역 → 설비 위치 (D158). `seed_masters` **뒤에** 호출한다(equipment FK).
+
+    값은 `data/site_layout.py` 가 정본이다 — 공유 DB 는 재시드가 아니라
+    `scripts/migrate_d158_sites.py` 가 같은 상수를 멱등 INSERT 한다(H9).
+    """
+    con.executemany("INSERT INTO sites VALUES (?,?,?,?,?)", SITES)
+    con.executemany("INSERT INTO zones VALUES (?,?,?,?,?,?,?,?)", ZONES)
+    con.executemany("INSERT INTO equipment_locations VALUES (?,?,?,?)", EQUIPMENT_LOCATIONS)
+    return len(EQUIPMENT_LOCATIONS)
 
 
 # ───────────────────────────────────────── assets · 근거 계층 · 수리 증빙 (Sprint 6)
@@ -2532,9 +2585,11 @@ def verify(con: DbConnection, with_codes: bool, db_path: Path) -> list[tuple[str
         "SELECT count(*) FROM equipment e LEFT JOIN assets a ON a.asset_id = e.asset_id"
         " WHERE e.asset_id IS NOT NULL AND a.asset_id IS NULL"
     )[0]
+    # D158 — HV600 설비 2행도 asset_id NULL(호스트 자산 미등록)이다. 기대값은 상수에서 파생한다
+    hostless_expected = sorted(["INV-L1-01"] + [e[0] for e in HV600_EQUIPMENT])
     check(
-        "⑫ assets 9행 · 호스트 없는 설비 1건",
-        n_assets == 9 and [o[0] for o in orphan] == ["INV-L1-01"] and bad_fk == 0,
+        "⑫ assets 9행 · 호스트 없는 설비 = 분전반 1 + HV600 2 (D158)",
+        n_assets == 9 and [o[0] for o in orphan] == hostless_expected and bad_fk == 0,
         f"assets={n_assets}행, asset_id NULL={[o[0] for o in orphan]}, 미해결 FK={bad_fk}",
     )
 
@@ -3368,6 +3423,40 @@ def verify(con: DbConnection, with_codes: bool, db_path: Path) -> list[tuple[str
         f" · {[(r['building_id'], r['policy_id'], r['n']) for r in pair_rows]}",
     )
 
+    # ㊸ 사업장 계층 (D158) — 설비 전부가 위치를 갖고, 좌표가 소속 구역 사각형 안이며,
+    #    HV600 은 전부 공조·유틸리티동(kind='utility')에 있다. 양성 축(스캔 행 수)을 함께 건다 —
+    #    "위반 0건"만 보면 조인이 0행일 때도 통과한다.
+    n_eq = q("SELECT count(*) FROM equipment")[0]
+    loc_rows = con.execute(
+        "SELECT l.equipment_id, l.x, l.y, e.model, z.zone_id, z.site_id, z.name, z.kind,"
+        " z.x AS zx, z.y AS zy, z.w AS zw, z.h AS zh"
+        " FROM equipment_locations l JOIN equipment e ON e.equipment_id = l.equipment_id"
+        " JOIN zones z ON z.zone_id = l.zone_id"
+    ).fetchall()
+    outside = [
+        r["equipment_id"]
+        for r in loc_rows
+        if not location_inside_zone(
+            r["x"], r["y"],
+            (r["zone_id"], r["site_id"], r["name"], r["kind"], r["zx"], r["zy"], r["zw"], r["zh"]),
+        )
+    ]
+    hv_kinds = sorted({r["kind"] for r in loc_rows if r["model"] == "HV600"})
+    n_hv = sum(1 for r in loc_rows if r["model"] == "HV600")
+    mock_sites = q("SELECT count(*) FROM sites WHERE is_mock")[0]
+    n_sites = q("SELECT count(*) FROM sites")[0]
+    check(
+        "㊸ 사업장 계층 — 설비 전부 위치 · 좌표가 구역 안 · HV600 은 공조동 · 목업 표시 (D158)",
+        n_eq == len(EQUIPMENT) + len(HV600_EQUIPMENT)
+        and len(loc_rows) == n_eq
+        and not outside
+        and n_hv == len(HV600_EQUIPMENT)
+        and hv_kinds == ["utility"]
+        and n_sites == mock_sites == len(SITES),
+        f"equipment={n_eq} · 위치 {len(loc_rows)}행 · 구역 밖 {outside or 0} · "
+        f"HV600 {n_hv}대 kind={hv_kinds} · sites {n_sites}(목업 {mock_sites})",
+    )
+
     return results
 
 
@@ -3427,6 +3516,7 @@ def main() -> None:
         n_ownership_checks = seed_ownership_checks(con, args.today)
         n_risk_profile = seed_risk_profile(con, args.today)
         seed_masters(con)
+        n_sited = seed_site_layout(con)  # ← equipment 뒤 (FK, D158)
         n_lifecycle = seed_part_lifecycle_mock(con, args.today)
         seed_inventory(con, rng)
         seed_supplier_parts(con, rng)
@@ -3449,6 +3539,7 @@ def main() -> None:
         else:
             print(f"[잔가곡선] 적재 0행 ⚠ {curve_note}")
 
+        print(f"[사업장 계층] sites {len(SITES)} · zones {len(ZONES)} · equipment_locations {n_sited}행 (D158 — 목업)")
         print(f"[생애주기 목업] part_lifecycle_mock {n_lifecycle}행 (D — mock, 실 텔레메트리 아님)")
 
         if with_codes:

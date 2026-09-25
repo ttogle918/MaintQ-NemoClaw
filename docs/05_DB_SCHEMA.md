@@ -15,6 +15,8 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 → **Sprint 19(HV600 온보딩 스테이징, D154, 확정 2026-09-24)에서 5개 추가** —
 `onboarding_batches`·`onboarding_code_rows`·`onboarding_normalizations`·
 `onboarding_safety_candidates`·`onboarding_promotions` (§25~§29).
+→ **Sprint 19 MQ-1914(사업장 평면도, D158, 확정 2026-09-25)에서 3개 추가** — `sites`·`zones`·
+`equipment_locations` (§30~§32). `equipment` 컬럼은 추가하지 않는다(D158 ⓐ).
 
 > **세는 단위 주의 — 절과 `CREATE TABLE`은 다른 것을 센다.** 아래 두 숫자는 서로 다른 것을 센다.
 > 문장을 읽을 때 *"절"* 을 세는지 *"`CREATE TABLE`"* 을 세는지 반드시 구분할 것.
@@ -25,16 +27,20 @@ SQLite 기준 (목업이므로 파일 DB로 충분, 실서비스 가정 시 Post
 >   (`part_lifecycle_mock`) + Sprint 11 **4개**(`deadlines`·`incidents`·`ownership_checks`·
 >   `risk_profile`) + D117 **1개**(`manual_chunks`). **Sprint 19 MQ-1905 가 적용되면 30개**가 된다
 >   (+5, `onboarding_*` 5테이블 — MQ-1905, `data/seed.py` 에는 넣지 않는다, §24 선례와 동일).
+>   **Sprint 19 MQ-1914(D158)가 적용되면 33개**다(+3, `sites`·`zones`·`equipment_locations` —
+>   이 3테이블은 `data/seed.py` 의 SQLite `SCHEMA` 에도 넣었다: 시드가 데이터를 적재하기 때문이다.
+>   그래서 SQLite `SCHEMA` 는 24 + 3 = **27개**).
 > - **절(§)은 (Sprint 19 반영 전 기준) 24절이다** — `§1`~`§9`(+`§1-B`)로 **10절**, `§11`~`§17`
 >   **7절**, `§18` **1절**, `§19` **1절**, `§20`~`§23` **4절**, `§24` **1절**(`manual_chunks`).
->   **Sprint 19 MQ-1905 가 적용되면 29절**이 된다(+5, `§25`~`§29`).
+>   **Sprint 19 MQ-1905 가 적용되면 29절**이 된다(+5, `§25`~`§29`). **MQ-1914(D158)가 적용되면
+>   32절**이다(+3, `§30`~`§32`).
 > - 절보다 `CREATE TABLE` 이 1개 많은 이유는 **`§7`이 `suppliers`와 `supplier_parts`
 >   두 테이블을 함께 다루기 때문**이다.
 > - **`§10`은 존재하지 않는다** (`§1-B`가 10번째 절이라 번호가 어긋난 것을 그대로 둔 것이며,
 >   `sprint-6.md`·확장 도구 명세가 이미 `§11`~`§17`로 참조하고 있다).
 >   같은 이유로 **기존 절 번호를 재배치하지 않는다** — Sprint 8 은 `§18`을, Sprint 10 은
->   `§19`를, Sprint 11 은 `§20`~`§23`을, D117 은 `§24`를, Sprint 19 는 `§25`~`§29`를 끝에
->   잇기만 한다.
+>   `§19`를, Sprint 11 은 `§20`~`§23`을, D117 은 `§24`를, Sprint 19 는 `§25`~`§29`를,
+>   MQ-1914(D158)는 `§30`~`§32`를 끝에 잇기만 한다.
 
 ---
 
@@ -62,6 +68,8 @@ parts ──< inventory
 partner_links   ← 외부 파트너 subject 대장. FK 없음(building_id 가 FK 없는 것과 같은 이유) · 인증 정보 아님
 
 equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 🟠(곧 점검) 판정 출처. mock(D65 고지 필수)
+
+sites ──< zones ──< equipment_locations >── equipment   ← 평면도(D158). equipment 쪽 컬럼 추가 없음 · 1:1
 ```
 
 ---
@@ -1322,6 +1330,68 @@ CREATE TABLE onboarding_promotions (
 
 ---
 
+## 30. sites — 사업장 (D158)
+
+```sql
+CREATE TABLE IF NOT EXISTS sites (
+  site_id TEXT PRIMARY KEY,              -- 'SITE-01'
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),   -- '목업 제1공장' (실제 회사명 금지)
+  is_mock BOOLEAN NOT NULL,              -- true 면 화면이 「목업」을 표시한다
+  width   INTEGER NOT NULL CHECK (width > 0),             -- SVG 사용자 단위 (지도 좌표 아님)
+  height  INTEGER NOT NULL CHECK (height > 0)
+);
+```
+
+## 31. zones — 구역
+
+```sql
+CREATE TABLE IF NOT EXISTS zones (
+  zone_id TEXT PRIMARY KEY,              -- 'Z-L1' … 'Z-HVAC'
+  site_id TEXT NOT NULL REFERENCES sites,
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  kind    TEXT NOT NULL CHECK (kind IN ('assembly','machining','packaging','utility')),
+  x INTEGER NOT NULL CHECK (x >= 0), y INTEGER NOT NULL CHECK (y >= 0),
+  w INTEGER NOT NULL CHECK (w > 0),  h INTEGER NOT NULL CHECK (h > 0)
+);
+CREATE INDEX IF NOT EXISTS idx_zones_site ON zones(site_id);
+```
+
+## 32. equipment_locations — 설비 위치 (설비당 1개)
+
+```sql
+CREATE TABLE IF NOT EXISTS equipment_locations (
+  equipment_id TEXT PRIMARY KEY REFERENCES equipment,
+  zone_id      TEXT NOT NULL REFERENCES zones,
+  x INTEGER NOT NULL, y INTEGER NOT NULL   -- 소속 구역 사각형 안쪽이어야 한다(시드 ㊸·스파이크 ⑤가 검사)
+);
+CREATE INDEX IF NOT EXISTS idx_equipment_locations_zone ON equipment_locations(zone_id);
+```
+
+**왜 `equipment` 에 컬럼을 달지 않나 (D158 ⓐ).** A2A 페이로드 빌더가 `equipment`·`assets` 를
+읽는다 — 별도 테이블이면 FinAllQ·InsuQ 페이로드가 **구조적으로** 바뀌지 않는다
+(`backend/a2a/test_payloads.py` 46 · `a2a_partner_tools_contract` 22 · `a2a_identity_contract` 19).
+
+**데이터 정본은 `data/site_layout.py` 하나다.** 사업장 1곳(「목업 제1공장」, `is_mock=true`) ·
+구역 5개(L1 조립·L2 가공·L3 조립·L4 포장·**공조·유틸리티동**) · 위치 12행 · **HV600 설비 2행**
+(`INV-HV-01` 공조기 급기팬 · `INV-HV-02` 냉각수 펌프 — `line_id=5`(기존 라인 1~4 와 겹치지 않는
+유틸리티동 번호), `asset_id` NULL = 호스트 자산 미등록). HV600 2행은 `equipment` 에 들어가지만
+`error_history`·`inventory`·`part_lifecycle_mock` 등 다른 테이블에는 행이 없다(HV600 부품 재고
+없음 — 재고 조회 empty 가 정상). 시드 `EQUIPMENT` 목록에는 넣지 않고 `HV600_EQUIPMENT` 로 따로
+적재한다 — `EQUIPMENT` 는 `seed_error_history` 잡음 풀이 읽어 섞으면 이력이 바뀐다.
+
+**반영 경로 두 개, 데이터 한 벌.** 새 환경은 `data/seed.py`(`seed_site_layout`), **공유 DB 는
+`scripts/migrate_d158_sites.py`**(멱등: `scripts/postgres_schema.sql` 의 `-- BEGIN D158` 블록
+`CREATE TABLE IF NOT EXISTS` + `INSERT … ON CONFLICT DO NOTHING`, 기존 행 UPDATE/DELETE 없음,
+상수와 다른 기존 행은 `[드리프트]` 로 보고만). 공유 DB 에 재시드하지 않는 이유는 H9 — 시드는
+`DROP SCHEMA public CASCADE` 로 승격·안전 승인·정규화를 지운다.
+
+**쓰기 경로 없음.** MCP 도구는 이 3테이블을 읽지도 쓰지도 않는다(D10 트리거 불필요 — `equipment`
+와 같은 관행). REST 는 `GET /api/sites`·`GET /api/sites/{id}/floorplan` 읽기 전용(`06 §2.12`).
+격리 스파이크가 평면도를 보도록 `data/pg_isolation._CLONE_TABLES` 에 3테이블을 등재했다(0행 전제
+스파이크 없음 — 온보딩 5테이블과 다른 점).
+
+---
+
 ## 시드 데이터 전략 — "일부러 꼬아놓은" 케이스 맵
 
 | 케이스 | 시드 | 검증 시나리오 |
@@ -1383,7 +1453,7 @@ CREATE TABLE onboarding_promotions (
 | ①~⑦ | 시드 케이스 맵 7종 | 위 표 |
 | ⑧ | `error_codes` 적재 (`--with-error-codes` 시 70건 — iG5A/S100 65건 + Sprint 15 IE5 5건 병합, 기본 0건) | 사람 승인 게이트 |
 | ⑨~⑪ | `users` 3행 · 미등록 user_id FK 거부 · `display_name` DB 조회 | D41 |
-| ⑫ | `assets` 9행 · `equipment.asset_id` NULL 정확히 1건(`INV-L1-01`) | D68 |
+| ⑫ | `assets` 9행 · `equipment.asset_id` NULL = `INV-L1-01`(분전반) + **HV600 2행**(`INV-HV-01`·`INV-HV-02`, D158 — 기대값은 `site_layout.HV600_EQUIPMENT` 에서 파생) | D68·D158 |
 | ⑬ | `law_refs` 사본 == `data/rules/laws/*.json` **파일 목록** (하드코딩 금지) | D60 |
 | ⑭ | `rules` 5행 · 근거(`law_refs`+`contract_refs`) 없는 룰 0건 | D61 |
 | ⑮ | 처분 5자산의 `check_disposal_blockers` verdict + 버킷 건수 일치 · `LIFT` 의 SALE/SCRAP 대조 | D77·D78·D79 |
@@ -1408,6 +1478,7 @@ CREATE TABLE onboarding_promotions (
 | ㉞ | `ownership_checks` 행수 == `verify_ownership(AST-L3-LIFT)` **실측 항목 수**(하드코딩 아닌 그 자리에서 재호출한 값과 대조) · either-or CHECK 2종 음성 검사(`VERIFIED`+`limit_note`, `UNVERIFIED`+`evidence_ref` 각각 INSERT 시도 → 거부 확인) | S18·D68 |
 | ㉟ | `risk_profile` **4행** · `building_id` 집합이 `SELECT DISTINCT building_id FROM assets` 와 **동적으로 일치** · 점수식 재계산이 시드 표와 일치(`BLD-C` 의 의도적 불일치 포함) | D102·`11 §10-2` |
 | ㊱ | `error_codes` **IE5 5건 병합 검증**(Sprint 15 MQ-1507) — `model='IE5'` 행 정확히 5건(양성) · `causes`/`actions` 가 빈 배열인 행 0건(음성). `--with-error-codes` 없이 실행하면 0행이 정상(FAIL 아님) | D109 |
+| ㊸ | **사업장 계층**(D158) — 설비 전부(`EQUIPMENT` + `HV600_EQUIPMENT` = 12)가 위치를 가짐 · 좌표가 소속 구역 사각형 안(위반 0건 + 스캔 행 수 양성 축) · HV600 은 전부 `kind='utility'` 구역 · 사업장 전부 `is_mock`. (㊲~㊷ 는 이 표에 아직 옮겨 적지 않았다 — `data/seed.py` 독스트링·`verify()` 참조) | D158 |
 
 > **실측 (2026-08-18)** — `uv run python data/seed.py --with-error-codes` → **전부 통과 (35건)**.
 > 건수는 러너 출력이 기준이다. 직전 실행보다 줄었다면 검사가 사라진 것이다.

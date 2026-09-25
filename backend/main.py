@@ -51,6 +51,7 @@ from backend.routers import (  # noqa: E402
     po,
     repairs,
     session,
+    sites,
     a2a,
 )
 
@@ -133,6 +134,7 @@ app.include_router(asset_monitoring.router)
 app.include_router(session.router)
 app.include_router(a2a.router)
 app.include_router(onboarding.router)
+app.include_router(sites.router)  # D158 — 사업장 평면도, 읽기 전용
 
 
 

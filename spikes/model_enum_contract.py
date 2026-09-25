@@ -18,8 +18,11 @@
   ⑥ `rag_search_manual(model="HV600")` 은 `empty` 가 아니라 `error/index_not_built`(D50 논리).
   ⑦ `backend.manifest.print_page_offset("HV600") == 0`(manifest `hv600-iopm` primary).
 
-DB 를 쓰는 검사(②~⑤)는 `data/pg_isolation.create_isolated_schema()` 격리 스키마에서만
+DB 를 쓰는 검사(②~⑥)는 `data/pg_isolation.create_isolated_schema()` 격리 스키마에서만
 돈다 — 공유 `public` 을 건드리지 않는다. 끝나면 `drop_isolated_schema()`.
+복제 직후 `reset_onboarding_to_pre_promotion()` 으로 격리 스키마를 HV600 「승격 전」으로
+되돌린다 — 공유 DB 는 2026-09-25 사람이 HV600 을 승격한 상태라 그대로 복제하면 ⑤·③·⑥ 이
+공유 DB 상태에 따라 뒤집힌다.
 
 실행:  DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)" uv run python spikes/model_enum_contract.py
 """
@@ -325,6 +328,10 @@ def main() -> None:
         schema, dsn = pg_isolation.create_isolated_schema("model_enum", clone_data=True)
         _pg_schemas.append(schema)
         try:
+            # 공유 DB 가 HV600 승격 후여도 결정적 — 복제된 HV600 정본(error_codes·manual_chunks·
+            # promotions)을 격리 스키마 안에서만 지워 ⑤·③·⑥ 이 전제하는 「승격 전」을 다시 만든다.
+            # 판정 축(⑤ hv600_rows==0 · ⑥ HV600 청크 0건)은 그대로 — 되돌림이 실패하면 그 축이 FAIL 한다.
+            pg_isolation.reset_onboarding_to_pre_promotion(dsn, "HV600")
             check_db_constraints(dsn)
             # ⑤ 를 ③ 보다 먼저 — ③ 이 HV600 행(CPF06·ER-01)을 INSERT 하므로 그 뒤에 재면
             # 「승격 전(HV600 0행)」이 아니라 「행이 있는 기종의 미지 코드」만 증명한다(리뷰 지적)

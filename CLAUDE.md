@@ -9,12 +9,12 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D157**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D158**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정) + **온보딩 프로필 3종**
   (§23~§25, `MAINTQ_TOOLS_PROFILE=onboarding` 전용 — `core`·`full` 어느 쪽에도 없다, D154). 임의 변경 금지
-- `docs/05_DB_SCHEMA.md` — 테이블 **29절(실제 30개)** + 시드 케이스 맵
+- `docs/05_DB_SCHEMA.md` — 테이블 **32절(실제 33개)** + 시드 케이스 맵 (2026-09-25 D158: `§30~§32` `sites`·`zones`·`equipment_locations`)
   (2026-09-04: `§24 manual_chunks`(dense 임베딩, D117) 절을 추가해 문서와 실제 DB 를
   맞췄다 — D117 에서 스키마 문서화가 빠져 있었다. 절 수보다 테이블이 1개 많은 것은
   `§7` 이 `suppliers`·`supplier_parts` 둘을 함께 다루기 때문이다)
@@ -214,7 +214,7 @@
   가 반환하는 파일이 전부 위 네 군에 들어 있는지 확인한다 — 이 검사를 안 하면 같은
   누락이 반복된다(네 번 났고, 2026-09-25 다섯 번째가 날 뻔했다). **`mcp_server` 를 뺀 옛 커맨드로는 못 잡는다.**
 
-- `spikes/` — **40종**(`ls spikes/*.py` 는 **43개**를 반환한다 = 40 + 목록 밖 3개:
+- `spikes/` — **41종**(`ls spikes/*.py` 는 **44개**를 반환한다 = 41 + 목록 밖 3개:
   `demo_recommendation_1_and_2`(PASS/FAIL 단언 없는 시연) · `a2a_outbound_contract` ·
   `a2a_e2e_integration_spike`(둘은 진짜 계약 스파이크인데 편입 여부 미결정).
   🔴 **2026-09-24 정정**: 오래 *"남는 4개"* 로 적혀 있었으나 4번째인 `test_elice_stream.py` 는
@@ -259,8 +259,10 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (최신 2026-09-25 Sprint 19 Stage 4 · 이력은 아래 문단 — 2026-08-23 Sprint 16 Postgres 마이그레이션 완결부터)** —
-spikes **40스위트 / 1,349건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 4 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
-1,349 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
+spikes **41스위트 / 1,377건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 5 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
+**1,377 = 1,349 + `site_floorplan_contract` 13(D158 신설) + `ui_honesty_contract` 345→360(D158 평면도 — L1 +1 · L2 +12 · 게이트 +2)**.
+⚠ **HV600 을 사람이 실제로 승격한 뒤**(공유 DB) 격리 복제가 승격분을 끌고 와 「승격 전」 전제 스파이크 3종이 깨졌다 → `data/pg_isolation.reset_onboarding_to_pre_promotion(dsn)`(옵트인 — 격리 스키마 전용, public 거부) 호출로 결정화(`model_enum` · `onboarding_promote`), `lookup ⑭` 는 공유 DB 직접 조회라 시드 3기종 한정 + 70행 정확 일치로 강화.
+직전 1,349 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
 Sprint 19 신설 5스위트 **100**(`model_enum_contract` 10 · `onboarding_contract` 9 · `onboarding_rag_contract` 6 ·
 `onboarding_safety_gate` 22 · `onboarding_promote_contract` 54) + `disposal_api_contract` 36→**37**(㉪ 공유 DB 누수 단언) +
 `ui_honesty_contract` 327→**345**(MQ-1911 — L1 +2: L1-16·L1-17 미지 상태·프로토타입 키 → ok 금지 · 뮤턴트 +2: ⓘⓙ · L2 +12: 검수 페이지(app 글롭 자동)·`OnboardingBadge.tsx`(`L2_EXTRA` 수동 등재) 2파일 × 6 ·
@@ -286,7 +288,7 @@ Sprint 19 신설 5스위트 **100**(`model_enum_contract` 10 · `onboarding_cont
 `demo_recommendation_1_and_2.py` 는 PASS/FAIL 단언 없는 시연 스크립트)는 의도적으로 공식
 목록 밖이고, 나머지 2개(`a2a_outbound_contract.py`·`a2a_e2e_integration_spike.py`)는 진짜
 계약 스파이크이지만 아직 공식 33종에 편입할지 결정 전이다 — 포팅은 완료됨,
-`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **43건**(불변 아님 —
+`docs/sprints/sprint-16-wip.md` "4차 체크포인트" 참고) · seed **44건**(㊸ D158 사업장·구역·위치 — 격리 스키마에서 적재 함수로 확인, seed.py 는 미실행 · 불변 아님 —
 DB 미개봉 — ㉖ `mfr_part_no` D97 · ㉗~㉙ Sprint 9 `repair_records`/`error_codes` 신설 ·
 ㉚ `error_codes.actions` 병합 검증 MQ-919 · ㉛ Sprint 10 `part_lifecycle_mock` · ㉜~㉟ Sprint 11
 F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · ㊱ Sprint 15
@@ -297,7 +299,7 @@ F5·F6 4테이블 `deadlines`/`incidents`/`ownership_checks`/`risk_profile` · �
 뮤턴트로 실증했다) · pytest **138건**(위 커맨드 정정 참고)
 (`data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 — D104 카세트 +
 `data/external/test_elice_docvision.py` 신설 13 — D105 지출 가드, 커맨드가 **3파일 합산**으로 바뀐다) ·
-프론트 라우트 **26개**(2026-09-25 MQ-1911 `/manager/onboarding` +1 — `npx next build` 실측 · 이전 25 · ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
+프론트 라우트 **27개**(2026-09-25 MQ-1911 `/manager/onboarding` +1 · MQ-1914 `/technician/site` +1 — `npx next build` 실측 · 이전 25 · ⚠ `find frontend/app -name page.tsx` 로 세면 하나 적다.
 차이 1은 Next.js App Router 가 자동 생성하는 `/_not-found` 로, **둘 다 맞는 값이고 세는 대상이
 다르다**. '정정'하지 말 것 — 이 기준선은 빌드 출력 기준이다. — **Sprint 13 은 프론트 무변경이라
 재실행 불필요**, Sprint 10 MQ-1001 이 `/manager/expenditure`·`/technician/asset/[assetId]/evidence`
@@ -321,10 +323,10 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `ie5_extract_contract 54` · `law_fetch_contract 28` ·
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `mcp_http_contract 17` ·
 `model_enum_contract 10` · `onboarding_contract 9` · `onboarding_promote_contract 54` · `onboarding_rag_contract 6` ·
-`onboarding_safety_gate 22` · `ownership_api_contract 10` ·
+`onboarding_safety_gate 22` · `ownership_api_contract 10` · `site_floorplan_contract 13` ·
 `prompt_rules 24` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
-`trace_persist 17` · `ui_honesty_contract 345` · `write_tool_contract 30`
+`trace_persist 17` · `ui_honesty_contract 360` · `write_tool_contract 30`
 
 > 🔴 **정정 (2026-08-20 전수 재실행)**: 이 문단은 오래 **872→916(872+44)** 으로 적혀 있었으나
 > **같은 문서 안의 다른 두 값과 어긋났다** — 스위트별 표가 `external_store_contract` 를 **47**

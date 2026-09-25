@@ -577,3 +577,44 @@ CREATE TABLE onboarding_promotions (
   UNIQUE (model, code),
   FOREIGN KEY (model, code) REFERENCES error_codes(model, code)
 );
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §30~§32 사업장 → 구역 → 설비 위치 (D158, Sprint 19 MQ-1914). 평면도 SVG 의 원천이다.
+-- ⛔ `equipment` 에 site_id·zone_id·좌표 컬럼을 추가하지 않는다(D158 ⓐ) — A2A 페이로드
+-- 빌더가 읽는 테이블을 건드리지 않아 계약면 불변을 구조로 보장한다. 쓰기는 시드(새 환경)와
+-- 멱등 마이그레이션(scripts/migrate_d158_sites.py, 공유 DB)뿐이다 — MCP 도구·API 쓰기 경로
+-- 없음(읽기 API `GET /api/sites*` 만). 좌표는 SVG 사용자 단위다(지도 좌표 아님, D158 ⓑ).
+-- ⚠ 아래 BEGIN/END 표식 사이 블록을 마이그레이션 스크립트가 **그대로 잘라 실행**한다 —
+--   그래서 `IF NOT EXISTS` 다(새 스키마에서는 무해, 공유 DB 에서는 멱등). 표식을 지우지 말 것.
+-- ─────────────────────────────────────────────────────────────────────────
+-- BEGIN D158 site layout
+CREATE TABLE IF NOT EXISTS sites (
+  site_id TEXT PRIMARY KEY,
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  is_mock BOOLEAN NOT NULL,              -- 목업 사업장이면 화면이 「목업」을 표시한다 (D158)
+  width   INTEGER NOT NULL CHECK (width > 0),
+  height  INTEGER NOT NULL CHECK (height > 0)
+);
+
+CREATE TABLE IF NOT EXISTS zones (
+  zone_id TEXT PRIMARY KEY,
+  site_id TEXT NOT NULL REFERENCES sites,
+  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  kind    TEXT NOT NULL CHECK (kind IN ('assembly','machining','packaging','utility')),
+  x INTEGER NOT NULL CHECK (x >= 0),
+  y INTEGER NOT NULL CHECK (y >= 0),
+  w INTEGER NOT NULL CHECK (w > 0),
+  h INTEGER NOT NULL CHECK (h > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_zones_site ON zones(site_id);
+
+CREATE TABLE IF NOT EXISTS equipment_locations (
+  equipment_id TEXT PRIMARY KEY REFERENCES equipment,   -- 설비당 위치 1개
+  zone_id      TEXT NOT NULL REFERENCES zones,
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_equipment_locations_zone ON equipment_locations(zone_id);
+-- END D158 site layout

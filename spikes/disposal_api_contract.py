@@ -309,13 +309,19 @@ def run(client, db: Path, probe: dict[str, str], captured: dict) -> None:
     # ── 장비 목록의 asset_id (가산 계약 변경)
     eq = client.get("/api/equipment", headers=TECH).json()["items"]
     by_id = {e["equipment_id"]: e for e in eq}
+    # D158(MQ-1914) — HV600 설비 2행(`INV-HV-01`·`INV-HV-02`)이 더해져 10 → 12대. 둘 다 호스트
+    # 자산 미등록(asset_id NULL)이라 null 쪽이 1 → 3 이 된다. **non-null 9대는 그대로**다 —
+    # 자산 9개와 인버터의 매핑은 바뀌지 않았다는 것이 이 검사의 본뜻이라 그 축은 좁히지 않는다.
+    hv600_null = sorted(e["equipment_id"] for e in eq if e["model"] == "HV600" and e["asset_id"] is None)
     check(
-        "㉑ GET /api/equipment 에 asset_id 가산 · INV-L1-01(분전반)은 null · 나머지 9대는 non-null",
-        len(eq) == 10
+        "㉑ GET /api/equipment 에 asset_id 가산 · INV-L1-01(분전반)·HV600 2대는 null · 나머지 9대는 non-null",
+        len(eq) == 12
         and all("asset_id" in e for e in eq)
         and by_id["INV-L1-01"]["asset_id"] is None
+        and hv600_null == ["INV-HV-01", "INV-HV-02"]
         and sum(e["asset_id"] is not None for e in eq) == 9,
-        f"{len(eq)}대, INV-L1-01={by_id['INV-L1-01']['asset_id']!r}, INV-L3-01={by_id['INV-L3-01']['asset_id']!r}",
+        f"{len(eq)}대, INV-L1-01={by_id['INV-L1-01']['asset_id']!r}, HV600 null={hv600_null}, "
+        f"INV-L3-01={by_id['INV-L3-01']['asset_id']!r}",
     )
     check(
         "㉒ 기존 키 5종은 그대로 (가산이므로 기존 소비자 무영향)",

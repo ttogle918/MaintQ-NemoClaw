@@ -188,6 +188,14 @@ whoami 를 붙이면 "재무부 화면인데 정비 소속"이라는 대조가 �
   「격리 스키마 온보딩 0행」을 전제로 자기 배치를 만든다. 넣으려면 옵트인 인자(`clone_onboarding=True`)로
   (2026-09-25 Stage 4)
 
+- 🟡 **D158 후속(Stage 5 리뷰 경미)** — ⓐ `scripts/migrate_d158_sites.py` 가 **행** 드리프트만 본다: 같은 이름 테이블이 다른 모양으로
+  이미 있으면 `CREATE TABLE IF NOT EXISTS` 가 조용히 건너뛴다 → `information_schema.columns` 대조로 스키마 드리프트 보고 ·
+  `site_floorplan_contract ⑬` 은 INSERT 경로의 2회 실행 멱등을 자동 검증하지 않는다(수동 실행 출력만)
+  ⓑ 설비 「최악 색」 우선순위가 두 벌 — `frontend/lib/floorplan.ts` `COLOR_RANK` 와 `technician/equipment-status/page.tsx` `rankAsset`
+  (순서는 같으나 `rankAsset` 은 모르는 색을 정상(tier 3)으로 센다 — 기존 결함) → `rankAsset` 이 `lib/floorplan` 을 쓰게 합친다
+  ⓒ `data/pg_isolation._CLONE_TABLES` 에 D158 3테이블 — 공유 DB 에 마이그레이션 전이면 `clone_data=True` 격리 스파이크·pytest 전부가
+  UndefinedTable 로 죽는다(시끄러운 실패). **새 환경은 `scripts/migrate_d158_sites.py` → 회귀 순서** (2026-09-25 Stage 5)
+
 ## 아이디어 주차장 (미분류)
 
 - 🔵 **외부 연동은 A2A 대신 카카오톡 알림(MCP)으로 (2026-09-25 사용자 방향)** — 이 레포에서 A2A(FinAllQ·InsuQ)는 더 확장하지 않는다

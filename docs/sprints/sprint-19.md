@@ -1052,3 +1052,15 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 - 팀장 랜딩(`ApprovalQueueScreen` 헤더)에 「기종 온보딩 검수 →」 링크(정비팀장 신원에서만)
 - 근거 보기: 코드 행 「원문 전체 보기」 모달(전체 원인·조치 en↔ko, 인용은 원문 쪽만) · 접힌 원인 행 안내(승격은 막지 않음) · 안전 후보 원문 전체 모달(also_pages 칩)
 - 회귀: tsc · next build 26 · ui_honesty 345 · promote 54 · ruff — spikes 합계 1,349
+
+### Stage 5 완료 (2026-09-25) — MQ-1914 · D158
+**커밋**: 이 기록과 같은 커밋 — `[M4] feat(site): Sprint 19 Stage 5 — …`
+
+- D158 등재(사용자 확정) · `sites`·`zones`·`equipment_locations`(§30~§32, `equipment` 컬럼 무추가) · `data/site_layout.py`(정본) ·
+  `scripts/migrate_d158_sites.py`(멱등 — 공유 DB 1회차 +20행 · 2회차 0행, CREATE IF NOT EXISTS 화이트리스트 가드) · `data/seed.py`(파일만, 미실행 — 격리 스키마 적재 함수 검증 44/44) ·
+  `backend/routers/sites.py`(`GET /api/sites`·`/floorplan`, 06 §2.12) · `/technician/site` 자체 SVG 평면도 · HV600 설비 2행(`INV-HV-01`·`INV-HV-02`)
+- 불변: A2A 페이로드 sha256 동일 · 사람 작업(승격 8·안전 승인 1·norms 261) 불변 · 기대값 갱신 2건(`api_contract ⑬`·`disposal_api_contract ㉑` — 10→12 설비, 축 유지)
+- 부수: HV600 실제 승격 후 격리 복제로 깨진 스파이크 3종 결정화(`pg_isolation.reset_onboarding_to_pre_promotion` 옵트인 · `lookup ⑭` 시드 3기종 한정 + 70행 정확)
+- 회귀: spikes **41종 / 1,377**(law_fetch ⓚ 기존 오탐 1) · pytest 406 · ui_honesty 360 · 라우트 27 · ruff·tsc
+- 브라우저: 평면도(라이트·다크, 외부 요청 0) · HV600 점 → 콘솔 선택 · 웹 콘솔 HV600 「GF 떴어」 → lookup ok(p.108) + **승인 안전 블록(5분, p.29)** ✅
+  ⚠ 발견 2건(후속): ① 답변 **본문**이 「10분 이상」을 쓴다 — `prompts.py` 규칙 10 이 기종 무관 10분을 지시(안전 블록은 5분) ② HV600 절차 질의는 RAG 가 고장표(pp.107~119)뿐이라 반복 검색 → 루프 가드가 「답변합니다」 하고 **답 없이 종료**(`loop.py:549-555`)

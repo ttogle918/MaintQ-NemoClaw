@@ -198,7 +198,9 @@ def run(client) -> None:
 
     # ── 장비 컨텍스트
     eq = client.get("/api/equipment", headers=TECH).json()["items"]
-    check("⑬ 장비 목록", len(eq) == 10, f"{len(eq)}대")
+    # D158(MQ-1914) — 라인 설비 10 + HV600(공조·유틸리티동) 2 = 12. 라인 설비 10대가 그대로인지도 본다
+    n_line = sum(1 for e in eq if e["model"] != "HV600")
+    check("⑬ 장비 목록 (라인 10 + HV600 2, D158)", len(eq) == 12 and n_line == 10, f"{len(eq)}대 (HV600 제외 {n_line})")
 
     h = client.get("/api/equipment/INV-L3-01/history", params={"days": 30}, headers=TECH).json()
     oct_before = sum(1 for e in h["events"] if e["code"] == "OCT")

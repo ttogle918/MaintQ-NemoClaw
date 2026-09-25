@@ -661,6 +661,10 @@ def main() -> None:
         bdb.DB_PATH = dsn
         mdb.DB_PATH = dsn
         try:
+            # 공유 DB 가 HV600 승격 후여도 결정적 — 복제된 HV600 정본(error_codes 8·manual_chunks·
+            # promotions)이 합성 픽스처와 같은 코드(OH·CE·GF·UV)를 이미 점유해 already_promoted 로
+            # 막히므로, 격리 스키마 안에서만 「승격 전」으로 되돌린 뒤 픽스처를 심는다.
+            pg_isolation.reset_onboarding_to_pre_promotion(dsn, "HV600")
             ids = seed_fixture(dsn)
             from fastapi.testclient import TestClient  # noqa: PLC0415
 

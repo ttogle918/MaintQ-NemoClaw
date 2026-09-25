@@ -292,27 +292,40 @@ def real_db_actions_source_check(real_db: Path) -> None:
     (`iG5A NTC` 는 2026-08-29 사람이 위임 반려를 뒤집어 승인한 건 — 기계 판정은 STILL_AMBIGUOUS)
     """
     expected_filled = {("iG5A", "RERR"), ("iG5A", "ETB"), ("S100", "FANW"), ("iG5A", "NTC")}
+    # 공유 DB 가 HV600 승격 후여도 결정적 — D100 대상은 시드 3기종 카탈로그(70행)뿐이다. 온보딩
+    # 승격 기종(HV600, D156)은 승격 시 actions_manual_id 를 **설계상 채우므로** 이 대조의 모집단이
+    # 아니다. 시드 기종으로 모집단을 고정하고 대신 rows==70 을 판정에 넣어(예전엔 total>0) 축을 조였다.
+    from backend.agent.safety_source import SEED_MODELS  # noqa: PLC0415 — 시드 기종 정의 한 곳(D156)
+
+    seed_models = tuple(sorted(SEED_MODELS))
+    in_seed = "model IN (?, ?, ?)"
     if dbcompat.USE_POSTGRES:
         con = dbcompat.connect_dsn(pg_isolation.BASE_DATABASE_URL)
     else:
         con = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
     try:
-        total = con.execute("SELECT count(*) FROM error_codes").fetchone()[0]
+        total = con.execute(f"SELECT count(*) FROM error_codes WHERE {in_seed}", seed_models).fetchone()[0]
         filled_rows = con.execute(
-            "SELECT model, code FROM error_codes WHERE actions_manual_id IS NOT NULL"
+            f"SELECT model, code FROM error_codes WHERE {in_seed} AND actions_manual_id IS NOT NULL",
+            seed_models,
         ).fetchall()
         null_count = con.execute(
-            "SELECT count(*) FROM error_codes WHERE actions_manual_id IS NULL"
+            f"SELECT count(*) FROM error_codes WHERE {in_seed} AND actions_manual_id IS NULL",
+            seed_models,
+        ).fetchone()[0]
+        other_models = con.execute(
+            f"SELECT count(*) FROM error_codes WHERE NOT ({in_seed})", seed_models
         ).fetchone()[0]
     finally:
         con.close()
     filled_keys = {(m, c) for m, c in filled_rows}
     check(
-        "⑭ D100 실 DB — actions_source(actions_manual_id) 실측 대조 "
+        "⑭ D100 실 DB — 시드 3기종 actions_source(actions_manual_id) 실측 대조 "
         "(정본 병합 MQ-919 3건 + iG5A NTC 사람 승인 1건 = 4건만 채워짐)",
-        filled_keys == expected_filled and null_count == 66 and total > 0,
+        filled_keys == expected_filled and null_count == 66 and total == 70,
         f"[양성] 채워짐={sorted(filled_keys)}(기대 {sorted(expected_filled)}) · "
-        f"[음성] null={null_count}건(기대 66) · rows={total}(기대 70)",
+        f"[음성] null={null_count}건(기대 66) · 시드 rows={total}(기대 70) · "
+        f"모집단 밖(온보딩 승격 기종)={other_models}행",
     )
 
 

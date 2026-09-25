@@ -10,11 +10,11 @@ S18 실사 화면(`/technician/asset/{id}/ownership`)이 지키는 원칙은 하
   제약 게이트 8건  `lib/ownership.ts`·`lib/maintValue.ts`·`lib/deadlines.ts`·`lib/riskGrade.ts` 가
                     React 를 쓰지 않고 `@/` 별칭도 쓰지 않는다(이 두 가지가 성립해야 L1 이 단독
                     `tsc` 로 돌아간다 — 계약이자 전제다)
-  L1  순수 함수  17건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
+  L1  순수 함수  18건  `lib/__checks__/ui_honesty.ts` 를 컴파일해 `node` 로 실행
                     (Stage 8/MQ-917 이 `lib/maintValue.ts` 의 4함수를 여기 추가했다.
                      Sprint 12(MQ-1202)가 `deadlines.ts`(2함수)·`riskGrade.ts`(1함수) 관련
                      L1-14·L1-15 를 더했다. MQ-1911 이 `onboarding.ts`·`a2a.ts` 의 미지 값·
-                     프로토타입 키 판정 L1-16·L1-17 을 더했다)
+                     프로토타입 키 판정 L1-16·L1-17 을, MQ-1914 가 `floorplan.ts` 점 판정 L1-18 을 더했다)
   L2  소스 정적      상태·판정 어휘를 다루는 **컴포넌트 전부**에 상태 문자열·색 토큰·
                     상태 비교가 0건 → **컴포넌트는 스스로 "확인/통과" 여부를 말할 수단이 없다**
   D64 성능 점수화 금지  스캔 대상 전체에 `OEE`·`종합효율`·`성능가동률` 0건 + 양성 축
@@ -76,6 +76,7 @@ DEADLINES_TS = FRONTEND / "lib" / "deadlines.ts"
 RISK_GRADE_TS = FRONTEND / "lib" / "riskGrade.ts"
 A2A_TS = FRONTEND / "lib" / "a2a.ts"
 ONBOARDING_TS = FRONTEND / "lib" / "onboarding.ts"
+FLOORPLAN_TS = FRONTEND / "lib" / "floorplan.ts"
 CHECK_TS = FRONTEND / "lib" / "__checks__" / "ui_honesty.ts"
 MATRIX_TSX = FRONTEND / "components" / "asset" / "VerificationMatrix.tsx"
 DISPOSAL_TSX = FRONTEND / "components" / "asset" / "DisposalPanel.tsx"
@@ -134,7 +135,9 @@ L2_EXTRA = (
 # 3파일·`DisposalDraftForm`·Sprint 17·18 대시보드 2파일이 글롭에 자동 편입된 뒤 하한을 아무도
 # 올리지 않았다. 327건 기준선의 L2 288건 = 48×6 과 일치). 48 → 50 이 이번 몫이다.
 # 이 값은 실행 결과("L2 스캔 대상 N개")를 그대로 옮긴 것이다.
-L2_FILES_FLOOR = 50
+# MQ-1914(Sprint 19, D158) — `components/asset/SiteFloorplan.tsx`(asset 글롭) +
+# `app/(console)/technician/site/page.tsx`(app 글롭) 자동 편입 = +2 (50 → 52, 실행 결과 그대로).
+L2_FILES_FLOOR = 52
 
 TSC_ARGS = ["--module", "commonjs", "--target", "es2020", "--skipLibCheck"]
 
@@ -530,6 +533,7 @@ def run() -> None:
     constraint_gate("C7", "C8", "riskGrade.ts", RISK_GRADE_TS, " (MQ-1202)")
     constraint_gate("C9", "C10", "a2a.ts", A2A_TS, " (MQ-1605)")
     constraint_gate("C11", "C12", "onboarding.ts", ONBOARDING_TS, " (MQ-1911)")
+    constraint_gate("C13", "C14", "floorplan.ts", FLOORPLAN_TS, " (MQ-1914)")
 
     # ── L1 ────────────────────────────────────────────────────────────────
     code, stdout, note = compile_and_run(CHECK_TS, "L1")
@@ -540,12 +544,13 @@ def run() -> None:
         check("L1", f"L1-{idx} {name}", ok, detail)
     check(
         "L1",
-        "L1 건수 17건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
-        "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을, MQ-1911 이 onboarding.ts·a2a.ts 2건을 더했다)",
-        len(rows) == 17 and (code == 0) == all(o for _, o, _, _ in rows),
+        "L1 건수 18건 (줄었으면 단언이 사라진 것이다 — MQ-917 이 maintValue.ts 4건을 더했고, "
+        "Sprint 12 MQ-1202 가 deadlines.ts·riskGrade.ts 2건을, MQ-1911 이 onboarding.ts·a2a.ts 2건을, "
+        "MQ-1914 가 floorplan.ts 1건을 더했다)",
+        len(rows) == 18 and (code == 0) == all(o for _, o, _, _ in rows),
         f"{len(rows)}건 · node exit={code}",
     )
-    # 위 '건수' 검사는 17건 밖의 메타 검사다 — 표에는 남기되 계약 17건에는 세지 않는다
+    # 위 '건수' 검사는 18건 밖의 메타 검사다 — 표에는 남기되 계약 18건에는 세지 않는다
     results[-1] = ("메타", results[-1][1], results[-1][2], results[-1][3])
 
     # ── L2 ────────────────────────────────────────────────────────────────

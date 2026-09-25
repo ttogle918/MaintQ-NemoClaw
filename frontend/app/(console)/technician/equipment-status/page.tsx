@@ -142,6 +142,8 @@ function WorkflowSidebar() {
       )}
     >
       <span style={sx("font:700 11.5px 'Pretendard';color:var(--dim)")}>빠른 메뉴</span>
+      {/* D158(MQ-1914) — 사업장 평면도: 설비를 위치로 골라 진단 콘솔로 들어간다(S1) */}
+      <SidebarLink href="/technician/site" icon="🗺" label="사업장 평면도" />
       <SidebarLink href="/technician/po/new" icon="📝" label="발주 신규 작성" />
       <SidebarLink href="/technician/asset" icon="🗂" label="자산 목록 · 처분 사전판정" />
     </aside>

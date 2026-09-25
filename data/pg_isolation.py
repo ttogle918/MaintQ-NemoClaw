@@ -48,6 +48,10 @@ _CLONE_TABLES = [
     # 코퍼스를 임베딩한 뒤에는 격리 스파이크만 dense 결과가 비고 그게 "실패"가 아니라
     # "검색 결과 없음"으로 보인다(알아채기 어려운 종류). 미리 막는다.
     "manual_chunks",
+    # D158(Sprint 19 MQ-1914) 사업장 계층 — FK 순서(sites → zones → equipment_locations,
+    # equipment 뒤). 온보딩 5테이블과 달리 **0행을 전제하는 스파이크가 없어** 복제한다 —
+    # 빠지면 격리 스파이크의 평면도만 조용히 빈 사업장이 된다(manual_chunks 와 같은 함정).
+    "sites", "zones", "equipment_locations",
 ]
 
 
@@ -123,6 +127,69 @@ def create_isolated_schema(label: str = "spike", clone_data: bool = True) -> tup
         con.close()
 
     return schema, _schema_dsn(schema)
+
+
+def reset_onboarding_to_pre_promotion(dsn: str, model: str = "HV600") -> dict[str, int]:
+    """격리 스키마 **안에서만** `model` 을 「승격 전」 상태로 되돌린다(옵트인 — 기본 동작 불변).
+
+    `create_isolated_schema(clone_data=True)` 는 `public` 의 **현재** 정본을 복제한다. 사람이
+    공유 DB 에서 HV600 을 실제로 승격한 뒤로는(2026-09-25, promotions 8 · `error_codes` 8 ·
+    `manual_chunks` 33) 그 결과가 격리 스키마에 그대로 섞여 들어와 「승격 전」을 전제한
+    스파이크가 공유 DB 상태에 따라 뒤집혔다. 이 함수는 그 전제를 격리 스키마 안에서 다시 만든다:
+
+      ① `onboarding_promotions` 의 해당 기종 행 삭제(FK 가 `error_codes` 를 가리키므로 먼저)
+      ② 해당 기종 코드를 FK 로 가리키는 `po_drafts`·`repair_records` 행 삭제(승격 없이는
+         생길 수 없는 행이다 — 남겨 두면 ③ 이 FK 로 죽는다)
+      ③ `error_codes`·`manual_chunks` 의 해당 기종 행 삭제(승격이 만든 정본)
+      ④ 스테이징 행·안전 후보를 `staged` 로(검수·승인 흔적 NULL) — 온보딩 5테이블은
+         `_CLONE_TABLES` 밖이라 지금은 0행이지만, 나중에 복제 대상이 돼도 결정적이게 한다.
+
+    ⛔ `public` 은 절대 건드리지 않는다 — DSN 의 search_path 첫 스키마가 없거나 `public` 이면
+    즉시 `RuntimeError`. 모든 SQL 은 스키마를 명시한다(search_path 에 기대지 않는다).
+    반환: 단계별 영향 행 수(호출부가 liveness 앵커로 쓸 수 있게).
+    """
+    schema = schema_from_dsn(dsn)
+    if not schema or schema == "public":
+        raise RuntimeError(f"격리 스키마 DSN 이 아니다(schema={schema!r}) — public 되돌림 금지")
+    if not BASE_DATABASE_URL:
+        raise RuntimeError("DATABASE_URL 미설정 — Postgres 격리 스키마는 Postgres 타겟에서만 쓴다")
+
+    con = psycopg.connect(BASE_DATABASE_URL)
+    try:
+        exists = con.execute(
+            "SELECT 1 FROM pg_namespace WHERE nspname = %s", (schema,)
+        ).fetchone()
+        if not exists:
+            raise RuntimeError(f"격리 스키마 {schema!r} 가 없다 — create_isolated_schema() 먼저")
+        s = f'"{schema}"'
+        counts: dict[str, int] = {}
+
+        def run(key: str, sql: str) -> None:
+            counts[key] = con.execute(sql, (model,)).rowcount
+
+        run("onboarding_promotions", f"DELETE FROM {s}.onboarding_promotions WHERE model = %s")
+        run("po_drafts", f"DELETE FROM {s}.po_drafts WHERE model = %s AND error_code IS NOT NULL")
+        run("repair_records", f"DELETE FROM {s}.repair_records WHERE model = %s AND error_code IS NOT NULL")
+        run("error_codes", f"DELETE FROM {s}.error_codes WHERE model = %s")
+        run("manual_chunks", f"DELETE FROM {s}.manual_chunks WHERE model = %s")
+        run(
+            "onboarding_code_rows",
+            f"UPDATE {s}.onboarding_code_rows SET state = 'staged', reviewed_by = NULL,"
+            " reviewed_at = NULL, review_note = NULL WHERE model = %s AND state <> 'staged'",
+        )
+        run(
+            "onboarding_safety_candidates",
+            f"UPDATE {s}.onboarding_safety_candidates SET state = 'staged', approved_text = NULL,"
+            " approved_by = NULL, approved_at = NULL, text_reviewed_at = NULL, review_note = NULL"
+            " WHERE model = %s AND state <> 'staged'",
+        )
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+    return counts
 
 
 def schema_from_dsn(dsn: str) -> str | None:

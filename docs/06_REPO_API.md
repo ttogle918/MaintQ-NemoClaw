@@ -882,6 +882,35 @@ approved_at=now, text_reviewed_at=now`.
 승격·안전 승인 자체를 되돌리는 PATCH 는 없다(위 한계 참고). 화면(§ MQ-1911, 컷 후보)이 붙기
 전까지는 `curl`/FastAPI `/docs` 로 위 엔드포인트를 직접 호출한다(컷 라인 C2).
 
+### 2.12 사업장 평면도 (`backend/routers/sites.py`, D158, Sprint 19 MQ-1914 신설)
+
+**읽기 전용 · 역할 무관**(`deps.caller()` 헤더 검증만, `require` 없음 — 403 이 없다). 커넥션은
+`backend.services.disposal.read_only()`(세션 `default_transaction_read_only=on`). 쓰기 메서드 없음(405).
+
+```
+GET /api/sites
+  → { items: [{ site_id, name, is_mock, width, height }] }
+
+GET /api/sites/{site_id}/floorplan
+  → { site: { site_id, name, is_mock, width, height },
+      zones: [{ zone_id, name, kind, x, y, w, h }],                 # kind ∈ assembly|machining|packaging|utility
+      equipment: [{ equipment_id, model, zone_id, x, y, location,
+                    asset_id | null, asset_name | null }] }         # equipment_id 오름차순
+  없는 site_id → 404
+```
+
+- 좌표는 **SVG 사용자 단위**(`site.width × site.height` 뷰박스) — 지도 좌표가 아니다(외부 지도 API 없음, D158 ⓑ).
+- `asset_name` 은 `assets.name`(호스트 자산이 있을 때만) — `asset_id` NULL(분전반 `INV-L1-01`·HV600
+  `INV-HV-01`·`INV-HV-02`)이면 **null** 이다(지어내지 않는다). `asset_id` 는 명세 초안에 없던 가산
+  필드다 — 화면이 설비 상태를 `GET /api/assets/{asset_id}/hotspot-status` 로 **기존 API 그대로** 묻기
+  위해 필요하다.
+- **설비 상태·기종 온보딩 상태는 이 응답에 없다** — 화면이 `hotspot-status`(§2.5)·
+  `GET /api/onboarding/status`(§2.11)를 조합한다. 판정 로직을 두 벌 만들지 않는다.
+- 위치가 없는 설비는 응답에 나오지 않는다(좌표를 지어내지 않는다) — 시드·마이그레이션은 전 설비에
+  위치를 준다(`spikes/site_floorplan_contract.py` ③).
+- 화면: `/technician/site` — 점 클릭 → `/technician?equipment=<id>`(§2.1 진입 파라미터, 진단 콘솔이
+  그 설비를 선택한 상태로 연다).
+
 ---
 
 ## 3. 평가셋 스키마 (`eval/testset.json`)
