@@ -70,8 +70,15 @@ def blocks(events, btype: str) -> list[dict]:
     return [e.data["data"] for e in events if e.event == "block" and e.data.get("type") == btype]
 
 
-async def drive(script, responses, *, db, session="T1", equipment="INV-L1-01", msg="테스트"):
-    """루프를 한 턴 돌리고 (이벤트, fake, writer) 를 돌려준다."""
+async def drive(
+    script, responses, *, db, session="T1", equipment="INV-L1-01", msg="테스트",
+    llm=None, store=None,
+):
+    """루프를 한 턴 돌리고 (이벤트, fake, writer) 를 돌려준다.
+
+    `llm`·`store` 를 넘기면 그것을 쓴다 — 호출별 `seen_tools`·세션 이력을 밖에서 보려는
+    검사(③-b)용. 안 넘기면 예전과 같다.
+    """
     from backend.agent.llm import ScriptedClient
     from backend.agent.loop import SessionStore, run_turn
     from backend.agent.trace import TraceWriter
@@ -84,10 +91,10 @@ async def drive(script, responses, *, db, session="T1", equipment="INV-L1-01", m
         message=msg,
         equipment_id=equipment,
         user_id="tech-01",
-        llm=ScriptedClient(script),
+        llm=llm if llm is not None else ScriptedClient(script),
         client=fake,  # type: ignore[arg-type]
         trace=writer,
-        store=SessionStore(),
+        store=store if store is not None else SessionStore(),
     ):
         events.append(ev)
     return events, fake, writer
@@ -202,12 +209,128 @@ async def run_all(db: Path) -> None:
         f"실행 {len(fake.call_log)}회",
     )
 
+    # ── ③-b 반복 감지 후 **답변 단계** — 도구 없이 LLM 1회 더, 그 결과로 답한다
+    #
+    # 🔴 Stage 5 브라우저 검증(2026-09-25): HV600 절차 질의에서 RAG 가 같은 조회를 반복하자
+    #   루프가 "현재까지 확인된 정보로 답변합니다" 를 흘리고 `pending = []; break` 로 **답 없이**
+    #   턴을 끝냈다. ③ 은 "두 번째 호출이 실행되지 않는다" 만 봐서 이 결함을 못 잡았다 —
+    #   그 뒤에 답이 나오는지는 아무도 안 봤다. 여기서 네 축을 함께 건다:
+    #   ⓐ 안내 문구 **뒤에** 최종 답 토큰이 나온다  ⓑ 도구 추가 실행 없음(1회)
+    #   ⓒ 답변 단계 호출은 도구 목록이 비어 있다(양성 짝: 앞 호출은 도구가 있다)
+    #   ⓓ 답변 단계 안내(loop_guard)는 그 호출에만 실리고 세션 이력에 남지 않는다
+    from backend.agent.llm import ScriptedClient
+    from backend.agent.loop import SessionStore
+
+    final_line = "매뉴얼 검색 결과 기준으로 과열 원인을 정리했습니다."
+    llm_rb = ScriptedClient(
+        [
+            [tu("rag_search_manual", model="iG5A", query="과열 조치")],
+            [tu("rag_search_manual", model="iG5A", query="과열 조치")],
+            [("text", final_line)],
+        ]
+    )
+    store_rb = SessionStore()
+    ev, fake, _ = await drive(
+        None, {"rag_search_manual": RAG_OK}, db=db, session="T3B", llm=llm_rb, store=store_rb
+    )
+    toks = [e.data.get("text", "") for e in ev if e.event == "token"]
+    i_guard = next((i for i, t in enumerate(toks) if "같은 조회를 반복" in t), -1)
+    i_final = next((i for i, t in enumerate(toks) if final_line in t), -1)
+    guard_msgs = [
+        [m for m in msgs if m.get("name") == "loop_guard"] for msgs in llm_rb.seen_messages
+    ]
+    hist_guard = [m for m in store_rb.history("T3B") if m.get("name") == "loop_guard"]
+    check(
+        "③-b 반복 감지 → 도구 없이 LLM 1회 더 → 최종 답이 안내 **뒤에** 나온다 (도구 추가 실행 없음)",
+        i_guard >= 0
+        and i_final > i_guard
+        and fake.call_log == ["rag_search_manual"]
+        and llm_rb.calls == 3
+        and bool(llm_rb.seen_tools[0])  # 양성 짝 — 앞 호출엔 도구가 있다(빈 목록 위장 방지)
+        and llm_rb.seen_tools[2] == []
+        and [len(g) for g in guard_msgs] == [0, 0, 1]
+        and not hist_guard,
+        f"안내 idx={i_guard} · 최종답 idx={i_final} · 실행={fake.call_log} · "
+        f"LLM 호출={llm_rb.calls} · 호출별 도구 수={[len(t) for t in llm_rb.seen_tools]} · "
+        f"호출별 loop_guard={[len(g) for g in guard_msgs]} · 이력 잔존={len(hist_guard)}",
+    )
+
+    # ── ③-c 답변 단계에도 안전 게이트(fail closed)가 그대로 걸린다 — 새 발행 경로가 아니다
+    #    음성: 근거 페이지 없이(빈 청크) 위험 서술 → 차단 문구, 위험 문장 미발행, 안전 블록 없음
+    #    양성: 근거 페이지가 있으면 안전 블록이 위험 문장 **앞**에 나온다
+    danger_line = "커버를 열고 냉각팬을 점검하십시오."
+
+    async def _final_danger(resp, session):
+        llm_c = ScriptedClient(
+            [
+                [tu("rag_search_manual", model="iG5A", query="팬 점검")],
+                [tu("rag_search_manual", model="iG5A", query="팬 점검")],
+                [("text", danger_line)],
+            ]
+        )
+        ev_c, _, _ = await drive(None, {"rag_search_manual": resp}, db=db, session=session, llm=llm_c)
+        return ev_c
+
+    ev_neg = await _final_danger({"status": "ok", "chunks": []}, "T3C-N")
+    ev_pos = await _final_danger(RAG_OK, "T3C-P")
+    neg_toks = [e.data.get("text", "") for e in ev_neg if e.event == "token"]
+    pos_kinds = [
+        ("safety" if e.event == "block" and e.data.get("type") == "safety" else
+         "danger" if e.event == "token" and danger_line in e.data.get("text", "") else None)
+        for e in ev_pos
+    ]
+    pos_seq = [k for k in pos_kinds if k]
+    check(
+        "③-c 답변 단계도 안전 게이트 통과 — 근거 없으면 차단(음성) · 있으면 블록이 서술 앞(양성)",
+        any("근거 문서를 확인하지 못해" in t for t in neg_toks)
+        and not any(danger_line in t for t in neg_toks)
+        and not blocks(ev_neg, "safety")
+        and pos_seq[:2] == ["safety", "danger"],
+        f"음성 토큰={[t[:20] for t in neg_toks]} · 음성 safety={len(blocks(ev_neg, 'safety'))} · "
+        f"양성 순서={pos_seq}",
+    )
+
     # ── ④ 도구 호출 상한 8
     many = [[tu("search_inventory", part_no=f"P-{i}")] for i in range(12)] + [[("text", "끝")]]
     ev, fake, _ = await drive(
         many, {"search_inventory": {"status": "ok", "items": []}}, db=db, session="T4"
     )
     check("④ 턴당 도구 호출 상한 8", len(fake.call_log) <= 8, f"{len(fake.call_log)}회")
+
+    # ── ④-b 상한 도달 후 **답변 단계** — 09_RUNTIME §2 "초과 시: 지금까지 결과로 응답 생성"
+    #    예전 구현은 안내 토큰만 흘리고 `pending = []; break` 로 답 없이 끝났다(③-b 와 같은 결함).
+    #    서로 다른 호출 8건 → 9번째 호출이 상한에 걸림 → 도구 없이 1회 더 → 최종 답.
+    from backend.agent.loop import MAX_TOOL_CALLS_PER_TURN
+
+    cap_line = "조회한 재고 기준으로 정리했습니다."
+    llm_cap = ScriptedClient(
+        [[tu("search_inventory", part_no=f"P-{i}")] for i in range(MAX_TOOL_CALLS_PER_TURN + 1)]
+        + [[("text", cap_line)]]
+    )
+    ev, fake, _ = await drive(
+        None, {"search_inventory": {"status": "ok", "items": []}}, db=db, session="T4B", llm=llm_cap
+    )
+    toks = [e.data.get("text", "") for e in ev if e.event == "token"]
+    i_cap = next((i for i, t in enumerate(toks) if "추가 확인이 필요합니다" in t), -1)
+    i_ans = next((i for i, t in enumerate(toks) if cap_line in t), -1)
+    last_guard = [
+        m.get("content", {}).get("reason")
+        for m in (llm_cap.seen_messages[-1] if llm_cap.seen_messages else [])
+        if m.get("name") == "loop_guard"
+    ]
+    check(
+        "④-b 도구 상한 도달 → 안내 뒤 도구 없이 LLM 1회 더 → 최종 답 (추가 도구 실행 없음)",
+        i_cap >= 0
+        and i_ans > i_cap
+        and len(fake.call_log) == MAX_TOOL_CALLS_PER_TURN
+        and llm_cap.calls == MAX_TOOL_CALLS_PER_TURN + 2
+        and bool(llm_cap.seen_tools[0])  # 양성 짝 — 앞 호출엔 도구가 있다
+        and llm_cap.seen_tools[-1] == []
+        and last_guard == ["tool_call_limit"],
+        f"안내 idx={i_cap} · 최종답 idx={i_ans} · 실행={len(fake.call_log)}회 · "
+        f"LLM 호출={llm_cap.calls} · 마지막 호출 도구 수={len(llm_cap.seen_tools[-1]) if llm_cap.seen_tools else '-'} · "
+        f"마지막 호출 loop_guard={last_guard}",
+    )
 
     # ── ⑤⑥ 안전 블록이 위험 서술 **앞**에, 문구는 상수
     from backend.agent import prompts

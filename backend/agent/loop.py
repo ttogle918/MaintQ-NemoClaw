@@ -300,6 +300,38 @@ def _parts_from(tool: str, payload: dict) -> list[str]:
     return []
 
 
+#: 답변 단계(반복 감지·도구 상한 도달) LLM 호출에만 덧붙이는 안내. **세션 이력에 저장하지 않는다** —
+#: 실제 도구 결과가 아니므로 다음 턴 맥락을 오염시키면 안 되고, traces 에도 도구 실행으로
+#: 남기지 않는다(도구를 실행하지 않았다). 역할은 `tool` 로 둬 어댑터가 기존 변환(D76)을 탄다.
+_REPEAT_NUDGE: dict = {
+    "role": "tool",
+    "name": "loop_guard",
+    "content": {
+        "status": "skipped",
+        "reason": "repeated_call",
+        "note": (
+            "이미 같은 조회 결과가 위에 있다 — 새 조회 없이 지금까지의 도구 결과로 답하라. "
+            "결과에 없는 내용은 확인하지 못했다고 밝혀라."
+        ),
+    },
+}
+
+#: 도구 호출 상한(`MAX_TOOL_CALLS_PER_TURN`) 도달 시의 안내 — 반복용과 구분한다(원인이 다르다).
+#: 09_RUNTIME §2 "초과 시: 지금까지 결과로 응답 생성 + 추가 확인 필요 명시".
+_TOOL_CAP_NUDGE: dict = {
+    "role": "tool",
+    "name": "loop_guard",
+    "content": {
+        "status": "skipped",
+        "reason": "tool_call_limit",
+        "note": (
+            "도구 호출 상한에 도달했다 — 새 조회 없이 지금까지의 도구 결과로 답하라. "
+            "확인하지 못한 항목은 추가 확인이 필요하다고 밝혀라."
+        ),
+    },
+}
+
+
 async def _safe_stream(llm: LlmClient, **kw) -> AsyncIterator[tuple[str, object]]:
     """LLM 스트림의 예외만 `("_stream_error", exc)` 델타로 바꿔 흘린다.
 
@@ -454,6 +486,12 @@ async def run_turn(
                 return
         yield sse.token(text)
 
+    #: **답변 단계** 안내 — 반복 호출 감지(09_RUNTIME "루프 탈출 → 현재 정보로 응답") 또는
+    #: 도구 호출 상한 도달("초과 시: 지금까지 결과로 응답 생성"). `None` 이 아니면 다음 LLM
+    #: 호출은 도구 목록 없이 이 안내를 덧붙여 나가고, 그 응답이 무엇이든 턴을 끝낸다 —
+    #: 도구를 더 실행하지 않는다. 호출은 기존 `for` 상한 안에서만 일어난다(상한 불변).
+    final_nudge: dict | None = None
+
     for _ in range(MAX_LLM_CALLS_PER_TURN):
         if store.bump_llm(session_id) > MAX_LLM_CALLS_PER_SESSION:
             yield sse.token("대화가 길어졌습니다. 새 세션을 시작해 주세요.")
@@ -464,7 +502,13 @@ async def run_turn(
 
         # LLM 스트림 예외만 잡는다. flush()·block 발행은 **이 밖에서** 처리한다 —
         # 안에 두면 우리 코드의 버그(KeyError 등)가 "LLM 실패"로 위장돼 조용히 우회된다.
-        stream = _safe_stream(llm, system=system, messages=messages, tools=tools)
+        # 답변 단계면 도구를 빼고, 이력에 **남기지 않는** 안내 1건을 덧붙인다(아래 참고).
+        stream = _safe_stream(
+            llm,
+            system=system,
+            messages=[*messages, final_nudge] if final_nudge else messages,
+            tools=[] if final_nudge else tools,
+        )
         failed = False
         stream_exc: BaseException | None = None
         #: `("end", stop_reason)` 델타. 이전에는 이 분기가 없어 **버려지고 있었다** —
@@ -521,6 +565,20 @@ async def run_turn(
         if assistant_text:
             store.append(session_id, {"role": "assistant", "content": "".join(assistant_text)})
 
+        if final_nudge:
+            # 답변 단계 응답은 도구 호출이 섞여 와도 **실행하지 않는다**(도구 목록을 뺐는데도
+            # tool_use 를 내는 제공자·카세트 방어). 텍스트가 비었으면 빈 응답 문구만 낸다.
+            if pending:
+                logger.warning(
+                    "답변 단계(%s)에서 도구 호출 %d건 무시 — 세션 %s",
+                    final_nudge["content"]["reason"],
+                    len(pending),
+                    session_id,
+                )
+            if not assistant_text:
+                yield sse.token("응답을 받지 못했습니다. 다시 시도해 주세요.")
+            break
+
         if not pending:
             # 🔴 텍스트도 도구도 없이 끝났다면 그건 정상 종료가 아니라 **빈 응답**이다.
             #   추론 모델이 본문을 `reasoning` 에만 쏟고 `content` 를 비운 채
@@ -542,16 +600,24 @@ async def run_turn(
 
         for tu in pending:
             if st.tool_calls >= MAX_TOOL_CALLS_PER_TURN:
+                # 🔴 예전에는 `pending = []; break` 로 답 없이 끝났다(반복 가드와 같은 결함).
+                #   09_RUNTIME §2 대로 도구 없이 1회 더 불러 지금까지의 결과로 답하게 한다.
                 yield sse.token("확인할 항목이 남아 있어 추가 확인이 필요합니다.")
-                pending = []
+                final_nudge = _TOOL_CAP_NUDGE
                 break
 
             sig = (tu.name, json.dumps(tu.input, sort_keys=True, ensure_ascii=False))
             if sig == st.last_call:
+                # 🔴 예전에는 여기서 `pending = []; break` 로 **답변 단계 없이** 턴이 끝났다 —
+                #   "현재까지 확인된 정보로 답변합니다" 라고 흘리고 답을 안 했다(Stage 5 HV600
+                #   절차 질의에서 RAG 반복 → 답 없음). 이제 도구 실행은 멈추되 다음 LLM 호출을
+                #   도구 없이 한 번 더 해 지금까지의 결과로 답하게 한다. 그 답도 같은 `flush()`
+                #   를 지나므로 안전 게이트(fail closed)가 그대로 걸린다 — 새 발행 경로가 아니다.
+                logger.info("반복 호출 감지 — %s, 답변 단계로 전환 (세션 %s)", tu.name, session_id)
                 yield sse.token(
                     "같은 조회를 반복하고 있어 중단했습니다. 현재까지 확인된 정보로 답변합니다."
                 )
-                pending = []
+                final_nudge = _REPEAT_NUDGE
                 break
             st.last_call = sig
             st.tool_calls += 1
@@ -637,7 +703,7 @@ async def run_turn(
                     st.po_created = payload
 
         messages = store.history(session_id)
-        if not pending:
+        if not pending and not final_nudge:
             break
 
     # ── 인용 블록: 코드가 도구 결과에서 만든다 (D30 — LLM 이 말한 페이지를 쓰지 않는다)

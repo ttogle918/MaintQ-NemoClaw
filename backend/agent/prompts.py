@@ -180,6 +180,53 @@ def needs_safety_block(text: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 방전 대기 시간 지시의 **적용 범위** (2026-09-25 사람 승인 — `TODO_직접할일.md` H5,
+# safety-guardrail 규칙 5). 안전 문구 **본문**(`SAFETY_BASELINE`)은 바뀌지 않았다 —
+# 바뀐 것은 "10분 이상" 지시가 어느 기종에 걸리는가 하나다.
+#
+# 이전에는 기종 무관하게 "기준값은 10분 이상" 을 지시해, 온보딩 기종(HV600 — 승인 문구
+# SC-14 「최소 5분 이상」 p.29)에서 시스템이 붙인 5분 안전 블록 옆에 **LLM 본문이 10분을
+# 써서** 한 화면에 두 수치가 공존했다(Stage 5 브라우저 검증). 온보딩 기종 프롬프트에는
+# "10분" 이 아예 실리지 않게 기종별로 문장을 고른다(`_is_onboarding_model`).
+# ⛔ 아래 두 문장은 승인된 문구다 — 의미를 바꾸지 말 것.
+# ─────────────────────────────────────────────────────────────────────────────
+_WAIT_LEAD = " 방전 대기 시간을 줄여 적지 마라 —"
+_WAIT_STATIC = f'{_WAIT_LEAD} iG5A·S100 의 기준값은 "10분 이상"이다.'
+_WAIT_ONBOARDING = (
+    " 온보딩 기종(HV600 등)은 시스템이 붙이는 승인 문구의 수치를 따르고,"
+    " 본문에 다른 대기 시간을 쓰지 마라."
+)
+#: 온보딩 기종 프롬프트용 — iG5A·S100 문장(「10분」)을 싣지 않는다.
+_WAIT_ONBOARDING_ONLY = f"{_WAIT_LEAD}{_WAIT_ONBOARDING}"
+
+#: 정적 안전 문구도 온보딩 대상도 아닌 시드 기종 (D109 ⓐ — IE5 는 안전 문구 미확장).
+#: `safety_source.SEED_MODELS` 와 같은 뜻이지만 그 모듈이 여기를 import 하므로 역방향 import 는 순환이다.
+_NO_SAFETY_SEED_MODELS: frozenset[str] = frozenset({"IE5"})
+
+
+def _is_onboarding_model(model: str | None) -> bool:
+    """정적 안전 문구(`SAFETY_BASELINE`) 기종도 시드 기종도 아닌 enum 기종 — HV600 등 (D146·D157)."""
+    if model is None or model not in MODELS:
+        return False
+    pages = SAFETY_BASELINE.get("pages")
+    static = set(pages) if isinstance(pages, dict) else set()
+    return model not in static and model not in _NO_SAFETY_SEED_MODELS
+
+
+def _rule10(wait_sentence: str) -> str:
+    """규칙 10 — 방전 대기 문장만 기종별로 갈아 끼운다. 나머지 문장은 공통."""
+    return (
+        "**안전 문구를 창작하지 마라 (safety-guardrail).** 안전 경고는 승인된 기준 문구만 쓰며"
+        f" 시스템이 별도 블록으로 발행한다.{wait_sentence}"
+        " 매뉴얼 근거 페이지가 없으면 안전 경고도 위험 작업 서술도 하지 않는다."
+        ' "그냥 열어서", "바로 만져서" 같은 단정적 지시 대신 "매뉴얼 기준으로는 ~" 프레임을'
+        ' 유지한다. 또한 **타임아웃·연결 실패로 조회하지 못한 항목은 "확인하지 못했다"고 명시하고'
+        ' 그 공백을 네 지식으로 메우지 마라** (D46 — 타임아웃은 `status:"error"`,'
+        ' `reason:"timeout"` 으로 온다).'
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 규칙 11개 — 순서·개수 고정. 각 항목의 (D…) 태그가 근거 결정이다.
 # 규칙을 지우거나 합치려면 먼저 docs/10_DECISIONS.md 에 결정을 추가할 것.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -263,13 +310,9 @@ RULES: tuple[str, ...] = (
     " 도구를 호출하기 전에 기종을 확인하는 질문을 한다. 같은 표기의 코드라도 기종이 다르면"
     " 의미가 다르므로 임의로 한쪽을 고르지 마라.",
     # 10 — 안전 문구 창작 금지 + 도구 실패 공백 (sprint-3 §4 "규칙 10에 추가")
-    "**안전 문구를 창작하지 마라 (safety-guardrail).** 안전 경고는 승인된 기준 문구만 쓰며"
-    " 시스템이 별도 블록으로 발행한다. 방전 대기 시간을 줄여 적지 마라 — 기준값은"
-    ' "10분 이상"이다. 매뉴얼 근거 페이지가 없으면 안전 경고도 위험 작업 서술도 하지 않는다.'
-    ' "그냥 열어서", "바로 만져서" 같은 단정적 지시 대신 "매뉴얼 기준으로는 ~" 프레임을'
-    ' 유지한다. 또한 **타임아웃·연결 실패로 조회하지 못한 항목은 "확인하지 못했다"고 명시하고'
-    ' 그 공백을 네 지식으로 메우지 마라** (D46 — 타임아웃은 `status:"error"`,'
-    ' `reason:"timeout"` 으로 온다).',
+    # 방전 대기 문장의 적용 범위는 iG5A·S100 이다 (2026-09-25 사람 승인 — TODO H5).
+    # 온보딩 기종 프롬프트에는 `_render_rules` 가 `_rule10(_WAIT_ONBOARDING_ONLY)` 로 바꿔 싣는다.
+    _rule10(_WAIT_STATIC + _WAIT_ONBOARDING),
     # 11 — 인용은 시스템이 생성
     "**페이지 인용은 시스템이 만든다 (D26·D30·D32).** 매뉴얼 페이지 번호를 네가 문장에 적지"
     " 마라. 인용 칩은 도구 결과의 페이지 값을 근거로 코드가 생성한다. 인쇄 페이지 환산도 하지"
@@ -456,10 +499,17 @@ def _render_tool_map(selected: Sequence[str]) -> str:
     return f"사용 가능한 도구 ({len(lines)}종)\n" + "\n".join(lines)
 
 
-def _render_rules(selected: Sequence[str] = CORE_TOOLS) -> str:
-    """규칙 11개 + (전제 도구가 등록된) 확장 규칙. **번호는 위치로 고정**된다."""
+def _render_rules(selected: Sequence[str] = CORE_TOOLS, model: str | None = None) -> str:
+    """규칙 11개 + (전제 도구가 등록된) 확장 규칙. **번호는 위치로 고정**된다.
+
+    온보딩 기종이면 규칙 10 의 방전 대기 문장만 `_WAIT_ONBOARDING_ONLY` 로 바꾼다
+    (2026-09-25 승인 — 그 기종 프롬프트에 iG5A·S100 의 「10분」 이 실리지 않게).
+    """
     picked = set(selected)
-    lines = [f"{i}. {rule}" for i, rule in enumerate(RULES, start=1)]
+    base = list(RULES)
+    if _is_onboarding_model(model):
+        base[9] = _rule10(_WAIT_ONBOARDING_ONLY)
+    lines = [f"{i}. {rule}" for i, rule in enumerate(base, start=1)]
     lines += [
         f"{len(RULES) + i + 1}. {rule}"
         for i, rule in enumerate(EXT_RULES)
@@ -470,18 +520,30 @@ def _render_rules(selected: Sequence[str] = CORE_TOOLS) -> str:
 
 _SAFETY_SECTION = f"""\
 안전 기준 (협상 불가)
-확정 문구는 아래 하나뿐이며 시스템이 블록으로 발행한다. 네가 고쳐 쓰거나 요약하지 마라.
+iG5A·S100 의 확정 문구는 아래 하나뿐이며 시스템이 블록으로 발행한다. 네가 고쳐 쓰거나 요약하지 마라.
 
   "{SAFETY_BASELINE["text"]}"
 
 근거: iG5A 매뉴얼 p.{SAFETY_BASELINE["pages"]["iG5A"]} · \
 S100 매뉴얼 p.{SAFETY_BASELINE["pages"]["S100"]} (PDF 물리 페이지)
-대기 시간 기준값은 "10분 이상"이다. 더 짧게 적으면 안전 규칙 위반이다.
+iG5A·S100 의 대기 시간 기준값은 "10분 이상"이다. 더 짧게 적으면 안전 규칙 위반이다.
+{_WAIT_ONBOARDING.strip()}
 {QUALIFIED_WORKER_NOTE["text"]}"""
 
+# 온보딩 기종(HV600 등) 전용 안전 절 — iG5A·S100 확정 문구(「10분 이상」)를 싣지 않는다.
+# 그 기종의 문구는 사람이 승인한 DB 행에서 런타임에 오고(D157) 루프가 블록으로 발행한다.
+# `QUALIFIED_WORKER_NOTE` 도 싣지 않는다 — 근거가 iG5A p.7·S100 p.3 이라 이 기종 매뉴얼
+# 근거가 아니다(safety-guardrail 규칙 1).
+_SAFETY_SECTION_ONBOARDING = f"""\
+안전 기준 (협상 불가)
+이 기종은 온보딩 기종이다. 안전 문구는 사람이 승인한 문구를 시스템이 블록으로 발행한다.
+네가 고쳐 쓰거나 요약하지 마라.
+{_WAIT_ONBOARDING.strip()}"""
 
-def _compose(selected: Sequence[str]) -> str:
-    rules = _render_rules(selected)
+
+def _compose(selected: Sequence[str], model: str | None = None) -> str:
+    rules = _render_rules(selected, model)
+    safety = _SAFETY_SECTION_ONBOARDING if _is_onboarding_model(model) else _SAFETY_SECTION
     n_rules = rules.count("\n") + 1 if rules else 0
     return f"""\
 너는 MaintQ 의 설비보전 어시스턴트다. 공장 정비사가 인버터·PLC 고장을 진단하고
@@ -493,7 +555,7 @@ def _compose(selected: Sequence[str]) -> str:
 규칙 ({n_rules}개 — 전부 지킨다)
 {rules}
 
-{_SAFETY_SECTION}
+{safety}
 
 {_STYLE}"""
 
@@ -538,5 +600,9 @@ def build_system_prompt(
     else:
         lines.append(f"- 기종(model): {model} — 도구의 `model` 파라미터에 이 값을 쓴다")
 
-    prompt = SYSTEM_PROMPT if tool_names is None else _compose(_selected(tool_names))
+    # 온보딩 기종은 규칙 10·안전 절이 달라지므로 상수(`SYSTEM_PROMPT`)를 쓰지 않는다.
+    if tool_names is None and not _is_onboarding_model(model):
+        prompt = SYSTEM_PROMPT
+    else:
+        prompt = _compose(_selected(tool_names), model)
     return f"{prompt}\n\n" + "\n".join(lines)

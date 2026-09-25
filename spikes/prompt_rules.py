@@ -405,6 +405,38 @@ def run() -> None:
     )
 
 
+    # ── ㉕ 방전 대기 「10분 이상」 지시의 적용 범위 = iG5A·S100 (2026-09-25 사람 승인, TODO H5)
+    #    Stage 5 브라우저 검증: HV600(승인 문구 SC-14 「최소 5분 이상」) 채팅에서 안전 블록은
+    #    5분인데 LLM 본문이 10분을 써 한 화면에 두 수치가 공존했다 — 프롬프트가 기종 무관하게
+    #    "기준값은 10분 이상" 을 지시했기 때문이다.
+    #    음성: HV600 프롬프트에 「10분」 0글자 · SAFETY_BASELINE 본문 미포함.
+    #    양성: iG5A·S100 프롬프트엔 「10분 이상」 과 정적 확정 문구가 그대로 있다.
+    #    liveness: 두 프롬프트 모두 규칙 10 앵커와 온보딩 문장을 실제로 싣는다(스캐너가 빈
+    #    문자열을 보고 음성 축을 위장 통과하지 않게).
+    hv = build_system_prompt("HV600", equipment_id="INV-HV-01")
+    hv_full = build_system_prompt("HV600", tool_names=list(CORE_TOOLS) + list(EXT_TOOLS))
+    statics = {m: build_system_prompt(m) for m in ("iG5A", "S100")}
+    onboarding_sentence = "온보딩 기종(HV600 등)은 시스템이 붙이는 승인 문구의 수치를 따르고"
+    rule10_anchor = "10. **안전 문구를 창작하지 마라"
+    hv_neg = all("10분" not in p and safety_text not in p for p in (hv, hv_full))
+    static_pos = all(
+        "10분 이상" in p and safety_text in p and 'iG5A·S100 의 기준값은 "10분 이상"' in p
+        for p in statics.values()
+    )
+    anchors = [
+        p.count(rule10_anchor) == 1 and onboarding_sentence in p
+        for p in (hv, hv_full, *statics.values())
+    ]
+    check(
+        "㉕ 「10분 이상」 지시 범위 = iG5A·S100 — HV600 프롬프트엔 「10분」 0글자 (음성·양성·liveness)",
+        hv_neg and static_pos and all(anchors),
+        f"HV600 '10분' 출현={hv.count('10분')}+{hv_full.count('10분')} · "
+        f"HV600 정적 문구 포함={safety_text in hv} · "
+        f"iG5A/S100 '10분 이상'={[statics[m].count('10분 이상') for m in statics]} · "
+        f"앵커(규칙10·온보딩 문장) 생존={sum(anchors)}/{len(anchors)}",
+    )
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
