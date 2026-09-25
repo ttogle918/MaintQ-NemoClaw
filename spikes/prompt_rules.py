@@ -24,6 +24,7 @@ MQ-612 가 더한 것 (⑰~㉑, D69) · MQ-706 이 더한 것 (㉒㉓) · Sprint
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import os
 import re
@@ -461,6 +462,58 @@ def run() -> None:
         not missing and not cjk_hits and hangul > 0 and oracle,
         f"문장 누락 경로={missing or '없음'} · 한자/가나 적발={cjk_hits or '0건'} · "
         f"한글 음절={hangul} · 정규식 오라클={'OK' if oracle else 'FAIL'}",
+    )
+
+    # ── ㉗ 본문이 안전 블록 **유무**를 단정하지 않게 (2026-09-25 사람 승인, TODO H5 「(추가)」)
+    #    웹 콘솔 HV600 「냉각팬 교체 절차」 답: 승인 SAFETY 블록(p.29)이 붙었는데 본문 끝이
+    #    "안전 경고는 제공된 근거가 없으므로 드릴 수 없습니다" — 블록 부착은 시스템 몫인데 모델이
+    #    그 유무를 단정해 화면이 모순됐다.
+    #    양성: 새 문장이 **7개 조립 경로**(기종 미상·iG5A·S100·IE5·HV600 온보딩·full·도구 0종)
+    #    전부에 정확히 1회, 그리고 규칙 10 줄 **안에** 있다.
+    #    불변: 안전 문구 본문(`SAFETY_BASELINE["text"]`) sha256 고정 · 대기 시간 문장
+    #    (정적 기종 「10분 이상」 / 온보딩 문장) · 근거 없으면 서술 금지 문장이 경로마다 그대로.
+    #    liveness: 경로마다 규칙 10 앵커가 1회 잡혀야 판정한다(빈 프롬프트·앵커 이동에 눈멀지 않게).
+    presence_sentence = "**안전 경고의 유무는 본문에서 언급하지 마라**"
+    fail_closed = "매뉴얼 근거 페이지가 없으면 안전 경고도 위험 작업 서술도 하지 않는다."
+    wait_static = 'iG5A·S100 의 기준값은 "10분 이상"이다.'
+    safety_sha = "0d8042391af660c5f35a1f45bff50146fb471bd6dbf8dc43c79c3905cf2f974a"
+    paths = {
+        "기종미상": build_system_prompt(None),
+        "iG5A": build_system_prompt("iG5A", equipment_id="INV-L3-01"),
+        "S100": build_system_prompt("S100"),
+        "IE5": build_system_prompt("IE5"),
+        "HV600": build_system_prompt("HV600", equipment_id="INV-HV-01"),
+        "full": build_system_prompt("S100", tool_names=list(CORE_TOOLS) + list(EXT_TOOLS)),
+        "도구0종": build_system_prompt("iG5A", tool_names=[]),
+    }
+
+    def _rule10_line(p: str) -> str:
+        return next((ln for ln in p.splitlines() if ln.startswith(rule10_anchor)), "")
+
+    alive = {k: p.count(rule10_anchor) == 1 for k, p in paths.items()}
+    bad_count = {k: p.count(presence_sentence) for k, p in paths.items() if p.count(presence_sentence) != 1}
+    outside = [k for k, p in paths.items() if presence_sentence not in _rule10_line(p)]
+    # 새 문장은 근거 없으면 서술 금지 문장 **뒤**에 붙는다 — 앞 문장을 대체하지 않았다는 증거.
+    order_bad = [
+        k
+        for k, p in paths.items()
+        if not (fail_closed in _rule10_line(p)
+                and _rule10_line(p).index(fail_closed) < _rule10_line(p).find(presence_sentence))
+    ]
+    wait_bad = [
+        k
+        for k, p in paths.items()
+        if onboarding_sentence not in p
+        or ((wait_static in p) != (k != "HV600"))  # 온보딩 기종만 「10분」 문장이 없다(㉕)
+    ]
+    sha_ok = hashlib.sha256(safety_text.encode("utf-8")).hexdigest() == safety_sha
+    check(
+        "㉗ 안전 블록 유무 단정 금지 — 7개 조립 경로 규칙 10 에 1회 · 안전 문구·대기 시간·서술 금지 불변 (양성·불변·liveness)",
+        all(alive.values()) and not bad_count and not outside and not order_bad
+        and not wait_bad and sha_ok,
+        f"규칙10 앵커 생존={sum(alive.values())}/{len(alive)} · 출현≠1 경로={bad_count or '없음'} · "
+        f"규칙10 밖={outside or '없음'} · 서술금지 문장 뒤 아님={order_bad or '없음'} · "
+        f"대기 문장 어긋남={wait_bad or '없음'} · SAFETY_BASELINE sha256 일치={sha_ok}",
     )
 
 

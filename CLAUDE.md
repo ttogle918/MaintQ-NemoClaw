@@ -259,8 +259,8 @@
 > **C1~C8 은 전건 PASS 한다**. 그게 이 결함의 정의다.
 
 **실측 기준선 (최신 2026-09-25 Sprint 19 Stage 4 · 이력은 아래 문단 — 2026-08-23 Sprint 16 Postgres 마이그레이션 완결부터)** —
-spikes **41스위트 / 1,386건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 5 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
-**1,386 = 1,381 + `ui_honesty_contract` 360→364(채팅 마크다운 `lib/markdown.ts` — L1-19 · 게이트 C15·C16 · 뮤턴트 ⓚ) + `prompt_rules` 25→26(㉖ 한국어 전용·한자 0)** · 직전 **1,381 = 1,377 + `prompt_rules` 24→25(㉕ HV600 프롬프트 「10분」 0회) + `agent_loop_contract` 37→40(③-b·③-c 반복 가드 최종 답 · ④-b 도구 상한 최종 답)** · 직전 **1,377 = 1,349 + `site_floorplan_contract` 13(D158 신설) + `ui_honesty_contract` 345→360(D158 평면도 — L1 +1 · L2 +12 · 게이트 +2)**.
+spikes **41스위트 / 1,387건**(🔴 **2026-09-25 전수 실측**, Sprint 19 Stage 5 — `law_fetch ⓚ` 오탐 1건 외 FAIL 0 · 재시도 0.
+**1,387 = 1,386 + `prompt_rules` 26→27(㉗ 안전 블록 유무 본문 언급 금지 · `SAFETY_BASELINE` sha256 잠금 — 사람이 승인해 문구를 바꾸면 이 해시도 갱신)** · 직전 **1,386 = 1,381 + `ui_honesty_contract` 360→364(채팅 마크다운 `lib/markdown.ts` — L1-19 · 게이트 C15·C16 · 뮤턴트 ⓚ) + `prompt_rules` 25→26(㉖ 한국어 전용·한자 0)** · 직전 **1,381 = 1,377 + `prompt_rules` 24→25(㉕ HV600 프롬프트 「10분」 0회) + `agent_loop_contract` 37→40(③-b·③-c 반복 가드 최종 답 · ④-b 도구 상한 최종 답)** · 직전 **1,377 = 1,349 + `site_floorplan_contract` 13(D158 신설) + `ui_honesty_contract` 345→360(D158 평면도 — L1 +1 · L2 +12 · 게이트 +2)**.
 ⚠ **HV600 을 사람이 실제로 승격한 뒤**(공유 DB) 격리 복제가 승격분을 끌고 와 「승격 전」 전제 스파이크 3종이 깨졌다 → `data/pg_isolation.reset_onboarding_to_pre_promotion(dsn)`(옵트인 — 격리 스키마 전용, public 거부) 호출로 결정화(`model_enum` · `onboarding_promote`), `lookup ⑭` 는 공유 DB 직접 조회라 시드 3기종 한정 + 70행 정확 일치로 강화.
 직전 1,349 = 1,212 + `mcp_http_contract` **17**(D150~D152 — 목록에는 올랐는데 **이 헤드라인·아래 표에 빠져 있었다**) +
 Sprint 19 신설 5스위트 **100**(`model_enum_contract` 10 · `onboarding_contract` 9 · `onboarding_rag_contract` 6 ·
@@ -324,7 +324,7 @@ D111 작업 중 `npx next build` 실측으로 뒤늦게 발견해 여기서 함�
 `llm_provider_contract 23`(D115 — 아래 참고) · `lookup_contract 14` · `mcp_client_contract 15` · `mcp_http_contract 17` ·
 `model_enum_contract 10` · `onboarding_contract 9` · `onboarding_promote_contract 54` · `onboarding_rag_contract 6` ·
 `onboarding_safety_gate 22` · `ownership_api_contract 10` · `site_floorplan_contract 13` ·
-`prompt_rules 26` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
+`prompt_rules 27` · `rag_contract 13` · `repair_flow_contract 28` · `rules_db_load 25` · `s10_smoke 17` ·
 `s4_smoke 10` · `sp2_mcp_roundtrip 20` · `sp3_sse_events 22` · `tools_profile_contract 7` ·
 `trace_persist 17` · `ui_honesty_contract 364` · `write_tool_contract 30`
 
