@@ -527,7 +527,7 @@ Claude가 대신 못 하는 것들. 순서대로.
       ⚠ **ⓐ 전 선행 확인(safety-guardrail 규칙 5)**: `build.py` 가 만드는 AGENTS.md 의 「10분 이상」 확정 문구 **적용 기종을
       iG5A·S100 으로 좁힌 문장**과 `skills/maintq-diagnose/SKILL.md` 의 HV600 안전 적용 범위 문장(「시작 전」·「하지 않는 것」)을
       사람이 읽고 승인한다 — 안전 문구 본문은 바뀌지 않았고 적용 범위만 바뀌었다(Stage 3·4 리뷰 지적)
-- [ ] **H6 (Stage 4) — SkillSpector 결과(신규·수정 스킬) 수용 판정.** 막는 것: 제출물.
+- [x] ✅ 2026-09-27 사용자 수용 판정(evals 합성 주입 문장은 거부가 정답인 공격 예시) · **H6 (Stage 4) — SkillSpector 결과(신규·수정 스킬) 수용 판정.** 막는 것: 제출물.
 - [x] ✅ 2026-09-25 녹화 완료 — 장면 설명 `docs/memo/2026-09-25-hv600-onboarding-demo.md` · **H7 (Stage 4) — 데모 녹화** (과부하 O1 대비 — 라이브 시연보다 녹화 권장). 막는 것: 제출.
 - [ ] **H8 (필요 시) — 웹 콘솔 샌드박스(`maintq`)에서 HV600 을 보이려면** 호스트 DB 덤프 →
       `Dockerfile.sandbox` 재빌드 → 샌드박스 재생성(`docs/hackathon/day1.md §6`). 막는 것: 웹 콘솔
@@ -544,21 +544,21 @@ Claude가 대신 못 하는 것들. 순서대로.
 
 심사용 문서: `docs/hackathon/SUBMISSION.md`. H6 은 위 항목 그대로다(여기서 중복 관리하지 않는다 — 제출을 막는 항목이라 순서에만 넣었다).
 
-- [ ] **S1 — H6 SkillSpector 판정** (위 H6). `maintq-manual-onboarding` HIGH 1(evals 합성 주입 문장) 수용 여부.
+- [x] ✅ 2026-09-27 수용 — `SUBMISSION.md` §3.8 반영 · **S1 — H6 SkillSpector 판정** (위 H6). `maintq-manual-onboarding` HIGH 1(evals 합성 주입 문장) 수용 여부.
       판정 결과를 `SUBMISSION.md` §3.8 「판정 대기, H6」 자리에 반영한다.
 - [ ] **S2 — 데모 영상 링크 기입.** `SUBMISSION.md` §4 「(링크: 사람이 기입)」 과
       `docs/memo/2026-09-25-hv600-onboarding-demo.md` §1 「영상 파일 위치」. 링크를 넣기 전에 영상에
       대시보드 URL·토큰(`nemoclaw … dashboard-url` 출력)이 비치지 않는지, 중국어 「参照」 가 섞였는지 확인.
-- [ ] **S3 — 스킬 카드 사람 검토** (`skills/maintq-diagnose/skill-card.md`). `day2.md` §8 은 「소유자 VERIFY 표시 1건으로
+- [ ] 🟡 2026-09-27 `maintq-manual-onboarding/skill-card.md` 초안 작성(Claude) — 사람 검토 남음: Use Case 문구·`Requires API Key: [No]`·버전 SHA · **S3 — 스킬 카드 사람 검토** (`skills/maintq-diagnose/skill-card.md`). `day2.md` §8 은 「소유자 VERIFY 표시 1건으로
       `validate_submission.py` FAIL」 이라 적었으나 **2026-09-25 재실행은 OK(마커 0)** 다 — 표시는 이미 지워졌다.
       남은 일은 내용 확인: 소유자·라이선스·카드 안 GitHub 링크(`ttogle918/MaintQ-NemoClaw`)가 공개 후 실제로 열리는지,
       「Requires API Key: [Not Specified]」 가 맞는지. `maintq-manual-onboarding` 에는 스킬 카드가 없다(만들지 여부 결정).
-- [ ] **S4 — OpenClaw 워크스페이스·스킬 재설치.** 커밋 `4614b79`(에러코드 매번 lookup 재호출)·`1cf93e8` 이후
+- [x] ✅ 2026-09-27 재생성·업로드·`maintq-diagnose` 재설치, 샌드박스 안 4파일 sha256 이 로컬과 일치. 재부팅으로 NemoClaw 게이트웨이(8080)가 내려가 있어 `gateway.env` 그대로 `~/.local/bin/openshell-gateway` 를 nohup 기동(로그 `~/.local/state/nemoclaw/openshell-docker-gateway/gateway-manual.log`) → `nemoclaw … start` 는 Stopped 에 묶여 `openshell sandbox start maintq-agent` 로 Ready. ⚠ MCP-HTTP(8765)는 아직 내려가 있다 — 데모 전 기동 필요 · **S4 — OpenClaw 워크스페이스·스킬 재설치.** 커밋 `4614b79`(에러코드 매번 lookup 재호출)·`1cf93e8` 이후
       `build.py --check` 가 의도된 stale 을 낸다 → `build.py` 재생성 → `nemoclaw maintq-agent upload …` →
       `skills/maintq-diagnose` 재설치 → `--check` stale 0 확인. 녹화본은 재설치 전 판이다(재녹화 여부는 사람 판단).
-- [ ] **S5 — 레포 공개·라이선스.** `ttogle918/MaintQ-NemoClaw` 는 비공개 — 제출 직전 공개(`day2-prep.md` §8 #1).
+- [ ] 🟡 2026-09-27 공개 전 점검 완료(Claude): LICENSE Apache-2.0 · 추적 `.env` 는 example 2개뿐 · 매뉴얼 원본 미추적 · 키 모양 문자열은 NVIDIA 카탈로그 스킬 evals 의 가짜 키 2건뿐 · `.env` 실값 21종 히스토리 유출 0(모델명 2건 제외) · 커밋 이메일 전부 noreply · README clone URL 정정. 남은 것: `LAW_API_OC` 가 GitHub 아이디와 같음(알려진 오탐) · **공개 클릭은 사람** · **S5 — 레포 공개·라이선스.** `ttogle918/MaintQ-NemoClaw` 는 비공개 — 제출 직전 공개(`day2-prep.md` §8 #1).
       공개 전: `LICENSE`(Apache-2.0) 확인 · 매뉴얼 실데이터가 추적 파일에 없는지(D144) · `.env`·키 모양 문자열 0건 재확인
       (`day2-prep.md` §9 방식) · 복구 번들(`~/maintq-backup-*.bundle`)은 올리지 않는다 · README 「빠른 시작」 의 clone URL
       (`<YOUR_ID>/MaintQ`) 이 제출 레포와 다르다는 점 확인.
-- [ ] **S6 — `SUBMISSION.md` 최종 읽기.** 사실·수치(spikes 1,387 · pytest 406 · seed 44 · 라우트 27 · D1~D158)가
+- [ ] 🟡 2026-09-27 수치 전수 실측 일치(spikes 41/1,387 · pytest 406 · seed 44 정적 · 라우트 27 · D158 · 온보딩 데모 수치). §1.1 기능 지도·§3.11~3.12·§6 A2A 행 추가 — 사람 최종 읽기 남음 · **S6 — `SUBMISSION.md` 최종 읽기.** 사실·수치(spikes 1,387 · pytest 406 · seed 44 · 라우트 27 · D1~D158)가
       제출 시점 실측과 맞는지, 「확인 안 됨」 으로 둔 항목(build.nvidia.com HTTP Skill API)이 여전히 그런지.

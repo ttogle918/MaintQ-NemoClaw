@@ -36,7 +36,7 @@
 > pytest **406** · spikes **40종**. 공유 DB 에 HV600 249행 적재·NAT 정규화 완료(high 248 · low 1).
 > ⛔ **데모 전 `data/seed.py` 재실행 금지**(H9 — LLM 정규화·승격·안전 승인이 복구되지 않는다).
 > 사람 작업 H2~H5·H7 완료 — 8코드 승격(CE·GF·OC·OV·UV1·OH·CPF06·EF1) · 안전 문구 SC-14(p.29, **5분**) 승인 ·
-> OpenClaw 재설치 · 녹화. **남은 것**: H6 SkillSpector 판정 · Stage 5(선택, MQ-1914). 목록은 `TODO_직접할일.md` 「Sprint 19」.
+> OpenClaw 재설치 · 녹화. **남은 것**(2026-09-27): 데모 영상 링크 기입 · 스킬 카드 검토 · 레포 공개 — 제출 전 체크리스트 S2·S3·S5·S6. 목록은 `TODO_직접할일.md` 「Sprint 19」.
 
 > **2026-09-24 (NVIDIA 해커톤 Day 2, `docs/hackathon/day2.md`)** — 제출용 레포
 > **`ttogle918/MaintQ-NemoClaw`**(비공개 · Apache-2.0)로 옮겼다. 작업 위치도

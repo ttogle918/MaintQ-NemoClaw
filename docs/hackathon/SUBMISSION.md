@@ -45,6 +45,25 @@ MaintQ 본체(이 레포의 바탕)는 인버터 에러코드 진단 → 재고 
 [`docs/sprints/sprint-19.md`](../sprints/sprint-19.md))과 **NVIDIA 런타임·샌드박스**를 얹었다. 대상 기종은
 Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 기종을 쓴다고 주장하지 않는다.
 
+### 1.1 MaintQ 전체 기능 — 온보딩은 그 위에 얹은 한 층이다
+
+데모는 온보딩에 맞췄지만, 같은 통제 원칙(에이전트는 초안까지, 결정은 사람)이 아래 기능 전체에 걸려 있다.
+§3 의 보안 장치 상당수는 해커톤 전에 이 기능들을 만들며 이미 세운 것이다.
+
+| 묶음 | 에이전트가 하는 일 | 사람·코드가 잠그는 것 | 근거 |
+|---|---|---|---|
+| **진단 → 발주** (S1~S4, 코어 도구 7종) | 에러코드 정의는 정확 조회, 절차는 매뉴얼 RAG로 나눠 답한다 → 반복 고장 감지 → 재고 → 대체품 → 공급사 견적(리드타임·단가·MOQ) → 발주 **초안** | 모르는 코드는 추측하지 않고 A/S 안내(S4). 점검 절차에는 매뉴얼 페이지 근거가 있는 안전 문구만 붙는다. 발주 확정은 승인 큐에서 사람이 한다 | D1·D10·D18 · [`../02_SCENARIOS.md`](../02_SCENARIOS.md) · `eval/SCOREBOARD.md` |
+| **자산 생애주기** (확장 도구) | 수리/교체/매각 3지 판단 · 보전지표(MTBF) · 지출의 자본적/수익적 분류 · 처분 법정 조건 판정(법제처 조문 원문 수집) · 중고 설비 실사 · 법정 기한·건물 위험등급 감시 | 처분서는 근거 번들 해시와 함께 초안만 만든다. 서명 시 번들을 다시 계산해 대조하고, DB CHECK 가 서명 없는 확정·사유 없는 우회를 막는다 | D67·D81·D84 · [`../11_ASSET_LIFECYCLE.md`](../11_ASSET_LIFECYCLE.md) |
+| **수리 증빙** | 수리 기록 초안 작성 | 제출·서명·반려는 사람 전용 API | D98 |
+| **내부통제** | — | 재무 부서 승인 단계(부서 검사로 강제) · 예산 한도 · 1일 누적 한도 · 이상거래 탐지(FDS) · 직무분리(SoD) 판정을 승인자에게 표시 | D119 · `data/test_expenditure_limits.py` |
+| **파트너 에이전트 연동 (A2A)** | 재무 승인된 발주의 출금 요청(FinAllQ) · 설비 담보 대출 사전판정 · 보험 약관 조회(InsuQ) | 연결 승인 게이트 · 파트너별 차단기 · 멱등키 · 샌드박스에서는 시도 전 `policy_blocked` | D112~D114·D136·D141·D142·D149 |
+| **감사 추적·결재 문서** | 결재 문서 5종의 필드 조회(읽기 전용) | 도구 호출 전 과정을 trace 로 남기고 화면(`/manager/trace/…`)으로 재생 · docx 는 다운로드 시점에 메모리에서만 생성 | D14·D22·D124·D125 |
+| **새 기종 온보딩** (해커톤) | 영문 고장 표 → 한국어 초안(스테이징) | 사람 검수·승격·안전 문구 승인 | §1 표 · D153~D157 |
+
+규모: MCP 도구 **22종**(코어 7 + 확장 15, 확장은 `full` 프로필에서만 등록) + 온보딩 프로필 3종 · DB 테이블 33개 ·
+화면 라우트 27개. 평가 하네스 기준 **미지 코드 환각 0%** 는 모든 기록 실행에서 유지됐지만(`eval/SCOREBOARD.md`),
+이는 이전 모델(`gpt-oss` 등) 기준이다 — Nemotron 으로는 재측정하지 않았다(§6).
+
 ---
 
 ## 2. NVIDIA 기술 사용 현황과 채점 기준 매핑
@@ -56,7 +75,7 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 | **Nemotron** | ✅ | 진단(웹 콘솔·OpenClaw)과 온보딩 정규화의 추론 모델 `nvidia/nemotron-3-super-120b-a12b` | [`day1.md`](day1.md) §1·§3(모델 ID 실측 — 목록에 있어도 404 인 ID 가 있었다) · `onboarding/nat/workflow.yml` |
 | **NIM** (build.nvidia.com 호스팅 엔드포인트) | ✅ | 샌드박스 안은 `https://inference.local` → 게이트웨이가 키를 넣어 build.nvidia.com 으로 라우팅. 호스트에서는 임베딩 `nvidia/nemotron-3-embed-1b` | D143 · `backend/agent/llm.py` · NAT `llms._type: nim` · `data/external/nvidia_embed.py` · [`day2.md`](day2.md) §9 ⓘⓘ |
 | **NeMo Agent Toolkit (NAT)** | ✅ | 온보딩 에이전트 런타임 — `tool_calling_agent` + `mcp_client`(streamable-http, 헤더 주입) + 가드 함수 | D153 · `onboarding/nat/`(`workflow.yml`·`maintq_nat/guarded_stage.py`·`run_normalize.py`) · 스파이크 [`day2.md`](day2.md) §9 |
-| **Agent Skills** (SKILL.md) | ✅ | 제품 스킬 2종 `skills/maintq-diagnose`(OpenClaw 진단) · `skills/maintq-manual-onboarding`(정규화 규칙의 단일 원천) + 안전 규칙 스킬 `.claude/skills/safety-guardrail`. 개발용으로 NVIDIA 카탈로그 스킬 2종(`skill-card-generator`·`nemoclaw-user-guide`) 설치 | [`day2.md`](day2.md) §8 · `skills/maintq-diagnose/skill-card.md`(NVIDIA `skill-card-generator` 로 생성) · `evals/evals.json` 양쪽 |
+| **Agent Skills** (SKILL.md) | ✅ | 제품 스킬 2종 `skills/maintq-diagnose`(OpenClaw 진단) · `skills/maintq-manual-onboarding`(정규화 규칙의 단일 원천) + 안전 규칙 스킬 `.claude/skills/safety-guardrail`. 개발용으로 NVIDIA 카탈로그 스킬 2종(`skill-card-generator`·`nemoclaw-user-guide`) 설치 | [`day2.md`](day2.md) §8 · `skills/maintq-diagnose/skill-card.md`(NVIDIA `skill-card-generator` 로 생성) · `skills/maintq-manual-onboarding/skill-card.md`(같은 양식) · `evals/evals.json` 양쪽 |
 | **SkillSpector** | ✅ | 스킬 공급망 게이트 — NVIDIA 카탈로그 스킬도 **설치 전** 스캔, 우리 스킬은 발견 사항을 고치거나 사람이 수용 판정 | [`day2-prep.md`](day2-prep.md) §3 · [`day2.md`](day2.md) §8 · 결과는 §3.8 |
 | **OpenShell** | ✅ | 샌드박스 3개 — `maintq`(웹 콘솔 백엔드, BYOC) · `maintq-nat`(온보딩 NAT, BYOC) · `maintq-agent`(NemoClaw/OpenClaw) | `deploy/openshell/`(`Dockerfile.sandbox`·`Dockerfile.nat`·`policy.yaml`·`policy-nat.yaml`·`start.sh`) · [`day1.md`](day1.md) §5~§6 |
 | **NemoClaw / OpenClaw** | ✅ | 현장 진단 에이전트. MaintQ MCP(core 7종)에 붙어 스킬 `maintq-diagnose` 로 진단 | D150·D151·D152 · `deploy/nemoclaw/presets/maintq-mcp.yaml` · `deploy/nemoclaw/workspace/build.py` · [`day2.md`](day2.md) §3~§8 |
@@ -93,9 +112,11 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 | 3.5 | **D10 쓰기 가드** | AI 도구는 발주·처분·수리에 **draft INSERT 만**. 샌드박스 안에서도 `UPDATE po_drafts` 는 트리거가, 읽기 전용 커넥션의 INSERT 는 DB 가 거부. 온보딩 쓰기 도구는 전용 역할 `maintq_onboarding` 으로 스테이징 4테이블 INSERT 만 GRANT(나머지는 기본 거부). 승격·상태 전이는 사람 전용 API | D10·D154 · [`day1.md`](day1.md) §1 · `spikes/onboarding_contract.py` |
 | 3.6 | **주입 판정은 서버가 한다** | 매뉴얼 행의 주입 의심은 도구 서버가 결정적으로 판정하고, 에이전트가 `confidence=high` 를 보내도 서버가 `low`+플래그로 덮는다. NAT 쪽 가드 함수가 페이지 밖 행·중복 저장·행당 반복을 거부한다. 합성 주입 픽스처 회귀 5/5 | D154 · `mcp_server/onboarding_guard.py` · `onboarding/nat/maintq_nat/guarded_stage.py` · `onboarding/nat/run_injection_check.py` · [`day2.md`](day2.md) §10 ⑦ |
 | 3.7 | **안전 문구 fail-closed** | 새 기종 안전 문구는 사람이 원문 페이지와 대조해 승인한 DB 행에서만 온다. 승인 전에는 안전 블록도 절차 문장도 내지 않고, 원문에 없는 숫자는 API 가 거부(`number_not_in_source`), 같은 종류 승인 행이 2건이면 차단(웹 콘솔 경로) | D147·D157 · `backend/agent/safety_source.py` · `spikes/onboarding_safety_gate.py`(22건) |
-| 3.8 | **SkillSpector 게이트** | NVIDIA 카탈로그 2종을 설치 전 스캔하고 발견 사항을 사람이 읽고 수용. 우리 스킬: `run-eval` 15→0(셸로 `.env` 를 읽던 줄 제거) · `stage` 10→0(버전 미고정 `npx` 제거) · `done` 21 수용 · `maintq-diagnose` **0점·커버리지 100%** · `maintq-manual-onboarding` HIGH 1(evals 의 합성 주입 문장 — 판정 대기, H6) | [`day2.md`](day2.md) §8 · [`sprint-19.md`](../sprints/sprint-19.md) Stage 3 |
+| 3.8 | **SkillSpector 게이트** | NVIDIA 카탈로그 2종을 설치 전 스캔하고 발견 사항을 사람이 읽고 수용. 우리 스킬: `run-eval` 15→0(셸로 `.env` 를 읽던 줄 제거) · `stage` 10→0(버전 미고정 `npx` 제거) · `done` 21 수용 · `maintq-diagnose` **0점·커버리지 100%** · `maintq-manual-onboarding` HIGH 1(evals 의 합성 주입 문장 — 에이전트가 **거부해야 정답**인 공격 예시라 사람이 **수용** 판정, H6 2026-09-27) | [`day2.md`](day2.md) §8 · [`sprint-19.md`](../sprints/sprint-19.md) Stage 3 |
 | 3.9 | **A2A 사전 차단** | 샌드박스 모드에서는 외부 파트너 호출을 시도하기 **전에** `policy_blocked` 로 분류하고 차단기 회계에서 뺀다(원래는 프록시 403 을 상대 응답으로 오인했다). 데모 녹화에서는 제외 | D149 · [`day2-prep.md`](day2-prep.md) §6 · [`day2.md`](day2.md) §10 ⑥ |
 | 3.10 | **요청자 신원은 서버가 읽는다** | MCP-HTTP 쓰기의 요청자는 LLM 이 채우는 파라미터가 아니라 `X-User` 헤더에서 서버가 읽는다. 없거나 모르는 사용자면 초안을 만들지 않는다 | D152 · `mcp_server/identity.py` |
+| 3.11 | **쓰기 도구 4종 — 초안까지만, 결정은 사람** | 에이전트의 쓰기 도구는 발주(`create_po_draft`)·처분서(`generate_disposal_document`)·수리 증빙(`create_repair_record`)·온보딩(`stage_code_normalization`) 4종뿐이고, 넷 다 **INSERT 만** 한다. 커넥션도 대상 테이블별로 따로 연다(`draft_writer`·`decision_writer`·`repair_writer`·`onboarding_writer`) — 섞으면 트리거·GRANT 잠금이 풀리기 때문이다. 처분서 도구에는 `override`·`reviewed_by` 파라미터가 **아예 없다**(모델이 채울 자리 자체를 없앴다). 서명 시 근거 번들을 다시 계산해 해시가 다르면 `409 evidence_changed`, `decisions` 의 DB CHECK 가 「서명 없는 확정」·「사유 없는 우회 서명」을 스키마로 막는다 | D10·D81·D84·D98·D154 · `spikes/write_tool_contract.py`(30건) · `spikes/disposal_sign_contract.py`(26건) · `docs/05_DB_SCHEMA.md` `decisions` |
+| 3.12 | **돈이 움직이는 경로의 다중 통제** | 발주 → 팀장 승인 → **재무 부서 승인**(그 엔드포인트만 호출자 부서가 `finance` 인지 본다, 아니면 403) → 그때에만 파트너 에이전트(FinAllQ)에 출금 요청(A2A). 재무 승인 화면과 결재 문서에는 예산 한도·1일 누적 한도·이상거래 탐지(FDS)·직무분리(요청자·팀장·재무 담당 신원 대조) 판정을 **같은 계산 한 벌**로 보여준다(자동 차단이 아니라 재무 담당의 판단 재료 — 강제 차단은 부서 검사뿐이다). 나가는 A2A 는 우리 쪽 대장에 파트너 연결 승인(`partner_links` LINKED)이 없으면 보내지 않고, 파트너별 차단기(도달 불가만 센다)를 두며, 자산 변경 통지(S11)는 업무 정체성에서 만든 멱등키로 중복 반영을 막는다. ⚠ 샌드박스에서는 3.9 대로 **시도 전 차단**되므로 이 경로는 OpenShell 안에서 시연하지 않았다(호스트 pytest 로 검증) | D119·D136·D141·D142·D149 · `data/test_expenditure_limits.py`(16건) · `backend/a2a/`(pytest 168건) |
 
 ---
 
@@ -175,6 +196,7 @@ A2A 차단 장면(⑥)은 사용자 결정으로 데모에서 뺐다.
 | MCP 토큰·신원 | OpenClaw 등록 토큰과 `X-User` 헤더가 샌드박스 안 설정 파일에 평문으로 있다. 파일 쓰기 도구를 가진 에이전트가 신원을 바꿔 쓸 수 있다 — 토큰↔사용자 바인딩은 후속 | D151·D152 한계 |
 | NAT 와 SKILL.md | NAT 1.9 는 SKILL.md 를 런타임에 읽지 않는다 → `build_prompt.py` 가 SKILL.md 본문으로 시스템 프롬프트를 생성해 대체(`--check` 드리프트 검사) | D153 · [`day2.md`](day2.md) §9 ⓘⓘⓘ |
 | 모델 출력 품질 | Nemotron 응답에 다른 언어 토큰(중국어 「参照」, 노르웨이어 등)이 섞인 기록이 있다. 웹 콘솔은 한국어 전용 규칙을 추가했지만 모델 준수는 실호출로만 확인된다 | [`day1.md`](day1.md) §4 O3 · `docs/07_BACKLOG.md` |
+| A2A 실연 | 파트너 에이전트(FinAllQ·InsuQ) 호출은 샌드박스 egress 정책상 시도 전 차단된다(3.9). 출금 요청·약관 조회·대출 판정 경로는 호스트에서 pytest·스파이크와 상대 어댑터 E2E(2026-08-31, 루트 `README.md`)로 확인했고 OpenShell 안에서는 시연하지 않았다 | D149 · §3.12 |
 | 수량 확인 | OpenClaw 가 부품 수량을 묻지 않고 1개로 가정해 견적을 낸 실행이 있었다 | [`day2.md`](day2.md) §8 |
 | OpenClaw 구성 절차 | NemoClaw 설치·샌드박스 생성·프리셋 적용의 전체 명령은 레포 문서에 한 곳으로 정리돼 있지 않다(흩어진 기록: [`day2.md`](day2.md) §3~§8, D151, `build.py` 머리 주석) | — |
 | 플랫폼 | OpenShell 은 alpha, WSL2 지원은 experimental — 버전이 바뀌면 절차가 깨질 수 있다 | [`day1.md`](day1.md) §7 |

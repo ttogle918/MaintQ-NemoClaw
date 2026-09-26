@@ -67,16 +67,18 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
   `track_deadlines` `assess_risk_grade`(Sprint 11, D102)
   **`search_insurance_clause` `assess_equipment_loan`**(Sprint 16, D112 — A2A 아웃바운드. 상대 어댑터가 구현돼 **실 E2E 검증 완료**, 2026-08-31)
 - 코어 7종 = 읽기 6종: `lookup_error_code` `rag_search_manual` `get_error_history` `search_inventory` `find_alternative_parts` `get_supplier_quotes` + 쓰기 전용 1종: `create_po_draft`
-- **쓰기 도구는 3종**(`create_po_draft` · `generate_disposal_document` · `create_repair_record`) — 셋 다
-  **draft INSERT 만** 가능하고 UPDATE 권한이 없다. 승인/반려/서명은 사람 전용 API
-  (`backend/routers/po.py` · `backend/routers/decisions.py` · `backend/routers/repairs.py`)만 한다 (D10·D81·D98)
+- **쓰기 도구는 4종**(`create_po_draft` · `generate_disposal_document` · `create_repair_record` + 온보딩
+  `stage_code_normalization`) — 앞의 셋은 **draft INSERT 만**, 온보딩 도구는 스테이징 테이블 **staged INSERT 만**
+  가능하고 UPDATE 권한이 없다. 승인/반려/서명/승격은 사람 전용 API
+  (`backend/routers/po.py` · `backend/routers/decisions.py` · `backend/routers/repairs.py` ·
+  `backend/routers/onboarding.py`)만 한다 (D10·D81·D98·D154)
 
 ## 빠른 시작
 
 요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/), Docker(로컬 Postgres 컨테이너 — Sprint 16 D116 이후 필수), Node.js(프론트)
 
 ```bash
-git clone https://github.com/<YOUR_ID>/MaintQ.git && cd MaintQ
+git clone https://github.com/ttogle918/MaintQ-NemoClaw.git && cd MaintQ-NemoClaw
 docker compose up -d postgres        # 로컬 Postgres(pgvector/pgvector:pg15, 포트 5434) 기동
 uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
 cp .env.example .env                 # DATABASE_URL(기본값이 위 컨테이너를 가리킴)·GEMINI_API_KEY·
