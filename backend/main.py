@@ -37,6 +37,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from backend import db  # noqa: E402
 from backend.agent.mcp_client import McpClient  # noqa: E402
+from backend.demo_gate import DemoTokenGate  # noqa: E402
 from backend.routers import (  # noqa: E402
     approvals,
     asset_monitoring,
@@ -112,6 +113,10 @@ ALLOWED_ORIGINS = [
     for o in (os.environ.get("MAINTQ_CORS_ORIGINS") or _DEFAULT_ORIGINS).split(",")
     if o.strip()
 ]
+
+# 데모 토큰 게이트(D159) — CORS 보다 **먼저** 등록해야 안쪽에 놓인다(Starlette 는 나중 등록이
+# 바깥). 그래야 401 에도 CORS 헤더가 붙어 브라우저가 "토큰 필요"를 읽을 수 있다.
+app.add_middleware(DemoTokenGate)
 
 app.add_middleware(
     CORSMiddleware,

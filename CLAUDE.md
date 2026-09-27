@@ -9,7 +9,7 @@
 
 - `docs/README.md` — 문서 지도. 어느 문서를 열지 모를 때 먼저
 - `docs/00_MVP_SCOPE.md` — **반드시 구현할 기능 목록**. 착수 전 "이게 MVP인가 백로그인가" 판단
-- `docs/10_DECISIONS.md` — 설계 결정 **D1~D158**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
+- `docs/10_DECISIONS.md` — 설계 결정 **D1~D159**. **여기 있는 결정과 충돌하는 코드를 쓰지 말 것**
 - `docs/02_SCENARIOS.md` — S1~S4. 모든 기능은 이 시나리오 중 하나에 복무해야 함
 - `docs/04_MCP_TOOLS.md` — 도구 입출력 계약(코어 7종 §1~§7 + **확장 15종** §8~§22, 총 22종 —
   이 CLAUDE.md 는 오래 "11종/18종"으로 잘못 적혀 있었다, 2026-08-24 정정) + **온보딩 프로필 3종**
@@ -183,15 +183,16 @@
   (이쪽도 `DATABASE_URL` 을 함께 실어야 한다 — 위와 같은 이유) (`--with pytest-asyncio` 없이 돌리면
   `test_client.py` 등 async 테스트가 전부 "async def functions are not natively supported"
   로 실패한다 — Postgres 와 무관한 별개 함정)
-- `backend/services/test_a2a_history.py` · `test_lien.py` · `test_po.py` — **3파일 20건**
+- `backend/services/test_a2a_history.py` · `test_lien.py` · `test_po.py` · **`backend/test_demo_gate.py`** — **4파일 26건**
+  (2026-09-28 `test_demo_gate` 6건 편입 — D159 데모 토큰 게이트, DB 불필요)
   (A2A 이력 조회 D114 · 유치권 판정 · 발주 서비스). 🔴 **2026-09-04 신규 편입** — 레포에
   존재하고 통과하는데 **이 목록 어디에도 없었다.** 위 두 파일군과 같은 계열의 누락이다
   (`5895c2e` 의 8파일이 그랬듯 커밋은 됐는데 목록에 안 실렸다).
   ⚠ 실행 커맨드: **`uv run --with pytest --with pytest-asyncio python -m pytest
   backend/services/test_a2a_history.py backend/services/test_lien.py
-  backend/services/test_po.py -q`** (`DATABASE_URL` 필수)
+  backend/services/test_po.py backend/test_demo_gate.py -q`** (`DATABASE_URL` 필수)
 
-  📌 **pytest 총계는 이제 23파일 406건이다** (7파일군 138 + A2A 9파일군 168 + 서비스 3파일 20 + `mcp_server/` 4파일 80, 2026-09-25 실측).
+  📌 **pytest 총계는 이제 24파일 412건이다** (7파일군 138 + A2A 9파일군 168 + 서비스 4파일 26 + `mcp_server/` 4파일 80, 2026-09-28 — 직전 406 에 D159 `test_demo_gate` 6).
   🔵 **2026-09-09 갱신**: D136(A2A 차단기, P35 해소)이 `backend/a2a/test_circuit.py` **17건**을
   신설하고 `test_client.py` 를 16→**22건**으로 늘렸다(107 → 130). 이어서 **S11
   `notify-asset-change`** 구현이 `test_payloads` 25→34 · `routers/test_a2a` 28→33 으로

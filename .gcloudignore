@@ -1,0 +1,13 @@
+# `gcloud run deploy --source .` 업로드 제외 목록 (deploy/cloudrun/deploy.sh, D159).
+#
+# ⛔ .gitignore 를 포함하지 말 것. `data/extracted/*.jsonl`(RAG 키워드 인덱스)처럼 **git 에는 없지만
+#    런타임이 읽는 파일**이 있다 — 포함했을 때 Cloud Build 이미지에서 manual_chunks.jsonl 이 빠져
+#    rag_search_manual 이 전부 error 로 떨어졌다(2026-09-28 첫 배포 실측). 로컬 `docker build` 는
+#    .dockerignore 만 보므로 로컬 스모크로는 이 차이가 안 잡힌다.
+# 그래서 이미지 내용은 .dockerignore 하나가 정하고, 여기서는 **비밀**만 추가로 막는다.
+#!include:.dockerignore
+.gcloudignore
+.env
+.env.*
+**/.env
+**/.env.*

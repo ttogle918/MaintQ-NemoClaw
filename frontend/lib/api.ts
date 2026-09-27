@@ -25,7 +25,39 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:80
  */
 export function authHeaders(role: Role): Record<string, string> {
   const userId = role === "manager" ? getManagerIdentity().userId : ROLE_USER_ID.technician;
-  return { "X-Role": role, "X-User": userId };
+  const token = demoToken();
+  return { "X-Role": role, "X-User": userId, ...(token ? { "X-Demo-Token": token } : {}) };
+}
+
+/* -------------------------------------------------------------------------- */
+/* 데모 토큰 게이트 (D159) — 공개 배포에서만 켜진다(`MAINTQ_DEMO_TOKEN`).        */
+/* 인증이 아니라 문지기다. 공유 링크 `?demo_token=…` 로 한 번 받으면 저장해 둔다. */
+
+const DEMO_TOKEN_KEY = "maintq.demoToken";
+
+function demoToken(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("demo_token");
+    if (fromUrl) window.localStorage.setItem(DEMO_TOKEN_KEY, fromUrl);
+    return fromUrl ?? window.localStorage.getItem(DEMO_TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** 401 `demo_token_required` 면 토큰을 물어 저장하고 새로고침한다. 처리했으면 true. */
+export function promptDemoTokenIfRequired(status: number, body: string): boolean {
+  if (status !== 401 || !body.includes("demo_token_required") || typeof window === "undefined") return false;
+  const entered = window.prompt("데모 접속 토큰을 입력하세요");
+  if (!entered) return false;
+  try {
+    window.localStorage.setItem(DEMO_TOKEN_KEY, entered.trim());
+  } catch {
+    return false;
+  }
+  window.location.reload();
+  return true;
 }
 
 export async function apiFetch<T>(
@@ -41,7 +73,11 @@ export async function apiFetch<T>(
       ...(init.headers ?? {}),
     },
   });
-  if (!res.ok) throw new ApiError(res.status, await res.text());
+  if (!res.ok) {
+    const body = await res.text();
+    promptDemoTokenIfRequired(res.status, body);
+    throw new ApiError(res.status, body);
+  }
   return (await res.json()) as T;
 }
 

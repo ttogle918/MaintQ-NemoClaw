@@ -89,6 +89,15 @@ def read_only() -> Iterator[psycopg.Connection]:
             row_factory=sqlite_row_factory,
             cursor_factory=CompatCursor,
         )
+        # 🔴 접속 옵션만으로는 부족하다 — Supabase 풀러(Supavisor)는 startup `options` 를
+        # 서버로 전달하지 않아 세션이 read-write 로 열렸다(2026-09-28 배포 실측: SHOW 가 off,
+        # INSERT 가 제약 검사까지 도달). 로컬 Docker Postgres 에서는 옵션이 먹어 드러나지 않았다.
+        # 그래서 세션 SET 을 **커밋**해 이후 트랜잭션부터 적용하고(SET 은 현재 트랜잭션의
+        # 모드를 바꾸지 않는다), 실제로 걸렸는지 확인해 아니면 커넥션을 내주지 않는다(fail-closed).
+        con.execute("SET SESSION default_transaction_read_only = on")
+        con.commit()
+        if con.execute("SHOW transaction_read_only").fetchone()[0] != "on":
+            raise psycopg.OperationalError("read_only() 세션을 읽기 전용으로 고정하지 못했습니다")
         yield _configure(con)
     except (psycopg.Error, sqlite3.Error) as exc:
         logger.error(f"읽기 연결 오류: {exc}")

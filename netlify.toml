@@ -1,0 +1,15 @@
+# Netlify — 프론트(Next.js App Router) 배포. docs/13_DEPLOYMENT.md §5.
+# Next.js 런타임은 **명시한다** — git 연동 사이트는 자동 적용되지만 업로드(API) 배포는 붙지 않는다.
+# 빠졌을 때 빌드는 성공하는데 `.next` 가 정적 파일로만 올라가 전 경로가 404 였다(2026-09-28 첫 배포 실측).
+# NEXT_PUBLIC_API_BASE(Cloud Run 백엔드 URL)는 **빌드타임** 값이라 Netlify 사이트 환경변수로 넣는다.
+# SSE 는 브라우저 → Cloud Run 직접 호출이다 — Netlify 함수로 프록시하지 않는다(§5 ⚠).
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

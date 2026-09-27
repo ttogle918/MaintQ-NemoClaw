@@ -206,6 +206,37 @@ Seq Scan 의 `actual time` 이 **10ms 를 넘기 시작하면** 위 표의 임�
 > 플랫폼 선택이 자유롭다. 프록시를 넣는 순간 서버리스 응답 버퍼링이 `token`/`tool_call`/
 > `tool_result`/`block` 스트림(D14·D22)을 뭉개기 시작한다.
 
+### 5-0. 실행 경로 (D159, 2026-09-28) — 스크립트가 있다
+
+프론트는 **Netlify**(`netlify.toml`, base=`frontend`)로 확정했다. 순서:
+
+1. Supabase 프로젝트 생성 → **Session pooler(5432)** 연결 문자열 확보
+   (직결 `db.<ref>.supabase.co` 는 IPv6 전용이라 Cloud Run 에서 닿지 않는다)
+2. `SUPABASE_DATABASE_URL=… deploy/cloudrun/db_to_supabase.sh` — 로컬 DB **통째 이관**
+   (재시드는 HV600 승격·정규화를 복구하지 못한다). 대상 public 이 비어 있지 않으면 멈춘다.
+   권한은 덤프에서 빼고 `postgres_guards.sql` 을 다시 적용해 D10 트리거·D154 역할을 복원한다
+3. `SUPABASE_DATABASE_URL=… MAINTQ_DEMO_TOKEN=… FRONTEND_ORIGIN=https://<site>.netlify.app deploy/cloudrun/deploy.sh`
+   — `gcloud run deploy --source .`(Cloud Build). 업로드 목록은 `.gcloudignore`(= .gitignore + .dockerignore)
+4. Netlify 사이트 환경변수 `NEXT_PUBLIC_API_BASE=<Cloud Run URL>` 후 빌드
+5. 공유 링크: `https://<site>.netlify.app/?demo_token=<토큰>` (한 번 열면 브라우저에 저장된다)
+
+**운영 중 (2026-09-28 첫 배포)**: 프론트 `https://maintq-nvidia.netlify.app` · 백엔드
+`https://maintq-backend-97558858623.asia-northeast3.run.app`(GCP `gcp-solana-ai-agentic-hacks-kr`) ·
+DB Supabase `MaintQ`(`zccomludbsoivogycrij`, 서울). 비밀(연결 문자열·데모 토큰)은 **`.env.deploy`**(gitignore)에만 있다.
+
+첫 배포에서 드러난 함정 5개 — 각 파일 주석에 근거를 남겼다:
+- `.gcloudignore` 가 `.gitignore` 를 포함하면 **git 미추적 런타임 파일**(`manual_chunks.jsonl`)이 이미지에서 빠져
+  `rag_search_manual` 이 전부 error 가 된다. 로컬 `docker build` 스모크로는 안 잡힌다 — 배포 후 채팅 1턴으로 확인할 것
+- Netlify **업로드 배포**는 Next.js 런타임을 자동으로 붙이지 않는다(`netlify.toml` 에 `@netlify/plugin-nextjs` 명시) — 빠지면 빌드 성공 + 전 경로 404
+- Supabase 는 `public` 을 REST 로 노출하고 anon·authenticated 에 GRANT 를 붙인다(이관 직후 462건) — `db_to_supabase.sh` 가 회수한다
+- Supabase 풀러(Supavisor)는 접속 문자열의 `options=-c …` 를 **서버로 전달하지 않는다** — `mcp_server/db.py::read_only()`
+  세션이 read-write 로 열렸다(SHOW 가 off). 로컬 Docker 에서는 옵션이 먹어 안 보였다. 세션 `SET` + 커밋 + `SHOW` 확인(fail-closed)으로 고쳤다.
+  ⚠ 같은 이유로 `options=-c search_path=…`(격리 스키마, `data/pg_isolation.py`)도 Supabase 에서는 안 먹는다 — 스파이크는 로컬 DB 에서만 돌릴 것
+- Netlify 업로드는 **작업 디렉터리 전체**를 올린다 — 레포 루트에서 실행하면 `.env`·`.env.deploy` 가 함께 간다. 프론트+`netlify.toml` 만 담은 사본에서 실행할 것
+
+⚠ **OpenShell·NemoClaw 샌드박스는 이 경로에 없다** — 로컬 게이트웨이 전제다. 웹 콘솔만 올라간다.
+⚠ A2A 파트너(`MAINTQ_A2A_*_BASE_URL`)는 넣지 않았다 — 호출은 차단기(D136)로 실패 표시된다.
+
 ### 5-1. 🔴 확인 필요 — `Dockerfile` 헤더 주석이 "Northflank 배포용"이라고 적혀 있다
 
 `Dockerfile` 2번째 줄: `# MaintQ — Northflank 배포용 Dockerfile`. Cloud Run으로 확정됐다면
@@ -255,7 +286,7 @@ P14는 *"docker-compose (backend + mcp-server **2서비스**)"*로 적혀 있으
 | # | 결정할 것 | 선택지 | 걸린 것 |
 |---|---|---|---|
 | ① | ~~DB 영속 vs 휘발~~ | — | **해소됨** — Supabase가 관리형 영속 Postgres다. 재시작·재배포에도 데이터가 남는다 |
-| ② | **인증** | ⓐ Basic Auth/IP 제한 ⓑ 공개 수용 ⓒ P21 착수 | 지금은 `X-Role`/`X-User` **헤더 시뮬레이션**(P21 미구현)이라 **공개 배포 시 누구나 발주를 승인할 수 있다** |
+| ② | ~~인증~~ | — | **해소됨(D159)** — 데모 토큰 게이트(`MAINTQ_DEMO_TOKEN`). 인증이 아니라 문지기다: 토큰을 아는 사람은 여전히 `X-Role` 로 역할을 바꿀 수 있다(P21 미해소) |
 | ③ | **LLM 비용 방어** | ⓐ 레이트리밋 ⓑ 공개 데모 시간 제한 ⓒ 키 회전 | 기본 provider가 `gemini`. `MAINTQ_LLM_CACHE`(D104 카세트)는 **평가용이지 런타임 방어가 아니다** |
 | ④ | **신규 — Cloud Run 복제본 수·오토스케일 정책** | ⓐ min=max=1(SQLite 시절 습관 유지) ⓑ min=0(콜드스타트 감수, 비용 최소) ⓒ min=1·max=N(상시 1개+피크 대응) | §4가 다중 인스턴스를 기술적으로 막지 않게 됐지만, **아직 동시 부하 실측이 없다.** MCP 자식 프로세스 기동 비용(콜드스타트 지연) 실측도 안 됐음 |
 | ⑤ | **신규 — Supabase 커넥션 풀링 모드** | ⓐ Session pooler(5432) ⓑ 직접 연결 ⓒ Transaction pooler(6543) | §3 — D10 가드가 `SET LOCAL`로 트랜잭션 풀러도 방어된다고 코드는 확인됐지만 실 트래픽 검증 없음. ⓐ/ⓑ 권장 |
@@ -268,11 +299,12 @@ P14는 *"docker-compose (backend + mcp-server **2서비스**)"*로 적혀 있으
 | 변수 | 필수 | 비고 |
 |---|---|---|
 | `DATABASE_URL` | ✅ | **Supabase 연결 문자열**(`postgresql://...`). `?sslmode=require` 필요할 수 있음 — Supabase 대시보드가 주는 문자열을 그대로 쓸 것 |
-| `MAINTQ_LLM_PROVIDER` | ✅ | `gemini` \| `anthropic` \| `elice`(D115) |
+| `MAINTQ_LLM_PROVIDER` | ✅ | 현 기본 `nvidia`(D122 개정 — build.nvidia.com 무료 티어) \| `gemini` \| `anthropic` \| `elice`(D115) |
 | `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `ELICE_API_KEY`+`ELICE_LLM_URL` | ✅ (택1) | provider에 맞춰 |
 | `MAINTQ_LLM_MODEL` | — | 미지정 시 기본 |
 | `NVIDIA_API_KEY` / `NVIDIA_EMBED_MODEL` | — | dense 검색용(D117, §2). 미설정 시 키워드 전용으로 조용히 물러남(서비스 안 죽음) |
 | `MAINTQ_CHUNKS` | — | 기본값이 이미지 내 경로라 보통 불필요 |
+| `MAINTQ_DEMO_TOKEN` | ✅(공개 배포) | D159 데모 토큰 게이트. 비우면 게이트 무동작 — `deploy/cloudrun/deploy.sh` 는 비어 있으면 배포를 거부한다 |
 | `MAINTQ_CORS_ORIGINS` | ✅ | **프론트 배포 도메인**을 반드시 등재 |
 | `MAINTQ_MCP_AUTOSTART` | ✅ | `1` 유지 (stdio spawn) |
 | `MAINTQ_TOOLS_PROFILE` | — | **기본 `core`**. 확장 도구를 켜려면 `full` (D69·D88 — **평가는 `core`에서만 인정**) |

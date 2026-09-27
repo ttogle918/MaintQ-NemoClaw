@@ -25,6 +25,9 @@ docker-compose.override.yml
 # frontend/.env.local 이 이 gap 때문에 untracked 로 남아 있던 게 발견됐다(2026-08-23).
 .env.local
 .env.*.local
+# 배포 비밀(Supabase 연결 문자열·데모 토큰) — deploy/cloudrun/*.sh 가 읽는다 (D159).
+# .gcloudignore 가 이 파일을 포함하므로 Cloud Build 업로드에서도 빠진다.
+.env.deploy
 .venv/
 
 # spikes/test_elice_stream.py — Elice mlapi.run 인증용 JWT 가 평문으로 박혀 있다

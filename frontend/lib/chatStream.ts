@@ -50,7 +50,7 @@
  * 버튼만 표시) · D32(라벨 재조립 금지) · D55(replay 표식 읽기 전용) · D9(status 4종은
  * `stepPatchFromResult` 재사용으로 자동 준수).
  */
-import { API_BASE, authHeaders, readSse } from "./api";
+import { API_BASE, authHeaders, promptDemoTokenIfRequired, readSse } from "./api";
 import type { ApiTraceEvent, SseEvent } from "./api";
 import type { Citation } from "./citation";
 import { toTraceSession } from "./trace";
@@ -335,6 +335,7 @@ export async function runChatTurn(opts: {
     });
 
     if (!res.ok) {
+      promptDemoTokenIfRequired(res.status, await res.text()); // D159
       state = { ...state, streaming: false, error: `API ${res.status}` };
       onState(state);
       return;

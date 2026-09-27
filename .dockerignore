@@ -22,7 +22,11 @@ frontend
 node_modules
 
 # ── 매뉴얼 원본 PDF (저작권 · 용량) ──
-data/raw
+# manifest.json 만은 런타임이 읽는다(backend/manifest.py — 인쇄 페이지 오프셋, D19·D32).
+# `data/raw` 통째 제외였을 때는 이미지에서 빠져 offset 0 으로 **조용히** 폴백해 인용 페이지가
+# 틀어졌다(D159 배포 준비 중 발견, docs/13_DEPLOYMENT.md §8 체크리스트 항목).
+data/raw/*
+!data/raw/manifest.json
 
 # ── LLM 응답 캐시 (개발 보조물) ──
 data/cache
