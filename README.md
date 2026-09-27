@@ -7,6 +7,101 @@
 
 > 설비 진단부터 부품 발주까지 — 제조 현장 AI 보전 에이전트
 
+## 배포판에서 바로 해 보기
+
+| | |
+|---|---|
+| **웹 콘솔** | **https://maintq-nvidia.netlify.app** |
+| 백엔드 상태 | https://maintq-backend-97558858623.asia-northeast3.run.app/health |
+| 구성 | Netlify(프론트) → GCP Cloud Run(FastAPI + MCP 서버) → Supabase(Postgres + pgvector) · LLM·임베딩은 build.nvidia.com Nemotron |
+
+**접속 토큰이 필요하다.** 공개 URL 에서 누구나 발주를 승인하지 못하게 백엔드 앞에 공유 토큰 게이트를 두었다(D159).
+토큰은 따로 전달한다. `https://maintq-nvidia.netlify.app/?demo_token=<토큰>` 으로 한 번 열면 브라우저에 저장되고,
+토큰 없이 열면 입력창이 뜬다. 로그인은 없다 — 첫 화면에서 **시연용 신원**(정비사 · 정비팀장 · 재무담당)을 고른다.
+
+<img src="docs/demo-captures/deploy/hv600-diagnosis.gif" width="720" alt="HV600 GF 진단 — 도구 호출, 답변, 사람이 승인한 안전 문구">
+
+### 테스트 · 시연 순서
+
+아래 순서대로 누르면 진단 → 발주 → 승인 → 재무 → 새 기종 온보딩까지 한 바퀴 돈다. 각 단계의 캡처는 펼쳐서 본다.
+
+**1. 신원 고르기** — 첫 화면에서 `정비사 · 김OO` 를 누른다. 설비 현황 화면이 열린다.
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/01-entry.png" width="600"> <img src="docs/demo-captures/deploy/02-equipment-status.png" width="600">
+</details>
+
+**2. 새 기종 진단 (HV600)** — 상단 `정비사 · 진단 콘솔` 로 가서 `HV600에서 GF 떴어` 를 보낸다.
+오른쪽 실행 로그에 `lookup_error_code`(코드 정의 — 정확 조회) → `rag_search_manual`(점검 절차 — 매뉴얼 검색)이 찍히고,
+답변 중간에 **사람이 승인한 HV600 안전 문구**(최소 5분 대기, 근거 매뉴얼 p.29)가 붙는다. 위 GIF 가 이 장면이다.
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/03-chat-hv600.png" width="600">
+</details>
+
+**3. 기존 기종 진단 → 발주 초안 (iG5A)** — 상단 장비 선택에서 `INV-L1-01` 을 고르고 세 번에 나눠 보낸다.
+1. `OHt 떴어` → 정의(냉각핀 과열) · 점검 절차 · 안전 블록
+2. `냉각팬 교체할게. 재고 확인하고 없으면 견적 비교해줘` → 재고 1 / 안전재고 3 · 공급사 2곳 견적(3일 ₩38,000 vs 14일 ₩29,000 · MOQ 10)
+3. `에이스산전 3일짜리로 2개 발주 초안 만들어줘` → 발주 초안 카드. **에이전트는 초안까지만 만든다** — 확정은 사람이 한다
+
+> ⚠ 3번은 공유 DB 에 발주 초안을 실제로 하나 만든다.
+
+**4. 팀장 승인** — 상단 `보전팀장 · 승인 큐` 를 열고 신원이 `정비팀장 · 박OO` 인지 확인한다. 근거 요약(에러·재고·진단 근거 페이지)과
+공급사 비교를 보고 승인하거나 사유를 적어 반려한다. `에이전트 실행 로그 전체 보기` 를 누르면 그 발주를 만든 도구 호출 순서가 나온다.
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/04-approval-queue.png" width="600"> <img src="docs/demo-captures/deploy/05-trace.png" width="600">
+</details>
+
+**5. 재무 승인 (직무 분리)** — 신원을 `재무담당 · 최OO` 로 바꾼다. 팀장이 승인한 발주가 `재무승인대기` 에 있고,
+`자금집행 요청서` 를 펼치면 예산 한도 · 1일 누적 한도 · FDS · 직무분리 판정이 나온다. 재무 승인은 재무 부서 계정만 할 수 있다(D119).
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/08-finance-queue.png" width="600"> <img src="docs/demo-captures/deploy/09-finance-controls.png" width="600">
+</details>
+
+**6. 새 기종 온보딩 검수** — 정비팀장으로 승인 큐 상단 `기종 온보딩 검수 →`. 영문 매뉴얼에서 AI 가 정규화한 HV600 코드 249행과,
+매뉴얼에서 결정적으로 추출한 안전 문구 후보 28건이 있다. 코드 그룹을 **사람이 승격**해야 진단에 쓰이고, 안전 문구는 **사람이 원문과
+대조해 승인**해야 답변에 붙는다(현재 8코드 승격 · p.29 안전 문구 1건 승인 상태).
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/06-onboarding.png" width="600"> <img src="docs/demo-captures/deploy/07-onboarding-safety.png" width="600">
+</details>
+
+**7. 사업장 평면도** — 정비사 화면 `/technician/site`. 설비 12대의 상태와 HV600 2대의 `진단 가능` 표시. 점을 누르면 그 설비로 진단 콘솔이 열린다.
+
+<details><summary>캡처</summary>
+
+<img src="docs/demo-captures/deploy/10-site-floorplan.png" width="600">
+</details>
+
+**8. 권한 경계 (선택, 터미널)** — 화면 버튼이 아니라 서버가 막는다는 것을 API 로 직접 확인한다.
+
+```bash
+B=https://maintq-backend-97558858623.asia-northeast3.run.app; T=<토큰>
+# 정비사가 발주 승인 시도 → 403
+curl -s -X POST $B/api/po/PO-0117/approve -H "X-Demo-Token: $T" -H "X-Role: technician" -H "X-User: tech-01" -H "Content-Type: application/json" -d '{}'
+# 정비팀장(재무 부서 아님)이 재무 승인 시도 → 403 (D119)
+curl -s -X POST $B/api/po/PO-0125/finance-approve -H "X-Demo-Token: $T" -H "X-Role: manager" -H "X-User: mgr-01" -H "Content-Type: application/json" -d '{}'
+```
+
+### 알아 둘 점
+
+- **공유 DB 다.** 다른 사람이 만든 발주·승인이 그대로 보인다.
+- **되돌릴 수 없는 버튼이 있다.** 온보딩의 `승격`·안전 문구 `승인` 은 되돌리기가 없다. 둘러볼 때는 누르지 않는 것을 권한다.
+- **NVIDIA 무료 티어가 가끔 과부하로 실패한다** — "응답 생성에 실패했습니다" 가 나오면 같은 질문을 다시 보낸다.
+- **첫 요청은 몇 초 느리다** — 요청이 없으면 Cloud Run 인스턴스가 0 으로 줄어든다.
+- 발주 턴 답변 앞에 "근거 문서를 확인하지 못해…" 문장이 붙을 수 있다 — 부품 이름 「냉각팬」이 위험 키워드에 걸리는 알려진 오탐이다([SUBMISSION §6](docs/hackathon/SUBMISSION.md)).
+- 재무 승인 후의 A2A 출금 요청은 파트너 에이전트(FinAllQ)를 배포하지 않아 실패로 표시된다.
+- **OpenShell 샌드박스 · NemoClaw(OpenClaw) 진단 · NAT 온보딩은 배포판에 없다** — 로컬 게이트웨이 전제다. 재현은 [SUBMISSION §5](docs/hackathon/SUBMISSION.md), 배포 구성·함정은 [docs/13_DEPLOYMENT.md](docs/13_DEPLOYMENT.md) §5-0.
+
+---
+
 **설비 진단부터 부품 발주까지 연결하는 B2B 제조 보전 AI 에이전트**
 앞선 두 프로젝트가 "검색 깊이"를 다뤘다면, MaintQ는 **도구 오케스트레이션**을 다룬다.
 
@@ -219,8 +314,8 @@ D135 축으로 열면 **틀린 부품을 확신하는 경우가 16.7% → 1.1% �
 > 존재하지 않는 회귀를 보고하게 된다.** 개선을 주장하기 전에 "이 차이가 노이즈보다 큰가"를 먼저 잰다.
 > 원자료는 `docs/memo/2026-09-06-noise-floor-20rounds.md`.
 
-**회귀 현황**(2026-09-25 기준, `CLAUDE.md` 실측 기준선): spikes **41스위트 / 1,387건** · pytest **406건**
-(계약·룰·캐시 7파일 138건 + A2A 9파일 168건 + 서비스 3파일 20건 + `mcp_server/` 4파일 80건 = 23파일) ·
+**회귀 현황**(2026-09-28 기준, `CLAUDE.md` 실측 기준선): spikes **41스위트 / 1,387건** · pytest **412건**
+(계약·룰·캐시 7파일 138건 + A2A 9파일 168건 + 서비스·게이트 4파일 26건 + `mcp_server/` 4파일 80건 = 24파일) ·
 seed **44건** · `error_codes` **70건**(+ HV600 승격 8 = 공유 DB 78) · 프론트 라우트 **27개**(`next build`).
 
 **재현 방법**:
@@ -242,7 +337,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 | [04 MCP_TOOLS](docs/04_MCP_TOOLS.md) | 도구 **코어 7 + 확장 15 = 22종** + 온보딩 프로필 3종(Sprint 19) 입출력·설계 원칙 (계약 임의 변경 금지) |
 | [06 REPO_API](docs/06_REPO_API.md) | 모노레포 구조·REST/SSE 설계·평가셋 스키마 |
 | [09 RUNTIME](docs/09_RUNTIME.md) | 시퀀스·루프 정책·장애 모드 |
-| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D158** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
+| [10 DECISIONS](docs/10_DECISIONS.md) | 설계 결정 **D1~D159** 과 이유 — "왜 이렇게 했나" 여기서 확인 |
 
 ## 데이터 출처 · 저작권 고지
 
