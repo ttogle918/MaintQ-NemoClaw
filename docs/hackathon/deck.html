@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaintQ × NVIDIA 발표</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root {
+  --bg: #0f1214;
+  --slide: #161a1d;
+  --surface: #1e2327;
+  --surface-2: #252b30;
+  --line: #333b41;
+  --text: #eef1f3;
+  --muted: #a8b2b9;
+  --accent: #76b900;
+  --accent-soft: rgba(118,185,0,.14);
+  --accent-text: #9bd62a;
+  --danger: #ff6b5e;
+  --danger-soft: rgba(255,107,94,.13);
+  --warn: #f2b84b;
+  --human: #6fb3ff;
+  --human-soft: rgba(111,179,255,.13);
+  --shadow: 0 10px 40px rgba(0,0,0,.45);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #e9ecee;
+    --slide: #ffffff;
+    --surface: #f4f6f7;
+    --surface-2: #eaedf0;
+    --line: #d3d9dd;
+    --text: #15191c;
+    --muted: #57626a;
+    --accent: #4f8a00;
+    --accent-soft: rgba(79,138,0,.10);
+    --accent-text: #3f7000;
+    --danger: #c62f22;
+    --danger-soft: rgba(198,47,34,.08);
+    --warn: #9a6500;
+    --human: #1d63b8;
+    --human-soft: rgba(29,99,184,.09);
+    --shadow: 0 10px 30px rgba(0,0,0,.12);
+  }
+}
+:root[data-theme="light"] {
+  --bg: #e9ecee; --slide: #ffffff; --surface: #f4f6f7; --surface-2: #eaedf0; --line: #d3d9dd;
+  --text: #15191c; --muted: #57626a; --accent: #4f8a00; --accent-soft: rgba(79,138,0,.10);
+  --accent-text: #3f7000; --danger: #c62f22; --danger-soft: rgba(198,47,34,.08); --warn: #9a6500;
+  --human: #1d63b8; --human-soft: rgba(29,99,184,.09); --shadow: 0 10px 30px rgba(0,0,0,.12);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- stage ---------- */
+#viewport { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+#stage { position: relative; width: 1280px; height: 720px; flex: none; transform-origin: center center; }
+.slide {
+  position: absolute; inset: 0;
+  width: 1280px; height: 720px;
+  background: var(--slide);
+  box-shadow: var(--shadow);
+  padding: 56px 72px 60px;
+  display: none;
+  flex-direction: column;
+  font-size: 24px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+.slide.active { display: flex; }
+.slide::after { /* 슬라이드 번호 */
+  content: attr(data-num);
+  position: absolute; right: 36px; bottom: 22px;
+  font-size: 15px; color: var(--muted); letter-spacing: .04em;
+}
+.slide::before { /* 좌상단 표식 */
+  content: "MaintQ × NVIDIA";
+  position: absolute; left: 72px; bottom: 22px;
+  font-size: 15px; color: var(--muted); letter-spacing: .04em;
+}
+.slide.cover::before, .slide.cover::after { display: none; }
+.notes { display: none; }
+
+h1, h2, h3, p { margin: 0; }
+h2 { font-size: 40px; font-weight: 750; letter-spacing: -.02em; line-height: 1.25; }
+.kicker { font-size: 18px; font-weight: 650; color: var(--accent-text); letter-spacing: .08em; margin-bottom: 10px; }
+.lead { font-size: 26px; color: var(--muted); margin-top: 14px; }
+.body { margin-top: 30px; flex: 1; min-height: 0; }
+.muted { color: var(--muted); }
+.acc { color: var(--accent-text); }
+.dng { color: var(--danger); }
+.hum { color: var(--human); }
+code, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; }
+code { background: var(--surface-2); padding: 1px 7px; border-radius: 5px; }
+.src { font-size: 16px; color: var(--muted); margin-top: auto; padding-top: 12px; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 20px 24px;
+}
+.card h3 { font-size: 25px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+.card p, .card li { font-size: 22px; line-height: 1.5; }
+.card.danger { border-color: var(--danger); background: var(--danger-soft); }
+.card.danger h3 { color: var(--danger); }
+.card.human { border-color: var(--human); background: var(--human-soft); }
+.card.human h3 { color: var(--human); }
+.card.acc-card { border-color: var(--accent); background: var(--accent-soft); }
+.tag { display: inline-block; font-size: 16px; font-weight: 650; padding: 2px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); margin-bottom: 10px; }
+.tag.acc { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.tag.hum { background: var(--human-soft); color: var(--human); border-color: transparent; }
+.tag.dng { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+ul.plain { list-style: none; padding: 0; margin: 0; }
+ul.plain li { position: relative; padding-left: 22px; margin: 6px 0; }
+ul.plain li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 8px; height: 8px; border-radius: 2px; background: var(--muted); }
+ul.plain.acc li::before { background: var(--accent); }
+
+.quote {
+  border-left: 5px solid var(--accent); padding: 14px 24px; background: var(--surface);
+  border-radius: 0 10px 10px 0; font-size: 27px; font-weight: 600; line-height: 1.5;
+}
+
+/* 표 */
+table.t { width: 100%; border-collapse: collapse; font-size: 22px; }
+table.t th { text-align: left; font-size: 17px; font-weight: 650; color: var(--muted); padding: 6px 12px; border-bottom: 2px solid var(--line); }
+table.t td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.4; }
+table.t tr:last-child td { border-bottom: none; }
+table.t.tight td { padding: 7px 12px; }
+
+/* 표지 */
+.cover { justify-content: center; padding-left: 96px; }
+.cover .bar { width: 72px; height: 6px; background: var(--accent); border-radius: 3px; margin-bottom: 30px; }
+.cover h1 { font-size: 64px; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; }
+.cover .sub { font-size: 30px; color: var(--muted); margin-top: 22px; line-height: 1.5; }
+.cover .meta { margin-top: 46px; font-size: 20px; color: var(--muted); }
+
+/* 단계 흐름 */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; position: relative; display: flex; flex-direction: column; }
+.step .n { font-size: 17px; font-weight: 700; color: var(--muted); }
+.step h3 { font-size: 26px; font-weight: 750; margin: 4px 0 10px; }
+.step .who { font-size: 20px; font-weight: 650; margin-bottom: 10px; }
+.step p { font-size: 22px; line-height: 1.45; }
+.step.human { border-color: var(--human); background: var(--human-soft); }
+.step.human .who { color: var(--human); }
+.step .who.acc { color: var(--accent-text); }
+
+/* 파이프라인(돈 경로) */
+.flow { display: flex; align-items: stretch; gap: 0; }
+.flow .node { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.flow .node h3 { font-size: 23px; font-weight: 700; margin-bottom: 6px; }
+.flow .node p { font-size: 20px; line-height: 1.4; color: var(--muted); }
+.flow .arrow { flex: none; width: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 28px; }
+.flow .node.human { border-color: var(--human); background: var(--human-soft); }
+.flow .node.human h3 { color: var(--human); }
+
+/* 수치 타일 */
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.stat .v { font-size: 50px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 26px; font-weight: 650; color: var(--muted); }
+.stat .l { font-size: 21px; margin-top: 8px; }
+.stat .d { font-size: 18px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.stat.acc .v { color: var(--accent-text); }
+.stat.hum .v { color: var(--human); }
+.stat.dng .v { color: var(--danger); }
+
+/* 데모 장면 목록 */
+.scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 22px; }
+.scene { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.scene .no { font-size: 24px; font-weight: 800; color: var(--muted); text-align: center; }
+.scene b { font-size: 22px; font-weight: 700; display: block; line-height: 1.3; }
+.scene span { font-size: 19px; color: var(--muted); line-height: 1.4; display: block; margin-top: 2px; }
+.scene.key { border-color: var(--accent); background: var(--accent-soft); }
+.scene.key .no { color: var(--accent-text); }
+
+/* 전/후 */
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.chat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.chat .q { align-self: flex-end; background: var(--surface-2); border-radius: 14px 14px 4px 14px; padding: 10px 18px; font-size: 22px; font-weight: 600; }
+.chat .a { font-size: 22px; line-height: 1.5; }
+.chat .a ul { margin: 6px 0 0; padding-left: 24px; }
+.safety { border: 1px solid var(--warn); border-radius: 8px; padding: 8px 14px; font-size: 20px; color: var(--text); background: var(--surface-2); }
+.safety b { color: var(--warn); }
+
+/* 아키텍처 SVG */
+svg.arch { width: 100%; height: auto; display: block; }
+svg.arch .grp { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 5; }
+svg.arch .grp-acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; }
+svg.arch .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+svg.arch .box-acc { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+svg.arch .box-hum { fill: var(--human-soft); stroke: var(--human); stroke-width: 2; }
+svg.arch .box-db { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.5; }
+svg.arch text { fill: var(--text); font-family: inherit; }
+svg.arch .t1 { font-size: 21px; font-weight: 700; }
+svg.arch .t2 { font-size: 17px; fill: var(--muted); }
+svg.arch .t3 { font-size: 15px; font-weight: 650; fill: var(--muted); letter-spacing: .05em; }
+svg.arch .ta { fill: var(--accent-text); }
+svg.arch .th { fill: var(--human); }
+svg.arch .td { fill: var(--danger); }
+svg.arch .ln { stroke: var(--muted); stroke-width: 2; fill: none; }
+svg.arch .ln-acc { stroke: var(--accent); stroke-width: 2.5; fill: none; }
+svg.arch .ln-dng { stroke: var(--danger); stroke-width: 2; fill: none; stroke-dasharray: 5 4; }
+svg.arch .ah { fill: var(--muted); }
+svg.arch .ah-acc { fill: var(--accent); }
+svg.arch .ah-dng { fill: var(--danger); }
+
+/* 컨트롤 */
+#hud { position: fixed; right: 16px; bottom: 12px; font-size: 13px; color: var(--muted); font-family: inherit; user-select: none; z-index: 5; }
+#hud kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-family: inherit; font-size: 12px; }
+#progress { position: fixed; left: 0; top: 0; height: 3px; background: var(--accent); z-index: 6; transition: width .2s; }
+#notesPanel {
+  position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%);
+  width: min(900px, calc(100vw - 32px)); max-height: 34vh; overflow: auto;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); border-left: 5px solid var(--accent);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 14px 20px; font-size: 18px; line-height: 1.6; display: none; z-index: 7;
+}
+#notesPanel .h { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .08em; margin-bottom: 4px; }
+body.show-notes #notesPanel { display: block; }
+
+/* ---------- 인쇄 / ?print ---------- */
+@page { size: 1280px 720px; margin: 0; }
+html.print body, html.print { overflow: visible; height: auto; background: var(--bg); }
+html.print #viewport { position: static; display: block; }
+html.print #stage { transform: none !important; width: auto; height: auto; }
+html.print .slide { position: relative; display: flex; box-shadow: none; margin: 0 auto 24px; break-after: page; page-break-after: always; }
+html.print #hud, html.print #progress, html.print #notesPanel { display: none !important; }
+html.print.with-notes .notes { display: block; width: 1280px; margin: -12px auto 28px; font-size: 16px; color: var(--muted); padding: 0 8px; }
+@media print {
+  html, body { overflow: visible !important; height: auto !important; background: var(--slide) !important; }
+  #viewport { position: static !important; display: block !important; }
+  #stage { transform: none !important; width: auto !important; height: auto !important; }
+  .slide { position: relative !important; display: flex !important; box-shadow: none !important; margin: 0 !important; break-after: page; page-break-after: always; }
+  #hud, #progress, #notesPanel { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="viewport"><div id="stage">
+
+<!-- 1 -->
+<section class="slide cover">
+  <div class="bar"></div>
+  <div class="kicker">NVIDIA 해커톤 · Securing Agents with NemoClaw and OpenShell</div>
+  <h1>MaintQ × NVIDIA</h1>
+  <p class="sub">영문 매뉴얼뿐인 새 설비를 한국어로 진단 가능하게.<br>에이전트는 초안까지, <span class="hum">결정은 사람</span>이 합니다.</p>
+  <p class="meta">설비 보전 AI 에이전트 · 대상 기종 Yaskawa HV600 · OpenShell · NeMo Agent Toolkit · Nemotron · OpenClaw</p>
+  <aside class="notes">MaintQ 는 설비 고장 진단부터 부품 발주 초안까지 도구로 잇는 보전 에이전트입니다. 이번 해커톤에서는 그 위에 새 기종 온보딩과 NVIDIA 런타임·샌드박스를 얹었습니다. 한 문장으로 말하면, 에이전트는 초안까지만 만들고 최종 결정은 사람이 합니다.</aside>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">문제</div>
+  <h2>새 기종이 들어오면, 매뉴얼은 영문 PDF 한 권뿐입니다</h2>
+  <p class="lead">현장은 고장 코드를 한국어로 빨리 알아야 합니다. AI 번역을 그대로 믿으면 두 가지 사고가 납니다.</p>
+  <div class="body grid2">
+    <div class="card danger">
+      <h3>잘못된 진단</h3>
+      <p>번역·추출이 틀린 고장 정의로 엉뚱한 조치를 합니다.</p>
+      <p style="margin-top:10px">모르는 코드를 비슷한 코드로 추측하면 더 위험합니다.</p>
+    </div>
+    <div class="card danger">
+      <h3>잘못된 안전 문구</h3>
+      <p>방전 대기 시간 같은 숫자가 틀리면 감전 사고로 이어집니다.</p>
+      <p style="margin-top:10px">기존 기종의 값(예: 10분)을 새 기종에 그대로 쓰는 것도 같은 오류입니다.</p>
+    </div>
+  </div>
+  <aside class="notes">설비 보전 현장에 새 기종이 들어오면 보통 영문 매뉴얼 PDF 하나만 있습니다. 여기서 AI 번역을 그대로 믿으면 두 가지 사고가 납니다. 하나는 틀린 정의로 잘못 진단하는 것이고, 다른 하나는 방전 대기 시간 같은 안전 수치가 틀리는 것입니다. 기존 기종의 10분을 새 기종에 그대로 쓰는 것도 같은 오류입니다.</aside>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">해법</div>
+  <h2>역할을 나눴습니다 — AI 는 초안, 사람은 확정</h2>
+  <div class="body steps">
+    <div class="step">
+      <div class="n">1 · 추출</div>
+      <div class="who muted">결정적 코드 (LLM 없음)</div>
+      <p>PDF 고장 표에서 코드·페이지·원문 행을 뽑습니다.</p>
+    </div>
+    <div class="step">
+      <div class="n">2 · 한국어 초안</div>
+      <div class="who acc">NAT + Nemotron<br>OpenShell 샌드박스 안</div>
+      <p>행마다 한국어 초안을 스테이징 테이블에만 씁니다.</p>
+    </div>
+    <div class="step human">
+      <div class="n">3 · 검수·확정·안전 승인</div>
+      <div class="who">사람 (팀장)</div>
+      <p>원문과 대조해 코드 그룹 단위로 확정합니다. 안전 문구는 원문 페이지를 보고 직접 입력·승인합니다.</p>
+    </div>
+    <div class="step">
+      <div class="n">4 · 진단</div>
+      <div class="who acc">OpenClaw (NemoClaw)</div>
+      <p>확정된 코드만 진단합니다. 확정 전 코드는 추측 없이 A/S 로 안내합니다.</p>
+    </div>
+  </div>
+  <p class="src">화면의 「승격」 = 이 발표의 「확정」 · 근거 D145~D147 · D150~D157</p>
+  <aside class="notes">해법은 역할 분리입니다. 추출은 LLM 없이 결정적 코드가 하고, 한국어 초안은 샌드박스 안의 NAT 에이전트와 Nemotron 이 만들되 스테이징 테이블에만 씁니다. 확정과 안전 문구 승인은 사람이 합니다. 현장 진단 에이전트 OpenClaw 는 사람이 확정한 코드만 진단합니다. 화면에서는 확정을 「승격」이라고 부릅니다.</aside>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">아키텍처</div>
+  <h2>두 런타임, 한 개의 MCP 서버, 키 없는 샌드박스</h2>
+  <div class="body" style="margin-top:18px">
+    <svg class="arch" viewBox="0 0 1180 500" role="img" aria-label="MaintQ 아키텍처: 호스트의 MCP-HTTP 두 입구와 Postgres, OpenShell 샌드박스 두 개와 게이트웨이, build.nvidia.com">
+      <defs>
+        <marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        <marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-acc"/></marker>
+      </defs>
+      <!-- 그룹 -->
+      <rect class="grp" x="20" y="10" width="420" height="480" rx="14"/>
+      <text class="t3" x="40" y="36">호스트</text>
+      <rect class="grp-acc" x="478" y="10" width="444" height="480" rx="14"/>
+      <text class="t3 ta" x="498" y="36">OPENSHELL</text>
+
+      <!-- 호스트 -->
+      <rect class="box-hum" x="40" y="54" width="180" height="236" rx="10"/>
+      <text class="t1 th" x="58" y="88">웹 콘솔</text>
+      <text class="t2" x="58" y="116">사람 전용 API</text>
+      <text class="t2" x="58" y="152">· 발주 승인</text>
+      <text class="t2" x="58" y="178">· 재무 승인</text>
+      <text class="t2" x="58" y="204">· 코드 확정</text>
+      <text class="t2" x="58" y="230">· 안전 문구 승인</text>
+      <text class="t2" x="58" y="262">· trace 재생</text>
+
+      <rect class="box" x="252" y="60" width="170" height="90" rx="10"/>
+      <text class="t1" x="268" y="92">MCP-HTTP #1</text>
+      <text class="t2" x="268" y="118">:8765 · core 7종</text>
+      <text class="t2" x="268" y="140">진단·발주 초안</text>
+
+      <rect class="box" x="252" y="200" width="170" height="90" rx="10"/>
+      <text class="t1" x="268" y="232">MCP-HTTP #2</text>
+      <text class="t2" x="268" y="258">:8766 · 온보딩 3종</text>
+      <text class="t2" x="268" y="280">스테이징 쓰기</text>
+
+      <rect class="box-db" x="40" y="330" width="382" height="140" rx="10"/>
+      <text class="t1" x="58" y="364">Postgres</text>
+      <text class="t2" x="58" y="394">도구 커넥션: draft·staged INSERT 만</text>
+      <text class="t2" x="58" y="420">읽기 전용 커넥션: 쓰기 거부</text>
+      <text class="t2" x="58" y="446">상태 전이: 사람 API 만</text>
+
+      <!-- 호스트 내부 연결 -->
+      <path class="ln" d="M130 290 V326" marker-end="url(#m)"/>
+      <path class="ln" d="M252 105 H236 V326" marker-end="url(#m)"/>
+      <path class="ln" d="M337 290 V326" marker-end="url(#m)"/>
+
+      <!-- 샌드박스 -->
+      <rect class="box" x="500" y="54" width="360" height="110" rx="10"/>
+      <text class="t1" x="518" y="86">샌드박스 maintq-agent</text>
+      <text class="t2" x="518" y="114">OpenClaw · 스킬 maintq-diagnose</text>
+      <text class="t2" x="518" y="142">허용: node → :8765 /mcp 만</text>
+
+      <rect class="box" x="500" y="190" width="360" height="110" rx="10"/>
+      <text class="t1" x="518" y="222">샌드박스 maintq-nat</text>
+      <text class="t2" x="518" y="250">NAT · 한국어 정규화 · 가드 함수</text>
+      <text class="t2" x="518" y="278">허용: :8766 만</text>
+
+      <rect class="box-acc" x="500" y="340" width="400" height="120" rx="10"/>
+      <text class="t1" x="518" y="374">OpenShell 게이트웨이</text>
+      <text class="t2" x="518" y="402">샌드박스는 inference.local 만 부른다</text>
+      <text class="t2 ta" x="518" y="430">API 키는 여기에만 있다</text>
+
+      <!-- 샌드박스 → MCP -->
+      <path class="ln" d="M500 105 H426" marker-end="url(#m)"/>
+      <path class="ln" d="M500 245 H426" marker-end="url(#m)"/>
+      <!-- 샌드박스 → 게이트웨이 -->
+      <path class="ln-acc" d="M860 109 H886 V336" marker-end="url(#ma)"/>
+      <path class="ln-acc" d="M860 245 H886"/>
+
+      <!-- NVIDIA -->
+      <rect class="box-acc" x="954" y="340" width="206" height="120" rx="10"/>
+      <text class="t1" x="972" y="374">build.nvidia.com</text>
+      <text class="t2" x="972" y="402">Nemotron 3 Super</text>
+      <text class="t2" x="972" y="428">120B-A12B</text>
+      <path class="ln-acc" d="M900 400 H950" marker-end="url(#ma)"/>
+
+      <text class="t2 td" x="954" y="80">그 외 egress:</text>
+      <text class="t2 td" x="954" y="104">403 + OCSF 로그</text>
+      <text class="t2 td" x="954" y="140">curl 로 같은 주소:</text>
+      <text class="t2 td" x="954" y="164">binary not allowed</text>
+    </svg>
+  </div>
+  <aside class="notes">호스트에는 같은 MCP 서버의 HTTP 입구가 두 개 있습니다. 8765 는 진단용 코어 7종, 8766 은 온보딩 전용 3종입니다. OpenClaw 샌드박스는 8765 의 /mcp 만, 그것도 node 실행 파일로만 부를 수 있고, NAT 샌드박스는 8766 만 엽니다. 두 샌드박스 모두 Nemotron 은 게이트웨이를 거쳐서만 부르며, API 키는 게이트웨이에만 있습니다.</aside>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kicker">NVIDIA 기술 사용 현황</div>
+  <h2>쓴 것과 쓰지 않은 것을 그대로 적었습니다</h2>
+  <div class="body" style="display:grid;grid-template-columns:1.35fr 1fr;gap:26px">
+    <table class="t tight">
+      <tr><th colspan="2">사용 ✅</th></tr>
+      <tr><td>✅ <b>Nemotron</b></td><td class="muted">진단·정규화 추론 모델</td></tr>
+      <tr><td>✅ <b>NIM</b> 호스팅</td><td class="muted">게이트웨이 경유 · 임베딩</td></tr>
+      <tr><td>✅ <b>NeMo Agent Toolkit</b></td><td class="muted">온보딩 에이전트 런타임</td></tr>
+      <tr><td>✅ <b>OpenShell</b></td><td class="muted">샌드박스 3개</td></tr>
+      <tr><td>✅ <b>NemoClaw / OpenClaw</b></td><td class="muted">현장 진단 에이전트</td></tr>
+      <tr><td>✅ <b>Agent Skills</b></td><td class="muted">제품 스킬 2종 (SKILL.md)</td></tr>
+      <tr><td>✅ <b>SkillSpector</b></td><td class="muted">스킬 설치 전 스캔</td></tr>
+      <tr><td>✅ <b>MCP streamable-http</b></td><td class="muted">두 런타임이 같은 MCP 서버로</td></tr>
+    </table>
+    <table class="t tight">
+      <tr><th>사용 안 함 ❌</th></tr>
+      <tr><td>❌ NeMo Guardrails<br><span class="muted" style="font-size:19px">조사만 — 주입 판정은 서버 가드로</span></td></tr>
+      <tr><td>❌ NeMo Framework · Microservices<br><span class="muted" style="font-size:19px">학습·파인튜닝 안 함</span></td></tr>
+      <tr><td>❌ NIM 셀프호스팅</td></tr>
+      <tr><td>❌ NemoClaw managed MCP<br><span class="muted" style="font-size:19px">공인 DNS 필요 → 커스텀 프리셋</span></td></tr>
+      <tr><td>❌ 스킬 OMS 서명</td></tr>
+    </table>
+  </div>
+  <aside class="notes">NVIDIA 기술은 여덟 가지를 실제로 썼습니다. Nemotron 을 추론 모델로, NAT 를 온보딩 런타임으로, OpenClaw 를 진단 런타임으로, OpenShell 로 샌드박스를 만들었습니다. NeMo Guardrails 는 조사만 했고 주입 판정은 서버의 결정적 가드로 대신했습니다. managed MCP 는 공인 DNS 를 요구해서 로컬 데모에 맞지 않아 커스텀 egress 프리셋으로 대체했습니다.</aside>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kicker">채점 기준 ↔ 근거</div>
+  <h2>네 가지 기준에 무엇을 보여 주는가</h2>
+  <div class="body grid2" style="gap:18px">
+    <div class="card">
+      <span class="tag acc">① 기술 활용 심도</span>
+      <p>진단은 OpenClaw, 온보딩은 NAT. 둘 다 게이트웨이로만 Nemotron 을 부르고, 같은 MCP 에 붙습니다.</p>
+    </div>
+    <div class="card">
+      <span class="tag acc">② 실용성·산업가치</span>
+      <p>「영문 매뉴얼 → 한국어 진단 가능」을 AI 초안 + 사람 승인으로. 안전 수치는 기종별 매뉴얼 값(HV600 은 p.29 의 5분).</p>
+    </div>
+    <div class="card">
+      <span class="tag acc">③ 완성도</span>
+      <p>실데이터 249행 전량 정규화 · 8코드 확정 · 안전 문구 1건 승인 · 전/후 녹화 · spikes 1,387건 · pytest 406건.</p>
+    </div>
+    <div class="card">
+      <span class="tag acc">④ 커스터마이징·독창성</span>
+      <p>자체 백엔드와 Postgres 를 BYOC 로 샌드박스에 · 온보딩 전용 DB 역할 · 서버 주입 가드 · 안전 문구 fail-closed.</p>
+    </div>
+  </div>
+  <aside class="notes">채점 기준별로 정리했습니다. 기술 심도는 두 런타임을 각자 자리에 둔 것, 실용성은 새 기종 도입을 AI 초안과 사람 승인 파이프라인으로 만든 것입니다. 완성도는 실데이터 249행 처리와 회귀 스위트 수치로, 독창성은 자체 백엔드를 샌드박스에 넣고 서버가 판정하는 가드를 세운 것으로 보여 드립니다.</aside>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">보안 설계 ① — 샌드박스가 막는다</div>
+  <h2>에이전트가 틀려도 밖으로 못 나갑니다</h2>
+  <div class="body grid2" style="gap:18px">
+    <div class="card">
+      <h3>샌드박스 안에 키 없음</h3>
+      <p>환경변수에 키가 없는데 Nemotron 호출 성공. 키가 보이면 기동을 거부합니다. 이미지 파일 17,833개 스캔, 비밀값 0건.</p>
+    </div>
+    <div class="card">
+      <h3>egress 허용 목록</h3>
+      <p>웹 콘솔 샌드박스는 외부 허용 0건. 다른 도메인은 전부 403 과 OCSF 로그(실행 파일·목적지)로 남습니다.</p>
+    </div>
+    <div class="card">
+      <h3>실행 파일·경로 단위 허용</h3>
+      <p>OpenClaw 는 <code>:8765/mcp</code> 를 <code>node</code> 로만. 같은 주소를 <code>curl</code> 로 부르면 거부됩니다.</p>
+    </div>
+    <div class="card">
+      <h3>파일시스템 (Landlock)</h3>
+      <p><code>/app</code> 쓰기는 <code>PermissionError 13</code>. 쓰기는 <code>/tmp</code> 뿐입니다.</p>
+    </div>
+  </div>
+  <p class="src">SUBMISSION §3.1~§3.4 · D143 · D151 · deploy/openshell/policy.yaml</p>
+  <aside class="notes">첫 번째 층은 샌드박스입니다. 샌드박스 안에는 API 키가 없고, 키는 게이트웨이에만 있습니다. 나가는 연결은 허용 목록 밖이면 403 으로 막히고 로그가 남습니다. 허용된 MCP 주소도 node 실행 파일로만 부를 수 있어서, 같은 주소를 curl 로 부르면 거부됩니다.</aside>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">보안 설계 ② — 서버와 DB 가 막는다</div>
+  <h2>막는 건 에이전트의 판단이 아닙니다</h2>
+  <div class="body grid2" style="gap:18px">
+    <div class="card">
+      <h3>DB 쓰기 가드</h3>
+      <p>도구는 draft INSERT 만. <code>UPDATE</code> 는 트리거가, 읽기 전용 커넥션의 INSERT 는 DB 가 거부합니다.</p>
+    </div>
+    <div class="card">
+      <h3>주입 판정은 서버가</h3>
+      <p>에이전트가 <code>high</code> 를 보내도 서버가 <code>low</code> + 플래그로 덮습니다. 합성 주입 픽스처 5/5.</p>
+    </div>
+    <div class="card">
+      <h3>안전 문구 fail-closed</h3>
+      <p>사람이 승인한 DB 행에서만 나옵니다. 원문에 없는 숫자는 API 가 거부합니다(<code>number_not_in_source</code>).</p>
+    </div>
+    <div class="card">
+      <h3>신원은 서버가 읽는다</h3>
+      <p>요청자는 LLM 파라미터가 아니라 <code>X-User</code> 헤더에서. 모르는 사용자면 초안을 만들지 않습니다.</p>
+    </div>
+  </div>
+  <p class="src">SUBMISSION §3.5~§3.7 · §3.10 · D10 · D152 · D154 · D157</p>
+  <aside class="notes">두 번째 층은 서버와 DB 입니다. AI 도구는 초안을 추가만 할 수 있고, 수정은 DB 트리거와 권한이 막습니다. 매뉴얼에 숨은 지시문 같은 주입 의심은 에이전트가 아니라 서버가 결정적으로 판정합니다. 안전 문구는 사람이 승인한 행에서만 나오며, 원문에 없는 숫자는 입력 단계에서 API 가 거부합니다.</aside>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">쓰기 도구 4종</div>
+  <h2>에이전트가 쓸 수 있는 건 초안뿐입니다</h2>
+  <div class="body">
+    <table class="t">
+      <tr><th>도구</th><th>쓰는 곳</th><th>커넥션</th></tr>
+      <tr><td><code>create_po_draft</code></td><td>발주 초안 INSERT</td><td class="muted mono">draft_writer</td></tr>
+      <tr><td><code>generate_disposal_document</code></td><td>처분서 초안 INSERT</td><td class="muted mono">decision_writer</td></tr>
+      <tr><td><code>create_repair_record</code></td><td>수리 증빙 초안 INSERT</td><td class="muted mono">repair_writer</td></tr>
+      <tr><td><code>stage_code_normalization</code></td><td>온보딩 스테이징 INSERT</td><td class="muted mono">onboarding_writer</td></tr>
+    </table>
+    <ul class="plain acc" style="margin-top:22px">
+      <li>커넥션을 대상별로 나눕니다. 섞으면 트리거·권한 잠금이 풀립니다.</li>
+      <li>처분서 도구에는 <code>override</code>·<code>reviewed_by</code> 파라미터가 아예 없습니다.</li>
+      <li>서명 때 근거 번들을 다시 계산해 다르면 <code>409 evidence_changed</code>.</li>
+    </ul>
+  </div>
+  <aside class="notes">에이전트의 쓰기 도구는 네 개뿐이고 모두 INSERT 만 합니다. 커넥션도 도구마다 따로 열어서 한 도구가 다른 테이블의 잠금을 풀지 못하게 했습니다. 처분서 도구에는 우회나 검토자를 채울 파라미터 자체가 없어서 모델이 채울 자리가 없습니다. 승인·서명·확정은 전부 사람 전용 API 에서만 일어납니다.</aside>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="kicker">돈 경로 통제</div>
+  <h2>돈이 나가기 전에 사람이 두 번 결정합니다</h2>
+  <div class="body">
+    <div class="flow">
+      <div class="node"><h3>발주 초안</h3><p>에이전트가 작성</p></div>
+      <div class="arrow">→</div>
+      <div class="node human"><h3>팀장 승인</h3><p>승인 큐</p></div>
+      <div class="arrow">→</div>
+      <div class="node human"><h3>재무 승인</h3><p>부서가 finance 가 아니면 403</p></div>
+      <div class="arrow">→</div>
+      <div class="node"><h3>출금 요청</h3><p>FinAllQ 에 A2A</p></div>
+    </div>
+    <div class="grid2" style="margin-top:22px;gap:18px">
+      <div class="card">
+        <span class="tag hum">재무 담당에게 보여 주는 판단 재료</span>
+        <p>예산 한도 · 1일 누적 한도 · 이상거래 탐지(FDS) · 직무분리(SoD). 자동 차단이 아니라 표시입니다.</p>
+      </div>
+      <div class="card">
+        <span class="tag dng">강제로 막는 것</span>
+        <p>재무 부서 검사 · 파트너 연결 승인 없으면 미전송 · 파트너 차단기 · 샌드박스는 시도 전 차단.</p>
+      </div>
+    </div>
+  </div>
+  <p class="src">SUBMISSION §3.12 · D119 · D136 · D142 · D149 — A2A 는 호스트 pytest 로 검증, 샌드박스에서는 시연 안 함</p>
+  <aside class="notes">돈이 움직이는 경로는 한 번 더 잠갔습니다. 팀장이 승인한 발주는 재무 승인 대기로 가고, 재무 승인 엔드포인트는 호출자 부서가 finance 가 아니면 403 을 돌려줍니다. 예산·일일 한도·FDS·직무분리는 재무 담당에게 판단 재료로 보여 주는 것이고, 강제 차단은 부서 검사입니다. 재무 승인 뒤에만 파트너 에이전트에 출금 요청이 나갑니다.</aside>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <div class="kicker">데모 흐름 · 8장면</div>
+  <h2>같은 질문이 확정 전과 후에 달라집니다</h2>
+  <div class="body scenes">
+    <div class="scene"><div class="no">①</div><div><b>인트로</b><span>문제와 역할 분리</span></div></div>
+    <div class="scene key"><div class="no">⑤</div><div><b>OpenClaw — 확정 후</b><span>정의·원인·조치 + 승인된 안전 문구</span></div></div>
+    <div class="scene key"><div class="no">②</div><div><b>OpenClaw — 확정 전</b><span>"HV600에서 GF 떴어" → 추측 없이 A/S 안내</span></div></div>
+    <div class="scene"><div class="no">⑥</div><div><b>웹 콘솔 진단 → 발주</b><span>진단 · 견적 · 초안 · 승인 · trace</span></div></div>
+    <div class="scene"><div class="no">③</div><div><b>NAT 정규화 + 주입 방어</b><span>지시문을 따르지도 옮기지도 않음 (실행 기록)</span></div></div>
+    <div class="scene"><div class="no">⑦</div><div><b>보안 증거 터미널</b><span>키 없음 · egress 거부 · DB 권한</span></div></div>
+    <div class="scene human" style="border-color:var(--human);background:var(--human-soft)"><div class="no hum">④</div><div><b>사람 검수·확정</b><span>8코드 확정 · 1행 반려 · 안전 문구 승인 (완료 상태)</span></div></div>
+    <div class="scene"><div class="no">⑧</div><div><b>재무 직무분리</b><span>재무 계정만 승인 버튼 · 부서 없는 호출 403</span></div></div>
+  </div>
+  <p class="src">②는 2026-09-25, 나머지는 2026-09-28 녹화 · ②와 ⑤가 같은 질문의 전/후 쌍</p>
+  <aside class="notes">데모는 여덟 장면입니다. 핵심은 2번과 5번이 같은 질문이라는 점입니다. 확정 전에는 모른다고 답하고 A/S 로 안내하고, 사람이 4번에서 확정과 안전 문구 승인을 한 뒤에는 정의와 조치, 승인된 안전 문구가 나옵니다. 확정·승인 버튼은 되돌릴 수 없어서 영상에는 완료된 상태만 나옵니다. 뒤의 세 장면은 기존 발주 흐름과 보안 증거, 재무 직무분리를 보여 주며, 파트너 출금 성공 장면은 없습니다.</aside>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <div class="kicker">핵심 장면 · ② ↔ ⑤</div>
+  <h2>「HV600에서 GF 떴어」</h2>
+  <div class="body ba">
+    <div class="chat">
+      <span class="tag">② 확정 전</span>
+      <div class="q">HV600에서 GF 떴어</div>
+      <div class="a">매뉴얼에서 확인되지 않는 코드입니다.
+        <ul><li>원인·조치를 추정하지 않음</li><li>표시부 재확인 · 제조사 A/S 안내</li></ul>
+      </div>
+      <p class="muted" style="font-size:20px;margin-top:auto">유사 코드 추측 0</p>
+    </div>
+    <div class="chat" style="border-color:var(--accent)">
+      <span class="tag acc">⑤ 확정 후 · 새 세션</span>
+      <div class="q">HV600에서 GF 떴어</div>
+      <div class="a">GF 정의(지락) · 원인 · 권장 조치 <span class="muted">(근거 p.108)</span></div>
+      <div class="safety"><b>안전</b> · 사람이 승인한 HV600 문구 — 방전 대기 <b>최소 5분</b> <span class="muted">(근거 p.29)</span></div>
+      <p class="muted" style="font-size:20px;margin-top:auto">기존 기종의 10분을 옮겨 쓰지 않음</p>
+    </div>
+  </div>
+  <aside class="notes">같은 질문입니다. 확정 전에는 매뉴얼에서 확인되지 않는 코드라서 원인을 추측하지 않고 A/S 로 안내합니다. 사람이 확정한 뒤 새 세션에서 물으면 정의와 원인, 조치가 매뉴얼 페이지와 함께 나오고, 사람이 승인한 HV600 안전 문구가 붙습니다. 방전 대기는 기존 기종의 10분이 아니라 HV600 매뉴얼 p.29 의 5분입니다.</aside>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <div class="kicker">실데이터 — Yaskawa HV600</div>
+  <h2>합성 데이터가 아니라 실제 매뉴얼로 돌렸습니다</h2>
+  <div class="body grid3" style="gap:18px">
+    <div class="stat"><div class="v">249<small>행</small></div><div class="l">원문 고장 표 행</div><div class="d">샌드박스 안에서 전량 정규화 · 2,588초</div></div>
+    <div class="stat acc"><div class="v">248 <small>/ 1</small></div><div class="l">confidence high / low</div><div class="d">최신 기준. low 1행은 미번역 용어</div></div>
+    <div class="stat hum"><div class="v">8<small>코드</small></div><div class="l">사람이 확정</div><div class="d">CE · GF · OC · OV · UV1 · OH · CPF06 · EF1</div></div>
+    <div class="stat dng"><div class="v">1<small>행</small></div><div class="l">사람이 반려</div><div class="d">CE #142 — 이름과 원인이 안 맞는 추출 섞임</div></div>
+    <div class="stat hum"><div class="v">1<small> / 28</small></div><div class="l">안전 문구 승인</div><div class="d">결정적 추출 후보 28건 중 p.29 「최소 5분」</div></div>
+    <div class="stat"><div class="v">33<small>청크</small></div><div class="l">확정이 만든 RAG 청크</div><div class="d">고장 표 근거만</div></div>
+  </div>
+  <aside class="notes">해커톤용 합성 데이터가 아니라 실제 HV600 매뉴얼로 돌렸습니다. 249행을 샌드박스 안에서 전부 정규화했고 최신 기준 high 248, low 1 입니다. 사람이 8개 코드를 확정했고, 이름과 원인이 맞지 않는 1행은 반려했습니다. 그룹 단위 확정이라 반려하지 않았다면 같이 들어갔을 행입니다.</aside>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <div class="kicker">완성도 지표</div>
+  <h2>계약이 깨지면 회귀 스위트가 먼저 잡습니다</h2>
+  <div class="body grid3" style="gap:18px">
+    <div class="stat acc"><div class="v">1,387<small>건</small></div><div class="l">spikes 41스위트</div><div class="d">기존 오탐 1건 외 FAIL 0</div></div>
+    <div class="stat"><div class="v">406<small>건</small></div><div class="l">pytest (23파일)</div><div class="d">A2A 168건 포함</div></div>
+    <div class="stat"><div class="v">44<small>건</small></div><div class="l">seed 자가검증</div><div class="d">시드 케이스 맵</div></div>
+    <div class="stat"><div class="v">27<small>개</small></div><div class="l">화면 라우트</div><div class="d">next build 기준</div></div>
+    <div class="stat"><div class="v">22<small>종</small></div><div class="l">MCP 도구</div><div class="d">코어 7 + 확장 15 · 온보딩 3종 별도</div></div>
+    <div class="stat"><div class="v">158<small>개</small></div><div class="l">설계 결정 D1~D158</div><div class="d">DB 테이블 33개</div></div>
+  </div>
+  <p class="src">CLAUDE.md 회귀 기준선 · 2026-09-25 실측</p>
+  <aside class="notes">완성도는 숫자로 보여 드립니다. 계약 스파이크 41종 1,387건과 pytest 406건이 모두 통과합니다. 한 건 남은 FAIL 은 환경 값 때문에 나는 기존 오탐으로, 코드 결함이 아닙니다. 설계 결정은 D1부터 D158까지 문서로 남겼습니다.</aside>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <div class="kicker">한계 — 정직하게</div>
+  <h2>아직 되지 않는 것</h2>
+  <div class="body grid2" style="gap:14px 18px">
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">Nemotron 재평가 안 함</h3><p>평가 기준선은 이전 모델 기준입니다. 비교할 수 없습니다.</p></div>
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">OpenClaw 경로의 안전 계층</h3><p>웹 콘솔의 안전 블록 계층이 없습니다. 모델의 규칙 준수에 달려 있습니다.</p></div>
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">A2A 샌드박스 시연 없음</h3><p>샌드박스에선 시도 전 차단됩니다. 호스트 테스트로만 검증했습니다.</p></div>
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">HV600 절차 근거 부족</h3><p>확정된 청크는 고장 표뿐입니다. 교체 절차는 제조사 문의로 답합니다.</p></div>
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">안전 가드 오탐</h3><p>「냉각팬」 같은 부품명에 반응해, 매뉴얼 조회가 없는 발주 턴에서 문장이 치환됩니다. 보수적 오탐입니다.</p></div>
+    <div class="card" style="padding:14px 20px"><h3 style="font-size:23px">MCP 토큰·신원</h3><p>샌드박스 안 설정에 평문으로 있습니다. 토큰↔사용자 바인딩은 후속입니다.</p></div>
+  </div>
+  <aside class="notes">한계도 그대로 말씀드립니다. Nemotron 으로는 평가를 다시 돌리지 않았고, OpenClaw 경로에는 웹 콘솔 같은 시스템 안전 계층이 없습니다. A2A 는 샌드박스에서 시도 전에 막히기 때문에 호스트에서만 검증했습니다. 또 안전 가드가 냉각팬 같은 부품명의 위험 키워드에 반응해, 매뉴얼 조회가 없는 발주 턴에서 문장을 치환하는 오탐이 있습니다. 경고가 넘치는 쪽이라 안전하지만 답이 어색해지고, 9월 28일 녹화 세 번 중 두 번 나왔습니다.</aside>
+</section>
+
+<!-- 16 -->
+<section class="slide cover">
+  <div class="bar"></div>
+  <div class="kicker">정리</div>
+  <p class="quote" style="max-width:1040px">에이전트는 초안까지만 만들고, 최종 결정은 사람이 합니다.<br>막는 건 에이전트의 판단이 아니라 정책·DB 권한·서버 코드입니다.</p>
+  <p class="sub" style="margin-top:34px;font-size:26px">NAT + Nemotron 이 초안을 만들고 · 사람이 확정하고 · OpenClaw 가 확정된 것만 진단합니다.</p>
+  <p class="meta">레포 ttogle918/MaintQ-NemoClaw · Apache-2.0 · 심사 문서 docs/hackathon/SUBMISSION.md</p>
+  <aside class="notes">정리하겠습니다. 에이전트는 초안까지만 만들고 최종 결정은 사람이 합니다. 그리고 그 경계를 지키는 건 에이전트의 판단이 아니라 샌드박스 정책, DB 권한, 서버 코드입니다. 감사합니다.</aside>
+</section>
+
+</div></div>
+
+<div id="notesPanel"><div class="h">발표자 노트 (N)</div><div id="notesText"></div></div>
+<div id="hud"><span id="counter">1 / 1</span> · <kbd>←</kbd><kbd>→</kbd> 이동 · <kbd>N</kbd> 노트 · <kbd>P</kbd> 인쇄 보기</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage');
+  var counter = document.getElementById('counter');
+  var progress = document.getElementById('progress');
+  var notesText = document.getElementById('notesText');
+  var params = new URLSearchParams(location.search);
+  var idx = 0;
+
+  slides.forEach(function (s, i) { s.setAttribute('data-num', (i + 1) + ' / ' + slides.length); });
+
+  if (params.has('print')) {
+    root.classList.add('print');
+    if (params.get('print') === 'notes') root.classList.add('with-notes');
+    return;
+  }
+
+  function fit() {
+    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720) * 0.96;
+    stage.style.transform = 'scale(' + s + ')';
+  }
+
+  function show(n) {
+    idx = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, i) { s.classList.toggle('active', i === idx); });
+    counter.textContent = (idx + 1) + ' / ' + slides.length;
+    progress.style.width = ((idx + 1) / slides.length * 100) + '%';
+    var note = slides[idx].querySelector('.notes');
+    notesText.textContent = note ? note.textContent.trim() : '';
+    try { history.replaceState(null, '', '#' + (idx + 1)); } catch (e) {}
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key;
+    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter') { e.preventDefault(); show(idx + 1); }
+    else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); show(idx - 1); }
+    else if (k === 'Home') show(0);
+    else if (k === 'End') show(slides.length - 1);
+    else if (k === 'n' || k === 'N') document.body.classList.toggle('show-notes');
+    else if (k === 'p' || k === 'P') location.search = '?print';
+  });
+
+  document.getElementById('viewport').addEventListener('click', function (e) {
+    if (e.target.closest('a')) return;
+    if (e.shiftKey) show(idx - 1); else show(idx + 1);
+  });
+
+  window.addEventListener('resize', fit);
+  window.addEventListener('beforeprint', function () { root.classList.add('print'); });
+  window.addEventListener('afterprint', function () { if (!params.has('print')) root.classList.remove('print'); });
+
+  var start = parseInt((location.hash || '').replace('#', ''), 10);
+  fit();
+  show(isNaN(start) ? 0 : start - 1);
+})();
+</script>
+</body>
+</html>

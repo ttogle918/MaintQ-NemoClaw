@@ -158,7 +158,7 @@
       <p class="lede">실제 라우터·컴포넌트·MCP 도구를 그대로 옮긴 그림입니다. 각 그림은 <b>설계 결정 하나가 코드에서 어떻게 강제되는지</b>를 보이는 데 목적이 있습니다 — 특히 쓰기 권한이 갈리는 지점(D10)과 프로세스 경계(D15).</p>
       <p class="lede" style="margin-top:10px"><b>근거:</b> 구조는 코드에서(<code>routers/</code> · <code>mcp_server/tools/</code> · <code>components/</code> · <code>loop.py</code> · <code>data/rules/</code>), 계약과 흐름은 문서에서 대조했습니다 — <code>02_SCENARIOS</code>(S1~S4 · S9·S10·S18) · <code>06_REPO_API §2.2·2.4·2.6·2.7</code> · <code>09_RUNTIME §1·§2</code> · <code>11_ASSET_LIFECYCLE</code>(근거 3계층).</p>
     </div>
-    <div class="asof">기준 시점<b>2026-09-17</b><span style="display:block;font-size:11px;margin-top:3px">수치·A2A 절 2026-09-17 갱신(발신 6종 전건 E2E · 연결 승인 게이트 D142 · 사람 승인 0건)</span></div>
+    <div class="asof">기준 시점<b>2026-09-28</b><span style="display:block;font-size:11px;margin-top:3px;color:var(--warn);font-weight:650">최종 갱신 2026-09-28 · ⑫ 해커톤 그림 추가 · ①~⑪ 은 Sprint 18 시점 그림</span></div>
   </header>
 
   <nav class="toc">
@@ -173,9 +173,18 @@
     <a href="#defense">⑧ 4층 방어 — 두 개의 0건</a>
     <a href="#model">⑨ 자산 ↔ 설비 데이터 모델</a>
     <a href="#tuning">⑩ 지표 튜닝 루프 · 흔들림</a>
+    <a href="#hackathon">⑫ 해커톤 — 에이전트 입구 3개 · 온보딩 흐름</a>
   </nav>
 
-  <div class="note" style="margin:-24px 0 42px">
+  <div class="note warn" style="margin:-24px 0 18px">
+    <b>2026-09-28 갱신 — 해커톤·Sprint 19·D158 은 새 그림 ⑫ 로 따로 더했습니다.</b> 기존 그림 ①~⑪ 은 구조를 바꾸지 않았고 Sprint 18 시점 그대로입니다.
+    그 사이 바뀐 것: 에이전트 입구가 <b>웹 콘솔 하나 → 셋</b>(웹 콘솔 · OpenClaw · NAT, 각자 OpenShell 샌드박스) ·
+    MCP 입구 <b>stdio + streamable-http</b>(D150) · 쓰기 도구 <b>3 → 4종</b>(<code>stage_code_normalization</code>, D154) ·
+    도구 <b>22종 + 온보딩 프로필 3종</b> · 테이블 <b>25 → 33</b>(온보딩 5 · 사업장 3) · model enum <b>4종</b>(HV600 추가, D146) ·
+    라우트 <b>27</b> · 결정 <b>D1~D158</b>. 추론 모델은 Gemini 가 아니라 <code>nvidia/nemotron-3-super-120b-a12b</code> 입니다(샌드박스 안에서는 게이트웨이 경유).
+  </div>
+
+  <div class="note" style="margin:0 0 42px">
     <b>2026-08-12 갱신 — 그림 5개를 더했습니다.</b> Sprint 6~7이 <b>설비 처분·취득</b> 축을 열면서
     도구가 7 → 15종, 테이블이 11 → 19개, 쓰기 도구가 1 → 2종이 됐습니다.
     새 그림 넷(⑥~⑨)은 전부 <b>"AI가 근거를 조립하고 사람이 서명한다"</b>가 코드에서 어떻게 강제되는지를 보이고,
@@ -295,7 +304,7 @@ flowchart LR
 
   <!-- ================= ② 시스템 구성 ================= -->
   <section id="arch">
-    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">프로세스 2 · 도구 22 · 테이블 25</span></div>
+    <div class="sec-head"><h2>② 시스템 구성 — 쓰기 경로가 갈린다</h2><span class="count">Sprint 18 시점 그림 · 현재 도구 22+3 · 테이블 33 · 쓰기 도구 4 — ⑫ 참조</span></div>
     <p class="sec-note">이 프로젝트에서 가장 중요한 그림입니다. <b>MCP 도구는 DB에 draft <code>INSERT</code>만 할 수 있고 <code>UPDATE</code> 권한이 아예 없습니다.</b> 상태를 바꾸는 경로는 사람 전용 API 셋뿐입니다. <b>Sprint 7에서 쓰기 도구가 1 → 2종, Sprint 9에서 2 → 3종이 됐지만 이 원칙은 그대로</b>이고, 오히려 커넥션까지 분리해(<code>repair_writer()</code> 신설) 강화됐습니다. <b>Sprint 11은 읽기 도구만 7 → 9종으로 늘렸습니다</b>(<code>track_deadlines</code>·<code>assess_risk_grade</code>) — 쓰기 도구는 손대지 않았습니다.</p>
 
     <figure>
@@ -786,7 +795,7 @@ erDiagram
   EQUIPMENT {
     text equipment_id PK "10대 · 인버터"
     text asset_id FK "D68 로 신설"
-    text model "iG5A · S100 enum"
+    text model "enum iG5A · S100 · IE5 · HV600"
   }
   DECISIONS {
     text state "draft · pending · signed · rejected"
@@ -900,6 +909,90 @@ flowchart LR
     </figure>
   </section>
 
+  <!-- ================= ⑫ 해커톤 ================= -->
+  <section id="hackathon">
+    <div class="sec-head"><h2>⑫ 해커톤 — 에이전트 입구 3개 · 온보딩 흐름</h2><span class="count">신규 · D143~D158 · 2026-09-28</span></div>
+    <p class="sec-note">같은 MaintQ 데이터에 에이전트가 세 곳에서 붙습니다 — <b>웹 콘솔 Agent Loop</b>(기존) · <b>OpenClaw</b>(NemoClaw, 현장 진단) · <b>NAT</b>(NeMo Agent Toolkit, 새 기종 온보딩). 셋 다 OpenShell 샌드박스 안에서 돌고 Nemotron 을 게이트웨이로만 부릅니다. 출처: <code>docs/hackathon/SUBMISSION.md</code> §1~§3 · D143·D150~D154.</p>
+
+    <figure>
+      <div class="plate">
+<pre class="mermaid">
+flowchart TB
+  subgraph GW["OpenShell 게이트웨이 · API 키는 여기에만 (D143)"]
+    inf["https://inference.local<br/>→ build.nvidia.com<br/>nemotron-3-super-120b-a12b"]
+  end
+
+  subgraph SB1["샌드박스 maintq-agent · NemoClaw"]
+    oc["OpenClaw<br/>스킬 maintq-diagnose"]
+  end
+  subgraph SB2["샌드박스 maintq-nat"]
+    nat["NeMo Agent Toolkit<br/>tool_calling_agent + mcp_client<br/>가드 함수"]
+  end
+  subgraph SB3["샌드박스 maintq · 외부 허용 0건"]
+    web["웹 콘솔 백엔드<br/>Agent Loop · stdio MCP"]
+    sdb[("Postgres 스냅샷<br/>빌드 시점 (H8)")]
+  end
+
+  subgraph HOST["호스트 · MCP streamable-http (D150)"]
+    mcp1["MCP-HTTP #1 · 8765<br/>profile core · 7종<br/>bearer + X-User (D152)"]
+    mcp2["MCP-HTTP #2 · 8766<br/>profile onboarding · 3종"]
+  end
+
+  human["팀장 · /manager/onboarding<br/>검수 · 승격 · 안전 승인"]
+  db[("Postgres · 33 테이블")]
+
+  oc -->|"egress 프리셋<br/>/mcp 만 · node 만 (D151)"| mcp1
+  nat -->|"8766 만 열림"| mcp2
+  oc --> inf
+  nat --> inf
+  web --> inf
+  web --> sdb
+  mcp1 ==>|"draft INSERT 만 (D10)"| db
+  mcp2 ==>|"스테이징 4테이블 INSERT 만<br/>role maintq_onboarding (D154)"| db
+  human ==>|"사람 전용 API<br/>승격 · 반려 · 안전 승인"| db
+
+  linkStyle 6 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 7 stroke:#1D8A5C,stroke-width:3px;
+  linkStyle 8 stroke:#BC3B31,stroke-width:3px;
+</pre>
+      </div>
+      <figcaption><b>② 의 원칙이 그대로 세 입구에 걸립니다.</b> 초록 둘(에이전트 → INSERT 만)과 빨강 하나(사람 → 승격·승인). 온보딩 쓰기 도구는 전용 DB 역할로 스테이징 4테이블 INSERT 만 GRANT 받고, 정본 <code>error_codes</code>·<code>manual_chunks</code> 는 사람 전용 API 만 씁니다. OpenClaw 샌드박스는 같은 주소라도 <code>curl</code> 로 부르면 <code>binary not allowed in policy</code> 로 거부되고, NAT 샌드박스는 진단·발주 도구(8765)를 열지 않습니다. 발주 초안의 요청자는 LLM 이 채우는 파라미터가 아니라 <code>X-User</code> 헤더에서 서버가 읽습니다(D152).</figcaption>
+    </figure>
+
+    <figure style="margin-top:26px">
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  pdf["HV600 영문 PDF<br/>고장 표 p.107~124"]
+  rows["onboarding_code_rows<br/>원문 249행"]
+  norm["onboarding_normalizations<br/>261 · high 248 · low 1"]
+  sc["onboarding_safety_candidates<br/>후보 28"]
+  review{"사람 검수<br/>/manager/onboarding"}
+  ec["error_codes HV600 8<br/>manual_chunks 33"]
+  rej["반려 1행<br/>사유 필수"]
+  sa["SC-14 승인<br/>5분 · p.29"]
+  diag["진단<br/>승격 전 not_found<br/>승격 후 정의·원인·조치"]
+
+  pdf -->|"결정적 추출 · LLM 없음"| rows
+  pdf -->|"결정적 추출"| sc
+  rows -->|"NAT + Nemotron<br/>서버가 주입 의심을 low 로 덮음"| norm
+  norm --> review
+  review -->|"승격 · 되돌릴 수 없음"| ec
+  review -->|"반려"| rej
+  sc -->|"사람이 원문 대조 · 입력 · 승인"| sa
+  ec --> diag
+  sa -->|"resolve(model) · 승인 전 fail-closed (D157)"| diag
+</pre>
+      </div>
+      <figcaption><b>AI 가 쓰는 칸은 가운데 하나(정규화)뿐입니다.</b> 추출은 결정적 코드, 승격·반려·안전 승인은 사람입니다. 같은 질문 "HV600에서 GF 떴어" 가 승격 전에는 A/S 안내(유사 코드 추측 0), 승격 후에는 정의·원인·조치 + 사람이 승인한 안전 문구로 바뀝니다. 수치는 2026-09-25 공유 DB 실측(데모 메모 §2). ⛔ <code>data/seed.py</code> 는 이 스테이징·승격을 지웁니다(H9).</figcaption>
+    </figure>
+
+    <div class="note warn" style="margin-top:14px">
+      <b>그림에 없는 한계 —</b> OpenClaw 경로에는 웹 콘솔 <code>loop.py</code> 같은 시스템 안전 게이트가 없어 HV600 안전 문구는 모델이 스킬 규칙을 지키는지에 달려 있습니다.
+      샌드박스 <code>maintq</code> 는 빌드 시점 스냅샷이라 HV600 승격분이 없습니다(H8). 샌드박스 모드의 A2A 는 시도 전 <code>policy_blocked</code> 로 막힙니다(D149).
+    </div>
+  </section>
+
   <!-- ================= 근거 ================= -->
   <section>
     <div class="sec-head" style="margin-top:34px"><h2>⑪ RAG dense(임베딩) 검색 흐름 — DB가 Postgres로 바뀐 뒤</h2><span class="count">신규 · Sprint 16 D116·D117, 2026-08-24</span></div>
@@ -926,8 +1019,8 @@ flowchart LR
         <thead><tr><th>그림 요소</th><th>실제 위치</th></tr></thead>
         <tbody>
           <tr><td>REST 엔드포인트 <b>35종</b></td><td class="mono">backend/routers/ — chat · equipment · po · disposal(/api/assets) · decisions · approvals · inventory · hotspot_status(Sprint 10, D73) · <b>asset_monitoring</b>(Sprint 11, D73·D102)</td></tr>
-          <tr><td>MCP 도구 <b>20종</b> (코어 7 + 확장 13, 2026-08-24 정정 — CLAUDE.md가 오래 "18종"으로 잘못 적혀 있었다)</td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b> · <b>Sprint 11 추가분(track_deadlines·assess_risk_grade)도 동일 게이트</b></td></tr>
-          <tr><td>프론트 라우트 <b>22개</b> (2026-08-24 재정정, page.tsx 실측 — 계정 선택 화면 커밋이 21→22)</td><td class="mono">frontend/app/(console)/ — technician{,/equipment-status{,/[assetId]},/asset{,/[assetId]/{disposal,ownership,evidence,value}},/po/{new,[poId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,<b>/finance</b>,/trace/[sessionId],/deadlines,/risk-grade,/a2a} · app/page.tsx(루트 — <b>계정 선택 화면으로 용도 변경</b>) · app/v2/manager/po/[poId](D111)</td></tr>
+          <tr><td>MCP 도구 <b>20종</b> (코어 7 + 확장 13, 2026-08-24 정정 — CLAUDE.md가 오래 "18종"으로 잘못 적혀 있었다) · <b>2026-09-28 현재 22종 + 온보딩 프로필 3종</b></td><td class="mono">mcp_server/tools/ — 파일당 1개 · <b>확장분은 server.py 의 full 게이트 안</b> · <b>Sprint 11 추가분(track_deadlines·assess_risk_grade)도 동일 게이트</b></td></tr>
+          <tr><td>프론트 라우트 <b>22개</b> (2026-08-24 재정정, page.tsx 실측 — 계정 선택 화면 커밋이 21→22) · <b>2026-09-25 현재 27개</b>(next build — <code>/manager/onboarding</code>·<code>/technician/site</code> 포함)</td><td class="mono">frontend/app/(console)/ — technician{,/equipment-status{,/[assetId]},/asset{,/[assetId]/{disposal,ownership,evidence,value}},/po/{new,[poId]}} · manager{,/po/[poId],/decision/[decisionId],/repair/[repairId],/expenditure,<b>/finance</b>,/trace/[sessionId],/deadlines,/risk-grade,/a2a} · app/page.tsx(루트 — <b>계정 선택 화면으로 용도 변경</b>) · app/v2/manager/po/[poId](D111)</td></tr>
           <tr><td><b>계정 선택 화면 · 재무담당 전용 랜딩 (2026-08-24)</b></td><td class="mono">frontend/app/page.tsx("누구로 볼까요?" 3계정 시뮬레이션 신원 선택 — 정비사·정비팀장·재무담당, 실 로그인 아님 D23·D38·D52 범위 밖) · frontend/app/(console)/manager/finance/page.tsx(<code>ApprovalQueueScreen focus="finance"</code> 재사용) · components/queue/QueueList.tsx(<code>showPending</code>) · components/screens/ApprovalQueueScreen.tsx — <b>권한 경계는 여전히 백엔드 department 체크(D119)가 실제로 막는다, 이 화면들은 UI 편의일 뿐</b></td></tr>
           <tr><td>카드 · 배너 컴포넌트</td><td class="mono">components/chat/ — PoDraftCard · PoHoldCard · SafetyBlock · RepeatFaultBanner · ErrorLogAction</td></tr>
           <tr><td>승인 큐 컴포넌트</td><td class="mono">components/queue/ — QueueList · PoDetail · DecisionDetail · SignBar · <b>RepairDetail</b>(Sprint 10, MQ-1002) · EvidenceCard · SupplierCompare · DecisionBar</td></tr>
@@ -956,11 +1049,16 @@ flowchart LR
           <tr><td><b>S11 <code>notify-asset-change</code> 발신 (2026-09-09)</b></td><td class="mono">backend/a2a/payloads.py <code>build_notify_asset_change_payload()</code> · backend/routers/a2a.py — <b>서명 뒤</b>에 보낸다(S12 와 정반대: S12 는 담보를 푸는 수단이라 서명보다 앞선다). 미서명·부보 아님·<code>building_id</code> 없음은 <b>발신 전 400</b> 이고 <code>call_skill</code> 이 호출조차 되지 않는다</td></tr>
           <tr><td><b>부품 특정 «결론 표명» 조항 (D137, 2026-09-09)</b></td><td class="mono">backend/agent/prompts.py 규칙 3 가산 확장 — 규칙이 「조회 순서」만 규율하는데 실패는 「응답에서 무엇을 결론으로 내세우는가」에서 났다. 같은 날 통제 A/B(각 arm 120세션): <b>오특정 16.7% → 1.1%</b></td></tr>
           <tr><td><b>S13 담보심사 실호출 성공 (D138, 2026-09-10)</b></td><td class="mono">backend/a2a/payloads.py <code>inspection_data.original_cost</code>(= <code>assets.acquisition_cost</code>) — 안 보내면 상대가 원가를 <b><code>loan_amount</code> 로 대체</b>해 감정가가 늘 신청액보다 작아지고 <b>승인이 구조적으로 불가능</b>했다. 원가를 실은 뒤 같은 호출이 <code>REJECTED</code> → <code>UNDER_REVIEW</code> 로 넘어갔다. ⛔ <code>book_value</code> 는 보내지 않는다 — <code>appraised_value</code> 키는 상대의 감가상각을 통째로 건너뛰는 override 라 장부가액을 감정가로 둔갑시킨다</td></tr>
+          <tr><td><b>OpenShell 샌드박스 모드 (D143, 해커톤)</b></td><td class="mono">backend/agent/llm.py(<code>MAINTQ_SANDBOX=openshell</code> — <code>inference.local</code> 만, 샌드박스 안 키 발견 시 기동 거부) · deploy/openshell/(Dockerfile.sandbox · Dockerfile.nat · policy.yaml · policy-nat.yaml · start.sh)</td></tr>
+          <tr><td><b>MCP streamable-http 입구 · 신원 헤더 (D150~D152)</b></td><td class="mono">mcp_server/http_entry.py(같은 FastMCP 인스턴스) · mcp_server/identity.py(<code>X-User</code>) · deploy/nemoclaw/presets/maintq-mcp.yaml · deploy/nemoclaw/workspace/build.py(<code>--check</code>) · spikes/mcp_http_contract.py(17건)</td></tr>
+          <tr><td><b>HV600 온보딩 (Sprint 19, D153~D157)</b></td><td class="mono">data/extract_hv600_codes.py · data/extract_hv600_safety.py · mcp_server/onboarding_load.py · mcp_server/onboarding_guard.py · onboarding/nat/(workflow.yml · maintq_nat/guarded_stage.py · run_normalize.py) · backend/routers/onboarding.py · backend/agent/safety_source.py · skills/maintq-diagnose · skills/maintq-manual-onboarding</td></tr>
+          <tr><td><b>A2A <code>policy_blocked</code> (D149)</b></td><td class="mono">backend/a2a/ — 샌드박스 모드에서 시도 전 분류, 차단기 회계 제외 (pytest +6)</td></tr>
+          <tr><td><b>사업장 평면도 (D158)</b></td><td class="mono">data/site_layout.py(정본) · scripts/migrate_d158_sites.py(멱등) · <code>GET /api/sites</code>·<code>/api/sites/{id}/floorplan</code> · /technician/site · spikes/site_floorplan_contract.py(13건)</td></tr>
         </tbody>
       </table>
     </div>
     <div class="note" style="margin-top:16px">
-      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>34스위트 / 1,212건</b>(+ seed 41 · pytest <b>295건</b>(19파일: 코어 7파일군 128 · A2A 9파일군 147 · 서비스 3파일군 20), 실측 2026-09-10) — 특히
+      <b>이 그림들이 지켜지는지는 회귀로 검증됩니다.</b> spikes <b>41스위트 / 1,387건</b>(+ seed 44 · pytest <b>406건</b>(23파일: 7파일군 138 · A2A 9파일군 168 · 서비스 3파일 20 · <code>mcp_server/</code> 80), <code>CLAUDE.md</code> 실측 2026-09-25) — 특히
       <code>write_tool_contract</code>(쓰기 도구 계약) · <code>disposal_sign_contract</code>(4층 방어) ·
       <code>bundle_integrity</code>(번들 5키) · <code>s10_smoke</code>(S9→S10 관통) ·
       <code>deadline_risk_contract</code>(Sprint 11 신설 — 기한·위험등급 계약) ·
@@ -972,7 +1070,7 @@ flowchart LR
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-09-17 · 라우트 25개 · 도구 22종 · 회귀 1,609건</span>
+    <span>최종 갱신 2026-09-28 · 라우트 27개 · 도구 22종 + 온보딩 3 · 테이블 33 · 회귀 1,837건</span>
     <span>관련 문서: <code>02_SCENARIOS</code> · <code>06_REPO_API</code> · <code>09_RUNTIME</code> · <code>10_DECISIONS</code> · <code>11_ASSET_LIFECYCLE</code></span>
   </footer>
 

@@ -110,7 +110,7 @@
 
   /* ---------- Milestone rail ---------- */
   .milestones {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
     margin-bottom: 18px;
   }
   .note-strip {
@@ -252,9 +252,9 @@
     <div class="title-block">
       <p class="eyebrow">MaintQ · 도구 오케스트레이션</p>
       <h1>설비 진단 → 부품 발주 AI 에이전트, 진행 현황</h1>
-      <p>에러코드 진단 → 부품 발주에서 시작해, <b>설비를 팔 때와 살 때</b>(법정 조건 검사 · 근거 번들 · 사람 서명)까지 하나의 대화로 잇는 B2B 제조 보전 에이전트. 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
+      <p>에러코드 진단 → 부품 발주에서 시작해, <b>설비를 팔 때와 살 때</b>(법정 조건 검사 · 근거 번들 · 사람 서명)까지 하나의 대화로 잇는 B2B 제조 보전 에이전트. <b>NVIDIA 해커톤(2026-09)에서는 그 위에 새 기종(Yaskawa HV600) 매뉴얼 온보딩과 OpenShell 샌드박스 · NemoClaw/OpenClaw · NeMo Agent Toolkit 런타임을 얹었습니다.</b> 아래는 지금까지 구현된 것, 막혀 있는 것, 앞으로 만들 것과 그 근거 데이터 상태를 한 화면에 정리한 것입니다.</p>
     </div>
-    <div class="asof">기준 시점<b>2026-09-17</b></div>
+    <div class="asof">기준 시점<b>2026-09-28</b><span style="display:block;font-size:11px;margin-top:3px;color:var(--warn);font-weight:650">최종 갱신 2026-09-28 · 수치는 CLAUDE.md 2026-09-25 실측</span></div>
   </header>
 
   <div class="milestones">
@@ -282,6 +282,11 @@
       <div class="ms-id">Sprint 5~18</div>
       <div class="ms-name">확장 · 자산 생애주기 · A2A · Postgres 전환 · 재무 승인</div>
       <span class="ms-state">완료</span>
+    </div>
+    <div class="ms active">
+      <div class="ms-id">Sprint 19 · 해커톤</div>
+      <div class="ms-name">HV600 온보딩 · OpenShell · NemoClaw · NAT</div>
+      <span class="ms-state">구현 완료 · 제출 준비</span>
     </div>
   </div>
 
@@ -363,16 +368,129 @@
     <i>"미착수"</i>로 적어 <b>하지 않기로 한 일을 밀린 일처럼</b> 보이게 했던 것을 바로잡았습니다.
   </div>
 
+  <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
+    <b>2026-09-18 ~ 09-28 — NVIDIA 해커톤: 「에이전트는 초안까지, 결정은 사람」을 샌드박스 안에서 증명했습니다.</b>
+    미션은 <i>Securing Agents with NemoClaw and OpenShell</i>. 제출용 레포를 <code class="inline">ttogle918/MaintQ-NemoClaw</code>
+    (Apache-2.0, 현재 비공개)로 옮겼고, 결정 <b>D143~D158</b>(16건)이 더해졌습니다. 핵심 시나리오는 하나입니다 —
+    같은 질문 <i>"HV600에서 GF 떴어"</i>가 승격 전에는 <b>「매뉴얼에서 확인되지 않는 코드 → A/S 안내」</b>(유사 코드 추측 0),
+    사람이 검수·승격·안전 문구 승인을 마친 뒤에는 <b>「정의·원인·조치 + 사람이 승인한 안전 문구(최소 5분, 근거 p.29)」</b>로 바뀝니다.
+    <b>마감은 2026-09-28 23:59</b>이고 남은 것은 전부 사람 몫입니다(아래 「해커톤 제출 전 남은 일」).
+  </div>
+
+  <!-- ============ 해커톤 · Sprint 19 ============ -->
+  <section>
+    <div class="sec-head"><h2>NVIDIA 해커톤 · Sprint 19 — 새로 생긴 것</h2><span class="count">D143~D158 · 2026-09-18 ~ 09-28</span></div>
+    <p class="sec-note">출처: <code class="inline">docs/hackathon/SUBMISSION.md</code> · <code class="inline">docs/sprints/sprint-19.md</code> · <code class="inline">docs/10_DECISIONS.md</code> D143~D158. 대상 기종은 Yaskawa HV600(HVAC 팬·펌프용 인버터, D145)이며, 특정 공장이 이 기종을 쓴다고 주장하지 않습니다.</p>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-head"><h3>OpenShell 샌드박스 3개 — 키는 게이트웨이에만</h3><span class="chip done">완료</span></div>
+        <p class="desc"><code class="inline">maintq</code>(웹 콘솔 백엔드, BYOC) · <code class="inline">maintq-nat</code>(온보딩 NAT) · <code class="inline">maintq-agent</code>(NemoClaw/OpenClaw). 샌드박스 모드(<code class="inline">MAINTQ_SANDBOX=openshell</code>, D143)에서는 LLM 을 게이트웨이 <code class="inline">https://inference.local</code> 로만 부르고, 샌드박스 안에 <code class="inline">NVIDIA_API_KEY</code> 가 보이면 기동을 거부합니다. 웹 콘솔 샌드박스는 외부 허용 <b>0건</b> — 직접 호출은 전부 403 + OCSF 로그. <code class="inline">/app</code> 쓰기는 Landlock 이 거부(<code class="inline">PermissionError 13</code>).</p>
+        <div class="meta"><span class="tag">D143</span><span class="tag">deploy/openshell/</span><span class="tag">이미지 17,833파일 스캔 · 비밀값 0건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>MCP streamable-http 입구 + 요청자 신원 헤더</h3><span class="chip done">완료</span></div>
+        <p class="desc">NemoClaw 가 stdio MCP 를 받지 않아 같은 FastMCP 인스턴스에 두 번째 입구 <code class="inline">mcp_server/http_entry.py</code> 를 더했습니다(stdio 유지, D150). OpenClaw 는 <code class="inline">host.openshell.internal:8765</code> 의 <code class="inline">/mcp</code> 만, 실행 파일 <code class="inline">node</code> 만 허용하는 커스텀 egress 프리셋으로 붙습니다(D151 — 같은 주소를 <code class="inline">curl</code> 로 부르면 거부). 발주 초안의 요청자는 LLM 파라미터가 아니라 <code class="inline">X-User</code> 헤더에서 서버가 읽습니다(D152).</p>
+        <div class="meta"><span class="tag">D150·D151·D152</span><span class="tag">mcp_http_contract 17건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>OpenClaw(NemoClaw) 현장 진단 + 제품 스킬</h3><span class="chip done">완료</span></div>
+        <p class="desc">OpenClaw 가 MaintQ MCP(core 7종)에 붙어 스킬 <code class="inline">skills/maintq-diagnose</code> 로 진단합니다. 워크스페이스는 정본 코드와 DB 승인 상태에서 <code class="inline">deploy/nemoclaw/workspace/build.py</code> 로 생성하고 <code class="inline">--check</code> 로 드리프트를 잡습니다. 2026-09-27 재생성·업로드·스킬 재설치 — 샌드박스 안 4파일 sha256 이 로컬과 일치. 스킬은 SkillSpector 게이트를 통과(<code class="inline">maintq-diagnose</code> 0점 · 커버리지 100%).</p>
+        <div class="meta"><span class="tag">D151</span><span class="tag">deploy/nemoclaw/</span><span class="tag">SkillSpector</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>NAT 한국어 정규화 — HV600 249행 전량</h3><span class="chip done">완료</span></div>
+        <p class="desc">표 추출은 결정적 코드(LLM 없음, <code class="inline">data/extract_hv600_codes.py</code>·<code class="inline">extract_hv600_safety.py</code>), 한국어 초안은 샌드박스 <code class="inline">maintq-nat</code> 안의 NeMo Agent Toolkit + Nemotron(<code class="inline">nvidia/nemotron-3-super-120b-a12b</code>)이 <b>스테이징 테이블에만</b> 씁니다(D153). 전량 2,588초. 첫 프롬프트의 과탐 12행은 새 INSERT 로 재정규화(12/12 high) — 최종 high 248 · low 1. 주입 의심은 서버가 결정적으로 판정해 에이전트의 <code class="inline">confidence=high</code> 를 덮습니다(합성 주입 픽스처 5/5).</p>
+        <div class="meta"><span class="tag">D145·D153·D154</span><span class="tag">onboarding/nat/</span><span class="tag">skills/maintq-manual-onboarding</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>사람 검수·승격·안전 문구 승인 ★</h3><span class="chip done">완료 · 사람 작업 H2~H5·H7</span></div>
+        <p class="desc">스테이징 5테이블(§25~§29) + 전용 DB 역할 <code class="inline">maintq_onboarding</code>(스테이징 4테이블 INSERT 만 GRANT) + 전용 도구 프로필 <code class="inline">onboarding</code>(3종 — <code class="inline">core</code>·<code class="inline">full</code> 어디에도 없음, D154). 승격·반려·안전 승인은 사람 전용 API(<code class="inline">backend/routers/onboarding.py</code>)와 검수 화면 <code class="inline">/manager/onboarding</code> 뿐입니다. 결과: <b>8코드 승격</b>(CE·GF·OC·OV·UV1·OH·CPF06·EF1) · 반려 1행 · <code class="inline">error_codes</code> HV600 8 · 승격 RAG 청크 33 · 안전 문구 SC-14(p.29, <b>5분</b>) 승인 1건. 원문에 없는 숫자는 API 가 거부(<code class="inline">number_not_in_source</code>).</p>
+        <div class="meta"><span class="tag">D146·D147·D154·D155·D156·D157</span><span class="tag">승격 취소 API 없음(H10)</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>model enum 4종 — HV600 은 DB 상태로 게이트</h3><span class="chip done">완료</span></div>
+        <p class="desc">enum 은 <code class="inline">iG5A · S100 · IE5 · HV600</code>. HV600 은 enum 에 먼저 등록만 되고 「진단 가능」은 온보딩 승격 상태가 정합니다 — 승격 전 <code class="inline">lookup_error_code(model="HV600")</code> 는 <code class="inline">not_found</code>(절대규칙 6 그대로). 안전 문구는 정적 상수가 아니라 <b>DB 승인분만</b> 런타임에 <code class="inline">resolve(model)</code> 한 함수로 읽고, 승인 전에는 fail-closed(D157). 에러코드 형식 CHECK 는 2~5자·하이픈 허용으로 넓혔습니다(D155 — <code class="inline">CPF06</code>). RAG 는 jsonl ∪ DB(D148).</p>
+        <div class="meta"><span class="tag">D146·D148·D155·D157</span><span class="tag">model_enum_contract 10 · onboarding_safety_gate 22</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>A2A <code class="inline">policy_blocked</code> — 시도 전 차단</h3><span class="chip done">완료 · 데모 제외</span></div>
+        <p class="desc">샌드박스 모드에서는 파트너 호출을 시도하기 <b>전에</b> <code class="inline">policy_blocked</code> 로 분류하고 차단기 회계에서 뺍니다 — 원래는 프록시 403 을 상대 응답으로 오인했습니다. 발신 경로는 호스트 pytest 로 검증했고(A2A 9파일 168건), OpenShell 안에서는 시연하지 않았습니다. 이 레포에서 A2A 는 더 확장하지 않기로 했습니다(2026-09-25 사용자 결정).</p>
+        <div class="meta"><span class="tag">D149</span><span class="tag">pytest +6</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>사업장 평면도 — 자체 SVG (Sprint 19 Stage 5)</h3><span class="chip done">완료</span></div>
+        <p class="desc">신규 <code class="inline">sites</code>·<code class="inline">zones</code>·<code class="inline">equipment_locations</code>(§30~§32, D158) — <code class="inline">equipment</code> 에는 컬럼을 달지 않아 A2A 페이로드가 구조적으로 바뀌지 않습니다. 사업장 1곳(「목업 제1공장」) · 구역 5 · 위치 12행 · <b>HV600 설비 2행</b>(<code class="inline">INV-HV-01</code>·<code class="inline">INV-HV-02</code>). 화면 <code class="inline">/technician/site</code>. 공유 DB 는 재시드 대신 멱등 마이그레이션 <code class="inline">scripts/migrate_d158_sites.py</code> 로만 반영합니다.</p>
+        <div class="meta"><span class="tag">D158</span><span class="tag">site_floorplan_contract 13건</span></div>
+      </div>
+    </div>
+
+    <div class="datatable-wrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th>데모 영상 장면 (8장면 · 장면 2 는 09-25, 나머지 09-28 녹화)</th><th>보여 주는 것</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1 인트로</td><td>문제(영문 PDF 한 권 · 잘못된 진단·안전 문구) · 역할 분리 4단계 · 원칙</td></tr>
+          <tr><td class="num">2 확정 전 진단</td><td>OpenClaw — "HV600에서 GF 떴어" → 확인되지 않는 코드, 추측 없이 표시부 재확인·A/S 안내</td></tr>
+          <tr><td class="num">3 NAT 정규화 + 주입 방어</td><td>합성 주입 픽스처 → 지시를 따르지 않고 해당 문장만 <code class="inline">[원문 확인 필요]</code>·<code class="inline">confidence=low</code>(게이트 5/5) · 실데이터 249행 전량 정규화(high 248 · low 1). 실제 실행 기록 재생</td></tr>
+          <tr><td class="num">4 사람 검수·확정</td><td><code class="inline">/manager/onboarding</code> — AI 초안 라벨 · 코드 그룹 단위 확정(8코드 · 반려 1행) · 안전 문구 후보 28건 중 사람이 p.29 와 대조해 승인</td></tr>
+          <tr><td class="num">5 확정 후 진단</td><td>OpenClaw 새 세션 — GF 정의·원인·조치(p.108) + 사람이 승인한 안전 문구(최소 5분, p.29)</td></tr>
+          <tr><td class="num">6 웹 콘솔 진단 → 발주</td><td>iG5A OHt: lookup·RAG·안전 블록 → 재고 미달 → 견적 비교 → 사용자 선택 뒤에만 <code class="inline">create_po_draft</code> → 팀장 승인 → trace</td></tr>
+          <tr><td class="num">7 보안 증거</td><td>샌드박스 안에는 키 대신 게이트웨이 참조값뿐 · egress 차단(OCSF 로그) · MCP 주소도 <code class="inline">node</code> 만 · DB 가 도구의 UPDATE 를 거부</td></tr>
+          <tr><td class="num">8 재무 승인(SoD)</td><td>재무 계정에서만 「재무 승인」 · 예산·1일 누적·FDS·직무분리 판정 표시 · 부서 없이 API 직접 호출 → 403(D119)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note" style="margin-top:10px">출처 <code class="inline">SUBMISSION.md</code> §4 · 세션 로그 2026-09-28. 되돌릴 수 없는 버튼(승격·안전 승인·재무 승인)은 녹화 중 누르지 않고 끝난 상태만 보입니다. 파트너(FinAllQ) 출금 요청 성공 장면은 없습니다(파트너를 띄우지 않아 403 까지). 장면 6 은 첫 테이크에 안전 가드 치환 문장이 섞여 재녹화했습니다(아래 「알려진 문제점」).</p>
+
+    <div class="sec-head" style="margin-top:28px"><h2>해커톤 제출 전 남은 일</h2><span class="count">마감 2026-09-28 23:59 · 전부 사람 몫</span></div>
+    <div class="issue">
+      <span class="sev warn">사람</span>
+      <div>
+        <h4>S2 — 데모 영상 편집 · 링크 기입</h4>
+        <p><code class="inline">SUBMISSION.md</code> §4 「(링크: 사람이 기입)」과 <code class="inline">docs/memo/2026-09-25-hv600-onboarding-demo.md</code> §1 「영상 파일 위치」.</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">사람</span>
+      <div>
+        <h4>S3 — 스킬 카드 검토</h4>
+        <p><code class="inline">skills/maintq-manual-onboarding/skill-card.md</code> 초안은 Claude 가 2026-09-27 작성 — Use Case 문구 · <code class="inline">Requires API Key</code> · 버전 SHA 를 사람이 확인합니다.</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">사람</span>
+      <div>
+        <h4>S5 — 레포 공개</h4>
+        <p>공개 전 점검은 완료(2026-09-27) — LICENSE Apache-2.0 · 추적 <code class="inline">.env</code> 는 example 2개뿐 · 매뉴얼 원본 미추적 · <code class="inline">.env</code> 실값 히스토리 유출 0 · 커밋 이메일 전부 noreply. <b>공개 클릭만 남았습니다.</b></p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">사람</span>
+      <div>
+        <h4>S6 — <code class="inline">SUBMISSION.md</code> 최종 읽기</h4>
+        <p>수치(spikes 41/1,387 · pytest 406 · seed 44 · 라우트 27 · D1~D158)는 2026-09-27 전수 실측으로 일치 확인. 사람의 최종 읽기가 남았습니다.</p>
+        <div class="fix"><b>완료된 것 —</b> S1(H6 SkillSpector HIGH 1 수용, 2026-09-27) · S4(OpenClaw 워크스페이스·스킬 재설치, 2026-09-27). ⛔ 상시: <b>데모 전 <code class="inline">data/seed.py</code> 재실행 금지</b>(H9 — LLM 정규화·승격·안전 승인이 복구되지 않음).</div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 8종</span></div>
-    <p class="sec-note">회귀 <b>spikes 34스위트 / 1,212건</b> · seed <b>43</b> · pytest <b>354</b>(22파일 합산) + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 41스위트 / 1,387건</b> · seed <b>44</b> · pytest <b>406</b>(23파일 합산) — <code class="inline">CLAUDE.md</code> 2026-09-25 실측, <code class="inline">law_fetch_contract ⓚ</code> 기존 오탐 1건 외 FAIL 0 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
         <div class="card-head"><h3>에러코드 진단 — 룩업 × RAG 이원화</h3><span class="chip done">완료</span></div>
         <p class="desc"><code class="inline">lookup_error_code</code>는 코드→의미를 결정론적으로 반환(exact match), <code class="inline">rag_search_manual</code>은 점검 절차를 매뉴얼에서 검색. 모든 답변에 근거 페이지 인용 포함.</p>
-        <div class="meta"><span class="tag">D1·D25·D26</span><span class="tag">iG5A + S100 실데이터 65건</span></div>
+        <div class="meta"><span class="tag">D1·D25·D26·D109</span><span class="tag">시드 70건 = iG5A 24 + S100 41 + IE5 5</span><span class="tag">+ HV600 8 (공유 DB 사람 승격, D156)</span></div>
       </div>
 
       <div class="card">
@@ -395,7 +513,7 @@
 
       <div class="card">
         <div class="card-head"><h3>안전 가드레일 ★</h3><span class="chip partial">완료(품질 한계 있음)</span></div>
-        <p class="desc">위험 작업 언급 시 매뉴얼 근거와 함께 <code class="inline">safety</code> block을 절차 서술 전에 삽입. 방전 대기 기준 "10분 이상" 반영. 다만 아래 문제점 항목의 표면형 매칭 한계 참조.</p>
+        <p class="desc">위험 작업 언급 시 매뉴얼 근거와 함께 <code class="inline">safety</code> block을 절차 서술 전에 삽입. 방전 대기 기준 "10분 이상"(iG5A·S100). <b>HV600 은 정적 상수가 아니라 사람이 승인한 DB 행(SC-14, 5분, p.29)에서만</b> 읽고 승인 전에는 fail-closed(D157). 다만 아래 문제점 항목의 표면형 매칭 한계 참조.</p>
         <div class="meta"><span class="tag">D2·D22</span><span class="tag">DANGER_KEYWORDS 19종</span></div>
       </div>
 
@@ -407,14 +525,14 @@
 
       <div class="card">
         <div class="card-head"><h3>MCP 서버 · 백엔드 · Agent Loop</h3><span class="chip done">완료</span></div>
-        <p class="desc">도구 <b>22종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 15(읽기 13 + 쓰기 2). <b>D140(2026-09-11)이 <code class="inline">assess_used_equipment_loan</code>을 더했고 2026-09-16 master 에 병합됐습니다.</b> <b>Sprint 11이 읽기 전용 2종(<code class="inline">track_deadlines</code>·<code class="inline">assess_risk_grade</code>, D102)을 더했습니다.</b> 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료.</p>
-        <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88·D98·D102</span><span class="tag">core 7 · full 18</span></div>
+        <p class="desc">도구 <b>22종</b> — 코어 7(읽기 6 + 쓰기 1) + 확장 15(읽기 13 + 쓰기 2). <b>D140(2026-09-11)이 <code class="inline">assess_used_equipment_loan</code>을 더했고 2026-09-16 master 에 병합됐습니다.</b> <b>Sprint 11이 읽기 전용 2종(<code class="inline">track_deadlines</code>·<code class="inline">assess_risk_grade</code>, D102)을 더했습니다.</b> 확장분은 <code class="inline">MAINTQ_TOOLS_PROFILE=full</code>에서만 등록되고 <b>평가는 항상 <code class="inline">core</code>에서만</b> 인정됩니다(D69·D88, 코드로 강제). 프로세스 분리(D15). Gemini 실 API 검증 완료. <b>해커톤에서 streamable-http 입구(D150)와 <code class="inline">onboarding</code> 프로필 3종(§23~§25 — <code class="inline">list_onboarding_rows</code>·<code class="inline">stage_code_normalization</code>(쓰기 도구 4번째)·<code class="inline">get_onboarding_status</code>, D154)이 더해졌습니다.</b> 추론 모델은 <code class="inline">nvidia/nemotron-3-super-120b-a12b</code>.</p>
+        <div class="meta"><span class="tag">D9·D15·D40·D56·D69·D88·D98·D102·D150·D154</span><span class="tag">core 7 · full 22 · onboarding 3</span></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>UI — 라우트 25개</h3><span class="chip done">완료</span></div>
-        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · <b>설비 하이라이트 대시보드</b>(목록·상세, 실 도면 핫스팟) · <b>재고 드로어</b> · <b>근거 번들 화면</b> · <b>지출 분류 화면</b> · 팀장 통합 승인 큐(<b>처분서 · 수리 증빙</b> 상세) · <b>기한 조회</b> · <b>위험등급 조회</b>(Sprint 12) · trace. 실측 <code class="inline">npx next build</code> 기준 18 라우트.</p>
-        <div class="meta"><span class="tag">D18·D42·D45·D73·D85·D87</span><span class="tag">ui_honesty_contract 253건</span></div>
+        <div class="card-head"><h3>UI — 라우트 27개</h3><span class="chip done">완료</span></div>
+        <p class="desc">정비사 콘솔 · 자산 목록 · 처분 사전판정 · <b>실사(S18)</b> · <b>설비 하이라이트 대시보드</b>(목록·상세, 실 도면 핫스팟) · <b>재고 드로어</b> · <b>근거 번들 화면</b> · <b>지출 분류 화면</b> · 팀장 통합 승인 큐(<b>처분서 · 수리 증빙</b> 상세) · <b>기한 조회</b> · <b>위험등급 조회</b>(Sprint 12) · trace · <b>기종 온보딩 검수</b>(<code class="inline">/manager/onboarding</code>, Sprint 19) · <b>사업장 평면도</b>(<code class="inline">/technician/site</code>, D158). 실측 <code class="inline">npx next build</code> 기준 27 라우트(2026-09-25).</p>
+        <div class="meta"><span class="tag">D18·D42·D45·D73·D85·D87</span><span class="tag">ui_honesty_contract 364건</span></div>
       </div>
 
       <div class="card">
@@ -481,7 +599,7 @@
   <!-- ============ 진행 중 / 막힘 ============ -->
   <section>
     <div class="sec-head"><h2>완료된 지표 튜닝 — Sprint 7 Stage 7 (MQ-713)</h2><span class="count">지표 튜닝 + 4차 평가 · 완료</span></div>
-    <p class="sec-note">2026-08-12에 종료된 스프린트의 마지막 태스크 기록입니다. <b>측정 → 원인 분석 → 튜닝</b> 루프였습니다. 이후 새 평가 회차는 없습니다 — Sprint 8~10은 튜닝이 아니라 A2A 신원 계층 · 수리 증빙 · 근거 번들 화면 등 <b>새 기능</b>을 붙이는 스프린트였습니다. 이 절의 수치는 지금도 5지표의 최신 실측값입니다.</p>
+    <p class="sec-note">2026-08-12에 종료된 스프린트의 마지막 태스크 기록입니다. <b>측정 → 원인 분석 → 튜닝</b> 루프였습니다. 이후 새 평가 회차는 없습니다 — Sprint 8~10은 튜닝이 아니라 A2A 신원 계층 · 수리 증빙 · 근거 번들 화면 등 <b>새 기능</b>을 붙이는 스프린트였습니다. 이 절의 수치는 그 시점의 5지표 실측값입니다 <b>(2026-09-28 주: 이후 부품 특정 재측정은 위 「09-06 ~ 09-10」 노트 — D135·D137, 오특정 16.7% → 1.1% — 에 있고, Nemotron 기준 재측정은 아직 없습니다)</b>.</p>
     <div class="grid cols-3">
       <div class="card">
         <div class="card-head"><h3>3차 측정 · 원인 분석</h3><span class="chip done">완료</span></div>
@@ -606,7 +724,59 @@
       </div>
     </div>
 
-    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">4건 남음 — 사람 승인 <b>0</b> · 상대 승인 대기 1 · 환경 1 · 원인 미특정 2 <span style="font-size:11px">(2026-09-17 갱신)</span></span></div>
+    <div class="sec-head"><h2>알려진 문제점</h2><span class="count">해커톤 한계 7건 신규 · 기존 해소 3건 표시 <span style="font-size:11px">(2026-09-28 갱신)</span></span></div>
+    <p class="sec-note">위쪽 7건은 해커톤·Sprint 19 에서 드러난 한계입니다(출처 <code class="inline">SUBMISSION.md</code> §6 · <code class="inline">docs/07_BACKLOG.md</code>). 그 아래는 2026-09-17 까지의 기록이며, 이번 갱신에서 해소된 항목에 표시만 바꿨습니다.</p>
+    <div class="issue">
+      <span class="sev warn">UX · 신규</span>
+      <div>
+        <h4>안전 가드 오탐 — 부품 <b>이름</b>에 위험 키워드가 들어 있으면 발주 문장이 치환됩니다</h4>
+        <p>웹 콘솔 안전 가드는 <code class="inline">DANGER_KEYWORDS</code> 를 문장 텍스트로 찾습니다. FAN-IG5-01 「냉각팬」처럼 부품 이름에 키워드가 있으면 매뉴얼을 조회하지 않은 발주 턴에서도 「근거 문서를 확인하지 못해 작업 절차를 안내할 수 없습니다.」로 바뀝니다(2026-09-28 녹화 3회 중 2회).</p>
+        <div class="fix"><b>판단 —</b> 경고가 넘치는 쪽의 보수적 오탐이라 안전합니다. 마감일에 안전 규칙을 바꾸지 않았고, 절차 서술과 부품 명칭을 가르는 판정은 후속입니다 — <b>게이트를 좁히지 말 것</b>.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">보안 · 신규</span>
+      <div>
+        <h4>OpenClaw 경로에는 시스템 안전 게이트가 없습니다</h4>
+        <p>웹 콘솔은 <code class="inline">loop.py</code> 가 안전 블록을 시스템으로 붙이고 막지만, OpenClaw 경로에서 HV600 안전 문구는 모델이 워크스페이스·스킬 규칙을 지키는지에 달려 있습니다. 또 OpenClaw 등록 토큰과 <code class="inline">X-User</code> 헤더가 샌드박스 안 설정 파일에 평문으로 있어, 파일 쓰기 도구를 가진 에이전트가 신원을 바꿔 쓸 수 있습니다(토큰↔사용자 바인딩은 후속, D151·D152 한계).</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev warn">평가 · 신규</span>
+      <div>
+        <h4>평가 수치는 Nemotron 으로 재측정하지 않았습니다</h4>
+        <p>평가 기준선은 이전 모델(<code class="inline">gpt-oss:120b</code>) 기준이고, 이후 시스템 프롬프트가 바뀌어(<code class="inline">e9005f0</code>·<code class="inline">4614b79</code>·<code class="inline">1cf93e8</code>) <b>이전 결과·LLM 카세트와 비교할 수 없습니다</b>. 아래 「지표 튜닝」 절의 수치는 그 시점 기록입니다.</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">운영 · 신규</span>
+      <div>
+        <h4>웹 콘솔 샌드박스에는 HV600 승격분이 없습니다 (H8) · 승격 취소 API 가 없습니다 (H10)</h4>
+        <p>샌드박스 <code class="inline">maintq</code> 는 빌드 시점 DB 스냅샷이라 반영하려면 덤프 → 재빌드 → 재생성이 필요하고, 그 덤프는 온보딩 역할·GRANT 를 옮기지 않습니다. 잘못 승격하면 사람이 DB 를 직접 되돌립니다.</p>
+        <div class="fix"><b>상시 금지 —</b> 데모 전 <code class="inline">data/seed.py</code> 재실행(H9). 시드는 <code class="inline">DROP SCHEMA public CASCADE</code> 라 NAT 정규화(약 43분)·승격·안전 승인이 복구되지 않습니다.</div>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">한계 · 신규</span>
+      <div>
+        <h4>HV600 절차 근거는 고장 표뿐 · 샌드박스 안 검색은 키워드 전용</h4>
+        <p>승격된 HV600 RAG 청크는 고장 표뿐이라 부품 교체 같은 절차를 물으면 「근거 확인 못 함 → 제조사 문의」로 답합니다(의도된 동작). 게이트웨이가 모델 1개만 라우팅해 샌드박스 안에서는 임베딩을 쓸 수 없습니다.</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">모델 · 신규</span>
+      <div>
+        <h4>Nemotron 응답에 다른 언어 토큰이 섞인 기록 · NVIDIA 무료 티어 과부하</h4>
+        <p>중국어 「参照」 등이 섞인 기록이 있어 웹 콘솔에 한국어 전용 규칙을 추가했습니다(<code class="inline">prompt_rules</code> ㉖). <code class="inline">Service temporarily overloaded</code> 가 간헐적으로 나서(2026-09-28 녹화 중 10회 이상) 라이브보다 녹화를 권장합니다.</p>
+      </div>
+    </div>
+    <div class="issue">
+      <span class="sev info">회귀 · 기존 오탐</span>
+      <div>
+        <h4><code class="inline">law_fetch_contract ⓚ</code> 가 매번 1건 FAIL 합니다</h4>
+        <p><code class="inline">.env</code> 의 <code class="inline">LAW_API_OC</code> 값이 GitHub 아이디와 같아 추적 파일에서 「인증값 유출」로 잡히는 오탐입니다. 값을 실제 발급 OC 로 바꾸면 해소됩니다. <b>ⓚ 외의 FAIL 은 오탐이 아닙니다.</b></p>
+      </div>
+    </div>
     <div class="issue">
       <span class="sev info">✅ 해결</span>
       <div>
@@ -624,9 +794,9 @@
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">사람 승인</span>
+      <span class="sev info">해소됨 (2026-09-16)</span>
       <div>
-        <h4>SAFETY_BASELINE / QUALIFIED_WORKER_NOTE 문안 최종 검수 대기</h4>
+        <h4>✅ <s>SAFETY_BASELINE / QUALIFIED_WORKER_NOTE 문안 최종 검수 대기</s> — 2026-09-16 문안 검수 완료(<code class="inline">text_reviewed_at</code>)</h4>
         <p>방전 대기 "10분 이상" 기준값 자체는 승인 완료. 남은 건 paraphrase된 문장이 매뉴얼 의미를 넘지 않는지, 인용 페이지(iG5A p.4 / S100 p.2)가 정확한지 확인.</p>
         <div class="fix"><b>런타임 영향 없음 —</b> 검수 전에도 안전 블록은 계속 발행됨(게이트하면 더 위험해지므로). ⛔ 지표가 미달이어도 <b>문구는 고치지 않고 발행 조건만</b> 조정합니다.</div>
       </div>
@@ -640,9 +810,9 @@
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">사람 승인</span>
+      <span class="sev info">해소됨 (2026-08-19)</span>
       <div>
-        <h4><b>🔴 신규</b> — <code class="inline">DISAGREE</code> 판정 중 iG5A <code class="inline">EEP</code>·<code class="inline">HWT</code> 2건 확인 대기</h4>
+        <h4>✅ <s><code class="inline">DISAGREE</code> 판정 중 iG5A <code class="inline">EEP</code>·<code class="inline">HWT</code> 2건 확인 대기</s> — <code class="inline">DISAGREE</code> 6건 확인 완료, 조치 불필요</h4>
         <p>실판독 34페이지 대조 결과 <code class="inline">DISAGREE</code> 6건 중 4건은 <b>알려진 위양성</b>(설명문의 "교체" 표지어 오탐 · <code class="inline">LCW</code>/<code class="inline">LOR</code>의 동일 <code class="inline">error_name</code> 앵커 충돌)으로 판별됐지만, 나머지 2건은 원인이 아직 불확실해 사람 확인이 필요합니다.</p>
         <div class="fix"><b>영향 없음 —</b> 정본 <code class="inline">error_codes.json</code>은 이 2건에 대해 아무것도 바뀌지 않은 상태입니다. 확인 결과에 따라 <code class="inline">CONFIRMED_ABSENT</code> 또는 별도 회수 후보로 재분류될 수 있습니다.</div>
       </div>
@@ -681,9 +851,9 @@
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">UX</span>
+      <span class="sev info">해소됨 (2026-09-25)</span>
       <div>
-        <h4>반복 조회 가드가 <b>내부 사정을 사용자에게 그대로 노출</b>합니다</h4>
+        <h4>✅ <s>반복 조회 가드가 <b>내부 사정을 사용자에게 그대로 노출</b>합니다</s> — 루프 가드·도구 상한에서도 최종 답 1회를 내도록 수정(<code class="inline">e9005f0</code>, <code class="inline">agent_loop_contract</code> ③-b·③-c·④-b)</h4>
         <p>MQ-714 원복으로 구 동작이 돌아왔습니다 — 직전과 동일한 (도구, 인자) 호출을 만나면 <code class="inline">"같은 조회를 반복하고 있어 중단했습니다. 현재까지 확인된 정보로 답변합니다."</code>만 남기고 <b>턴을 끝냅니다.</b> 정비사에게는 <b>답이 아니라 시스템 사정</b>이 도착합니다.</p>
         <div class="fix"><b>다음 시도는 지표가 아니라 UX 문제로 —</b> MQ-714는 이걸 <b>지표로 풀려다</b> 실패했습니다. 측정으로 확인된 사실은 <b>턴을 이어 줘도 모델이 다음 도구로 가지 않는다</b>는 것이므로, 다음 후보는 "루프를 이어 붙이기"가 아니라 <b>남은 정보로 답을 구성해 내보내는 쪽</b>이어야 합니다.</div>
       </div>
@@ -700,8 +870,8 @@
 
   <!-- ============ 데이터 현황 ============ -->
   <section>
-    <div class="sec-head"><h2>데이터 현황</h2><span class="count">2026-08-19 갱신 — 24테이블 (DB 실측치는 08-18과 무변경)</span></div>
-    <p class="sec-note">아래 규모는 문서가 주장하는 값이 아니라 <code class="inline">data/maintq.db</code>를 직접 조회한 실측치입니다. <b>Sprint 6~7에서 실데이터가 하나 늘었습니다</b> — 법령 조문 원문(계층 1)이 "앞으로 만들 것"에서 "받은 것"으로 옮겨갔습니다. <b>Sprint 11이 테이블 4종을 더했지만 전부 생성 데이터</b>입니다. <b>Sprint 13은 DB에 쓰지 않습니다</b>(재시드 없음, 정본 sha256 불변) — 대신 외부 응답 원본(Elice 판독 34건)을 <code class="inline">data/raw/external/</code>에 git 추적 파일로 별도 보관합니다(D103).</p>
+    <div class="sec-head"><h2>데이터 현황</h2><span class="count">2026-09-28 갱신 — 33테이블(32절) · 행 규모 대부분은 08-18 실측, 해커톤 행은 2026-09-25 공유 DB 실측</span></div>
+    <p class="sec-note">아래 규모는 문서가 주장하는 값이 아니라 DB 를 직접 조회한 실측치입니다(당시 <code class="inline">data/maintq.db</code>, 지금은 Postgres — 해커톤 행은 2026-09-25 공유 DB 실측). <b>Sprint 6~7에서 실데이터가 하나 늘었습니다</b> — 법령 조문 원문(계층 1)이 "앞으로 만들 것"에서 "받은 것"으로 옮겨갔습니다. <b>Sprint 11이 테이블 4종을 더했지만 전부 생성 데이터</b>입니다. <b>Sprint 13은 DB에 쓰지 않습니다</b>(재시드 없음, 정본 sha256 불변) — 대신 외부 응답 원본(Elice 판독 34건)을 <code class="inline">data/raw/external/</code>에 git 추적 파일로 별도 보관합니다(D103).</p>
     <div class="datatable-wrap">
       <table>
         <thead>
@@ -715,16 +885,34 @@
             <td><code class="inline">data/raw/</code> — 읽기 전용, git 미포함(저작권)</td>
           </tr>
           <tr>
+            <td><b>Yaskawa HV600 매뉴얼 원본 ★신규(해커톤)</b></td>
+            <td><span class="status-dot ok">확보 완료</span></td>
+            <td class="num">1종 · 영문<br>고장 표 p.107~124</td>
+            <td>2026-09-24 입수, <code class="inline">manifest.json</code> sha256 으로 판본 대조. 추출물의 원인·조치 문장도 공개 금지(D144 — 형태만 <code class="inline">data/extracted/samples/</code>)</td>
+          </tr>
+          <tr>
+            <td><b><code class="inline">onboarding_*</code> 스테이징 5테이블 ★신규(Sprint 19, §25~§29)</b></td>
+            <td><span class="status-dot ok">적재 · 정규화 · 사람 승격 완료</span></td>
+            <td class="num">원문 249행<br>정규화 261(high 248 · low 1)<br>안전 후보 28 · 승인 1</td>
+            <td>D154 — 전용 역할 <code class="inline">maintq_onboarding</code> 만 INSERT. 승격 8코드 · 반려 1행. ⛔ <b>재시드하면 지워집니다</b>(H9) — 원문 적재는 멱등 복구되지만 정규화·승격·승인은 복구 불가</td>
+          </tr>
+          <tr>
+            <td><b><code class="inline">sites</code>·<code class="inline">zones</code>·<code class="inline">equipment_locations</code> ★신규(D158, §30~§32)</b></td>
+            <td><span class="status-dot pending">목업 고지</span></td>
+            <td class="num">1 · 5 · 12행<br>+ HV600 설비 2행</td>
+            <td>「목업 제1공장」(<code class="inline">is_mock=true</code>) — 실제 회사명 금지. 정본은 <code class="inline">data/site_layout.py</code>, 공유 DB 는 멱등 마이그레이션으로만 반영. 쓰기 경로 없음(REST 읽기 전용)</td>
+          </tr>
+          <tr>
             <td><code class="inline">error_codes</code> (에러코드 정의)</td>
             <td><span class="status-dot ok">승인·적재 완료</span></td>
-            <td class="num">65건<br>iG5A 24 + S100 41</td>
-            <td>2026-07-28 사람 승인. ⚠ <code class="inline">seed.py</code>를 <code class="inline">--with-error-codes</code> 없이 돌리면 <b>0행으로 리셋</b>됩니다(D33)</td>
+            <td class="num">시드 70건<br>iG5A 24 + S100 41 + IE5 5<br>+ HV600 8 (공유 DB)</td>
+            <td>2026-07-28 사람 승인 · IE5 5건 병합(D109, 65→70) · <b>HV600 8건은 온보딩 사람 승격분</b>(시드에는 없음, D156). ⚠ <code class="inline">seed.py</code>를 <code class="inline">--with-error-codes</code> 없이 돌리면 <b>0행으로 리셋</b>됩니다(D33)</td>
           </tr>
           <tr>
             <td>매뉴얼 청크 (RAG 원천)</td>
             <td><span class="status-dot ok">생성 완료</span></td>
-            <td class="num">1,035청크<br>56.8만자</td>
-            <td>page 무가공 보존(D26) — 인용 페이지 추적의 전제</td>
+            <td class="num">1,229청크<br>(IE5 포함, D110)<br>+ HV600 승격 33 (DB)</td>
+            <td>page 무가공 보존(D26) — 인용 페이지 추적의 전제. dense 임베딩 전량 색인(D117). 승격 청크는 <code class="inline">manual_chunks</code> DB 에서 jsonl 과 합쳐 읽음(D148)</td>
           </tr>
           <tr>
             <td><b><code class="inline">law_refs</code> — 법령 조문 원문 ★</b></td>
@@ -794,9 +982,9 @@
           </tr>
           <tr>
             <td>SAFETY_BASELINE 문안</td>
-            <td><span class="status-dot pending">기준값 승인 · 표현 검수 대기</span></td>
-            <td class="num">iG5A p.4 · S100 p.2</td>
-            <td>paraphrase 표현이 매뉴얼 의미 초과하지 않는지 대조</td>
+            <td><span class="status-dot ok">기준값 승인 · 문안 검수 완료(09-16)</span></td>
+            <td class="num">iG5A p.4 · S100 p.2<br>+ HV600 SC-14 p.29 (DB)</td>
+            <td>HV600 은 정적 상수가 아니라 사람이 승인한 <code class="inline">onboarding_safety_candidates</code> 행(방전 대기 <b>5분</b>)에서 런타임에 읽음(D157)</td>
           </tr>
           <tr>
             <td><b><code class="inline">deadlines</code>·<code class="inline">incidents</code>·<code class="inline">ownership_checks</code>·<code class="inline">risk_profile</code> — 기한·사고·실사보존·위험등급 ★신규</b></td>
@@ -805,16 +993,16 @@
             <td>F5·F6(D102)의 근거 테이블. <code class="inline">deadlines</code>는 <code class="inline">flags</code>와 같은 이유로 <b>시드 0행이 정상</b>(쓰기 경로 없음, 절대 규칙 1) — 시드가 CHECK 위반 INSERT를 실제로 시도해 거부를 확인. <code class="inline">ownership_checks</code> 38행은 <code class="inline">verify_ownership(AST-L3-LIFT)</code> <b>실제 출력을 재호출해 대조</b>(하드코딩 아님)</td>
           </tr>
           <tr>
-            <td>SQLite 목업 DB</td>
+            <td>목업 DB (PostgreSQL, D116)</td>
             <td><span class="status-dot ok">구축 완료</span></td>
-            <td class="num"><b>24테이블</b><br>seed 검증 35건</td>
-            <td>코어 11 + Sprint 6 확장 7 + Sprint 8 A2A 1(<code class="inline">partner_links</code>) + Sprint 10 목업 1(<code class="inline">part_lifecycle_mock</code>) + Sprint 11 확장 4(<code class="inline">deadlines</code>·<code class="inline">incidents</code>·<code class="inline">ownership_checks</code>·<code class="inline">risk_profile</code>). <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>·<code class="inline">deadlines</code>는 런타임/쓰기 경로 부재라 시드 0행이 정상</td>
+            <td class="num"><b>33테이블</b>(32절)<br>seed 검증 44건</td>
+            <td>2026-09-28 기준: Sprint 11 시점 24 + <code class="inline">manual_chunks</code>(D117) + 온보딩 5(D154) + 사업장 3(D158) = 33. <code class="inline">§7</code> 이 <code class="inline">suppliers</code>·<code class="inline">supplier_parts</code> 둘을 다뤄 절 수보다 1개 많습니다. 원래 구성: 코어 11 + Sprint 6 확장 7 + Sprint 8 A2A 1(<code class="inline">partner_links</code>) + Sprint 10 목업 1(<code class="inline">part_lifecycle_mock</code>) + Sprint 11 확장 4(<code class="inline">deadlines</code>·<code class="inline">incidents</code>·<code class="inline">ownership_checks</code>·<code class="inline">risk_profile</code>). <code class="inline">decisions</code>·<code class="inline">flags</code>·<code class="inline">traces</code>·<code class="inline">deadlines</code>는 런타임/쓰기 경로 부재라 시드 0행이 정상</td>
           </tr>
           <tr>
-            <td>데모 영상 / README 데모 GIF</td>
-            <td><span class="status-dot missing">촬영 전</span></td>
-            <td class="num">7컷 큐시트 준비됨</td>
-            <td>4차 평가 완주 후 S1→S2→S3→S4 + S9→S10 순서로 촬영</td>
+            <td>데모 영상 (해커톤)</td>
+            <td><span class="status-dot pending">녹화 완료 · 편집·링크 대기</span></td>
+            <td class="num">8장면<br>09-25 · 09-28 녹화</td>
+            <td>편집·업로드 후 <code class="inline">SUBMISSION.md</code> §4 링크 기입(S2). 초기 데모 영상·README GIF 7종은 2026-08-29 발표로 완료</td>
           </tr>
         </tbody>
       </table>
@@ -824,7 +1012,7 @@
   <!-- ============ 앞으로 구현할 것 ============ -->
   <section>
     <div class="sec-head"><h2>앞으로 구현할 것</h2><span class="count">백로그 P1~P39</span></div>
-    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b><code class="inline">create_repair_record</code>(P25·S29)는 Sprint 9 가</b>, <b>근거 번들·지출 분류 화면과 수리 증빙 승인 큐 상세(P37·P38)는 Sprint 10 이</b>, <b>기한·사고·위험 감시 계층(F5·F6, P36)은 Sprint 11 이</b>(D102) 완성했습니다. 남은 가장 가까운 항목은 화면 직접 초안 생성(P39)입니다.</p>
+    <p class="sec-note">각 항목은 "지금 미리 확보해 둔 것"이 있어 착수 비용이 낮게 설계돼 있습니다. <b><code class="inline">create_repair_record</code>(P25·S29)는 Sprint 9 가</b>, <b>근거 번들·지출 분류 화면과 수리 증빙 승인 큐 상세(P37·P38)는 Sprint 10 이</b>, <b>기한·사고·위험 감시 계층(F5·F6, P36)은 Sprint 11 이</b>(D102) 완성했습니다. 화면 직접 초안 생성(P39)도 2026-09-03 에 닫혔습니다. <b>해커톤 이후 후속 후보</b>는 안전 가드의 부품 명칭 오탐 · OpenClaw 경로 안전 게이트 · Nemotron 기준 평가 재측정 · 승격 취소 API 입니다(위 「알려진 문제점」).</p>
 
     <details class="backlog-group" open>
       <summary>진단 입력 확장<span class="n">4</span></summary>
@@ -861,7 +1049,7 @@
     <details class="backlog-group">
       <summary>인프라 · 확장성<span class="n">6</span></summary>
       <div class="backlog-body">
-        <div class="backlog-item"><span class="bid">P11</span><span class="bname">기종 확장(iS7, G100 등)</span><p>enum 확장 지점 4곳을 한 곳으로 모으는 리팩터가 선행되면 좋음.</p></div>
+        <div class="backlog-item"><span class="bid">P11</span><span class="bname">기종 확장(iS7, G100 등)</span><p>enum 확장 지점 4곳을 한 곳으로 모으는 리팩터가 선행되면 좋음. <b>부분 진행</b> — IE5(D109, 정의 조회 경로만)에 이어 해커톤에서 <b>HV600 을 온보딩 파이프라인(enum 선등록 + DB 승격 게이트, D146)</b>으로 넣었습니다. 실측 enum 정의 지점은 코드 9곳(D146).</p></div>
         <div class="backlog-item"><span class="bid">P12</span><span class="bname">CMMS 연동</span><p>MCP 서버 교체 구조(D15) 덕에 백엔드는 그대로, MCP 쪽만 갈아끼울 수 있음.</p></div>
         <div class="backlog-item"><span class="bid">P13</span><span class="bname">매뉴얼 버전 워처</span><p>LS 자료실 신버전 감지 → 재추출 자동화. 신버전은 페이지 오프셋 재확인 필수.</p></div>
         <div class="backlog-item"><span class="bid">P14</span><span class="bname">docker-compose(backend+mcp)</span><p>프로세스 분리 구조가 그대로 서비스 2개 정의가 됨. MVP는 uv+venv로 충분해 보류.</p></div>
@@ -896,7 +1084,7 @@
   </section>
 
   <div class="note-strip" style="border-left-color:var(--warn);background:var(--warn-soft)">
-    <b>⚠ 이 문서는 2026-08-19(Sprint 11) 기준에서 멈춰 있습니다.</b> Sprint 12~16(D111~D117 — 부서 분리·화면 직접 발주·model enum IE5 확장·RAG 실 인덱스·<b>SQLite→Postgres 전환</b>·<b>RAG dense 임베딩 활성화</b> 등)이 아직 위 카드·표·백로그에 반영되지 않았습니다. 전체 재작성은 이번 갱신 범위 밖이라 하지 않았고, 최신 상태는 <code class="inline">CLAUDE.md</code>(회귀 스위트·실측 기준선 문단)가 정본입니다. 아래는 <b>가장 최근 세션(2026-08-24)이 한 일만</b> 부록으로 추가합니다.
+    <b>⚠ 이 아래 부록은 2026-08-24 시점 기록입니다.</b> 2026-09-28 갱신에서 머리 수치·마일스톤·해커톤 절·알려진 문제점·데이터 현황·꼬리 수치는 현행화했지만, 위 「확장」 카드와 백로그의 세부 서술 일부(Sprint 12~18 의 개별 변경)는 여전히 당시 표현 그대로입니다. 최신 수치의 정본은 <code class="inline">CLAUDE.md</code>(회귀 스위트·실측 기준선 문단)입니다.
   </div>
 
   <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
@@ -979,14 +1167,16 @@
   </div>
 
   <div class="footer-strip">
-    <div>다음 우선순위: <strong>Sprint 1~18 전부 완료 · <b>사람 승인 대기 0건</b>(2026-09-16) — 남은 것은 상대 승인 대기 1건(S14 척도)과 백로그뿐</strong><br>
+    <div>다음 우선순위: <strong>해커톤 제출(마감 2026-09-28 23:59) — S2 영상 편집·링크 · S3 스킬 카드 검토 · S5 레포 공개 · S6 제출 문서 최종 읽기</strong><br>
+      <span style="font-size:12.5px">Sprint 1~19 구현 완료 · Sprint 19 사람 작업 H2~H5·H7 완료 · 해커톤 이후 후속은 안전 가드 부품 명칭 오탐 · OpenClaw 안전 게이트 · Nemotron 재평가.</span><br>
       <span style="font-size:12.5px">✅ <b>2026-09-16 — 남은 사람 승인 4건이 하루에 전부 닫혔습니다</b>: 안전 문구 문안 검수(<code class="inline">SAFETY_BASELINE.text_reviewed_at</code> 신설 — <code class="inline">approved_at</code> 2026-07-18 은 <b>기준값</b> 승인일이라 합치지 않고 나란히 둡니다) · 결재 문서 문안 3종(01·02·03) · <code class="inline">partner_links</code> 연결 승인 확인.<br>🔴 그 과정에서 <b>안전 문구 체크가 「완료」로 잘못 서 있던 것</b>을 발견했습니다 — 무관한 커밋(Sprint 12 시나리오 번호 정정)이 체크박스만 뒤집었고 승인 기록은 없었습니다. <b>코드가 반증했습니다.</b><br>🟡 남은 대기는 <b>S14 척도 — 상대(InsuQ) 구현 승인</b> 1건입니다.<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b> · <b><code class="inline">DISAGREE</code> 6건 확인 완료 — 조치 불필요(08-19)</b> · <b><code class="inline">iG5A NTC</code> D99 승인·정본 병합(08-29)</b> · <b>A2A 파트너 자격증명 실값 확보(D120 — Bearer 스킴 교체)</b></span></div>
     <div class="figs">
-      <div><b>1,609</b>회귀 단언 — 34스위트 1,212 + pytest 354 + seed 43 (실측 2026-09-17)</div>
-      <div><b>25</b>DB 테이블 (코어 11 + 확장 7 + A2A 1 + 목업 1 + Sprint 11 4 + manual_chunks 1)</div>
-      <div><b>142</b>설계 결정 D1~D142</div>
-      <div><b>22</b>MCP 도구 (코어 7 + 확장 15)</div>
+      <div><b>1,837</b>회귀 단언 — 41스위트 1,387 + pytest 406 + seed 44 (CLAUDE.md 실측 2026-09-25)</div>
+      <div><b>33</b>DB 테이블 (Sprint 18 까지 25 + 온보딩 5 + 사업장 3)</div>
+      <div><b>158</b>설계 결정 D1~D158</div>
+      <div><b>22 + 3</b>MCP 도구 (코어 7 + 확장 15 · 온보딩 프로필 3)</div>
+      <div><b>27</b>화면 라우트 (next build)</div>
     </div>
   </div>
 

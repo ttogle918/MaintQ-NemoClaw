@@ -216,16 +216,16 @@
     <div>
       <p class="eyebrow">MaintQ · 기능 ↔ 데이터 매핑</p>
       <h1>어떤 기능이 어떤 데이터로 서 있는가</h1>
-      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-09-10)</b>입니다 — 문서가 주장하는 값이 아닙니다. ⚠️ <b>기능 축(14종)은 2026-08-19 분류 그대로</b>입니다 — 이후 더해진 것(A2A 발신 6종 · 결재 문서 렌더 · 재무부 승인)은 이 목록에 별도 항목으로 잡혀 있지 않습니다.</p>
+      <p class="lede">기능 14종(<b>전부 구현 완료</b>)을 나열하고, 각 기능이 소비하는 데이터를 <b>실제 데이터 · 생성한 데이터 · 앞으로 만들 데이터</b>로 구분해 붙였습니다. 규모는 <b>DB 실측치(2026-09-10)</b>입니다 — 문서가 주장하는 값이 아닙니다. ⚠️ <b>기능 축(14종)은 2026-08-19 분류 그대로</b>입니다 — 이후 더해진 것(A2A 발신 6종 · 결재 문서 렌더 · 재무부 승인)은 이 목록에 별도 항목으로 잡혀 있지 않습니다. <b>해커톤·Sprint 19(HV600 온보딩 · OpenClaw · 사업장 평면도)는 아래 「2026-09-28 추가분」 절에 따로 묶었습니다.</b></p>
     </div>
-    <div class="asof">기준 시점<b>2026-09-17</b><span style="display:block;font-size:11px;margin-top:3px">수치 갱신 2026-09-17(D142)</span></div>
+    <div class="asof">기준 시점<b>2026-09-28</b><span style="display:block;font-size:11px;margin-top:3px;color:var(--warn);font-weight:650">최종 갱신 2026-09-28 · 해커톤·Sprint 19·D158 추가분</span></div>
   </header>
 
   <div class="stats">
     <div class="stat g">
       <div class="n">14</div>
       <div class="l">구현 완료 기능</div>
-      <div class="s">MCP 도구 22종(코어 7 + 확장 15) · 회귀 1,609건</div>
+      <div class="s">MCP 도구 22종(코어 7 + 확장 15) + 온보딩 프로필 3 · 회귀 1,837건(spikes 1,387 + pytest 406 + seed 44)</div>
     </div>
     <div class="stat w">
       <div class="n">0</div>
@@ -235,12 +235,12 @@
     <div class="stat a">
       <div class="n">9</div>
       <div class="l">실제 데이터</div>
-      <div class="s">매뉴얼 4 · 공공데이터 3 · 법령 원문 8조문 · <b>Elice 재판독 34p ★</b></div>
+      <div class="s">매뉴얼 4 · 공공데이터 3 · 법령 원문 8조문 · <b>Elice 재판독 34p ★</b><br>＋ 해커톤: <b>Yaskawa HV600 영문 매뉴얼</b>(카운트 미반영, 아래 추가분 절)</div>
     </div>
     <div class="stat">
       <div class="n">16</div>
       <div class="l">생성한 데이터</div>
-      <div class="s">DB 25테이블(Postgres) · 시드 <b>43건</b> 검증 · <b>actions 결측 3자 대조 ★</b></div>
+      <div class="s">DB <b>33테이블</b>(Postgres, 32절) · 시드 <b>44건</b> 검증 · <b>actions 결측 3자 대조 ★</b></div>
     </div>
   </div>
 
@@ -307,7 +307,7 @@
   <section>
     <div class="sec-head">
       <h2>구현 완료 — 코어 기능 6종</h2>
-      <span class="count">M1~M4 · 회귀 1,609건 · 34스위트</span>
+      <span class="count">M1~M4 · 회귀 1,837건 · 41스위트</span>
     </div>
     <p class="sec-note">"완료"는 코드와 회귀가 끝났다는 뜻입니다. 데이터 검수(사람 승인)가 남은 항목은 따로 표시했습니다.</p>
 
@@ -567,6 +567,59 @@
     </div>
   </section>
 
+  <!-- ================= 2026-09-28 추가분 ================= -->
+  <section>
+    <div class="sec-head"><h2>2026-09-28 추가분 — 해커톤 · Sprint 19 · D158</h2><span class="count">신규 절 · 테이블 25 → 33 · 도구 프로필 +1</span></div>
+    <p class="sec-note">이 절은 위 기능 14종 분류를 고치지 않고 <b>따로 덧붙인 것</b>입니다. 출처: <code>docs/05_DB_SCHEMA.md</code> §25~§32 · <code>docs/04_MCP_TOOLS.md</code> §23~§25 · <code>docs/hackathon/SUBMISSION.md</code> · D145~D158. 행 수는 2026-09-25 공유 DB 실측(데모 메모 §2)입니다.</p>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>기능</th><th>소비·생산하는 데이터</th><th>분류</th><th>쓰기 경로</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>새 기종 온보딩</b> — 영문 고장 표 → 한국어 초안 → 사람 승격<span class="sub">D145·D153~D157 · NAT + Nemotron</span></td>
+            <td><code>onboarding_batches</code>(§25) · <code>onboarding_code_rows</code>(§26, 원문 <b>249행</b>) · <code>onboarding_normalizations</code>(§27, <b>261</b> — 재정규화 12 포함, 최신 high 248 · low 1) · <code>onboarding_safety_candidates</code>(§28, 후보 <b>28</b> · 승인 1) · <code>onboarding_promotions</code>(§29, <b>8코드</b>)</td>
+            <td><span class="d real">원문 행 — HV600 매뉴얼 추출(결정적 코드)</span> <span class="d mock">정규화 — AI 초안, 사람 승인 전</span></td>
+            <td>MCP <code>stage_code_normalization</code>(쓰기 도구 4번째) → 전용 역할 <code>maintq_onboarding</code>, 스테이징 4테이블 <b>INSERT 만</b>. 승격·반려·안전 승인은 사람 전용 API</td>
+          </tr>
+          <tr>
+            <td><b>승격 결과 — 진단 가능</b><span class="sub">D146·D148·D156</span></td>
+            <td><code>error_codes</code> HV600 <b>8건</b>(CE·GF·OC·OV·UV1·OH·CPF06·EF1) · <code>manual_chunks</code> 승격 청크 <b>33</b> (RAG 는 jsonl ∪ DB)</td>
+            <td><span class="d real">원문 근거</span> + 사람 검수를 거친 한국어 이름</td>
+            <td><code>POST /api/onboarding/promote</code>(사람). ⛔ 시드 JSON 에는 없어 <b>재시드하면 사라짐</b>(H9)</td>
+          </tr>
+          <tr>
+            <td><b>새 기종 안전 문구</b><span class="sub">D147·D157</span></td>
+            <td>HV600 SC-14 — 방전 대기 <b>5분</b>, 근거 p.29. <code>resolve(model)</code> 한 함수로 런타임에 읽음(iG5A·S100 은 정적 상수 그대로)</td>
+            <td><span class="d real">원문 인용 + 페이지</span> · 한국어 문안은 사람이 입력·승인</td>
+            <td>사람 전용 승인 API. 원문에 없는 대기 시간 숫자는 거부(<code>number_not_in_source</code>·<code>wait_value_mismatch</code>). 승인 전 fail-closed</td>
+          </tr>
+          <tr>
+            <td><b>온보딩 도구 프로필</b> <code>MAINTQ_TOOLS_PROFILE=onboarding</code><span class="sub">D154 · §23~§25</span></td>
+            <td><code>list_onboarding_rows</code>(읽기) · <code>stage_code_normalization</code>(쓰기) · <code>get_onboarding_status</code>(읽기) — <code>core</code>·<code>full</code> 에는 없고, 이 프로필에는 코어 7·확장 15 가 없음</td>
+            <td>—</td>
+            <td>MCP-HTTP #2(8766)로만 노출. NAT 샌드박스는 이 포트만 열림</td>
+          </tr>
+          <tr>
+            <td><b>OpenClaw(NemoClaw) 현장 진단</b><span class="sub">D150~D152</span></td>
+            <td>코어 7종이 읽는 기존 데이터 그대로 + 승격된 HV600 분. 워크스페이스는 정본 코드 + DB 승인 상태에서 <code>build.py</code> 로 생성</td>
+            <td>기존 분류 그대로</td>
+            <td>streamable-http 입구(8765). 발주 초안의 요청자는 <code>X-User</code> 헤더에서 서버가 읽음(D152)</td>
+          </tr>
+          <tr>
+            <td><b>사업장 평면도</b> <code>/technician/site</code><span class="sub">D158 · §30~§32</span></td>
+            <td><code>sites</code> 1 · <code>zones</code> 5 · <code>equipment_locations</code> 12 + <code>equipment</code> HV600 2행(<code>INV-HV-01</code>·<code>INV-HV-02</code>)</td>
+            <td><span class="d mock">목업 — 「목업 제1공장」, <code>is_mock=true</code></span></td>
+            <td>쓰기 경로 없음(MCP 도구는 읽지도 쓰지도 않음, REST 읽기 전용). 정본 <code>data/site_layout.py</code>, 공유 DB 는 멱등 마이그레이션만</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>model enum 은 4종(<code>iG5A · S100 · IE5 · HV600</code>)입니다.</b> HV600 은 enum 에 먼저 등록만 되고 「진단 가능」은 DB 승격 상태가 정합니다(D146) — 승격 전 조회는 <code>not_found</code>. 에러코드 형식 CHECK 는 2~5자·하이픈 허용으로 넓혔습니다(D155, <code>CPF06</code>).
+      ⚠ HV600 RAG 근거는 <b>고장 표뿐</b>이라 교체 절차를 물으면 「근거 확인 못 함 → 제조사 문의」가 정상 답입니다.
+    </div>
+  </section>
+
   <!-- ================= 실제 데이터 ================= -->
   <section>
     <div class="sec-head"><h2><span class="srcbar real"></span>실제 데이터 — 외부 원천에서 받은 것</h2><span class="count">8종 · ★2종 갱신 (법령 · 등기통계)</span></div>
@@ -583,16 +636,23 @@
             <td>1, 2, 5</td>
           </tr>
           <tr>
+            <td class="mono"><b>Yaskawa HV600 매뉴얼 ★해커톤</b><span class="sub">영문 · 고장 표 p.107~124 · 2026-09-24 입수</span></td>
+            <td class="num">1개</td>
+            <td>Yaskawa 공식 제품 페이지<span class="sub"><code>manifest.json</code> sha256 판본 대조</span></td>
+            <td>새 기종 온보딩 시연 대상(D145). <b>본문·추출 문장은 공개 레포에 올리지 않음</b>(D144 — 형태만 <code>data/extracted/samples/</code>)</td>
+            <td>온보딩</td>
+          </tr>
+          <tr>
             <td class="mono">error_codes.json</td>
-            <td class="num">70건</td>
+            <td class="num">70건<span class="sub">＋ HV600 8건은 JSON 이 아니라 공유 DB 승격분</span></td>
             <td>매뉴얼 표 추출<span class="sub">브라우저 실측 대조 완료 · IE5 5건 병합(Sprint 15, D109)</span></td>
             <td>정의 룩업의 결정론적 소스 (D1)<span class="sub">⚠ <code>actions</code> 33건 결측 — <b>2026-08-19 3자 대조로 24건 <code>CONFIRMED_ABSENT</code> 확정</b>(매뉴얼에 원래 없음), <code>DISAGREE</code> 6 · <code>STILL_AMBIGUOUS</code> 4 · <code>RECOVERABLE</code> 0. <code>iG5A NTC</code> 1건은 <b>2026-08-29 사람 승인으로 정본 병합</b>(기계 판정은 STILL_AMBIGUOUS 유지)</span></td>
             <td>1</td>
           </tr>
           <tr>
             <td class="mono">manual_chunks.jsonl</td>
-            <td class="num">1,035청크<br>56.8만자</td>
-            <td>매뉴얼 청킹<span class="sub">평균 548자 · page 무가공(D26)</span></td>
+            <td class="num">1,229청크<span class="sub">(IE5 194 포함, D110)</span></td>
+            <td>매뉴얼 청킹<span class="sub">page 무가공(D26) · 1,035청크·56.8만자는 IE5 편입 전 값</span></td>
             <td>절차 RAG + 인용 페이지 추적</td>
             <td>1, 5</td>
           </tr>
@@ -651,13 +711,13 @@
 
   <!-- ================= 생성한 데이터 ================= -->
   <section>
-    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">16종 · DB 25테이블 실측(2026-09-10, Postgres) · 갱신 2026-09-10</span></div>
+    <div class="sec-head"><h2><span class="srcbar mock"></span>생성한 데이터 — 우리가 만든 것</h2><span class="count">16종 · DB 25테이블 실측(2026-09-10, Postgres) · 해커톤 이후 33테이블은 아래 추가분 절</span></div>
     <p class="sec-note">시연과 시나리오 성립을 위해 만든 데이터입니다. <b>여기서 나온 수치는 실적으로 인용할 수 없습니다.</b> DB 규모는 2026-09-10 조회 결과입니다 — <b>저장소가 SQLite 에서 PostgreSQL 로 바뀌었고</b>(Sprint 16 · D116), <code>manual_chunks</code>(dense 임베딩, D117)가 더해져 25테이블입니다.</p>
     <div class="twrap">
       <table>
         <thead><tr><th>데이터</th><th class="num">실측 규모</th><th>만든 방식</th><th>왜 목업인가</th><th>쓰는 기능</th></tr></thead>
         <tbody>
-          <tr><td class="mono">equipment</td><td class="num">10대</td><td><code>seed.py</code><span class="sub">＋<code>asset_id</code> FK (D68)</span></td><td>실제 공장 설비 대장을 구할 수 없음</td><td>4</td></tr>
+          <tr><td class="mono">equipment</td><td class="num">10대<span class="sub">＋ HV600 2행(D158, 2026-09-25)</span></td><td><code>seed.py</code><span class="sub">＋<code>asset_id</code> FK (D68)</span></td><td>실제 공장 설비 대장을 구할 수 없음</td><td>4</td></tr>
           <tr><td class="mono"><b>assets ★신규</b></td><td class="num">9건<br>카테고리 6종</td><td><code>seed.py</code><span class="sub"><code>equipment.location</code> 문자열을 승격</span></td><td><b>지어낸 게 아니라 있던 정보를 올린 것.</b> 다만 법정 조건 필드(세액공제·담보·보험·안전검사)는 시나리오용 목업</td><td>8, 9, 11, 12</td></tr>
           <tr><td class="mono">parts · inventory</td><td class="num">40 · 40</td><td><code>seed.py</code><span class="sub">단종·안전재고 포함</span></td><td>ERP 재고는 사내 시스템 — MCP 교체 구조(D15)로 대응</td><td>2</td></tr>
           <tr><td class="mono">suppliers · supplier_parts</td><td class="num">4 · 80</td><td><code>seed.py</code><span class="sub">lead_days·unit_price·moq</span></td><td>공급사 계약 단가는 비공개</td><td>2, 3</td></tr>
@@ -870,6 +930,11 @@
         <p>바로 위 항목이 "보류"라고 적어 둔 것이 이 세션에 해소됐습니다 — <code>data/expenditure_limits.py</code>(예산 한도·1일 누적 한도·FDS·SoD)가 신설 판정 로직이고, <code>po_drafts.state</code>에 <code>finance_approved</code>/<code>finance_rejected</code>가 새로 생겨 팀장 승인 다음에 <b>MaintQ 자체 재무부 승인 단계</b>가 열렸습니다(D119 — D108의 명시적 예외, <code>finance-approve</code>/<code>finance-reject</code> 두 엔드포인트만 <code>department</code>를 봄). 03(자금집행요청서)도 이 시점에 실제로 렌더됩니다. <b>부수 효과</b>: FinAllQ 출금 요청(request-withdrawal, S5) 발신 시점이 팀장 승인에서 재무부 승인으로 옮겨갔습니다 — 크로스팀 문서(<code>../A2A_Q/MaintQ_시나리오맵.html</code>)에도 반영했습니다.</p>
       </div>
       <div class="step">
+        <div class="sn">완료</div>
+        <h4>NVIDIA 해커톤 — HV600 온보딩 · OpenShell · NemoClaw · NAT (Sprint 19, D143~D158, 2026-09-18 ~ 09-28)</h4>
+        <p>새 기종 매뉴얼(Yaskawa HV600, 영문)이 <b>「받은 데이터 → AI 초안 → 사람 승격」</b> 경로로 들어왔습니다. 스테이징 5테이블(§25~§29) + 사업장 3테이블(§30~§32)로 테이블이 <b>25 → 33</b>. 원문 249행 전량 정규화 · 8코드 승격 · 안전 문구 1건 승인. 데모 영상 8장면 녹화 완료(2026-09-28) — 남은 것은 영상 링크·스킬 카드 검토·레포 공개·제출 문서 최종 읽기(사람).</p>
+      </div>
+      <div class="step">
         <div class="sn">다음</div>
         <h4>백로그 — FinAllQ 추가 5스킬 + Dockerfile "Northflank" 주석 정정</h4>
         <p>FinAllQ가 curl 검증까지 마친 추가 A2A 스킬 5종(advise-hedge 등)의 MaintQ측 아웃바운드 트리거는 <code>07_BACKLOG.md</code> P34에 대기열로 남아 있습니다(이번 시연 우선순위 아님). 배포 타깃을 GCP Cloud Run으로 확정했는데 <code>Dockerfile</code> 헤더 주석이 여전히 "Northflank 배포용"으로 낡아 있어 다음 세션 정리 대상입니다.</p>
@@ -901,7 +966,7 @@
 
   <footer>
     <span>MaintQ · 설비 보전 AI 에이전트</span>
-    <span>기준 2026-08-19 · DB 실측 08-18(무변경) · 로드맵 갱신 08-24</span>
+    <span>최종 갱신 2026-09-28 · 해커톤 추가분 DB 실측 09-25 · 기존 표 DB 실측 09-10</span>
     <span>근거: <code>00_MVP_SCOPE</code> · <code>07_BACKLOG</code> · <code>11_ASSET_LIFECYCLE</code> · <code>12_MAINT_VALUE</code> · <code>data/raw/INDEX.md</code></span>
   </footer>
 

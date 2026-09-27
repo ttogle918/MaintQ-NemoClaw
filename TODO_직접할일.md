@@ -549,6 +549,12 @@ Claude가 대신 못 하는 것들. 순서대로.
 - [ ] **S2 — 데모 영상 링크 기입.** `SUBMISSION.md` §4 「(링크: 사람이 기입)」 과
       `docs/memo/2026-09-25-hv600-onboarding-demo.md` §1 「영상 파일 위치」. 링크를 넣기 전에 영상에
       대시보드 URL·토큰(`nemoclaw … dashboard-url` 출력)이 비치지 않는지, 중국어 「参照」 가 섞였는지 확인.
+      🟡 2026-09-28 장면 8개 녹화 완료(Claude) — `C:\Users\ttogl\Videos\MaintQ-demo\` 의 `01_intro` · `03_nat_injection` ·
+      `04_review_promote` · `05_openclaw_diagnosis`(앞 7초 잘라냄) · `06_console_diagnose_to_po_take2`(**이 테이크 사용** — 첫 테이크
+      `06_console_diagnose_to_po` 는 안전 가드 치환 문장이 섞임) · `07_security_evidence` · `08_finance_sod` + 장면 2 는 9/25 녹화본.
+      남은 사람 일: 이어 붙이기 · 장면 2 자막(초안 「OpenClaw (NemoClaw 샌드박스) - 사람이 확정하기 전, "HV600에서 GF 떴어"」 /
+      「매뉴얼에서 확인되지 않는 코드 - 원인·조치를 추측하지 않고 표시부 재확인·제조사 A/S로 안내」) · 장면 6 첫 질문 대기 구간
+      빨리 감기 · 업로드 · 링크 기입. 녹화는 헤드리스 브라우저라 주소창(대시보드 토큰)은 화면에 없다
 - [ ] 🟡 2026-09-27 `maintq-manual-onboarding/skill-card.md` 초안 작성(Claude) — 사람 검토 남음: Use Case 문구·`Requires API Key: [No]`·버전 SHA · **S3 — 스킬 카드 사람 검토** (`skills/maintq-diagnose/skill-card.md`). `day2.md` §8 은 「소유자 VERIFY 표시 1건으로
       `validate_submission.py` FAIL」 이라 적었으나 **2026-09-25 재실행은 OK(마커 0)** 다 — 표시는 이미 지워졌다.
       남은 일은 내용 확인: 소유자·라이선스·카드 안 GitHub 링크(`ttogle918/MaintQ-NemoClaw`)가 공개 후 실제로 열리는지,
