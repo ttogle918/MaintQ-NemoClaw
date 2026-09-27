@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { demoToken } from "@/lib/api";
 import { MANAGER_IDENTITIES, ROLE_HOME, ROLE_USER_NAME, setManagerIdentity } from "@/lib/role";
 import { sx } from "@/lib/sx";
 
@@ -16,6 +18,11 @@ import { sx } from "@/lib/sx";
  */
 export default function EntryPage() {
   const router = useRouter();
+
+  // 공유 링크 `/?demo_token=…` 의 토큰을 여기서 저장한다 — 이 화면은 API 를 부르지 않는다 (D159)
+  useEffect(() => {
+    demoToken();
+  }, []);
 
   function enterAsTechnician() {
     router.push(ROLE_HOME.technician);

@@ -35,7 +35,12 @@ export function authHeaders(role: Role): Record<string, string> {
 
 const DEMO_TOKEN_KEY = "maintq.demoToken";
 
-function demoToken(): string {
+/**
+ * URL 의 `?demo_token=` 을 저장하고 현재 토큰을 돌려준다. `authHeaders()` 가 매 호출 부르지만,
+ * **API 를 안 부르는 진입 화면(`app/page.tsx`)은 직접 불러야 한다** — 안 그러면 공유 링크를
+ * 첫 화면으로 열었을 때 토큰이 저장되지 않아 다음 화면부터 전부 401 이었다(2026-09-28 배포판 실측).
+ */
+export function demoToken(): string {
   if (typeof window === "undefined") return "";
   try {
     const fromUrl = new URLSearchParams(window.location.search).get("demo_token");

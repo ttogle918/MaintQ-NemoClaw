@@ -224,7 +224,7 @@ Seq Scan 의 `actual time` 이 **10ms 를 넘기 시작하면** 위 표의 임�
 `https://maintq-backend-97558858623.asia-northeast3.run.app`(GCP `gcp-solana-ai-agentic-hacks-kr`) ·
 DB Supabase `MaintQ`(`zccomludbsoivogycrij`, 서울). 비밀(연결 문자열·데모 토큰)은 **`.env.deploy`**(gitignore)에만 있다.
 
-첫 배포에서 드러난 함정 5개 — 각 파일 주석에 근거를 남겼다:
+첫 배포에서 드러난 함정 7개 — 각 파일 주석에 근거를 남겼다:
 - `.gcloudignore` 가 `.gitignore` 를 포함하면 **git 미추적 런타임 파일**(`manual_chunks.jsonl`)이 이미지에서 빠져
   `rag_search_manual` 이 전부 error 가 된다. 로컬 `docker build` 스모크로는 안 잡힌다 — 배포 후 채팅 1턴으로 확인할 것
 - Netlify **업로드 배포**는 Next.js 런타임을 자동으로 붙이지 않는다(`netlify.toml` 에 `@netlify/plugin-nextjs` 명시) — 빠지면 빌드 성공 + 전 경로 404
@@ -232,6 +232,12 @@ DB Supabase `MaintQ`(`zccomludbsoivogycrij`, 서울). 비밀(연결 문자열·�
 - Supabase 풀러(Supavisor)는 접속 문자열의 `options=-c …` 를 **서버로 전달하지 않는다** — `mcp_server/db.py::read_only()`
   세션이 read-write 로 열렸다(SHOW 가 off). 로컬 Docker 에서는 옵션이 먹어 안 보였다. 세션 `SET` + 커밋 + `SHOW` 확인(fail-closed)으로 고쳤다.
   ⚠ 같은 이유로 `options=-c search_path=…`(격리 스키마, `data/pg_isolation.py`)도 Supabase 에서는 안 먹는다 — 스파이크는 로컬 DB 에서만 돌릴 것
+- Netlify 는 모든 HTML `<head>` 에 홍보 주석+줄바꿈을 끼워 넣는다(끄는 설정 없음). 루트 레이아웃이 `<head>` 를 직접
+  쓰면 React 하이드레이션이 매번 깨지고(#418·#423) 약 1/7 은 #329 로 빠져 승인 큐·재무 화면이 목업에 멈췄다.
+  `frontend/app/layout.tsx` 가 `<head>` 를 쓰지 않고 폰트 링크를 `<body>` 맨 앞에 둔다 — 로컬에 같은 주석을 주입해
+  재현(#418×3+#423) → 수정 후 0건, 배포판 직접 진입 4화면×8회 전부 실데이터 · React 오류 0
+- 공유 링크를 첫 화면(`/?demo_token=`)으로 열면 토큰이 저장되지 않았다(첫 화면은 API 를 안 부른다) — `app/page.tsx` 가 직접 저장
+- curl 로 API 를 전부 통과해도 위 두 결함은 안 보인다 — **배포 확인은 실제 브라우저(헤드리스 포함)로 한 번 더** 할 것
 - Netlify 업로드는 **작업 디렉터리 전체**를 올린다 — 레포 루트에서 실행하면 `.env`·`.env.deploy` 가 함께 간다. 프론트+`netlify.toml` 만 담은 사본에서 실행할 것
 
 ⚠ **OpenShell·NemoClaw 샌드박스는 이 경로에 없다** — 로컬 게이트웨이 전제다. 웹 콘솔만 올라간다.
