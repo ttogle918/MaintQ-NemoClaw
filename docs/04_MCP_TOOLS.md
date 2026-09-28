@@ -7,7 +7,7 @@
 - 확장 도구 §8~§18(11종)은 자산 생애주기(처분·취득·자산가치·수리 증빙·기한/위험 감시) 담당이며 대상이
   **인버터가 아니라 호스트 설비(`assets`)** 다 (**D68**) — 단 `create_repair_record`(§16)는 예외로
   `equipment_id`(인버터) 를 직접 받는다 (D68 ⓑ, 수리는 인버터 단위).
-- ⚠ **쓰기 도구는 이제 4종이다** — `create_po_draft`(§7) · **`generate_disposal_document`(§15, Sprint 7 신설)** ·
+- **쓰기 도구는 이제 4종이다** — `create_po_draft`(§7) · **`generate_disposal_document`(§15, Sprint 7 신설)** ·
   **`create_repair_record`(§16, Sprint 9 신설, D98)** + 온보딩 스테이징 **`stage_code_normalization`(§24, Sprint 19, D154 —
   `onboarding` 프로필 전용)**. 앞의 셋은 draft INSERT 만, 넷째는 스테이징 INSERT 만 하며 모두 UPDATE 권한이 없다
   (D10·D81·D98·D154). 확장 도구에 쓰기가 하나도 없다는 이 문서의 옛 서술은 **거짓이 됐고 아래에서 정정했다**
@@ -53,8 +53,8 @@
    - 권한은 규율이 아니라 **커넥션이 잠근다**: `db.decision_writer()`·`db.repair_writer()` 의 TEMP TRIGGER 2개가 각각 `decisions`·`repair_records` UPDATE/DELETE 를 거부한다. §15·§16 은 `po_drafts` 전용인 `draft_writer()` 를 재사용하지 않는다(`generate_disposal_document.py:10-13`·`create_repair_record.py`).
 4. **model은 명시 파라미터.** enum으로 강제해 "같은 코드, 다른 의미" 오염을 스키마 수준에서 차단.
 5. **필수 파라미터에는 기본값을 두지 않는다 (D80).** 인자 누락은 도구 코드가 아니라 **MCP 스키마 검증(pydantic)이 앞단에서** 막는다 — 기본값을 두면 FastMCP 가 `required` 를 빼서 optional 로 노출하고, LLM 이 인자 없이 호출 → `invalid_input` → 재시도하는 낭비 루프가 생긴다. D9 는 **도구 로직의 실패**에 대한 규칙이지 호출 규약 위반에 대한 규칙이 아니다.
-   ⚠ **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(5종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`·`assess_risk_grade`(§18, `building_id`/`asset_id` 짝, Sprint 11)).
-6. **확장 도구 §8~§18(11종)은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). ⚠ `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다). ⚠ **§19·§20(신규 A2A 도구 2종, D112)은 이 규약 밖이다** — 외부 파트너(InsuQ·FinAllQ) 응답을 그대로 중계하는 구조라 `disclaimer`·`not_considered` 필드가 없다. 대신 확답을 못 받으면 `status:"error"` + `reason` 으로 "모른다"를 표현한다(D112).
+   **예외 — either-or 파라미터**: "`asset_id` 또는 `equipment_id` 중 하나 필수"는 JSON Schema 로 표현되지 않는다. 그래서 해당 도구는 **둘 다 optional 로 두고 `DESCRIPTION` 이 그 사실을 말한다**(5종: `check_disposal_blockers`·`verify_ownership`·`get_maintenance_metrics`·`build_evidence_bundle`·`assess_risk_grade`(§18, `building_id`/`asset_id` 짝, Sprint 11)).
+6. **확장 도구 §8~§18(11종)은 "모른다"를 값으로 표현한다.** 출력에 `disclaimer`(추정치·목업 고지)가 **항상** 실리고, 산출 불가는 `null` / `"insufficient_data"` / `UNVERIFIED` 로 남긴다. 0 이나 `"stable"` 로 메우지 않는다 (`11 §4` 불변식 6 · D62 · D65). `not_considered[]` 은 §8~§14(읽기 도구)의 관행이다 — 쓰기 도구 §15·§16 은 이 필드를 싣지 않는다(승인 문서·수리 증빙은 "무엇을 안 봤는가"보다 "무엇을 확정했는가"가 우선이라 `disclaimer`·`expenditure_reason`/`documents_preview` 로 대신한다). **§19·§20(신규 A2A 도구 2종, D112)은 이 규약 밖이다** — 외부 파트너(InsuQ·FinAllQ) 응답을 그대로 중계하는 구조라 `disclaimer`·`not_considered` 필드가 없다. 대신 확답을 못 받으면 `status:"error"` + `reason` 으로 "모른다"를 표현한다(D112).
 
 ---
 
@@ -186,7 +186,7 @@
 // 2개 이상이면 비교 제시 후 사용자 선택 (에이전트 단독 결정 금지)
 ```
 
-## 7. create_po_draft — 발주서 초안 생성 ⚠️ 쓰기 도구 ①/2 (다른 하나는 §15)
+## 7. create_po_draft — 발주서 초안 생성 쓰기 도구 ①/2 (다른 하나는 §15)
 
 **description 초안:** "발주서 '초안'을 생성한다. 확정이 아니다. 반드시 사용자가 부품·공급사를 확인한 후에만 호출할 것. reason에는 진단 근거를 **한 줄로** 요약하고, evidence에는 **어떤 현상을 보고 고장으로 판단했는지**(symptoms)와 근거가 된 도구 결과(basis), 기타 비고(notes)를 구조화해 남길 것. 에러코드로부터 시작된 진단이면 model·error_code를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다. 단가는 파라미터가 아니다(서버가 조회해 채움). 수량이 공급사 MOQ에 미달하면 거부되므로 미달이면 먼저 사용자에게 수량 조정을 확인할 것."
 
@@ -252,17 +252,17 @@
 > **호스트 설비(`asset_id`)** 를 본다 (**D68**). `equipment_id` 로 불러도 되지만 그건
 > `equipment.asset_id` 로 해석되는 **입력 편의**일 뿐, 판정 대상은 언제나 자산이다.
 > 호스트 자산이 없는 인버터(`INV-L1-01` 분전반)는 `no_host_asset` 이다 — "판정 결과 문제 없음"이 아니다.
-> ⚠ **§16(`create_repair_record`)은 예외다** — 대상이 `asset_id` 가 아니라 **`equipment_id`(인버터)
+> **§16(`create_repair_record`)은 예외다** — 대상이 `asset_id` 가 아니라 **`equipment_id`(인버터)
 > 그 자체**다. 수리는 인버터 단위로 남는다 (D68 ⓑ) — `assets` 로 해석·집계하는 건 `get_maintenance_metrics`
 > 소관이다.
-> ⚠ **§19·§20(신규 2종, Sprint 16, D112)은 이 절 밖이다** — 대상이 자산/설비가 아니라 A2A 외부
+> **§19·§20(신규 2종, Sprint 16, D112)은 이 절 밖이다** — 대상이 자산/설비가 아니라 A2A 외부
 > 파트너 응답이라 아래 "공통 규약 4가지"·"대상이 다르다" 서술이 적용되지 않는다. 각 절 서두에서
 > 별도로 명시한다.
 
 **공통 규약 4가지 (§8~§14, 원칙적으로 §16 도 D9·D80 은 그대로 따른다)**
 
 1. **읽기 전용.** `read_only()` 커넥션만 쓴다. 쓰기 경로가 코드에 없다 (D10).
-   ⚠ **§15·§16 은 이 규약의 예외다** — 둘 다 draft 전용 쓰기 커넥션(`decision_writer()`·
+   **§15·§16 은 이 규약의 예외다** — 둘 다 draft 전용 쓰기 커넥션(`decision_writer()`·
    `repair_writer()`)을 가지며, 그 커넥션에는 UPDATE/DELETE 를 막는 TEMP TRIGGER 2개가 걸려
    "쓰기가 없다"가 아니라 "쓰기가 draft 로 한정된다"로 규약이 바뀐다 (D10·D81·D98).
 2. **예외를 던지지 않는다.** 룰 엔진은 `RuleIntegrityError` 말고도 `KeyError`(미등록 법령 참조)·`TypeError`(`trigger` 파손)·`ValueError`(시점 밖 조문)를 던지므로 **광범위하게 포착해** `status:"error"` 로 닫는다 (D9·D46).
@@ -321,7 +321,7 @@ blockers > holds > insufficient > preconds > CLEAR
 | `CLEAR` | 아무 룰도 발화하지 않음 | 진행 | 200 |
 
 - **`HOLD` 와 `INSUFFICIENT_FACTS` 를 합치면 안 되는 이유는 해소 경로가 정반대이기 때문이다** — 전자는 전문가 검토, 후자는 데이터 입력이다. 우선순위에서 `holds` 가 앞인 이유: 경계에 걸렸다는 건 룰이 **실제로 발화한** 양성 신호이고, 사실 누락은 판정 자체가 성립하지 않은 상태다.
-- ⛔ **도구가 우선순위를 재계산하지 않는다.** 계산은 `engine.check_disposal_blockers()` 안에만 있다. 여기서 다시 조립하면 구 4종(`insufficient` 를 `HOLD` 에 흡수)으로 되돌아가는 회귀가 조용히 들어오고 D71 의 HTTP 매핑이 함께 깨진다.
+- **도구가 우선순위를 재계산하지 않는다.** 계산은 `engine.check_disposal_blockers()` 안에만 있다. 여기서 다시 조립하면 구 4종(`insufficient` 를 `HOLD` 에 흡수)으로 되돌아가는 회귀가 조용히 들어오고 D71 의 HTTP 매핑이 함께 깨진다.
 
 ### ★ `CLEAR` 는 `SCRAP`·`TRANSFER` 에서만 나온다 (D78 부수 확정)
 
@@ -338,14 +338,14 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 "매각인데 `CLEAR` 가 안 나온다"를 버그로 보고 `VAT-INVOICE` 를 손대면, 세금계산서 발행 의무가
 판정에서 사라진다.
 
-### `evidence_completeness` — 값의 원천이 둘이다 ⚠
+### `evidence_completeness` — 값의 원천이 둘이다
 
 | 무엇 | 원천 | 이유 |
 |---|---|---|
 | `verdict`·4버킷·`citations` | **정본 파일** `data/rules/{laws,rules}/*.json` (`engine.check_disposal_blockers()` 가 직접 읽는다) | 계층 1 은 파일이 정본이다 (D60) |
 | `evidence_completeness`·룰 카탈로그 적재 게이트 | **DB 사본** (`engine.load_laws_from_db(con)`) | 적재 여부 확인과 `fetch_status` 조회 용도 |
 
-파일과 DB 를 섞어 **판정을 조립하지 않는다.** 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. ⚠ **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조.
+파일과 DB 를 섞어 **판정을 조립하지 않는다.** 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조.
 `LAW_TEXT_PENDING` 판정은 **판정에 실제로 쓰인 룰 카탈로그 전체의 법령 참조**를 본다 — 출력에 드러난 인용만 세면
 전 룰이 `CLEAR` 인 자산에서 인용이 0건이 되어 `"COMPLETE"` 가 나오는데, 그건 조문을 수집했다는 뜻이 아니라
 아무것도 발화하지 않았다는 뜻이다.
@@ -366,7 +366,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 | `error` | `internal_error` | 그 밖의 예외를 `status` 로 닫는 마지막 그물 (`:209`, D9) |
 | `error` | `db_error` | `sqlite3.Error`·`OSError` |
 
-> **⚠ 어휘 통일 (MQ-712)** — 이전에는 `except Exception` 그물이 `engine_error` 를 냈고, 같은 실패를
+> **어휘 통일 (MQ-712)** — 이전에는 `except Exception` 그물이 `engine_error` 를 냈고, 같은 실패를
 > §14 `build_evidence_bundle` 은 `internal_error` 로 냈다. **같은 실패가 도구마다 다른 이름**이었다
 > (§14 가 스스로 경고해 둔 상태 · MQ-705 가 MCP 도구 경유를 끊으면서 생겼다).
 > **`internal_error` 로 통일했다.** 이유 둘: ⓐ 그 그물은 엔진 예외만 잡지 않는다(직렬화·타입 오류도
@@ -376,7 +376,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 > `spikes/bundle_integrity.py ㉒` 가 `KeyError`·`TypeError`·`ValueError` 3종으로 두 도구 어휘 일치를 잠근다
 > (뮤턴트로 되돌리면 FAIL 하는 것을 확인했다).
 >
-> ⚠ **남아 있는 비대칭 1건(고치지 않았다)**: DB 파일 부재를 §14 는 `db_missing`, §8 은 `db_error` 로 낸다
+> **남아 있는 비대칭 1건(고치지 않았다)**: DB 파일 부재를 §14 는 `db_missing`, §8 은 `db_error` 로 낸다
 > — §8 에 `except FileNotFoundError` 절이 없어 `OSError` 절이 먼저 잡는다(`:195`). 새 reason 을 §8 계약에
 > 추가하는 일이라 **MQ-712 범위 밖**이며, ㉒ 의 대조 대상도 아니다. 고치려면 계약 변경으로 다뤄야 한다.
 | `not_found` | `unknown_equipment` | 등록되지 않은 설비 |
@@ -502,7 +502,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 ```
 
 - **MTBF 는 `window_months` 안 이벤트의 인접 간격(일) 평균**이다. 이벤트 2건 미만이면 간격 자체가 없으므로 `null` — 0 으로 채우면 "고장 간격 0일"이라는 최악의 신호가 되고, 큰 수로 채우면 없는 안정성이 생긴다.
-- **`mtbf_trend` 는 `window_months` 와 무관하게 최근 12개월 vs 직전 12개월 고정 비교**다. 밴드 ±10%. 어느 한쪽이라도 이벤트 <2건이면 `insufficient_data` — ⛔ `"stable"` 로 대체하지 않는다.
+- **`mtbf_trend` 는 `window_months` 와 무관하게 최근 12개월 vs 직전 12개월 고정 비교**다. 밴드 ±10%. 어느 한쪽이라도 이벤트 <2건이면 `insufficient_data` — `"stable"` 로 대체하지 않는다.
 - **OEE 는 계산도 출력도 하지 않는다** (D64). `not_considered` 에 금지 사유만 남긴다.
 - 서명되지 않은 수리 레코드는 MTTR·예방보전 비율 **분모에서 전부 제외**하고 그 사실을 `excluded[]` 에 적는다 (`12 §11`).
 
@@ -568,7 +568,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 (D61 · `11 §4` 불변식 2). 다만 **조문 원문이 없다고 판정을 막지는 않는다** — 인용은 조문 번호·제목
 기준이고 참조 무결성은 참조 대상의 존재로 이미 보장되므로, `evidence_completeness` 로 사실만 드러낸다.
 
-⛔ 판정 규칙을 `data/rules/rules/` 에 두지 않는다 — 그 디렉토리는 **처분 플래그 전용**이고
+판정 규칙을 `data/rules/rules/` 에 두지 않는다 — 그 디렉토리는 **처분 플래그 전용**이고
 (`disposal_type` 필수) `check_disposal_blockers` 가 디렉토리 전체를 로드하므로 지출 판정 룰을 넣으면
 처분 판정에 섞여 들어간다.
 
@@ -634,7 +634,7 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 ```
 
 - **0번이 최우선인 이유**: 3지 선택지를 함께 주면 에이전트가 그중 하나를 고른다. 그래서 시장가·회복분을 **계산조차 하지 않고** `alternatives: []` 로 닫는다. S3 발주 보류(`po_card` variant `hold`, D35)가 그대로 적용된다 (D2 · `12 §11`).
-- **1번이 2번보다 앞인 이유** ⚠ — 잔가 원천이 없는 상태에서 "교체하라"고 권하는 것도 근거 없는 판단이다. 이 순서 덕분에 **`residual_curve` 를 비우면 전 자산이 `HOLD`** 가 된다 — "값을 지어내지 않는다"의 기계적 증명이다. 반대 순서면 `residual_curve` 를 비웠을 때 도구가 값을 지어낸다.
+- **1번이 2번보다 앞인 이유** — 잔가 원천이 없는 상태에서 "교체하라"고 권하는 것도 근거 없는 판단이다. 이 순서 덕분에 **`residual_curve` 를 비우면 전 자산이 `HOLD`** 가 된다 — "값을 지어내지 않는다"의 기계적 증명이다. 반대 순서면 `residual_curve` 를 비웠을 때 도구가 값을 지어낸다.
 - **2번이 회복 계산보다 앞인 이유**: 부품이 EOL 이면 이번 수리가 회수되더라도 다음 고장에서 부품을 구할 수 없다.
 - **3과 4는 상호배타다** — 회복분 ≥ 수리비이면 수리비가 회복 후 시장가를 넘을 수 없다.
 - **5번에서 새 verdict 를 만들거나 가까운 쪽으로 반올림하지 않는다.** 규칙이 침묵한 것을 결론으로 바꾸면 그게 지어내기다.
@@ -642,9 +642,9 @@ AST-L3-LIFT   SALE=CONDITIONAL   SCRAP=CLEAR   TRANSFER=CLEAR
 **시장가 산출 (D65·D74)** — `market_value_before = acquisition_cost × residual_ratio`.
 `residual_curve` 는 **법정 기준내용연수 기반 목업 정률법 산출물**이고 실거래 데이터가 아니다.
 연차 격자(`0-2/3-5/6-10/11-15/16-20/21-30`) 밖이거나 행이 없거나 `acquisition_cost` 가 NULL 이면
-`null` → `HOLD`. ⛔ **인접 버킷으로 보간하지 않는다.**
+`null` → `HOLD`. **인접 버킷으로 보간하지 않는다.**
 회복분은 `CRITICAL` 부품 교체에만 적용하고 계수(`RESTORE 0.10 / REPLACE_UNIT 0.15 / UPGRADE 0.20 / OVERHAUL 0.25`)는
-**계측이 아니라 코드 상수**다 — `assumptions[]` 로 고지한다. ⚠ 목업 곡선은 전 카테고리 값이 동일해
+**계측이 아니라 코드 상수**다 — `assumptions[]` 로 고지한다. 목업 곡선은 전 카테고리 값이 동일해
 **`category` 는 조인 키일 뿐 판정에 영향을 주지 않는다.**
 
 **하위 도구 실패를 삼키지 않는다.** `classify_part_criticality`·`get_maintenance_metrics` 중 하나라도
@@ -741,12 +741,12 @@ rule_hash = engine.text_hash(canonical_json({f: getattr(rule, f) for f in RULE_H
 `disposal_type` · `source_type` · `law_refs` · `contract_refs` · `interpretation` · `required_facts` ·
 `trigger` · `boundary` · `message` · `resolve_options` · `confidence` · `requires_expert_review`.
 
-- ⛔ `authored_by`·`reviewed_at`·`revision_note` 는 **제외**한다. 룰 JSON 에는 있지만 판정 입력이 아닌
+- `authored_by`·`reviewed_at`·`revision_note` 는 **제외**한다. 룰 JSON 에는 있지만 판정 입력이 아닌
   메타데이터라, 넣으면 *"검토자 이름 오타 수정"* 이 서명 검증에서 **근거 변조**로 보고된다.
   셋은 `engine.Rule` dataclass 에도 실리지 않으므로 이 제외는 구조와도 일치한다.
 - `bundle_hash` 와 **같은 함수**(`canonical_json` + `engine.text_hash`)를 쓴다. 재구현 금지.
 
-**⛔ `contracts[]` 는 `law_text_unavailable` 검사 대상이 **아니다****
+**`contracts[]` 는 `law_text_unavailable` 검사 대상이 **아니다****
 
 계약 조항은 법제처 수집 대상이 아니다. 검사에 넣으면 `LIEN-CONSENT`(여신거래기본약관 인용)가 걸린
 자산의 번들이 **구조적으로 영원히 불가능**해진다 — 수집으로 해소될 수 없는 실패다.
@@ -764,21 +764,21 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 1. `sort_keys=True` — dict 는 삽입 순서를 보존하므로, 고정하지 않으면 `facts` 를 만든 순서만 달라도 다른 해시가 난다.
 2. `separators=(",", ":")` — 기본 구분자는 `", "`·`": "` 라 공백이 들어간다.
-   ⚠ **이건 "두 방어선을 겹쳐 둔 것"이 아니라 필수 규약이다.** `engine.normalize()` 는
+   **이건 "두 방어선을 겹쳐 둔 것"이 아니라 필수 규약이다.** `engine.normalize()` 는
    `" ".join(text.split())` 이라 공백을 **지우는 게 아니라 하나로 접는다**(`engine.py:29-32`) —
    즉 구분자 차이(`{"a":1}` vs `{"a": 1}`)는 정규화로 **흡수되지 않는다.**
 3. `ensure_ascii=False` — 한글을 `\uXXXX` 로 이스케이프하면 같은 문자열이 두 표현을 갖는다. NFKC 는 이스케이프 시퀀스를 되돌리지 못한다.
 4. `engine.text_hash()` **재구현 금지** — NFKC + 공백 정규화가 계층 1 조문 해시와 **같은 규칙**이어야 한다.
 
-⚠ `built_at`·`evaluated_at`·**`hash_spec`** 은 **번들 밖**이다. `built_at` 을 안에 넣으면 같은 사실도
+`built_at`·`evaluated_at`·**`hash_spec`** 은 **번들 밖**이다. `built_at` 을 안에 넣으면 같은 사실도
 호출할 때마다 해시가 달라져 "근거가 변조되지 않았음"을 증명할 수 없다. **`hash_spec` 을 안에 넣으면
 스펙 문자열을 한 글자 고치는 순간 과거 서명이 전부 깨진다**(N1). `not_considered` 도 같은 이유로 밖이다 —
 목록 문구가 바뀔 때마다 "근거가 변조됐다"는 오탐이 난다.
-⚠ **리스트 4종(`laws`·`rules`·`evaluated`·`contracts`)은 순서가 해시에 영향을 준다.** `sort_keys` 는
+**리스트 4종(`laws`·`rules`·`evaluated`·`contracts`)은 순서가 해시에 영향을 준다.** `sort_keys` 는
 리스트를 정렬하지 않으므로 조립 시점에 명시적으로 정렬한다 — `laws`→`law_ref_id`,
 `rules`·`evaluated`→`(rule_id, rule_version)`, `contracts`→`contract_ref`. 룰 유일키에 `rule_version` 을
 포함하는 이유: 개정본이 공존할 수 있고 **서명은 그때 그 버전에 대해 이뤄진 것**이다 (D60).
-⚠ **해시 동일 ≠ 바이트 동일** (N1). 기준은 *NFKC + 공백 정규화 후 동일* 이며, 그 사실을 번들 밖의
+**해시 동일 ≠ 바이트 동일** (N1). 기준은 *NFKC + 공백 정규화 후 동일* 이며, 그 사실을 번들 밖의
 `hash_spec` 과 `disclaimer` 로 드러낸다. `spikes/bundle_integrity.py ⑩` 이 전각/연속 공백 변형으로 확인한다.
 
 ### 미수집 조문이 하나라도 있으면 **의도적으로 거부**한다
@@ -816,7 +816,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | `error` | `db_missing` / `db_error` / `internal_error` | DB 파일 없음 / DB 예외 / 그 밖(직렬화·엔진 예외)을 닫는 마지막 그물 |
 | `not_found` | `unknown_asset` / `unknown_equipment` / `no_host_asset` | §8 과 동일 (`_asset_ref` 공용) |
 
-> **⚠ "§8 에 위임한다"는 서술은 거짓이었다 — 정정한다 (D82·W5).**
+> **"§8 에 위임한다"는 서술은 거짓이었다 — 정정한다 (D82·W5).**
 > 이 도구는 **MCP 도구 `check_disposal_blockers` 를 부르지 않는다.** `engine.load_laws_from_db()` 로
 > 계층 1·2 사본을 한 번만 읽고 그 객체를 `engine.check_disposal_blockers(facts, laws=…, rules=…)` 에
 > **주입**한다(`build_evidence_bundle.py:320-355`). 도구를 경유하면 인용 집합은 *파일 사본* 판정에서,
@@ -828,7 +828,7 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 
 ---
 
-## 15. generate_disposal_document — 처분 승인서·진술보장서 **초안** (S10 계층 3의 입구) ⚠️ 두 번째 쓰기 도구
+## 15. generate_disposal_document — 처분 승인서·진술보장서 **초안** (S10 계층 3의 입구) 두 번째 쓰기 도구
 
 **description (코드 정본 = `generate_disposal_document.py:DESCRIPTION`):**
 > "설비 자산의 처분 승인서·진술보장서 '초안'을 생성한다. 확정이 아니다. 반드시 check_disposal_blockers 로 판정을 먼저 확인한 뒤 사용자가 처분을 결정한 후에만 호출할 것. 판정이 BLOCKED·HOLD·INSUFFICIENT_FACTS 여도 초안은 만들어진다 — 그 사실이 초안에 기록되고, 차단을 뚫을지는 팀장이 승인 화면에서 사유와 함께 결정한다. 너는 override 를 요청하거나 사유를 대신 작성할 수 없다 — 그 파라미터가 없다. 근거 조문 원문이 아직 수집되지 않았으면 초안 생성이 거부된다 — 해시할 근거가 없는 서류는 만들지 않는다."
@@ -862,17 +862,17 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 }
 ```
 
-> 🔑 **키 이름이 `unreviewed_template_notice` → `template_review_notice` 로 바뀌었다 (D90, 2026-08-13).**
+> **키 이름이 `unreviewed_template_notice` → `template_review_notice` 로 바뀌었다 (D90, 2026-08-13).**
 > 문안 검수가 끝나 값이 *"검수 완료"* 가 되는데 키 이름에 `unreviewed` 가 남으면 자기모순이다.
 > 두 값 모두 `data/doc_review.py` 에서 나온다 — `backend` 와 `mcp_server` 가 **같은 모듈**을
-> 읽는다(D73). ⛔ 어느 쪽에도 문구를 리터럴로 두지 않는다.
+> 읽는다(D73). 어느 쪽에도 문구를 리터럴로 두지 않는다.
 > **검수가 끝나도 줄은 사라지지 않는다** — 법적 문서라 "언제 검수했는가"가 남아야 한다.
 
 ### ★ 이 도구가 지키는 경계 (전부 코드로 확인 가능)
 
 | 결정 | 무엇을 | 어디서 |
 |---|---|---|
-| **D10** | `decisions` 에 `state='draft'` **INSERT 만**. UPDATE/DELETE 권한 자체가 없다 | `db.decision_writer()` 의 TEMP TRIGGER 2개. ⛔ `po_drafts` 전용 `draft_writer()` 를 재사용하지 않는다 — 그걸로 `decisions` 를 만지면 **잠금 없이 쓰는 것**이 된다 |
+| **D10** | `decisions` 에 `state='draft'` **INSERT 만**. UPDATE/DELETE 권한 자체가 없다 | `db.decision_writer()` 의 TEMP TRIGGER 2개. `po_drafts` 전용 `draft_writer()` 를 재사용하지 않는다 — 그걸로 `decisions` 를 만지면 **잠금 없이 쓰는 것**이 된다 |
 | **D81** | `override`·`override_reason`·`reviewed_by` 가 **파라미터에 없다** | `server.py:332-346` 시그니처. 스키마에 키가 없으므로 LLM 이 *"추징을 감수하고 매각한다"* 같은 사유를 지어내 BLOCKING 을 뚫는 호출이 **구조적으로 불가능**하다. `:325` 에서 `0, NULL, NULL, NULL, 'draft'` 를 **리터럴로 박는다** |
 | **D63** | **BLOCKED 여도 draft 는 정상 생성된다** | 막으면 사용자는 시스템 밖에서 처분하고 **기록만 사라진다.** 출력은 "차단됐다"가 아니라 "차단된 채로 결재에 올라간다" |
 | **D23·D37** | `requested_by`·`session_id` 도 파라미터가 아니다 | INSERT 직후 백엔드가 stamp 한다 (`create_po_draft` 와 같은 패턴) |
@@ -900,14 +900,14 @@ bundle_hash            = engine.text_hash(canonical_json(bundle))   # "sha256:�
 | `error` | `db_error` / `db_missing` / `internal_error` | DB 예외 / DB 파일 없음 / 그 밖 |
 | (전파) | **§14 의 모든 status·reason** | `law_text_unavailable`·`asset_modified`·`asset_disappeared`·`invalid_input`·`rule_catalog_not_loaded`·`rule_integrity`·`engine_error`·`unknown_asset`·`unknown_equipment`·`no_host_asset`. **여기서 다시 포장하지 않는다** — 포장하면 같은 실패가 도구마다 다른 이름을 갖는다 |
 
-> ⚠ **`documents_preview` 렌더는 INSERT 뒤 `try` 블록 안**에서 한다(`:341`). 문안 조립 버그가 도구를
+> **`documents_preview` 렌더는 INSERT 뒤 `try` 블록 안**에서 한다(`:341`). 문안 조립 버그가 도구를
 > 죽이면 D9 가 깨지기 때문이다.
-> ⚠ 직렬화는 `canonical_json` 결과를 **그대로** 저장한다(`:315`). 다시 직렬화하면 키 순서·구분자가 달라져
+> 직렬화는 `canonical_json` 결과를 **그대로** 저장한다(`:315`). 다시 직렬화하면 키 순서·구분자가 달라져
 > 서명 시 해시 재대조(D84)가 깨진다.
 
 ---
 
-## 16. create_repair_record — 수리 증빙 초안 생성 (S29) ⚠️ 세 번째 쓰기 도구 (D98)
+## 16. create_repair_record — 수리 증빙 초안 생성 (S29) 세 번째 쓰기 도구 (D98)
 
 **description (코드 정본 = `create_repair_record.py:DESCRIPTION`):**
 > "수리 작업의 증빙 '초안'을 생성한다. 확정이 아니다. 수리가 끝난 뒤 무엇을 어떻게 고쳤는지(작업유형·수리범위·비용·교체 부품)를 기록할 때 호출할 것. 이 초안은 팀장이 서명해야 정식 증빙이 되며, 서명 전에는 get_maintenance_metrics 의 보전지표에 들어가지 않는다. 교체한 부품 품번을 정확히 넣을 것 — 등록되지 않은 품번은 거부된다(unknown_part). 지출의 자본적/수익적 분류(expenditure_class)는 시스템이 자동 산출한다 — 파라미터로 받지 않으며 네가 추측하거나 지어내지 말 것. 에러코드로부터 시작된 수리이면 model·error_code 를 함께 넣을 것 — 매뉴얼에 없는 코드는 거부된다."
@@ -952,7 +952,7 @@ INSERT 하고, 확정(서명)은 사람 전용 API 소관이며, 신원은 백�
 4. `expenditure_class` 산출: `data/maint_value.expenditure(con, part_class=…, repair_scope=…, amount=cost)`. **`HOLD` 는 실패가 아니라 판정**이므로 그대로 저장한다(DDL CHECK 가 허용). `part_class` 가 NULL 이면 지출 분류도 **NULL**이고, `expenditure()` 자체가 `status != "ok"` 를 돌려주면 **그대로 전파**하고 INSERT 하지 않는다(§13 이 하위 도구 실패를 삼키지 않는 것과 같은 태도).
 5. `(model, error_code)` 는 짝이거나 둘 다 NULL. `model` 은 enum(`iG5A`|`S100`|`IE5`) 강제(D6·D13·D109). `error_code` 는 대문자 canonical로 저장하되 **사전 조회를 하지 않는다** — `create_po_draft` 와 달리 실재 검증은 INSERT 시점의 FK(`(model, error_code) REFERENCES error_codes(model, code)`)에 맡기고, 위반은 `status:"error", reason:"integrity"` 로 그대로 드러난다.
 6. `db.repair_writer()` 로 **INSERT 만**. `state='draft'`, `performed_by`/`verified_by`/`signed_at`/`record_hash`/`requested_by`/`session_id` 는 **NULL 리터럴**로 박는다(파라미터로 받지 않는다).
-7. `repair_id` 채번: `data/repair_record.next_repair_id()` → `data/txn.next_sequential_id()` **한 곳**만 거친다 (D126). 출력 형식 `RPR-%04d` 는 그대로이고 **경쟁만** 없앴다 — `pg_advisory_xact_lock` 으로 직렬화하고, 후보는 `^RPR-[0-9]+$` 에 맞는 행만, 정렬은 사전순이 아니라 **수치**로 한다. ⛔ 옛 `SELECT max(...)` 사본을 이 도구에 다시 만들지 말 것 — `spikes/db_concurrency.py ㉑` 이 정적 검사로 막는다(초기 서술이었던 *"동시성 방어는 새로 만들지 않는다(P19)"* 는 D126 이 대체했다).
+7. `repair_id` 채번: `data/repair_record.next_repair_id()` → `data/txn.next_sequential_id()` **한 곳**만 거친다 (D126). 출력 형식 `RPR-%04d` 는 그대로이고 **경쟁만** 없앴다 — `pg_advisory_xact_lock` 으로 직렬화하고, 후보는 `^RPR-[0-9]+$` 에 맞는 행만, 정렬은 사전순이 아니라 **수치**로 한다. 옛 `SELECT max(...)` 사본을 이 도구에 다시 만들지 말 것 — `spikes/db_concurrency.py ㉑` 이 정적 검사로 막는다(초기 서술이었던 *"동시성 방어는 새로 만들지 않는다(P19)"* 는 D126 이 대체했다).
 8. `server.py` 등록은 `if TOOLS_PROFILE == "full":` 블록 안에만.
 
 **status / reason**
@@ -1101,7 +1101,7 @@ D69·D88(프로파일)
 > 보험 보장 여부를 명시적으로 물을 때만 호출할 것. MaintQ 매뉴얼 근거가 아니라 외부 파트너의 응답이므로
 > 결과를 그대로 전달하고 추측을 덧붙이지 말 것. 실패 시 확답을 못 얻었다는 사실을 정직하게 알릴 것."
 
-⚠ **§8~§18 과 구조가 다르다.** 이 도구는 `data/`(엔진·룰 카탈로그)를 직접 읽지 않는다 — `mcp_server`
+**§8~§18 과 구조가 다르다.** 이 도구는 `data/`(엔진·룰 카탈로그)를 직접 읽지 않는다 — `mcp_server`
 프로세스에서 **backend REST**(`POST /api/a2a/lookup-clause`)를 `httpx` 로 동기 호출하고 그 응답을
 그대로 전달할 뿐이다. mcp_server 는 여전히 `backend.a2a`·A2A 자격증명을 모른다(D15·D93 유지) — 이
 도구가 아는 것은 `MAINTQ_BACKEND_BASE_URL`(`.env.example`, MQ-1603) 하나뿐이다. 대상도
@@ -1171,7 +1171,7 @@ D69·D88(프로파일)
 > 준비되지 않아 실패 응답이 정상적으로 나올 수 있다 — 실패를 오류로 취급하지 말고 결과를 있는 그대로
 > 전달할 것."
 
-⚠ **§19 와 같은 구조다** — `mcp_server` → backend REST(`POST /api/a2a/assess-loan`) 왕복이며
+**§19 와 같은 구조다** — `mcp_server` → backend REST(`POST /api/a2a/assess-loan`) 왕복이며
 `data/`(엔진·룰 카탈로그)를 직접 읽지 않는다(D15·D93). 대상도 자산이 아니라 대출 조건(금액·목적·담보
 건물 ID)이다.
 
@@ -1236,7 +1236,7 @@ D69·D88(`full` 전용) · D113·D114(§19 와 동일)
 "이 발주서에 뭐라고 적혀 있나" · "어느 항목이 비었나" 를 **짚어서** 말할 수 있게 하는 것이
 목적이다 — 그래서 업무 값이 아니라 **템플릿 자리**를 준다.
 
-⛔ **이 도구는 아무것도 쓰지 않는다** (절대규칙 1 · D10). `read_only()` 만 쓰고
+**이 도구는 아무것도 쓰지 않는다** (절대규칙 1 · D10). `read_only()` 만 쓰고
 `draft_writer()`·`decision_writer()`·`repair_writer()` 를 부르지 않는다.
 
 ### 입력
@@ -1308,7 +1308,7 @@ D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full
 이력(`ownership_checks`)·**취득원가(`acquisition_cost`)** 는 전부 백엔드 payload 빌더가
 자산에서 파생한다(`backend/a2a/payloads.py::build_assess_used_equipment_loan_payload`).
 
-⛔ **원가를 도구 파라미터로 두지 않는다.** 두면 LLM 이 그 값을 지어내 호출하는 경로가
+**원가를 도구 파라미터로 두지 않는다.** 두면 LLM 이 그 값을 지어내 호출하는 경로가
 열린다 — §15 가 `override` 키를 스키마에서 뺀 것과 같은 이유(D23·D31·D81 계열).
 원가의 정본은 `assets.acquisition_cost` 이고, NULL 이면 payload 에서 **키가 빠진다**(D62).
 
@@ -1322,7 +1322,7 @@ D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full
 **description (코드 정본 = `assess_used_equipment_loan.py:DESCRIPTION`):**
 사용자가 설비를 담보로 한 자금 조달을 **명시적으로** 물을 때만 호출한다(D112 와 같은 태도).
 
-🔴 **`decision:"approved"` 를 «대출이 승인됐다»로 옮기지 않는다.** 그것은 상대가 담보
+**`decision:"approved"` 를 «대출이 승인됐다»로 옮기지 않는다.** 그것은 상대가 담보
 조건을 충족한다고 본 판정이고, **실제 여신 승인은 상대 담당자의 결재가 남아 있다**
 (상대 장부의 대출 건은 심사중 상태로 남는다 — 2026-09-10 FinAllQ 실측 확인).
 「담보 조건 충족」으로 전하고 결재가 남았음을 함께 밝힌다. 이 경계를 흐리면
@@ -1343,7 +1343,7 @@ D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full
 때문이다. *"상대가 응답하지 않습니다"* 와 *"연속 실패로 잠시 차단됐습니다"* 는 같은 말이
 아니고, 후자는 **상대를 고쳐도 낫지 않는다.**
 
-⚠️ **`full` 프로파일에서만 등록된다**(D69·D88). 기본은 `core` 7종이다.
+**`full` 프로파일에서만 등록된다**(D69·D88). 기본은 `core` 7종이다.
 
 ---
 
@@ -1393,7 +1393,7 @@ D9(status 반환) · D80(필수 파라미터 기본값 없음) · D69·D88(`full
                  |"empty_translation"|"identity_missing"|"identity_invalid"|"db_error" }
 ```
 
-⛔ **아무것도 검증 없이 그대로 믿지 않는다** — 신뢰 못 할 입력(업로드 매뉴얼) 위에서 동작하므로
+**아무것도 검증 없이 그대로 믿지 않는다** — 신뢰 못 할 입력(업로드 매뉴얼) 위에서 동작하므로
 서버가 최종 판정을 덮는다:
 
 - **신원**은 `mcp_server/identity.py::resolve(ctx)` 로 정한다 — stdio 호출이면 `staged_by="stdio"`,
@@ -1451,10 +1451,10 @@ D23(신원은 도구 파라미터가 아니다) · D144(원문 인용을 이 문
 | `law_text_unavailable` | 14 (→15 전파) | 조문 원문 미수집 → 번들 생성 거부 (MQ-701 수집 후 **실 DB 에서는 미발화**). **15 는 이때 draft 를 만들지 않는다** |
 | `asset_disappeared` | 14 (→15 전파) | 판정 직후 자산 행 소실 |
 | **`asset_modified`** | 14 (→15 전파) | **N2** — 판정 후 조립 사이에 자산 행이 바뀜. 한 시점의 사실을 증명하지 못하는 번들은 만들지 않는다 |
-| `engine_error` | 8·14 (→15 전파) | **엔진 계약 위반을 확인한 자리에만** — 계약 밖 verdict · 계약 키 누락 · 재평가 불일치. ⛔ 일반 예외 그물이 아니다 |
+| `engine_error` | 8·14 (→15 전파) | **엔진 계약 위반을 확인한 자리에만** — 계약 밖 verdict · 계약 키 누락 · 재평가 불일치. 일반 예외 그물이 아니다 |
 | **`reason_required`** | **15** | `reason` 미기재. 코어 §7 `create_po_draft` 와 같은 어휘 |
 | **`integrity`** | **15·16** | FK·CHECK·TEMP TRIGGER(D10) 위반. 코어 §7 과 같은 어휘. **16 은 이 reason 뒤에 사전 조회가 없다** — 매뉴얼에 없는 `error_code` 는 여기서 걸린다 |
-| `db_missing` | 9·14·15·**16** | DB 파일 없음. ⚠ 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
+| `db_missing` | 9·14·15·**16** | DB 파일 없음. 8 은 이 자리에서 `db_error` 를 낸다(§8 표의 비대칭 주 참조) |
 | `db_error` | 8·9·10·11·12·13·14·15·**16** | DB 예외 |
 | `internal_error` | **8**·9·10·12·13·14·15·**16** | 그 밖의 예외를 status 로 닫는 마지막 그물 (D9). **MQ-712 에서 8 이 `engine_error` → `internal_error` 로 통일됐다** |
 
@@ -1517,7 +1517,7 @@ D23(신원은 도구 파라미터가 아니다) · D144(원문 인용을 이 문
 | S4 미지 코드 | lookup(**not_found**) → 추측 금지 → A/S 안내 |
 | **S1+** 수리 판단 (확장) | classify_part_criticality → get_maintenance_metrics → **assess_repair_value** → (필요 시) classify_expenditure |
 | **S9** 처분 차단 (확장) | (사전 경보) **track_deadlines**(§17, 법정 기한 임박 확인, Sprint 11) → **check_disposal_blockers(BLOCKED/HOLD/INSUFFICIENT_FACTS)** → 해소 경로 안내 (REST 는 409, D71) |
-| **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. ⚠ **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
+| **S10** 근거 번들 → 서명 (확장) | check_disposal_blockers → **generate_disposal_document**(내부에서 `build_evidence_bundle` 호출 → `decisions` draft INSERT) → 사람이 자산 화면에서 `POST /api/decisions/{id}/submit` → 승인 큐 → `POST /api/decisions/{id}/sign`. **`build_evidence_bundle` 을 에이전트가 따로 부를 필요는 없다** — §15 가 함수로 직접 호출한다 |
 | **S18** 중고 취득 검증 (확장) | **verify_ownership(PARTIAL)** → 잔여 리스크 + 계약상 배분 안내 → (실사 보존) **assess_risk_grade**(§18, 건물 위험등급, Sprint 11) |
 | **S29** 수리 증빙 (확장) | (수리 완료 후) **create_repair_record**(§16, `expenditure_class` 자동 산출) → `decisions` 와 마찬가지로 사람이 승인 큐에서 서명 → 서명분만 `get_maintenance_metrics` 지표에 반영 |
 | 신규 InsuQ 상담 | **search_insurance_clause**(§19, 사용자 명시 질의 시에만, D112) → InsuQ 응답을 그대로 전달 → 후속 조회는 `GET /api/a2a/history`(D114) |

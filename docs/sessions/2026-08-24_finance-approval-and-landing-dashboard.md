@@ -183,7 +183,7 @@ Sprint 18(정비사 랜딩 화면 전환: 챗봇 → 설비 대시보드, 1스�
 - Sprint 18: `tsc`·`next build`·`ui_honesty_contract`(268→274, `EquipmentCard.tsx` 신설로
   L2 6건 자연 증가) 전부 통과
 - 브라우저 QA(claude-in-chrome, 격리 로컬 uvicorn:8897 + next dev:3000): 재무부 승인 흐름,
-  정렬 우선순위(🔴>🟠>🔵>정상), 사이드바 링크 왕복 — 모두 실사용 시나리오로 확인
+  정렬 우선순위(>>>정상), 사이드바 링크 왕복 — 모두 실사용 시나리오로 확인
 - D-범위 표기 정합성(이 세션 `/done`에서 수행): `CLAUDE.md`·`README.md`·`docs/README.md`·
   `.claude/agents/reviewer.md` 4곳 모두 D1~D118 → **D1~D119**로 정정
 - `docs/05_DB_SCHEMA.md §8`·`docs/06_REPO_API.md §2.2/§2.4`는 Sprint 17 스테이지 진행 중

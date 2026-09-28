@@ -80,8 +80,8 @@
 | kseis_machinery / kseis_electrical | 분야 | 자재구분 문자열에 '기계설비' 포함 여부로 2값 태깅 | `자재구분` |
 | kseis_all | 단가_표기 | '{가격:,}원/{단위}' 문자열 — 단위 없는 가격 비교를 막는다 | `가격`, `단위` |
 | kseis_all | 가격_로그 | log10(max(가격,1)) — 가격 분포가 3자릿수 이상 퍼져 있어서 | `가격` |
-| joonggomall_assets | 카테고리1_정규화 | re.sub(r'[\s/]+', '', 카테고리1) — 표기 변종 6쌍 흡수. ⛔ 원본 카테고리1 은 조인 키라 그대로 둔다(D68) | `카테고리1` |
-| joonggomall_assets | 조달청_분야 | CATEGORY_MAP 수기 매핑 (18개념 → 기계설비/전기정보통신/None). ⚠ 태그일 뿐 join 키로 쓰지 않는다 | `카테고리1_정규화` |
+| joonggomall_assets | 카테고리1_정규화 | re.sub(r'[\s/]+', '', 카테고리1) — 표기 변종 6쌍 흡수. 원본 카테고리1 은 조인 키라 그대로 둔다(D68) | `카테고리1` |
+| joonggomall_assets | 조달청_분야 | CATEGORY_MAP 수기 매핑 (18개념 → 기계설비/전기정보통신/None). 태그일 뿐 join 키로 쓰지 않는다 | `카테고리1_정규화` |
 | error_codes | 청크수 | manual_chunks 를 (model, page) 로 집계해 left join — 인용 페이지에 근거 청크가 몇 개 있는지. 0이면 근거를 못 보여준다 | `model`, `manual_page` |
 
 
@@ -91,13 +91,13 @@
 |---|---|---|
 | dacon_fan_sound | caveat | 32bit float 라 표준 wave 모듈로 못 읽는다 (unknown format: 3) |
 | dacon_fan_sound | caveat | 붙는다면 백로그 P10 — 단 현재 P10 입력이 error_history(D29)라 입력 축 신설이 선행 |
-| error_codes | caveat | ⛔ 승인 완료 산출물이다 — 값을 고치지 않는다. 정정은 extract_error_codes.py 재실행으로만 |
+| error_codes | caveat | 승인 완료 산출물이다 — 값을 고치지 않는다. 정정은 extract_error_codes.py 재실행으로만 |
 | error_codes | caveat | 12종 코드가 두 기종에 모두 있다 — (model, code) 복합키가 아니면 조회가 결정되지 않는다(D13) |
 | error_codes | caveat | 다만 '같은 코드 다른 고장'은 과장이다. 물리적 의미는 대체로 같고 실제로 갈리는 것은 ① display_code 표기(12/12) ② manual_page(12/12) ③ severity(HWT 1건뿐) |
 | error_codes | caveat | actions 가 빈 코드가 37건(56.9%) — 매뉴얼 원문이 그렇다. 없는 조치를 지어내면 안 된다 |
 | error_codes | caveat | description 은 S100 41건에만 있다 (스키마 비대칭) |
 | error_codes | caveat | error_name 은 조회 키로 쓸 수 없다 — S100 IO Board Trip 이 3개 코드에 중복 |
-| iros_collateral_stats | caveat | ⛔ '기계설비 담보가 연 N건' 으로 인용 금지 — 동산·채권 합산이고 기계설비 비중은 비공개 |
+| iros_collateral_stats | caveat | '기계설비 담보가 연 N건' 으로 인용 금지 — 동산·채권 합산이고 기계설비 비중은 비공개 |
 | iros_collateral_stats | caveat | tot 의 단위가 서비스마다 다르다 (건 vs 원). 서비스 구분 없이 합산 불가 |
 | iros_collateral_stats | caveat | apply_by_amount(0000000239) 는 0행 — 정상 응답에 전 필드 공백 레코드를 실어 보낸다. empty_windows 가 비어 있다는 게 그 증거이고, 재시도로 해결되지 않는다 |
 | iros_collateral_stats | caveat | 2023 은 8~12월 · 2026 은 1~7월 부분 구간이라 연 합계 비교 불가 |
@@ -119,12 +119,12 @@
 | kseis_machinery | caveat | 품명·규격에 줄바꿈(\n)이 들어 있다 |
 | kseis_machinery | caveat | 공공조달 단가라 규격·수량이 민간과 달라 그대로 시장 신품가가 아니다 |
 | kseis_machinery | caveat | 가격은 부가세 별도 |
-| law_articles | caveat | ⛔ 조문 텍스트를 손으로 고치면 계층 1 이 무너진다 — 정정은 재수집으로만 |
+| law_articles | caveat | 조문 텍스트를 손으로 고치면 계층 1 이 무너진다 — 정정은 재수집으로만 |
 | law_articles | caveat | text_hash 는 'sha256:' + sha256(NFKC 정규화 + 공백 단일화) 다. 단순 sha256(text) 로 검증하면 전건 불일치가 나온다 — engine.text_hash 를 import 해서 쓸 것 |
 | law_articles | caveat | API 의 조문내용 은 제목뿐일 수 있다. 항·호·목 평탄화 필수 (KR-STTC-24: 14자 → 3,574자) |
 | law_articles | caveat | KR-CITA-ENF-31 은 제목 불일치로 PENDING — 자동 덮어쓰기 안 하는 게 D75 설계 |
 | law_articles | caveat | clause·effective_to·supersedes 는 전건 None — 스키마만 있고 채워지지 않았다 |
-| manual_chunks | caveat | ⛔ 텍스트·page 를 고치면 인용 추적이 무너진다(D26·D32) — 재생성은 chunk_manual.py 로만 |
+| manual_chunks | caveat | 텍스트·page 를 고치면 인용 추적이 무너진다(D26·D32) — 재생성은 chunk_manual.py 로만 |
 | manual_chunks | caveat | section 은 쓸 수 있는 섹션 제목이다 (평균 16.9자 · 90.8% 절 번호). 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다 |
 | manual_chunks | caveat | 빈 페이지는 표·그림만 있는 면이다. 텍스트가 없으면 청크가 없는 게 정상 |
 | manual_chunks | caveat | D1 경계: 이 데이터는 절차 서술용이다. 코드 정의 조회는 error_codes.json 의 exact match |
@@ -145,21 +145,21 @@
 | SAMPLE_ID | ✅ | 행 식별자 |
 | SAMPLE_PATH | ✅ | wav 경로 — 실제로 열지는 않았다 |
 | FAN_TYPE | ✅ | 0/2 두 종류. 이 데이터셋에서 유일하게 변별력 있는 축 |
-| LABEL | — | 🚨 train 1,279행 전부 0 이고 test 엔 열 자체가 없다 — 학습 신호가 0 |
+| LABEL | — | train 1,279행 전부 0 이고 test 엔 열 자체가 없다 — 학습 신호가 0 |
 | split | ✅ | train/test 구분 (이 노트북에서 만든 파생) |
 
 ### error_codes — 9/11 사용
 
 | 컬럼 | 사용 | 이유 |
 |---|---|---|
-| model | ✅ | 🚨 복합키의 절반. enum 2종 강제(D6·D13) — 12종 코드가 두 기종에 겹쳐 이게 없으면 조회 불가 |
+| model | ✅ | 복합키의 절반. enum 2종 강제(D6·D13) — 12종 코드가 두 기종에 겹쳐 이게 없으면 조회 불가 |
 | code | ✅ | 복합키의 나머지 절반. 대문자 canonical (D25) |
 | display_code | ✅ | 키패드 원표기(D25). 사용자가 보는 건 'OCt' 지 'OCT' 가 아니다 — 12종 전부 표기가 다르다 |
-| error_name | ✅ | 응답 표시용. ⛔ 조회 키로는 못 쓴다 — S100 IO Board Trip 이 3개 코드에 중복 |
+| error_name | ✅ | 응답 표시용. 조회 키로는 못 쓴다 — S100 IO Board Trip 이 3개 코드에 중복 |
 | severity | ✅ | fault/warning/critical. HWT 만 기종 간 값이 다르다 |
 | causes | ✅ | 원인 목록. 응답 본문 |
 | actions | ✅ | 조치 목록. 37건(56.9%)이 빈 배열 — 매뉴얼 원문이 그렇다 |
-| manual_page | ✅ | 🚨 인용 앵커. PDF 물리 페이지(D26). 기종별로 범위가 완전히 다르다(202~204 vs 416~419) |
+| manual_page | ✅ | 인용 앵커. PDF 물리 페이지(D26). 기종별로 범위가 완전히 다르다(202~204 vs 416~419) |
 | description | ✅ | S100 41건에만 있다. 스키마 비대칭 — 소비처가 None 처리 필요 |
 | source | — | 추출 출처 메모. 전건 기종별 상수라 변별력 0 — 계보는 _status 가 갖는다 |
 | mapping_confidence | — | iG5A 24건 전부 'high' 이고 S100 엔 필드 자체가 없다. 승인 완료 후라 판정에 쓰이지 않는다 |
@@ -170,7 +170,7 @@
 |---|---|---|
 | slug | ✅ | 서비스 식별자. 단위·의미가 서비스마다 달라 반드시 함께 봐야 한다 |
 | 서비스명 | ✅ | 사람이 읽는 라벨 |
-| tot_unit | ✅ | 🚨 단위 구분. 이게 없으면 21조(원)를 건수에 더하게 된다 |
+| tot_unit | ✅ | 단위 구분. 이게 없으면 21조(원)를 건수에 더하게 된다 |
 | resDate | ✅ | 월 단위 시점. 연/월로 분해 |
 | srprsCls | ✅ | 담보권설정자 유형 — 법인/개인사업자 분포가 유일한 변별 축 |
 | tot | ✅ | 값. 문자열로 와서 숫자 변환 + 단위별 컬럼 분리 |
@@ -180,9 +180,9 @@
 
 | 컬럼 | 사용 | 이유 |
 |---|---|---|
-| 카테고리1 | ✅ | assets.category 조인 키 (D68). ⛔ 원본 바이트 유지 — '환경  설비' 공백 2칸 |
+| 카테고리1 | ✅ | assets.category 조인 키 (D68). 원본 바이트 유지 — '환경  설비' 공백 2칸 |
 | 카테고리2 | ✅ | 층화 분석용 세부 분류 |
-| 제조년월 | ✅ | 경과연수의 유일한 원천. '확인불가' 문자열을 NA 로 정규화 (63.1% 가 결측). ⛔ to_datetime 금지 — '2022' 같은 연도-only 값 81건이 조용히 날아간다 |
+| 제조년월 | ✅ | 경과연수의 유일한 원천. '확인불가' 문자열을 NA 로 정규화 (63.1% 가 결측). to_datetime 금지 — '2022' 같은 연도-only 값 81건이 조용히 날아간다 |
 | 희망가격 | ✅ | 가격 축. 단 호가지 실거래가가 아님 — 인용 시 고지 필수 |
 | 제조사 | ✅ | 기술적 진부화 판별 (제조사 존속 여부) |
 | 모델명 | ✅ | 동일 모델 내 연차-가격 상관 검증에 사용 (D74 근거) |
@@ -212,7 +212,7 @@
 | 규격 | ✅ | 같은 품명 안에서 단가를 가르는 유일한 축 |
 | 단위 | ✅ | 가격 비교의 전제. m/개/대 가 섞여 있어 단위 무시 비교는 무의미 |
 | 가격 | ✅ | 신품 단가 기준선 본체. 부가세 별도 |
-| 자재구분 | ✅ | 분야 구분. ⛔ 끝 공백 1칸이 있어 strip 필수 — 원본은 자재구분_원본 에 보존 |
+| 자재구분 | ✅ | 분야 구분. 끝 공백 1칸이 있어 strip 필수 — 원본은 자재구분_원본 에 보존 |
 | 물품분류번호 | ✅ | 조달청 품목 분류 코드. 카테고리 매핑의 후보 키 |
 | 물품식별번호 | ✅ | 행 고유 식별자 — 중복 검사에 사용 |
 | 게시일자 | ✅ | 단가 스냅샷 시점 (D31 단가 스냅샷 개념과 같은 성격) |
@@ -229,7 +229,7 @@
 | 규격 | ✅ | 같은 품명 안에서 단가를 가르는 유일한 축 |
 | 단위 | ✅ | 가격 비교의 전제. m/개/대 가 섞여 있어 단위 무시 비교는 무의미 |
 | 가격 | ✅ | 신품 단가 기준선 본체. 부가세 별도 |
-| 자재구분 | ✅ | 분야 구분. ⛔ 끝 공백 1칸이 있어 strip 필수 — 원본은 자재구분_원본 에 보존 |
+| 자재구분 | ✅ | 분야 구분. 끝 공백 1칸이 있어 strip 필수 — 원본은 자재구분_원본 에 보존 |
 | 물품분류번호 | ✅ | 조달청 품목 분류 코드. 카테고리 매핑의 후보 키 |
 | 물품식별번호 | ✅ | 행 고유 식별자 — 중복 검사에 사용 |
 | 게시일자 | ✅ | 단가 스냅샷 시점 (D31 단가 스냅샷 개념과 같은 성격) |
@@ -246,7 +246,7 @@
 | law_name | ✅ | 인용 표기에 필요 |
 | article | ✅ | 조 번호 — 인용 앵커 |
 | title | ✅ | 조문 제목. PENDING 판정의 대조 대상이기도 하다 |
-| text | ✅ | 조문 원문 = 계층 1 사실 본체. ⛔ 편집 금지 |
+| text | ✅ | 조문 원문 = 계층 1 사실 본체. 편집 금지 |
 | text_hash | ✅ | 무결성 검증. 재계산과 대조해 편집 여부를 판정 |
 | fetch_status | ✅ | FETCHED/PENDING — 인용 가능 여부를 가른다 |
 | effective_from | ✅ | 시행일. 판정 시점의 법이 맞는지 확인 |
@@ -264,8 +264,8 @@
 |---|---|---|
 | chunk_id | ✅ | 청크 고유 식별자. manual_id+page+면내순번 구조라 페이지 정합성 자가 검증에 쓴다 |
 | manual_id | ✅ | manifest.json 의 매뉴얼 키 — 버전·해시 추적의 연결점(D19) |
-| model | ✅ | 🚨 검색 스코프. enum 2종(D6·D13). 기종을 안 가르면 다른 기계의 절차가 나온다 |
-| page | ✅ | 🚨 인용 앵커. PDF 물리 페이지 무가공(D26). 표시 변환만 오프셋(D32) |
+| model | ✅ | 검색 스코프. enum 2종(D6·D13). 기종을 안 가르면 다른 기계의 절차가 나온다 |
+| page | ✅ | 인용 앵커. PDF 물리 페이지 무가공(D26). 표시 변환만 오프셋(D32) |
 | text | ✅ | 검색 본문. RAG 가 실제로 읽는 것 |
 | char_len | ✅ | 청킹 품질 지표. len(text) 와 일치 검증에 사용 |
-| section | ✅ | 정상적인 섹션 제목이다 — 평균 16.9자 · 90.8%가 절 번호로 시작 · 60자 초과 0건. 검색 범위를 절 단위로 좁히는 필터로 쓸 수 있다. ⚠ 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다 |
+| section | ✅ | 정상적인 섹션 제목이다 — 평균 16.9자 · 90.8%가 절 번호로 시작 · 60자 초과 0건. 검색 범위를 절 단위로 좁히는 필터로 쓸 수 있다. 단 표지·목차 페이지는 절 번호가 없어 필터에서 빠진다 |

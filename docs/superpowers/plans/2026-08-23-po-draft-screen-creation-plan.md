@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11 (FastAPI, sqlite3), TypeScript/React (Next.js App Router, 기존 프론트 컨벤션 — MUI·Tailwind 아님, `sx()` 인라인 스타일 헬퍼)
 
-## ⚠ 착수 전 확인 (필독)
+## 착수 전 확인 (필독)
 
 이 계획은 **2026-08-21 브레인스토밍 세션의 승인된 설계**(`docs/superpowers/specs/2026-08-21-po-draft-screen-creation-design.md`)를 구현 단위로 쪼갠 것이다. 계획 작성 시점(2026-08-23)에 `backend/services/po.py`·`backend/routers/po.py`가 **커밋 안 된 A2A 아웃바운드 작업**(S5, FinAllQ 출금 요청)으로 이미 수정돼 있었다 — `dispatch_a2a_withdrawal_request()`가 `transition()` 뒤에, `approve()` 라우터가 그 함수를 호출하는 형태로 붙어 있었다.
 
@@ -57,7 +57,7 @@
 `data/maint_value.py`와 같은 구조다. 소비자가 늘어도(채팅 MCP 도구 + 화면 REST) 판정
 로직을 두 곳에 복제하지 않기 위해 여기 한 곳에 둔다.
 
-⛔ 이 모듈은 `mcp_server`도 `backend`도 import하지 않는다(D15 — 두 런타임 프로세스의
+이 모듈은 `mcp_server`도 `backend`도 import하지 않는다(D15 — 두 런타임 프로세스의
 상호 import 금지). 커넥션은 호출자가 열어서 넘긴다 — 이 모듈은 DB 경로를 모른다
 (`data/maint_value.py`와 같은 규약).
 
@@ -255,7 +255,7 @@ Expected: `통과 (NN건)` 형태의 마지막 줄 — 이 건수를 적어 둔�
 
 ```python
 # -*- coding: utf-8 -*-
-"""create_po_draft — 발주서 초안 생성 ⚠️ **유일한 쓰기 도구** (docs/04_MCP_TOOLS.md §7).
+"""create_po_draft — 발주서 초안 생성 **유일한 쓰기 도구** (docs/04_MCP_TOOLS.md §7).
 
 **이 파일은 얇은 래퍼다.** 단가 조회·MOQ 검증·에러코드 FK 검증·INSERT는 전부
 `data/po_draft.py`에 있다(P39 축소판, D73·D101 패턴). 화면 쪽 `POST /api/po`
@@ -407,7 +407,7 @@ EOF
 
 ## Task 3: `backend/services/po.py` — `create()`·`update()`·`quotes_for_part()` 추가
 
-**⚠ Task 3·4 착수 전 "착수 전 확인" 절 실행 — A2A 커밋 여부 확인 후 진행.**
+**Task 3·4 착수 전 "착수 전 확인" 절 실행 — A2A 커밋 여부 확인 후 진행.**
 
 **Files:**
 - Modify: `backend/services/po.py` (세 함수 + 예외 클래스 추가, 기존 함수는 `get_po()`의 `quotes` 조립 한 줄만 리팩터)
@@ -732,7 +732,7 @@ EOF
     check("㉚ 없는 발주 PATCH → 404", r.status_code == 404, f"{r.status_code}")
 ```
 
-⚠ `part_no="CB-04"`는 예시다 — `Step 2`에서 실제로 시드 DB에 `supplier_parts` 행이 있는 부품 번호로 교체해야 한다(아래 Step 2 참고).
+`part_no="CB-04"`는 예시다 — `Step 2`에서 실제로 시드 DB에 `supplier_parts` 행이 있는 부품 번호로 교체해야 한다(아래 Step 2 참고).
 
 - [ ] **Step 2: 실패 확인 (라우터가 아직 없으므로 여기서 FAIL해야 정상)**
 
@@ -929,7 +929,7 @@ grep -oE "D[0-9]+" docs/10_DECISIONS.md | sort -t D -k2 -n -u | tail -3
 - [ ] **Step 6: `CLAUDE.md` 회귀 기준선 갱신**
 
 - spikes 건수: `api_contract 31` → `api_contract 41`(㉑~㉚ 10건), 헤드라인 총합도 +10
-- 새 델타 문단 추가(기존 문단들과 같은 형식): "**978→988**: D111(P39 축소판, 화면 직접 발주 생성)이 `api_contract`에 10건을 더했다(978+10=988) — 나머지 31스위트는 무변경." (⚠ 이 시점까지 A2A·다른 작업이 헤드라인을 이미 옮겼을 수 있으니 **실제 최신 숫자 위에 +10** 할 것, 978을 맹신하지 말고 이 태스크 실행 시점의 `docs/README.md`·`CLAUDE.md` 최신 값을 먼저 확인)
+- 새 델타 문단 추가(기존 문단들과 같은 형식): "**978→988**: D111(P39 축소판, 화면 직접 발주 생성)이 `api_contract`에 10건을 더했다(978+10=988) — 나머지 31스위트는 무변경." (이 시점까지 A2A·다른 작업이 헤드라인을 이미 옮겼을 수 있으니 **실제 최신 숫자 위에 +10** 할 것, 978을 맹신하지 말고 이 태스크 실행 시점의 `docs/README.md`·`CLAUDE.md` 최신 값을 먼저 확인)
 - 절대 규칙 1(쓰기 도구 3종) 밑에 각주: "화면 직접 생성(`POST /api/po`)은 MCP 도구가 아니라 백엔드 쓰기이므로 이 규칙(D10) 대상이 아니다 — `data/po_draft.py`를 백엔드가 UPDATE 권한이 있는 일반 커넥션으로 부른다(D111)"
 
 - [ ] **Step 7: Commit**
@@ -1583,7 +1583,7 @@ export default function TechnicianPoDetailPage({ params }: { params: { poId: str
   if (loadFailure) {
     return (
       <ScreenStack>
-        <StatusBanner tone="error">⚠ {loadFailure}</StatusBanner>
+        <StatusBanner tone="error">{loadFailure}</StatusBanner>
       </ScreenStack>
     );
   }
@@ -1718,7 +1718,7 @@ EOF
 
 Find:
 ```tsx
- * ⛔ 발주는 이 컴포넌트가 직접 만들지 않는다 — "발주하러 가기" 는 기존 채팅 prefill
+ * 발주는 이 컴포넌트가 직접 만들지 않는다 — "발주하러 가기" 는 기존 채팅 prefill
  *   경로(`/technician?prefill=...`)로 이동만 한다. `create_po_draft` 호출은 여전히
  *   에이전트가 채팅에서 한다(P39 완성 전까지의 의도적 설계 — docs/07_BACKLOG.md P39).
 ```
@@ -1800,7 +1800,7 @@ EOF
 ```bash
 uv run python data/seed.py --with-error-codes
 ```
-Expected: 마지막 줄에 `error_codes` 행 수가 나옴 — **70**이어야 한다(재시드 후 사람 승인 반영분, `SELECT count(*) FROM error_codes`로 재확인 가능). ⛔ `--today` 플래그 쓰지 않는다(CLAUDE.md 경고).
+Expected: 마지막 줄에 `error_codes` 행 수가 나옴 — **70**이어야 한다(재시드 후 사람 승인 반영분, `SELECT count(*) FROM error_codes`로 재확인 가능). `--today` 플래그 쓰지 않는다(CLAUDE.md 경고).
 
 - [ ] **Step 2: spikes 전건 실행**
 

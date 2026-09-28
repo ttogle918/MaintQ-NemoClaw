@@ -83,7 +83,7 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 | NeMo Guardrails | ❌ 사용 안 함 | 조사만 했다. 주입 판정은 Guardrails 대신 **서버 결정적 가드**로 했다(§3.6) | [`day2-prep.md`](day2-prep.md) §4 |
 | NeMo Framework · NeMo Microservices | ❌ 사용 안 함 | 학습·파인튜닝·마이크로서비스 배포를 하지 않았다 | — |
 | NIM 셀프호스팅 컨테이너 | ❌ 사용 안 함 | 호스팅 엔드포인트(build.nvidia.com)만 썼다 | — |
-| build.nvidia.com 「Skill API」(HTTP) | ❓ 확인 안 됨 | 공개된 것은 카탈로그·`npx skills` CLI·문서 검색 MCP 뿐이었다. 우리는 SKILL.md 표준 형식으로 해석했다 | [`day2-prep.md`](day2-prep.md) §2 |
+| build.nvidia.com 「Skill API」(HTTP) | 확인 안 됨 | 공개된 것은 카탈로그·`npx skills` CLI·문서 검색 MCP 뿐이었다. 우리는 SKILL.md 표준 형식으로 해석했다 | [`day2-prep.md`](day2-prep.md) §2 |
 | NemoClaw managed MCP | ❌ 불가(실측) | 공인 DNS 엔드포인트를 요구해 로컬 데모에 맞지 않았다 → 커스텀 egress 프리셋으로 대체 | D151 |
 | 스킬 OMS 서명 | ❌ 안 함 | NVIDIA 검증 스킬의 게시 파이프라인(서명) 단계는 하지 않았다 | [`day2-prep.md`](day2-prep.md) §2 |
 
@@ -116,7 +116,7 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 | 3.9 | **A2A 사전 차단** | 샌드박스 모드에서는 외부 파트너 호출을 시도하기 **전에** `policy_blocked` 로 분류하고 차단기 회계에서 뺀다(원래는 프록시 403 을 상대 응답으로 오인했다). 데모 녹화에서는 제외 | D149 · [`day2-prep.md`](day2-prep.md) §6 · [`day2.md`](day2.md) §10 ⑥ |
 | 3.10 | **요청자 신원은 서버가 읽는다** | MCP-HTTP 쓰기의 요청자는 LLM 이 채우는 파라미터가 아니라 `X-User` 헤더에서 서버가 읽는다. 없거나 모르는 사용자면 초안을 만들지 않는다 | D152 · `mcp_server/identity.py` |
 | 3.11 | **쓰기 도구 4종 — 초안까지만, 결정은 사람** | 에이전트의 쓰기 도구는 발주(`create_po_draft`)·처분서(`generate_disposal_document`)·수리 증빙(`create_repair_record`)·온보딩(`stage_code_normalization`) 4종뿐이고, 넷 다 **INSERT 만** 한다. 커넥션도 대상 테이블별로 따로 연다(`draft_writer`·`decision_writer`·`repair_writer`·`onboarding_writer`) — 섞으면 트리거·GRANT 잠금이 풀리기 때문이다. 처분서 도구에는 `override`·`reviewed_by` 파라미터가 **아예 없다**(모델이 채울 자리 자체를 없앴다). 서명 시 근거 번들을 다시 계산해 해시가 다르면 `409 evidence_changed`, `decisions` 의 DB CHECK 가 「서명 없는 확정」·「사유 없는 우회 서명」을 스키마로 막는다 | D10·D81·D84·D98·D154 · `spikes/write_tool_contract.py`(30건) · `spikes/disposal_sign_contract.py`(26건) · `docs/05_DB_SCHEMA.md` `decisions` |
-| 3.12 | **돈이 움직이는 경로의 다중 통제** | 발주 → 팀장 승인 → **재무 부서 승인**(그 엔드포인트만 호출자 부서가 `finance` 인지 본다, 아니면 403) → 그때에만 파트너 에이전트(FinAllQ)에 출금 요청(A2A). 재무 승인 화면과 결재 문서에는 예산 한도·1일 누적 한도·이상거래 탐지(FDS)·직무분리(요청자·팀장·재무 담당 신원 대조) 판정을 **같은 계산 한 벌**로 보여준다(자동 차단이 아니라 재무 담당의 판단 재료 — 강제 차단은 부서 검사뿐이다). 나가는 A2A 는 우리 쪽 대장에 파트너 연결 승인(`partner_links` LINKED)이 없으면 보내지 않고, 파트너별 차단기(도달 불가만 센다)를 두며, 자산 변경 통지(S11)는 업무 정체성에서 만든 멱등키로 중복 반영을 막는다. ⚠ 샌드박스에서는 3.9 대로 **시도 전 차단**되므로 이 경로는 OpenShell 안에서 시연하지 않았다(호스트 pytest 로 검증) | D119·D136·D141·D142·D149 · `data/test_expenditure_limits.py`(16건) · `backend/a2a/`(pytest 168건) |
+| 3.12 | **돈이 움직이는 경로의 다중 통제** | 발주 → 팀장 승인 → **재무 부서 승인**(그 엔드포인트만 호출자 부서가 `finance` 인지 본다, 아니면 403) → 그때에만 파트너 에이전트(FinAllQ)에 출금 요청(A2A). 재무 승인 화면과 결재 문서에는 예산 한도·1일 누적 한도·이상거래 탐지(FDS)·직무분리(요청자·팀장·재무 담당 신원 대조) 판정을 **같은 계산 한 벌**로 보여준다(자동 차단이 아니라 재무 담당의 판단 재료 — 강제 차단은 부서 검사뿐이다). 나가는 A2A 는 우리 쪽 대장에 파트너 연결 승인(`partner_links` LINKED)이 없으면 보내지 않고, 파트너별 차단기(도달 불가만 센다)를 두며, 자산 변경 통지(S11)는 업무 정체성에서 만든 멱등키로 중복 반영을 막는다. 샌드박스에서는 3.9 대로 **시도 전 차단**되므로 이 경로는 OpenShell 안에서 시연하지 않았다(호스트 pytest 로 검증) | D119·D136·D141·D142·D149 · `data/test_expenditure_limits.py`(16건) · `backend/a2a/`(pytest 168건) |
 
 ---
 
@@ -179,7 +179,7 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 
 ### 5.2 순서 함정
 
-- ⛔ **시드는 온보딩을 지운다(H9)** — `data/seed.py` 는 `DROP SCHEMA public CASCADE` 다. 5단계 적재는 다시 돌릴 수 있지만
+- **시드는 온보딩을 지운다(H9)** — `data/seed.py` 는 `DROP SCHEMA public CASCADE` 다. 5단계 적재는 다시 돌릴 수 있지만
   **NAT 정규화(전량 약 43분)·승격·안전 승인은 복구되지 않는다.** 3단계는 한 번만, 온보딩 전에
 - `seed.py` 에도 `DATABASE_URL` 을 실어야 한다(안 실으면 다른 경로로 새다 죽는다). pytest 도 같다(`CLAUDE.md` 회귀 스위트)
 - **NemoClaw 설치가 기존 OpenShell 게이트웨이를 빼앗고 실행 중 샌드박스를 종료한다** — 키 재입력 없는 복구 절차는 [`day2.md`](day2.md) §5
@@ -198,7 +198,7 @@ Yaskawa HV600(HVAC 팬·펌프용 인버터)이다(D145). 특정 공장이 이 �
 | HV600 절차 근거 | 승격된 HV600 RAG 청크는 **고장 표**뿐이다. 부품 교체 같은 절차를 물으면 근거가 없어 「근거 확인 못 함 → 제조사 문의」로 답한다 — 결함이 아니라 의도된 동작 | [`sprint-19.md`](../sprints/sprint-19.md) Stage 5 발견 ② · 후속 |
 | 평가 수치 | README 의 평가 기준선은 이전 모델(`gpt-oss:120b`) 기준이다. Nemotron 으로는 성능을 측정하지 않았고, 이후 시스템 프롬프트가 바뀌어 **이전 결과·LLM 카세트와 비교할 수 없다** — 재평가 필요 | D88 · [`day1.md`](day1.md) 머리말 · 커밋 `e9005f0`·`4614b79`·`1cf93e8` 본문 |
 | OpenClaw 안전 게이트 | 웹 콘솔은 `loop.py` 가 안전 블록을 시스템으로 붙이고 막지만, **OpenClaw 경로에는 그 계층이 없다** — HV600 안전 문구는 모델이 워크스페이스·스킬 규칙을 지키는지에 달려 있다 | `docs/07_BACKLOG.md` 「Sprint 19 온보딩의 알려진 한계」 · [`day2.md`](day2.md) §10 ⑤ |
-| 웹 콘솔 샌드박스 | 샌드박스 `maintq` 는 빌드 시점 DB 스냅샷이라 **HV600 승격분이 없다**. 반영하려면 덤프 → 재빌드 → 재생성(H8). 그 덤프는 온보딩 역할·GRANT 를 옮기지 않는다 | `TODO_직접할일.md` H8 · `docs/07_BACKLOG.md` |
+| 웹 콘솔 샌드박스 | 샌드박스 `maintq` 는 빌드 시점 DB 스냅샷이라 **HV600 승격분이 없다**. 반영하려면 덤프 → 재빌드 → 재생성. 그 덤프는 온보딩 역할·GRANT 를 옮기지 않는다 | `docs/07_BACKLOG.md` |
 | 승격 취소 | 승격을 되돌리는 API 가 없다. 잘못 승격하면 DB 를 사람이 직접 되돌린다 | H10 · `docs/07_BACKLOG.md` |
 | 샌드박스 안 dense 검색 | 게이트웨이는 모델 1개만 라우팅해 임베딩을 같이 쓸 수 없다 → 샌드박스 안 검색은 키워드 전용 | [`day1.md`](day1.md) §5.2 |
 | MCP 토큰·신원 | OpenClaw 등록 토큰과 `X-User` 헤더가 샌드박스 안 설정 파일에 평문으로 있다. 파일 쓰기 도구를 가진 에이전트가 신원을 바꿔 쓸 수 있다 — 토큰↔사용자 바인딩은 후속 | D151·D152 한계 |

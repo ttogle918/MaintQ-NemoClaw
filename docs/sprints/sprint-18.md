@@ -196,7 +196,7 @@ Stage 1 (전체 3태스크 병렬 — 서로 다른 파일, 의존성 없음)
     (`components/asset/*.tsx` · `components/queue/Decision*.tsx` · `app/(console)/**/*.tsx`)
     어디에도 해당하지 않는다(`components/layout/`는 스캔 대상이 아님, 기존
     `components/chat/A2aResultCard.tsx`와 같은 의도적 사각지대).
-  - ⚠️ **그러나 이 태스크가 함께 수정하는 `frontend/app/(console)/layout.tsx`는
+  - **그러나 이 태스크가 함께 수정하는 `frontend/app/(console)/layout.tsx`는
     `app/(console)/**/*.tsx` 글롭에 실제로 걸린다**(tool-builder 현실성 평가에서 발견 —
     `ChatFab.tsx`만 스캔 밖이라고 안심하면 안 됨). `DATABASE_URL=...
     uv run python spikes/ui_honesty_contract.py` **전건 PASS 필수** — `<ChatFab />` 삽입
@@ -253,7 +253,7 @@ Stage 1 (전체 3태스크 병렬 — 서로 다른 파일, 의존성 없음)
        return { tier: 3, tierCount: 0, totalCount: 0 }; // 정상
      }
      ```
-     tier 낮을수록 먼저 노출: **0=🔴 있음 → 1=🟠만 있음 → 2=🔵만 있음 → 3=정상 → 4=상태
+     tier 낮을수록 먼저 노출: **0=있음 → 1=만 있음 → 2=만 있음 → 3=정상 → 4=상태
      미상/로딩 중/조회 실패**.
   3. **`compareAssets`** — tier 오름차순 → (tier 0~2 한정) `tierCount` 내림차순 →
      (동차) `totalCount` 내림차순 → 최종 타이브레이크 `asset.asset_id.localeCompare()` 오름차순
@@ -289,7 +289,7 @@ Stage 1 (전체 3태스크 병렬 — 서로 다른 파일, 의존성 없음)
      - `model === undefined`(로딩 중 또는 조회 실패) → 44×44px 스켈레톤 박스만
        (`background:var(--sw);border-radius:6px`), 이미지도 인용문구도 없음.
      - `model`은 있는데 `MODEL_BASE_IMAGE[model]`이 없음(IE5, D109 — 안전 문구·RAG 청킹과
-       같은 이유로 이 하이라이트 좌표도 iG5A·S100만 커버) → 중립 아이콘(예: `⚙` 텍스트
+       같은 이유로 이 하이라이트 좌표도 iG5A·S100만 커버) → 중립 아이콘(예: `` 텍스트
        글리프, 44×44 flex 중앙정렬, `color:var(--dim2)`), 인용문구 없음. 현재 시드에
        `equipment.model='IE5'` 인스턴스가 없어(CHECK 제약 2종 유지) 실사용에서 도달하지
        않는 방어적 분기 — 코드 주석에 그렇게 남길 것.
@@ -312,7 +312,7 @@ Stage 1 (전체 3태스크 병렬 — 서로 다른 파일, 의존성 없음)
      {status?.model && <Mono size={11}>{status.model}</Mono>}
      ```
      `model`이 없으면(로딩/실패) 아무것도 렌더하지 않는다 — 지어내지 않는다.
-  7. **기존 유지(스펙 §3-3)**: 🔴🟠🔵 배지, 라인 위치, "확인 중…"/"상태 미상" 분기는 로직
+  7. **기존 유지(스펙 §3-3)**: 배지, 라인 위치, "확인 중…"/"상태 미상" 분기는 로직
      변경 없이 그대로 둔다. `EquipmentRow`의 리턴 JSX 구조에 위 5·6번 요소를 끼워 넣는 것
      뿐이다.
 - **엣지 케이스**:
@@ -346,7 +346,7 @@ Stage 1 (전체 3태스크 병렬 — 서로 다른 파일, 의존성 없음)
     `status.status`를 `!== "ok"`로 비교하는 **기존** 패턴만 재사용하고 `state`/`decision` 류
     3항 비교를 새로 만들지 않으므로 해당 없을 가능성이 높지만, 실행해서 실측 확인할 것).
   - 권장(필수 아님): `claude-in-chrome`으로 `/technician/equipment-status` 접속 —
-    🔴 있는 자산이 최상단, 그다음 🟠, 그다음 🔵, 정상/미상이 하단에 오는지. 카드마다 모델
+    있는 자산이 최상단, 그다음 , 그다음 , 정상/미상이 하단에 오는지. 카드마다 모델
     이미지·인용문구(작은 글자)·모델명이 보이는지. 새로고침 여러 번 해도 같은 등급 안 순서가
     안정적인지(최종 타이브레이크 `asset_id` 확인).
 
@@ -422,7 +422,7 @@ MQ-1802 DoD에 `ui_honesty_contract.py` PASS 확인 항목(및 `layout.tsx`가 L
 
 #### MQ-1803 — 대시보드 카드 정렬+이미지
 - `technician/equipment-status/page.tsx`에 `countHotspotColors`·`rankAsset`·`compareAssets`
-  3개 순수함수, 정렬(🔴→🟠→🔵→정상→미상, 타이브레이크까지) + 카드 이미지(PNG 원본 재사용)+
+  3개 순수함수, 정렬(→→→정상→미상, 타이브레이크까지) + 카드 이미지(PNG 원본 재사용)+
   인용문구+모델명. `ui_honesty_contract` 291/291 자체 확인 후 통합
 
 **eval-runner 종합**: seed 41/41(error_codes 70) · sp2_mcp_roundtrip 20/20(소켓 고갈 재시도
@@ -447,10 +447,10 @@ ui_honesty_contract 291/291.
 로컬 격리 백엔드(:8897)+프론트(:3000)로 확인. `/` → `/technician/equipment-status` 리다이렉트
 정상, ChatFab 우하단 노출 정상.
 
-**정렬 알고리즘 실측 검증** — 9개 자산 중 상위 5개 순서: `AST-L3-EXFAN`(🔴1🟠2, tier0·total3)
-→ `AST-L3-LIFT`(🔴1🟠2, tier0·total3, `EXFAN`<`LIFT` 타이브레이크) → `AST-L1-CONV`(🔴1🟠1,
-tier0·total2) → `AST-L2-CLNT`(🔴1🟠1, tier0·total2, `L1`<`L2` 타이브레이크) →
-`AST-L3-CONV`(🔴1🟠1) — `compareAssets`가 설계한 tier→개수→asset_id 규칙과 실측이 정확히
+**정렬 알고리즘 실측 검증** — 9개 자산 중 상위 5개 순서: `AST-L3-EXFAN`(12, tier0·total3)
+→ `AST-L3-LIFT`(12, tier0·total3, `EXFAN`<`LIFT` 타이브레이크) → `AST-L1-CONV`(11,
+tier0·total2) → `AST-L2-CLNT`(11, tier0·total2, `L1`<`L2` 타이브레이크) →
+`AST-L3-CONV`(11) — `compareAssets`가 설계한 tier→개수→asset_id 규칙과 실측이 정확히
 일치.
 
 **알려진 제약(사용자 확인·수용, 2026-08-24)**: `MODEL_BASE_IMAGE` 원본 PNG(부위별 클릭

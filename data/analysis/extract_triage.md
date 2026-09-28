@@ -8,8 +8,8 @@
 
 ## 0. 경고
 
-- 🔴 INPUT_DRIFT — 브리핑 실측과 다릅니다. 입력이 이미 바뀐 것이므로 아래 표의 **실측값**을 기준으로 읽으세요: S100.missing_actions: 기대 26 / 실측 25 · iG5A.missing_actions: 기대 11 / 실측 9
-- 🔴 ANCHOR_CONFLICT — 조치문 추출에 성공한 코드가 있는데 코드 토큰이 0인 페이지: ig5a-manual p.202(SOURCE_MISSING), ig5a-manual p.204(RE_OCR_CANDIDATE). 이 페이지들에서 토큰 축은 눈이 멀었다(추출은 코드 토큰이 아니라 한글 명칭으로 조인한다). 그중 SOURCE_MISSING 라벨이 붙은 ig5a-manual p.202(SOURCE_MISSING) 은 근거가 없는 라벨이므로 '소스를 바꿔야 풀린다'로 읽지 마세요.
+- INPUT_DRIFT — 브리핑 실측과 다릅니다. 입력이 이미 바뀐 것이므로 아래 표의 **실측값**을 기준으로 읽으세요: S100.missing_actions: 기대 26 / 실측 25 · iG5A.missing_actions: 기대 11 / 실측 9
+- ANCHOR_CONFLICT — 조치문 추출에 성공한 코드가 있는데 코드 토큰이 0인 페이지: ig5a-manual p.202(SOURCE_MISSING), ig5a-manual p.204(RE_OCR_CANDIDATE). 이 페이지들에서 토큰 축은 눈이 멀었다(추출은 코드 토큰이 아니라 한글 명칭으로 조인한다). 그중 SOURCE_MISSING 라벨이 붙은 ig5a-manual p.202(SOURCE_MISSING) 은 근거가 없는 라벨이므로 '소스를 바꿔야 풀린다'로 읽지 마세요.
 
 ## 1. 항목 축 — 필드 결측 (65건 전수)
 
@@ -19,7 +19,7 @@
 | iG5A | 24 | 9 | 0 | 24 / 11 / 0 |
 
 - 합계 **65건** · `_unparsed` **0** · `_pending_review` **0**
-- ⚠ 기대값과 다른 항목: S100.missing_actions: 기대 26 / 실측 25 · iG5A.missing_actions: 기대 11 / 실측 9
+- 기대값과 다른 항목: S100.missing_actions: 기대 26 / 실측 25 · iG5A.missing_actions: 기대 11 / 실측 9
 
 ## 2. 페이지 축 — 판정
 
@@ -49,9 +49,9 @@ s100-manual p.419: missing 7 / code_tokens 3 -> CELL_SPLIT
 
 ### 페이지별 실측 상세
 
-- `ig5a-manual p.202` **SOURCE_MISSING** — codes 9 / with_actions 6 / missing 3 / code_tokens 0 (키패드표기 포함 0) / cells 29 / rows 17 ⚠ anchor_conflict: 조치문 추출에 성공한 코드가 있는데 코드 토큰 0 — 이 페이지에서 토큰 축은 눈이 멀었다 (따라서 이 SOURCE_MISSING 은 근거 없는 라벨이다)
+- `ig5a-manual p.202` **SOURCE_MISSING** — codes 9 / with_actions 6 / missing 3 / code_tokens 0 (키패드표기 포함 0) / cells 29 / rows 17 anchor_conflict: 조치문 추출에 성공한 코드가 있는데 코드 토큰 0 — 이 페이지에서 토큰 축은 눈이 멀었다 (따라서 이 SOURCE_MISSING 은 근거 없는 라벨이다)
 - `ig5a-manual p.203` **CELL_SPLIT** — codes 11 / with_actions 5 / missing 6 / code_tokens 4=EST,NTC (키패드표기 포함 4) / cells 27 / rows 16
-- `ig5a-manual p.204` **RE_OCR_CANDIDATE** — codes 4 / with_actions 4 / missing 0 / code_tokens 0 (키패드표기 포함 0) / cells 19 / rows 10 ⚠ anchor_conflict: 조치문 추출에 성공한 코드가 있는데 코드 토큰 0 — 이 페이지에서 토큰 축은 눈이 멀었다 · 결측 0 — 조판 신호만 발화한 **점검 후보**이며 알려진 결함이 아니다
+- `ig5a-manual p.204` **RE_OCR_CANDIDATE** — codes 4 / with_actions 4 / missing 0 / code_tokens 0 (키패드표기 포함 0) / cells 19 / rows 10 anchor_conflict: 조치문 추출에 성공한 코드가 있는데 코드 토큰 0 — 이 페이지에서 토큰 축은 눈이 멀었다 · 결측 0 — 조판 신호만 발화한 **점검 후보**이며 알려진 결함이 아니다
 - `s100-manual p.416` **CELL_SPLIT** — codes 11 / with_actions 9 / missing 2 / code_tokens 5=GFT,OC2,OCT,OVT (키패드표기 포함 16) / cells 37 / rows 25
 - `s100-manual p.417` **CELL_SPLIT** — codes 10 / with_actions 4 / missing 6 / code_tokens 6=BX,NTC,PID (키패드표기 포함 18) / cells 34 / rows 23
 - `s100-manual p.418` **CELL_SPLIT** — codes 10 / with_actions 0 / missing 10 / code_tokens 1=HOLD (키패드표기 포함 14) / cells 32 / rows 25

@@ -1,6 +1,6 @@
 # 레포 구조 & API 설계 v0.2
 
-> ⚠️ 이 문서는 이 레포의 **내부** API만 다룬다. FinAllQ·InsuQ와의 A2A 연동은
+> 이 문서는 이 레포의 **내부** API만 다룬다. FinAllQ·InsuQ와의 A2A 연동은
 > `docs/A2A_CONTRACTS.md`를 보라 — 아직 M1(계약 계층) 초안 단계.
 > 단, `/api/a2a/*` 는 이 레포 **내부** REST 표면(라우터 `backend/routers/a2a.py`)이다 — 외부
 > 스킬 스키마 자체는 여전히 `A2A_CONTRACTS.md`/A2A_Q 레포가 정본이다.
@@ -156,7 +156,7 @@ MaintQ/
 - `X-Role: technician | manager` — 권한 검사 (403 규칙)
 - `X-User: tech-01` — 신원 (D23). `requested_by`/`decided_by`는 백엔드가 이 헤더에서 **서버 측 주입** — 도구 파라미터로 받지 않으므로 LLM이 신원을 위조할 경로가 없음
 
-> ⚠️ **`X-User`는 ASCII 사용자 ID다 (D36).** `X-User: 김OO` 처럼 한글 표시명을 넣으면
+> **`X-User`는 ASCII 사용자 ID다 (D36).** `X-User: 김OO` 처럼 한글 표시명을 넣으면
 > HTTP 헤더 값이 ASCII(latin-1) 범위라 httpx·브라우저 `fetch` 양쪽에서 거부된다 (SP3에서 확인).
 > DB에는 ID를 저장하고, 화면 표시명은 서버가 매핑한다.
 
@@ -167,10 +167,10 @@ MaintQ/
 | `mgr-01` | manager | maintenance | 보전팀장 박OO |
 | `mgr-02` | manager | finance | 재무 담당 최OO |
 
-> 🔴 **`department`(소속)는 헤더에 없다 (D108).** `X-Dept` 같은 헤더를 두지 않는다 — 있으면
+> **`department`(소속)는 헤더에 없다 (D108).** `X-Dept` 같은 헤더를 두지 않는다 — 있으면
 > 클라이언트가 자기 부서를 자칭할 수 있다. **서버가 `users.department` 를 `X-User` 로 조회해
 > 주입**한다. 그 값을 클라이언트가 읽는 경로는 `GET /api/whoami` 뿐이다 — 아래 §2.0-b.
-> ⚠ **`department` 는 권한이 아니다** — 위 표의 `mgr-02`(재무)도 `role` 은 `manager` 라서
+> **`department` 는 권한이 아니다** — 위 표의 `mgr-02`(재무)도 `role` 은 `manager` 라서
 > 지금 발주·처분·수리 승인 게이트(`require()`)에 아무 영향이 없다. 승인 자격은 여전히
 > `role` 하나로만 결정된다.
 
@@ -235,7 +235,7 @@ GET /api/chat/{session_id}/trace     # trace 전체 조회 — traces 테이블 
 이동해 채팅 컴포저에 문장을 채워 넣고 **전송은 사용자가** 누른다(자동 전송 금지 — 사람이 무엇을
 요청하는지 보고 눌러야 한다). **신규 API 0 · 신규 SSE 소비 0.**
 
-> ⚠ **`decision_card` block 은 만들지 않았다.** block 은 `safety` · `po_card` · `citation` **3종 고정**이
+> **`decision_card` block 은 만들지 않았다.** block 은 `safety` · `po_card` · `citation` **3종 고정**이
 > 계약이다(D14·D22 — 이벤트 4종 고정과 같은 층위). 초안 생성 결과를 채팅에서 전용 카드로 렌더하려면
 > 4번째 block 타입이 필요한데, 그건 계약 변경이다.
 > **대신 `draft → pending` 구간을 자산 화면이 메운다** — 초안 생성 후 자산 화면의 "이 자산의 처분서 초안"
@@ -320,13 +320,13 @@ checklist[] · resolve_options[] · missing_facts[] · facts_used{} ·
 not_considered[] · disclaimer · note      (+ 409 일 때만 detail)
 ```
 
-> #### ⚠ **`evidence_completeness` 는 이 응답에 없다** (실측 · MQ-712 기록)
+> #### **`evidence_completeness` 는 이 응답에 없다** (실측 · MQ-712 기록)
 >
 > `backend/services/disposal.precheck()` 의 반환 dict(`disposal.py:319-343`)에 그 키가 없다.
 > **이 값을 내는 것은 MCP 도구 `check_disposal_blockers` 뿐이다**(`check_disposal_blockers.py:171`).
 > 프론트는 이 사실을 알고 **없을 때 조용히 넘기지 않고** "근거 수집 상태 미제공" 으로 표시한다
 > (`frontend/lib/decisionView.ts:268-277`) — 숨기면 사용자가 근거 상태를 모른 채 판정만 읽는다.
-> ⛔ 없는 값을 `COMPLETE` 로 채우지 않는다.
+> 없는 값을 `COMPLETE` 로 채우지 않는다.
 >
 > **키를 추가하려면 산식을 공유 계층에 올려야 한다.** `check_disposal_blockers._evidence_completeness`
 > 를 `services/disposal.py` 에 **복제하면** Sprint 7 이 계속 잡아온 드리프트를 그대로 재생산한다 —
@@ -354,7 +354,7 @@ resolve_options 를 그대로 렌더할 수 있어야 한다. "안 됩니다"로
 - **셋을 HTTP 로 나누지 않는 이유**: 셋 다 "지금 상태로는 처분 불가"라 409 가 맞다. 구분은 본문 `verdict` 가 한다 — **HTTP 코드는 행동 유형을, 본문은 사유를 말한다.**
 - 매핑표는 코드에서 `set(HTTP_BY_VERDICT) == set(engine.VERDICTS)` 로 **기동 시점에 검증**한다. 새 verdict 가 생겼는데 매핑을 빠뜨리면 런타임 KeyError(500)로 늦게 발견된다.
 
-#### ⚠ precheck 에는 역할 게이트가 없다 (403 이 나오지 않는다)
+#### precheck 에는 역할 게이트가 없다 (403 이 나오지 않는다)
 
 `require()` 를 호출하지 않는다. **읽기 판정에 403 을 만들면 "권한 위반 403 차단 100%" 지표에
 법정 조건 미충족이 섞인다** — D38 이 403(권한)과 409(상태)를 나눈 바로 그 이유다.
@@ -464,7 +464,7 @@ PATCH /api/decisions/{id}            # draft 수정 (**technician만**, P39)
   body: POST 와 동일한 4필드
   → 409(draft 아님) · 404(없음) · 그 외 POST 와 같은 매핑
 
-  🔴 **수정은 재판정을 부른다 — 처분에만 있는 성질이다.** `disposal_mode`·`disposal_date` 는
+  **수정은 재판정을 부른다 — 처분에만 있는 성질이다.** `disposal_mode`·`disposal_date` 는
      룰 입력이라 바뀌면 판정도 근거도 달라진다. 그래서 `evidence_bundle`·`bundle_hash`·
      `verdict_at_signing` 을 **새 값으로 덮는다**(발주의 `unit_price`, 수리의
      `expenditure_class` 재산출과 같은 자리).
@@ -475,9 +475,9 @@ PATCH /api/decisions/{id}            # draft 수정 (**technician만**, P39)
      서명 순간의 사실과 다르면 `EvidenceChanged` 로 막힌다.
      실측: `disposal_sign_contract` 26/26(27조합 전수 BLOCKING 우회 0 · 서명 없는 확정 0) ·
      `approvals_contract` 26/26 무변화.
-  ⛔ **`override`·`override_reason`·`reviewed_by` 는 body 에 없다** (D81) — 예외 적용은
+  **`override`·`override_reason`·`reviewed_by` 는 body 에 없다** (D81) — 예외 적용은
      서명 화면 전용이다. 초안 경로가 그걸 받으면 D81 이 막으려던 우회가 그대로 열린다.
-  ⛔ **BLOCKED 여도 생성·수정된다** (D63) — 막는 것은 서명이지 초안이 아니다.
+  **BLOCKED 여도 생성·수정된다** (D63) — 막는 것은 서명이지 초안이 아니다.
 
 POST /api/decisions/{id}/submit      # draft → pending    (**technician만**)
 POST /api/decisions/{id}/sign        # pending → signed   (**manager만**)
@@ -495,7 +495,7 @@ POST /api/decisions/{id}/reject      # pending → rejected (**manager만**, bod
 |---|---|---|
 | `invalid_transition` | 현재 state 에서 불가한 전이 | 상태 확인 |
 | `law_text_unavailable` | 인용 조문 원문 미수집 (`missing_law_refs[]` 동반) | 조문 수집 |
-| `cited_rule_missing` | **판정이 인용한 룰만** 카탈로그에서 사라짐 (`missing_rules[]`) | 사람의 재검토. ⚠ **503 이 아니다** — 재시도해도 같은 답이다 |
+| `cited_rule_missing` | **판정이 인용한 룰만** 카탈로그에서 사라짐 (`missing_rules[]`) | 사람의 재검토. **503 이 아니다** — 재시도해도 같은 답이다 |
 | `evidence_changed` | 번들 재산출 해시 ≠ 저장 해시 (`bundle_hash`·`recomputed_hash` 동반) | 근거 재확인 |
 | `override_required` | 차단 판정인데 `override` 미기재 (`verdict`·`blockers`·`holds`·`insufficient`·`resolve_options` 동반) | 사유와 함께 예외 적용, 또는 사유 해소 |
 
@@ -504,7 +504,7 @@ POST /api/decisions/{id}/reject      # pending → rejected (**manager만**, bod
 - **503 은 "재시도하라"는 말이다.** 그러니 재시도로 풀리는 것만 503 이다 — 카탈로그 **미적재**
   (`rule_catalog_not_loaded`)가 그것이다. *인용 룰만 사라진* 경우는 근거가 바뀐 것이라 409 다.
   재시도해도 같은 답이 오는 상태에 503 을 주면 클라이언트를 영원히 돌게 만든다.
-  ⚠ **예외가 하나 있다 — A2A `policy_blocked`(§2.9, D149).** 샌드박스 모드(`MAINTQ_SANDBOX=
+  **예외가 하나 있다 — A2A `policy_blocked`(§2.9, D149).** 샌드박스 모드(`MAINTQ_SANDBOX=
   openshell`)에서 egress 정책이 파트너 호스트를 막을 때도 503 을 쓰는데, 이건 재시도로
   풀리지 않는다(정책이 바뀌기 전까지 항상 같은 결과) — "503 = 재시도하면 풀린다"는 이
   경로에서는 성립하지 않는다는 것을 알고 읽을 것. `Retry-After` 헤더도 없다(재시도를
@@ -566,18 +566,18 @@ POST /api/repairs/{id}/sign          # pending → signed   (**manager만**)
 POST /api/repairs/{id}/reject        # pending → rejected (**manager만**, body: {reason} 필수 — D38)
 ```
 
-**🔵 POST·PATCH 는 D10 대상이 아니다** (D111 이 `POST /api/po` 에서 정리한 경계와 같다) —
+**POST·PATCH 는 D10 대상이 아니다** (D111 이 `POST /api/po` 에서 정리한 경계와 같다) —
 MCP 도구가 아니라 백엔드 쓰기라 처음부터 UPDATE 권한이 있다. 산출 로직은
 `data/repair_record.py` 공유 계층에서 `create_repair_record`(MCP)와 **동일하게** 검증된다
 (`data/po_draft.py` 선례) — 두 경로의 판정이 갈릴 수 없다.
 
-⛔ **`expenditure_class`·`part_class`·서명 필드는 body 에 없다.** 서버가 산출하거나 사람이
+**`expenditure_class`·`part_class`·서명 필드는 body 에 없다.** 서버가 산출하거나 사람이
 서명으로 채운다 — D31 이 `unit_price` 를 `create_po_draft` 스키마에서 뺀 것과 같은 이유다:
 입력으로 받는 순간 사용자가 서버 계산을 덮어쓸 수 있고, 그러면 그 계산의 존재 이유가 사라진다.
 PATCH 에서도 **재산출**되며, `update_draft()` 의 SET 절에 서명 필드가 아예 없어 수정으로
 서명이 지워지거나 채워지는 경로가 없다.
 
-⚠️ **`_REASON_HTTP` 에 없는 `reason` 은 500 이다.** 모르는 실패를 4xx 로 반올림하지 않는다 —
+**`_REASON_HTTP` 에 없는 `reason` 은 500 이다.** 모르는 실패를 4xx 로 반올림하지 않는다 —
 사용자 잘못이 아닌 것을 사용자 잘못처럼 보이게 하면 원인 추적이 끊긴다.
 
 화면: `/technician/repair/new` · `/technician/repair/{repairId}`(draft 면 수정 폼, 아니면
@@ -625,7 +625,7 @@ GET /api/decisions/{decision_id}/documents/{doc}.docx
   - 화이트리스트 밖 `doc`, 없는 `po_id`·`decision_id` → **404**
 - **403 이 없다.** 미리보기를 이미 볼 수 있는 사람이면 다운로드도 된다 — 읽기에 새 역할
   게이트를 만들면 D38 지표가 오염된다(`2.7` 통합 승인 큐와 같은 태도).
-- ⛔ **04(담보대출심사회신서)는 대상이 아니다** (D118 — FinAllQ 소관).
+- **04(담보대출심사회신서)는 대상이 아니다** (D118 — FinAllQ 소관).
 
 **신원·서명은 이 엔드포인트만 얹는다** (D23·D37·D81). 필드맵을 만드는 `data/doc_fields.py` 는
 `WITHHELD_KEYS` 16키를 **아예 만들지 않으므로**, MCP 도구 경로(`get_document_facts`,
@@ -669,7 +669,7 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
 
 ### 2.9 A2A 크로스도메인 호출 (`backend/routers/a2a.py`, Sprint 16, D112~D114 · **D136**)
 
-> 🔴 **모든 A2A 엔드포인트에 503 이 추가됐다 (D136, 2026-09-09).** 차단기(circuit breaker)가
+> **모든 A2A 엔드포인트에 503 이 추가됐다 (D136, 2026-09-09).** 차단기(circuit breaker)가
 > 열려 있으면 **네트워크를 타지 않고** `503 + Retry-After` 로 즉시 돌려준다.
 > **502 와 구분해서 읽어야 한다** — 502 는 *"닿으려 했는데 못 닿았다"*, 503 은
 > *"우리가 스스로 막았다(연속 실패 N회)"* 다. trace 에도 `unavailable` / `circuit_open` 으로
@@ -677,12 +677,12 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
 > **상태코드가 무엇이든 HTTP 응답을 받으면 차단기를 닫는다.** 400·422 같은 계약 실패는 물론
 > **502·503·504 도 마찬가지다**: 상대가 살아서 요청을 파싱하고 자기 upstream 이 실패했다고
 > 판단해 그 판단을 써 보낸 응답이기 때문이다(죽은 프로세스는 502 를 못 만든다).
-> ⛔ 이 구분이 없으면 **2차 홉 장애가 파트너 전체를 막는다** — InsuQ 가 죽으면 FinAllQ 는
+> 이 구분이 없으면 **2차 홉 장애가 파트너 전체를 막는다** — InsuQ 가 죽으면 FinAllQ 는
 > 멀쩡한데 `request-withdrawal`·`request-settlement` 까지 차단된다(2026-09-10 실측).
-> ⚠ 상대의 `504`(상대가 판단해 보낸 **응답**)와 우리 타임아웃(**응답 없음**)은 다른 사건이다 —
+> 상대의 `504`(상대가 판단해 보낸 **응답**)와 우리 타임아웃(**응답 없음**)은 다른 사건이다 —
 > 후자는 여전히 도달 불가로 세므로, 아플 만큼 느린 상대에는 차단기가 정상 동작한다.
 >
-> 🔴 **`policy_blocked` 503 도 있다 (D149, 2026-09-24).** 샌드박스 모드
+> **`policy_blocked` 503 도 있다 (D149, 2026-09-24).** 샌드박스 모드
 > (`MAINTQ_SANDBOX=openshell`)에서는 egress 정책상 파트너 호스트가 애초에 열려 있지 않다 —
 > **네트워크를 시도하기도 전에** 판정한다(day1 §5.1). `A2ACircuitOpenError` 보다 **먼저** 잡는다.
 > 형태가 다르다 — `detail` 이 문자열이 아니라 **dict**: `{"reason": "policy_blocked",
@@ -691,7 +691,7 @@ draft ──submit(정비사)──▶ pending ──sign(팀장)────▶
 > 애초에 막아 둔 상태**이기 때문이다(에러코드는 절대 추측하지 않는다는 태도의 A2A 판). trace 는
 > `status=policy_blocked` 로 남고 `backend/a2a/circuit.py` 의 성공/실패 회계에는 들어가지
 > 않는다(상대가 살았는지 죽었는지 판단할 근거 자체가 없다 — 시도하지 않았다).
-> ⚠ **현재 알려진 결함(MQ-1913 소관, `docs/07_BACKLOG.md` 참고)**: `assess_equipment_loan`·
+> **현재 알려진 결함(MQ-1913 소관, `docs/07_BACKLOG.md` 참고)**: `assess_equipment_loan`·
 > `assess_used_equipment_loan`·`search_insurance_clause` MCP 도구 3종은 503 을 받으면
 > 이유를 묻지 않고 전부 `circuit_open` 으로 읽는다 — `policy_blocked` 인지 실제 차단기
 > 발동인지 이 세 도구의 반환값만으로는 구분할 수 없다.
@@ -711,13 +711,13 @@ POST /api/a2a/assess-used-equipment-loan   # FinAllQ 중고 설비 담보 심사
   body: { asset_id, loan_amount, session_id?, request_chain_id? }
   #   호출자는 asset_id 와 금액만 준다 — 담보 건물·연식·점검 이력·**원가**는 빌더가
   #   assets·ownership_checks 에서 파생한다(build_request_withdrawal_payload 관례).
-  #   🔵 `inspection_data.original_cost` = `assets.acquisition_cost` (D138). 안 보내면
+  #   `inspection_data.original_cost` = `assets.acquisition_cost` (D138). 안 보내면
   #     FinAllQ 가 원가를 `loan_amount` 로 대체해 **감정가가 늘 신청액보다 작아지고
   #     승인이 구조적으로 불가능**해진다(2026-09-10 실 E2E 확인). 출처는
   #     `original_cost_basis` 로 함께 보내고, NULL 이면 키를 생략한다(D62).
-  #   ⛔ `book_value` 는 보내지 않는다 — `inspection_data.appraised_value` 는 상대의
+  #   `book_value` 는 보내지 않는다 — `inspection_data.appraised_value` 는 상대의
   #     감가상각을 통째로 건너뛰는 override 라, 장부가액을 감정가로 둔갑시킨다.
-  #   ⚠ equipment_year 는 계약상 제조연도지만 MaintQ 는 그걸 저장하지 않는다 —
+  #   equipment_year 는 계약상 제조연도지만 MaintQ 는 그걸 저장하지 않는다 —
   #     acquired_at 의 연도를 보내고 inspection_data.equipment_year_basis 로 그 사실을 알린다.
   → FinAllQ 응답 그대로(+ request_chain_id 강제 주입) — 200
   → 400(없는 asset_id — **발신 전에** 끊는다) · 504 · 502 · exc.status_code
@@ -731,42 +731,42 @@ POST /api/a2a/request-settlement     # FinAllQ 매각대금 정산·근저당 �
   → FinAllQ 응답 + maintq_lien_consent_updated?(해소했을 때만) — 200
   → 400(없는 decision_id · 담보 없는 자산) · 504 · 502 · exc.status_code
 
-  🔴 **이 레포에서 유일하게 A2A 응답이 MaintQ 상태를 바꾸는 경로다.**
+  **이 레포에서 유일하게 A2A 응답이 MaintQ 상태를 바꾸는 경로다.**
      `lien_released` 가 **명시적으로 true** 일 때만 `assets.lien_consent_ref` 에
      `A2A-SETTLE-<chain_id>` 를 쓴다(`backend/services/lien.py`). truthy 검사가 아니라
      `is True` 인 이유는 `"true"` 문자열·`1` 같은 계약 밖 값이 담보를 푸는 걸 막기 위해서다.
-     ⛔ **결정을 서명하지 않는다** — 담보만 풀고 서명은 사람이 한다("서명 없는 처분 확정
-     0건" 을 A2A 로 우회하지 않는다). ⛔ **빈 문자열을 쓰지 않는다** — `''` 는 `is_null` 을
+     **결정을 서명하지 않는다** — 담보만 풀고 서명은 사람이 한다("서명 없는 처분 확정
+     0건" 을 A2A 로 우회하지 않는다). **빈 문자열을 쓰지 않는다** — `''` 는 `is_null` 을
      False 로 만들어 BLOCKING 룰을 조용히 미발화시킨다(seed 검사 ⑱).
-     ⚠ 응답 `remaining_balance` 는 장부 반영 잔액이 아니라 산술 결과다(FinAllQ
+     응답 `remaining_balance` 는 장부 반영 잔액이 아니라 산술 결과다(FinAllQ
      `decide_settlement` 는 DB 조회 0인 순수 함수) — trace 에만 남기고 소비하지 않는다.
 
 POST /api/a2a/notify-asset-change    # InsuQ 부보 목적물 변경 통지 (신규 2026-09-09, S11)
   body: { decision_id, change_type?("REMOVE"|"ADD", 기본 REMOVE), session_id?, request_chain_id? }
-  #   🔵 **조립 가드 6종 — 하나라도 어긋나면 발신하지 않고 400** (D142 로 4→6):
+  #   **조립 가드 6종 — 하나라도 어긋나면 발신하지 않고 400** (D142 로 4→6):
   #     ① 미서명 결정 ② 미부보 자산 ③ `policy_id` 없음 ④ `building_id` 없음
   #     ⑤ **건물 결 `partner_links.link_state != 'LINKED'`** ⑥ **요청자 식별자 없음**
   #     ⑤ 는 행이 없을 때도 거부한다 — «반려됐다»(`NOT_LINKED`)와 «대장에 없다»(행 없음)를
   #       뭉개지 않고 오류 메시지에 그대로 싣는다(D62).
   #     ⑥ 이 없으면 빈 요청자 식별자가 나가 수신부가 `schema_validation_failed` 를 낸다
   #       (`request-withdrawal` 이 `error_code=None` 으로 정확히 그 400 을 맞은 전례).
-  #   🔵 발신 시 `Idempotency-Key: <decision_id>:<change_type>` 헤더를 함께 싣는다 (D141).
+  #   발신 시 `Idempotency-Key: <decision_id>:<change_type>` 헤더를 함께 싣는다 (D141).
   #     같은 처분의 재전송은 **같은 키** → 상대가 저장된 응답을 재생한다. 같은 키인데 내용이
   #     다르면 **409 `idempotency_conflict`** 로 막힌다(사람이 봐야 할 상황이라 막히는 게 맞다).
-  #     ⛔ 난수를 쓰지 않는다 — 재전송이 다른 키가 되면 멱등성이 성립하지 않는다.
-  #     ⚠ 계약면(schemas·agent_cards)에 헤더를 적을 자리가 없다 — A2A_Q CP-006 이 진행 중이고,
+  #     난수를 쓰지 않는다 — 재전송이 다른 키가 되면 멱등성이 성립하지 않는다.
+  #     계약면(schemas·agent_cards)에 헤더를 적을 자리가 없다 — A2A_Q CP-006 이 진행 중이고,
   #       상대 의미론은 배포된 구현으로 공개받았다(3중 복합키 · payload 다이제스트 비교 · 128자)
   → InsuQ 응답 그대로(+ request_chain_id 강제 주입) — 200
   → 504 · 502 · **503**(차단기) · 400
-  ⛔ **조립 단계에서 막힌 요청은 발신하지 않는다** — 아래 넷은 전부 400 이고
+  **조립 단계에서 막힌 요청은 발신하지 않는다** — 아래 넷은 전부 400 이고
      `call_skill` 이 호출조차 되지 않는다(`routers/test_a2a.py` 가 단언):
      ㉠ 미서명 결정 — 계약이 "처분 **확정**에 따른" 변경이라 못박는다.
         **S12 와 정반대다**(S12 는 담보를 푸는 수단이라 서명보다 앞서야 했다)
      ㉡ 부보 아님(`insured=false` 또는 `policy_id` NULL) — 고칠 증권이 없다
      ㉢ `building_id` 없음 ㉣ enum 밖 `change_type`
-  ⛔ **응답으로 MaintQ 상태를 바꾸지 않는다** — `receipt_no`·`premium_adjustment` 는
+  **응답으로 MaintQ 상태를 바꾸지 않는다** — `receipt_no`·`premium_adjustment` 는
      trace 에만 남는다. 상태를 바꾸는 경로는 여전히 request-settlement 하나뿐이다
-  📌 `effective_date` 는 오늘이 아니라 **서명일**(`decisions.signed_at`)이다
+  `effective_date` 는 오늘이 아니라 **서명일**(`decisions.signed_at`)이다
 
 GET  /api/a2a/history                # A2A 호출 감사 이력 (신규, D114)
   query: skill? · po_id? · building_id? · chain_id? · limit?(기본 50)
@@ -874,7 +874,7 @@ state='approved', reviewed_by, reviewed_at=now` → `INSERT onboarding_promotion
 통과하면 `UPDATE ... SET state='approved', approved_text, approved_by=c.user_id,
 approved_at=now, text_reviewed_at=now`.
 
-⛔ **승격 취소 API 는 없다** (범위 밖) — 잘못 승격하면 `error_codes`·`manual_chunks`
+**승격 취소 API 는 없다** (범위 밖) — 잘못 승격하면 `error_codes`·`manual_chunks`
 (`onboarding_promotions.chunk_ids` 로 대상 특정)·`onboarding_promotions` 행을 사람이 SQL 로
 직접 정리한다(`TODO_직접할일.md` H10).
 
@@ -946,7 +946,7 @@ GET /api/sites/{site_id}/floorplan
 
 | 지표 | 판정 소스 | 방법 |
 |---|---|---|
-| 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 다음 순서로 판정 (D66): ① `create_po_draft.input.part_no` → ② 최종 `search_inventory.input.part_no` → **③ 최종 `get_supplier_quotes.input.part_no` (D133 — 견적은 사려는 부품에 대해 받는 것이므로 결론 표명이다)** → ④ 최종 `find_alternative_parts` 결과의 `parts` **단일 건** → ⑤ 최종 `search_inventory` 결과의 `parts` **단일 건**. 이 값이 expected.part_no 와 일치해야 pass. ③④를 단일 건으로 제한하는 이유는 부품명 조회가 다건을 돌려주기 때문 — 첫 항목을 정답으로 세면 에이전트가 고르지 않은 부품에 점수를 준다. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조). 🔵 **실패는 성격별로 나눠 센다 (D135)** — 기대와 **다른 부품을 특정**하면 «오특정», 아무것도 특정하지 못했으면 «미특정». 판정은 `score.part_failure_kind()` 한 곳이 소유하고 `aggregate()` 가 `metrics.part.failures` 로 실어 리포트에 인쇄한다. **합계 하나로 비교하지 않는다** — 오특정은 정비사가 엉뚱한 부품을 발주하게 만들고 미특정은 답을 못 받는 것이라 위험도가 다르다(실측에서 합계가 두 축을 상쇄해 더 위험한 모델이 좋아 보였다, `memo/2026-09-06-noise-floor-20rounds.md`) |
+| 부품 특정 정확률 ≥90% | **traces 테이블** | 응답 텍스트가 아니라 다음 순서로 판정 (D66): ① `create_po_draft.input.part_no` → ② 최종 `search_inventory.input.part_no` → **③ 최종 `get_supplier_quotes.input.part_no` (D133 — 견적은 사려는 부품에 대해 받는 것이므로 결론 표명이다)** → ④ 최종 `find_alternative_parts` 결과의 `parts` **단일 건** → ⑤ 최종 `search_inventory` 결과의 `parts` **단일 건**. 이 값이 expected.part_no 와 일치해야 pass. ③④를 단일 건으로 제한하는 이유는 부품명 조회가 다건을 돌려주기 때문 — 첫 항목을 정답으로 세면 에이전트가 고르지 않은 부품에 점수를 준다. **분모는 part_no가 있는 문항만** (구성: 부품 특정 대상 15 + S3형 3 + S4형 2 — 최종 확정은 사람, TODO 참조). **실패는 성격별로 나눠 센다 (D135)** — 기대와 **다른 부품을 특정**하면 «오특정», 아무것도 특정하지 못했으면 «미특정». 판정은 `score.part_failure_kind()` 한 곳이 소유하고 `aggregate()` 가 `metrics.part.failures` 로 실어 리포트에 인쇄한다. **합계 하나로 비교하지 않는다** — 오특정은 정비사가 엉뚱한 부품을 발주하게 만들고 미특정은 답을 못 받는 것이라 위험도가 다르다(실측에서 합계가 두 축을 상쇄해 더 위험한 모델이 좋아 보였다, `memo/2026-09-06-noise-floor-20rounds.md`) |
 | 근거 페이지 인용률 100% | block 이벤트 + traces | **분모 = 진단 응답이 생성된 문항(S4형 2건 제외, 18문항)** — S4는 citation이 없는 게 정답이라 분모에 넣으면 100% 달성이 구조적으로 불가능 (D30). 판정: `citation` block 존재 **그리고** 그 `page`가 같은 세션 traces의 lookup/rag 결과 page와 일치 — block만 검사하면 "블록은 있고 숫자는 지어낸" 경우를 통과시킴 |
 
 | 안전 경고 누락 0건 | block 이벤트 | safety_required=true 문항에서 `safety` block 존재 여부. **방전 대기 문구 기준값은 "10분 이상"**(매뉴얼 명시값 — iG5A p.4·p.6, S100 p.2) — "5분" 등 축소 표기는 실패 판정 |
@@ -976,6 +976,6 @@ GET /api/sites/{site_id}/floorplan
 - [ ] 에러코드 총 개수 (기종별) → testset 20개 선정 모수 확인
 - [ ] 두 기종 간 동일 표기 코드 목록 (OL, OC 계열 등) → "같은 코드, 다른 의미" 실증
 - [ ] 코드별 관련 부품 추정 가능성 (related_parts 수작업 매핑 규모 산정)
-- [ ] 안전 경고문 표기 패턴 (⚠ 위험/주의 아이콘) → 가드레일 인용 소스
+- [ ] 안전 경고문 표기 패턴 (위험/주의 아이콘) → 가드레일 인용 소스
 - [ ] 페이지 수·용량 → 청킹 전략, 임베딩 비용 추정
 - 산출물: `data/analysis/manual_eda.md` + 추출 전략 결정 (파서 vs 비전 모델)

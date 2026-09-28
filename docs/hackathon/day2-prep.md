@@ -31,7 +31,7 @@
 382종 중 관련: `nemoclaw-user-guide` · `nemotron-policy-generator` · `skill-card-generator` · `rag-eval` ·
 `nemo-retriever` · `nemo-retriever-mcp` · `nemotron-voice-agent-builder` · `nemotron-speech`(Day 3 음성) ·
 `nvidia-skill-finder`.
-⚠ `nemoclaw-user-*` 가 11종 있다는 보고가 있었으나 **카탈로그에는 `nemoclaw-user-guide` 1종뿐**.
+`nemoclaw-user-*` 가 11종 있다는 보고가 있었으나 **카탈로그에는 `nemoclaw-user-guide` 1종뿐**.
 Guardrails · OpenShell · NeMo Agent Toolkit 전용 스킬은 카탈로그에 없다
 (Guardrails 스킬은 제품 레포 `NVIDIA-NeMo/Guardrails/.agents/skills` 에만 있음).
 
@@ -40,7 +40,7 @@ Guardrails · OpenShell · NeMo Agent Toolkit 전용 스킬은 카탈로그에 �
 ## 3. SkillSpector — 우리 스킬 8종 실측 스캔
 
 - 도구: https://github.com/NVIDIA/SkillSpector (Apache-2.0, Python 3.12+)
-- ⚠ **Windows 에서 `uv run` 설치는 실패** — anthropic SDK 의 긴 파일명 + 긴 경로로 MAX_PATH(260) 초과.
+- **Windows 에서 `uv run` 설치는 실패** — anthropic SDK 의 긴 파일명 + 긴 경로로 MAX_PATH(260) 초과.
   **공식 Dockerfile 로 빌드해서 쓴다**: `docker build -t skillspector:local .` →
   `docker run --rm -v "<skills>:/scan" skillspector:local scan /scan/<name> --no-llm --format json --output /scan/x.json`
 - LLM 의미 분석은 `SKILLSPECTOR_PROVIDER=nv_build` + `NVIDIA_INFERENCE_KEY`(build.nvidia.com) 기본 지원 — 이번엔 `--no-llm`(정적)만
@@ -64,7 +64,7 @@ Guardrails · OpenShell · NeMo Agent Toolkit 전용 스킬은 카탈로그에 �
   - `content safety`(`nvidia/llama-3.1-nemotron-safety-guard-8b-v3`) — **두 번째 모델 경로가 필요** → 현 구조로는 불가(미확인)
   - 휴리스틱 jailbreak 탐지는 gpt2-large 필요 · 영어 최적화 → 한국어 문서 텍스트엔 약함
 - **NemoClaw** 공식 최소 사양 **RAM 8GB**(권장 16GB) · 4 vCPU · 디스크 20GB · Node 22.19+.
-  🔵 **2026-09-24 갱신 — WSL Ubuntu 로 옮기며 전부 충족됐다**(RAM 15Gi · 8 vCPU · 936G · Node v22.23.1, §11).
+  **2026-09-24 갱신 — WSL Ubuntu 로 옮기며 전부 충족됐다**(RAM 15Gi · 8 vCPU · 936G · Node v22.23.1, §11).
   아래 "RAM 7GB 미달" 은 Windows 시절 실측이다.
   현 PC 는 **RAM 7GB → 최소 미달.** OpenShell 직접 사용(BYOC) 유지, 근거는 `day1.md` §5.
   원리상 OpenClaw 는 SKILL.md 와 stdio MCP(`mcp.servers`)를 둘 다 로드할 수 있다(미실행)
@@ -97,7 +97,7 @@ Guardrails · OpenShell · NeMo Agent Toolkit 전용 스킬은 카탈로그에 �
   - ❌ **trace 에는 `status=error` · `A2A request failed with status 403`** — 샌드박스 프록시의 403 을 FinAllQ 의 응답으로 오인
   - ❌ 같은 이유로 **차단기가 FinAllQ 를 "살아 있음"으로 회계**한다(D139 규칙) — 사실과 반대
   - 제안(미적용): 샌드박스 모드(D143)에서 A2A 실패를 `policy_blocked` 로 분류, 차단기 회계 제외. 페이로드·QMesh 계약 무변경
-  - ⚠ 샌드박스에 `MAINTQ_A2A_FINALLQ_BASE_URL` 이 **없으면** 발신 함수가 **아무 기록 없이 조용히 반환**한다
+  - 샌드박스에 `MAINTQ_A2A_FINALLQ_BASE_URL` 이 **없으면** 발신 함수가 **아무 기록 없이 조용히 반환**한다
 - 관찰 O8: `search_inventory` 에 품번을 `part_name` 인자로 넘겨 `not_found` → 대체품 경로로 빠진 실행이 있었다(기록만)
 
 ---
@@ -146,14 +146,14 @@ HV600 URL: https://www.yaskawa.com/delegate/getAttachment?documentId=TOEPC710617
 
 - 전 브랜치 541 커밋 diff(23.8MB) 전수 — `.env` 실제 비밀값 16종 **0건**, 키 모양 문자열(`nvapi-`·`sk-`·`AIza`·`ghp_`·개인키) **0건**
   (양성 앵커 확인). 추적 파일에 `.env`·키 파일 없음
-- ⚠ 541 커밋 전부 작성자 이메일 `ttogle918@naver.com` — 공개 시 노출
+- 541 커밋 전부 작성자 이메일 `ttogle918@naver.com` — 공개 시 노출
 - 현 레포: GitHub **비공개**, LICENSE 없음, `.git` 55MB
 
 ---
 
 ## 10. 새 폴더에서 작업할 때 알아야 할 환경 사실
 
-> 🔴 **이 절의 앞 두 줄은 이제 틀렸다 — §11 참고.** Claude Code 는 WSL Ubuntu 에서 직접 돈다.
+> **이 절의 앞 두 줄은 이제 틀렸다 — §11 참고.** Claude Code 는 WSL Ubuntu 에서 직접 돈다.
 
 - Claude Code 는 **Windows 쪽에서** 켠다. OpenShell 은 WSL Ubuntu 에 설치돼 있고 `wsl -d Ubuntu -- bash -c '…'` 로 조작
 - Git Bash 에서 wsl 로 경로를 넘길 때 **`MSYS_NO_PATHCONV=1`** (안 붙이면 `/mnt/c/...` 가 `C:/Program Files/Git/mnt/...` 로 바뀜)
@@ -170,7 +170,7 @@ HV600 URL: https://www.yaskawa.com/delegate/getAttachment?documentId=TOEPC710617
 - 작업 위치는 **WSL Ubuntu `~/MaintQ-NVIDIA`** 로 옮겼다. Claude Code 도 여기서 돈다 —
   §10 의 "Windows 에서 켜고 `wsl -d Ubuntu` 로 조작" 은 **더 이상 맞지 않는다**(`MSYS_NO_PATHCONV` 주의사항도 무관)
 - 원격: `https://github.com/ttogle918/MaintQ-NemoClaw` (비공개)
-- 🔴 **커밋 해시가 전부 바뀌었다 — 두 번 재작성했다.** ㉠ 작성자 이메일 `ttogle918@naver.com` →
+- **커밋 해시가 전부 바뀌었다 — 두 번 재작성했다.** ㉠ 작성자 이메일 `ttogle918@naver.com` →
   `17754713+ttogle918@users.noreply.github.com`(537커밋) ㉡ D144 퍼지. 그래서 이 레포의 문서가
   인용하는 **옛 해시(`5e5e962`·`5895c2e`·`7ff38b2`·`213b62d`·`390e7a9` 등)는 더 이상 조회되지 않는다.**
   옛→새 대조표는 `~/maintq-filter-repo-maps-20260924/commit-map` 에 있다

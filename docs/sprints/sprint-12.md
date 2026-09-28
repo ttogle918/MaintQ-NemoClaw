@@ -21,7 +21,7 @@
 **갈래 1 — P33 해소.** MaintQ가 로컬로 붙인 `S19`(수리 증빙 서명)가 Q 시리즈 전사 지도의
 `S19`(FinAllQ 기업 고객 온보딩, 구현 완료)와 충돌한다는 사실이 2026-08-14 발견됐고
 (`docs/07_BACKLOG.md` P33), 세 프로젝트가 번호 체계를 공유하므로 MaintQ 혼자 정할 수 없어
-`TODO_직접할일.md`에 "🔴 사람 협의 필요"로 대기 중이었다. `../A2A_Q/MaintQ_시나리오맵.html`
+`TODO_직접할일.md`에 "사람 협의 필요"로 대기 중이었다. `../A2A_Q/MaintQ_시나리오맵.html`
 (크로스 프로젝트 지도)이 MaintQ의 수리 증빙 서명 시나리오를 **이미 `S29`로 쓰고 있다** —
 전사 지도가 `S19`는 FinAllQ에, `S24~S28`은 InsuQ에 이미 배정해 둬 남는 첫 번호가 `S29`이기
 때문이다. 2026-08-18 사용자가 "시나리오 29번대로 가자"로 확정했다 — **MaintQ 문서의 `S19`를
@@ -73,9 +73,9 @@ MaintQ 블로커 체크리스트(`error_codes` 사람 승인 · `related_parts` 
   `docs/06_REPO_API.md:476` · `docs/07_BACKLOG.md:47·90`(P25·P33 행) · `docs/README.md:9·19·102·113·115` ·
   `docs/status/maintq-status.html:292·413·608~610·735·808` · `docs/status/maintq-diagrams.html:237·286` ·
   `docs/status/maintq-data-map.html:519·822` · `TODO_직접할일.md:238~252`.
-  - ⚠ `docs/status/*.html` 3종은 오늘 세션에서 Sprint 11 반영은 끝났지만 S19→S29 정정은 아직 안 됨 —
+  - `docs/status/*.html` 3종은 오늘 세션에서 Sprint 11 반영은 끝났지만 S19→S29 정정은 아직 안 됨 —
     `maintq-status.html:610`이 "권장안은 `S29`로 이동"이라고 **서술은 하면서 정작 옆의 `S19` 라벨
-    자체는 안 바꾼** 상태를 실측으로 확인. `:605~613`은 아직 "🔴 사람 승인 대기" 카드로 남아 있다.
+    자체는 안 바꾼** 상태를 실측으로 확인. `:605~613`은 아직 "사람 승인 대기" 카드로 남아 있다.
 - **역사 기록**(그대로 둠, forward-reference만): `docs/sessions/*.md` 8개 — 전부 미터치.
   `docs/sprints/sprint-6~10.md` — 당시엔 정확한 서술이었으므로 텍스트 보존, forward-reference 1줄만
   추가(선례: `sprint-9.md:785` "Sprint 9 시점 — Sprint 11이 이후 다시 11개·18개로 갱신했다" 패턴).
@@ -189,12 +189,12 @@ sprint-11.md를 그 역사 보존 그룹에 포함시켜 뒀었다** — 즉 이
   - `docs/06_REPO_API.md` — `:476` `### 2.8 수리 증빙 — 제출·서명·반려 (S19 · D85·D98, ...)` →
     `(S29 · D85·D98, ...)`
   - `docs/07_BACKLOG.md` — `:47` P25 행 `(S19)`→`(S29)`. `:90` **P33 행 전체 재작성**:
-    🔴(사람 협의) → **✅ 완료(Sprint 12, 2026-08-18)**. 결론(`S29` 채택, 첫 번째 빈 번호 근거
+    (사람 협의) → **✅ 완료(Sprint 12, 2026-08-18)**. 결론(`S29` 채택, 첫 번째 빈 번호 근거
     `../A2A_Q/11_A2A_SCENARIOS.md:98`)과 사용자 승인 사실을 남기고, 대안 ⓐⓑ 서술은 "채택안 ⓐ"로
     마무리. `:94` 부근의 "P33~P35는 전부 지금 하지 않을 것…다만 P33만은…" 문단을 "**P33은
     Sprint 12에서 해소됐다(S29 확정) — 아래는 P34·P35에만 해당한다**"로 정정
   - `docs/README.md` — `:9`·`:19` 본문 내 `S19`→`S29`. `:102`(항목 7) `(P25·S19)`→`(P25·S29)`.
-    `:113`(항목 14) "🔴 사람 협의 필요" → "✅ ~~사람 협의~~ — 완료. S29로 확정(2026-08-18),
+    `:113`(항목 14) "사람 협의 필요" → "✅ ~~사람 협의~~ — 완료. S29로 확정(2026-08-18),
     MaintQ 문서 전수 정정 완료(Sprint 12 MQ-1201)"로 교체. `:115` "사람 승인 대기 **3건**" →
     **2건**(안전 문구 검수·A2A 파트너 자격증명만 남음, 항목 14 언급 제거)
   - `docs/status/maintq-status.html` — `:292`·`:413`·`:735` 라벨 `S19`→`S29`(문자 그대로 치환).
@@ -206,7 +206,7 @@ sprint-11.md를 그 역사 보존 그룹에 포함시켜 뒀었다** — 즉 이
     `:252` 다음에 1줄 추가: "✅ 실행 완료 — 2026-08-18 Sprint 12(MQ-1201)에서 MaintQ 문서 전수
     S29 정정 완료."
   - `docs/sprints/sprint-6.md`·`sprint-7.md`·`sprint-8.md`·`sprint-9.md` — 각 파일 상단(제목·상태
-    줄 직후)에 forward-reference 1줄만 추가: `> ℹ️ 시나리오 번호 정정(2026-08-18, Sprint 12,
+    줄 직후)에 forward-reference 1줄만 추가: `> ℹ 시나리오 번호 정정(2026-08-18, Sprint 12,
     P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로
     보존한다.` 본문의 S19 표기 자체는 건드리지 않는다
   - `docs/sprints/sprint-10.md` — `:252`의 기존 인라인 경고 문구에 덧붙이기만: 문장 끝에
@@ -335,7 +335,7 @@ export function gradeView(grade: string | null): GradeView;    // null→unknown
   존재+첨언 확인 · `spikes/repair_flow_contract.py` 19건 · 코드 계약 무변경(회귀 스위트 영향 없음).
 - reviewer: **PASS** — `docs/07_BACKLOG.md:90`의 잔존 `S19` 11회 전부 과거 사실 서술·인용문으로
   확인(치환 누락 아님). 역사 문서(sprint-6~9) 본문 무변경, `docs/sessions/*.md` 8개 미편집 확인.
-  ⚠ 정보성: `frontend/` 코드 주석 4곳(`api.ts:793`·`RepairDetail.tsx:23`·`mappers.tsx:177`·
+  정보성: `frontend/` 코드 주석 4곳(`api.ts:793`·`RepairDetail.tsx:23`·`mappers.tsx:177`·
   `types.ts:31`)에 `S19` 잔존 — 이번 태스크 범위 밖(Sprint 9·10 산출물), 후속 정리 대상으로 기록.
 
 #### MQ-1202

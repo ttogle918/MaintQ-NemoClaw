@@ -79,7 +79,7 @@ CLAUDE.md 에 전혀 반영이 안 돼 있었다: `backend/a2a/test_auth_header.
 86건 중 46건 FAIL 이었으나, 사용자가 "지금 바로 고치자"고 결정해 같은 세션에서 바로
 포팅했다 — 결과·상세 원인은 아래 "4차 체크포인트 후속" 절 참고, 최종 **86/86 PASS**.
 
-⚠ **재발 방지 필요는 여전히 남는다**: `a2a_partner_tools_contract`(spikes, MQ-1613) ·
+**재발 방지 필요는 여전히 남는다**: `a2a_partner_tools_contract`(spikes, MQ-1613) ·
 이 pytest 8파일(MQ-?, 커밋 `5895c2e`) — "다른 세션이 테스트 파일을 만들어 놓고 CLAUDE.md
 공식 목록에 아무도 등록 안 한" 패턴이 이번이 두 번째다. 신규 테스트 파일 커밋 시 CLAUDE.md
 반영을 강제하는 체크리스트/훅을 D-결정으로 남기는 것을 고려할 것 — 아직 미결.

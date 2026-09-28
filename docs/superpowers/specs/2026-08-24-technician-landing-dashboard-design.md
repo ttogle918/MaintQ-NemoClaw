@@ -8,7 +8,7 @@
 진입 시 첫 화면을 설비 대시보드로 바꾸고, 챗봇은 우측 하단 원형 플로팅 버튼으로 옮긴다.
 
 조사 결과 `/technician/equipment-status`(Sprint 10 브레인스토밍 C, `2026-08-17-equipment-highlight-
-dashboard-design.md`)가 이미 요청과 매우 가까운 화면이었다 — 설비별 카드 목록 + 🔴🟠🔵 하이라이트
+dashboard-design.md`)가 이미 요청과 매우 가까운 화면이었다 — 설비별 카드 목록 + 하이라이트
 배지 + 상세 드릴다운. 두 안(알림 목록형 vs 카드 그리드형) 중 **기존 화면 확장**으로 방향을 정했다 —
 새 백엔드·새 API 없이 라우팅과 기존 화면만 손대면 된다.
 
@@ -60,7 +60,7 @@ export const ROLE_HOME: Record<Role, string> = {
 카드에 모델명 텍스트(`iG5A`/`S100`/`IE5`)를 라인 위치 옆에 추가.
 
 ### 3-3. 기존 유지
-🔴🟠🔵 배지, 라인 위치, "확인 중…"/"상태 미상" 분기는 그대로.
+배지, 라인 위치, "확인 중…"/"상태 미상" 분기는 그대로.
 
 ## 4. 챗 플로팅 버튼 (신규 `frontend/components/layout/ChatFab.tsx`)
 

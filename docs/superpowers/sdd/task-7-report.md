@@ -67,7 +67,7 @@ uv run python scripts/migrate_vectors.py \
 
 **Expected output:**
 ```
-📝 벡터 인덱스 마이그레이션
+벡터 인덱스 마이그레이션
   JSONL: .../data/extracted/manual_chunks.jsonl
   Postgres: postgresql://...
   100 rows loaded...

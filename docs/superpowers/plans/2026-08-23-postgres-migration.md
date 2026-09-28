@@ -508,7 +508,7 @@ def rows_to_dicts(rows: list) -> list[dict]:
     return [dict(row) for row in rows]
 ```
 
-⚠️ **Postgres TEMP TRIGGER 문법 주의:**
+**Postgres TEMP TRIGGER 문법 주의:**
 - SQLite: `SELECT raise(ABORT, 'msg')`
 - Postgres: `EXECUTE FUNCTION raise('abort', 'msg')`
 
@@ -642,7 +642,7 @@ def main():
         print(f"ERROR: SQLite DB가 없습니다: {sqlite_path}", file=sys.stderr)
         sys.exit(1)
     
-    print(f"📊 데이터 마이그레이션 시작")
+    print(f"데이터 마이그레이션 시작")
     print(f"  SQLite: {sqlite_path}")
     print(f"  Postgres: {args.postgres}")
     
@@ -841,7 +841,7 @@ def migrate_vectors(jsonl_path: str, pg_url: str):
         print(f"ERROR: {jsonl_path} not found", file=sys.stderr)
         sys.exit(1)
     
-    print(f"📝 벡터 인덱스 마이그레이션")
+    print(f"벡터 인덱스 마이그레이션")
     print(f"  JSONL: {jsonl_file}")
     print(f"  Postgres: {pg_url}")
     
@@ -945,7 +945,7 @@ git commit -m "[M4] scripts: 벡터 인덱스 JSONL→Postgres 마이그레이�
 **Files:**
 - Modify: `mcp_server/rag.py` — JSONL 파일 기반 검색 → Postgres 벡터 검색으로 전환 (선택적)
 
-⚠️ **결정**: 
+**결정**:
 - **당장은** 기존 JSONL 기반 검색 유지 (메모리 로드, 빠름)
 - **향후** (D51) Postgres pgvector로 마이그레이션 (별도 스프린트)
 
@@ -1057,7 +1057,7 @@ volumes:
   postgres_data:
 ```
 
-⚠️ **pgvector 설치 두 가지 방법:**
+**pgvector 설치 두 가지 방법:**
 - **방법 1**: `pgvector/pgvector:pg15` 이미지 사용 (확장 사전 포함)
 - **방법 2**: 기본 postgres 이미지 + 수동 설치
   ```bash
@@ -1154,7 +1154,7 @@ uv run python -m pytest spikes/ -q
 uv run python data/seed.py  # Postgres 타겟 DDL 필요 (변수명 확인)
 ```
 
-⚠️ **문제**: `data/seed.py` 는 현재 SQLite 만 지원. Postgres 타겟으로 수정 필요.
+**문제**: `data/seed.py` 는 현재 SQLite 만 지원. Postgres 타겟으로 수정 필요.
 
 - [ ] **Step 3: Commit (테스트 성공 후)**
 
@@ -1365,6 +1365,6 @@ git commit -m "[M4] test: Postgres 마이그레이션 완료, 회귀 스위트 �
 4. 배포 문서 + 로컬 개발 환경
 
 **리스크:**
-- ⚠️ Postgres 권한 설정 (읽기 전용 역할) — 프로덕션 필수
-- ⚠️ 벡터 인덱스 임베딩 (D51에서 정의) — 현재는 NULL 유지
-- ⚠️ 연결 풀 설정 (Cloud Run 동시성) — 나중에 `psycopg[binary,pool]` 설정
+- Postgres 권한 설정 (읽기 전용 역할) — 프로덕션 필수
+- 벡터 인덱스 임베딩 (D51에서 정의) — 현재는 NULL 유지
+- 연결 풀 설정 (Cloud Run 동시성) — 나중에 `psycopg[binary,pool]` 설정

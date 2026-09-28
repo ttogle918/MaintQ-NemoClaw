@@ -27,7 +27,7 @@
 | 매뉴얼 검색 인덱스(dense) | Postgres `manual_chunks.embedding`(pgvector) | **읽기 전용**(런타임 기준) — dense 스코어러가 질의마다 조회한다 (§2) |
 | 파생 산출물·룰·법령 | `data/extracted/*.json` · `data/rules/` | 수백 KB, **읽기 전용**, git 추적 (D60), 이미지에 COPY |
 
-⛔ **`data/raw/` 의 매뉴얼 PDF 는 런타임에 필요 없다.** 청킹·추출은 빌드타임(M1)에 끝났고
+**`data/raw/` 의 매뉴얼 PDF 는 런타임에 필요 없다.** 청킹·추출은 빌드타임(M1)에 끝났고
 백엔드가 참조하는 것은 `data/raw/manifest.json`(오프셋 원천, D19) 하나뿐이다 —
 `backend/manifest.py:4`. **PDF 를 이미지에 넣지 말 것** (저작권 + 용량, `.dockerignore` 가 이미
 `data/raw`·`data/cache`·`*.db` 를 제외한다).
@@ -197,12 +197,12 @@ Seq Scan 의 `actual time` 이 **10ms 를 넘기 시작하면** 위 표의 임�
 
 | 층 | 결정 | 근거 |
 |---|---|---|
-| 프론트 | **Vercel 또는 Netlify** | 프론트는 `API_BASE`로 백엔드를 직접 호출하고 SSE를 Next 라우트로 프록시하지 않는다 → 플랫폼별 스트리밍 버퍼링 함정을 애초에 피해 있다. 아래 ⚠ 유지 |
+| 프론트 | **Vercel 또는 Netlify** | 프론트는 `API_BASE`로 백엔드를 직접 호출하고 SSE를 Next 라우트로 프록시하지 않는다 → 플랫폼별 스트리밍 버퍼링 함정을 애초에 피해 있다. 아래 유지 |
 | 백엔드+AI+MCP | **GCP Cloud Run**(사용자 결정, 2026-08-24) | 컨테이너가 이제 상태 없음(stateless) — DB가 컨테이너 밖 Supabase라 Cloud Run의 "요청 없으면 스케일 0" 모델과 궁합이 좋다. 기존 `Dockerfile`을 그대로 쓸 수 있다(§4) |
 | RDB + 벡터 | **Supabase(관리형 Postgres + pgvector)**(사용자 결정, 2026-08-24) | §2·§3. 별도 벡터 DB 불필요 |
 | MCP | **stdio 유지, 백엔드와 같은 컨테이너** | D15 프로세스 분리는 stdio로도 성립, §4 |
 
-> ⚠ **SSE를 Next.js 라우트로 프록시하지 말 것.** 지금 구조(브라우저 → 백엔드 직접)를 유지하면
+> **SSE를 Next.js 라우트로 프록시하지 말 것.** 지금 구조(브라우저 → 백엔드 직접)를 유지하면
 > 플랫폼 선택이 자유롭다. 프록시를 넣는 순간 서버리스 응답 버퍼링이 `token`/`tool_call`/
 > `tool_result`/`block` 스트림(D14·D22)을 뭉개기 시작한다.
 
@@ -231,7 +231,7 @@ DB Supabase `MaintQ`(`zccomludbsoivogycrij`, 서울). 비밀(연결 문자열·�
 - Supabase 는 `public` 을 REST 로 노출하고 anon·authenticated 에 GRANT 를 붙인다(이관 직후 462건) — `db_to_supabase.sh` 가 회수한다
 - Supabase 풀러(Supavisor)는 접속 문자열의 `options=-c …` 를 **서버로 전달하지 않는다** — `mcp_server/db.py::read_only()`
   세션이 read-write 로 열렸다(SHOW 가 off). 로컬 Docker 에서는 옵션이 먹어 안 보였다. 세션 `SET` + 커밋 + `SHOW` 확인(fail-closed)으로 고쳤다.
-  ⚠ 같은 이유로 `options=-c search_path=…`(격리 스키마, `data/pg_isolation.py`)도 Supabase 에서는 안 먹는다 — 스파이크는 로컬 DB 에서만 돌릴 것
+  같은 이유로 `options=-c search_path=…`(격리 스키마, `data/pg_isolation.py`)도 Supabase 에서는 안 먹는다 — 스파이크는 로컬 DB 에서만 돌릴 것
 - Netlify 는 모든 HTML `<head>` 에 홍보 주석+줄바꿈을 끼워 넣는다(끄는 설정 없음). 루트 레이아웃이 `<head>` 를 직접
   쓰면 React 하이드레이션이 매번 깨지고(#418·#423) 약 1/7 은 #329 로 빠져 승인 큐·재무 화면이 목업에 멈췄다.
   `frontend/app/layout.tsx` 가 `<head>` 를 쓰지 않고 폰트 링크를 `<body>` 맨 앞에 둔다 — 로컬에 같은 주석을 주입해
@@ -240,10 +240,10 @@ DB Supabase `MaintQ`(`zccomludbsoivogycrij`, 서울). 비밀(연결 문자열·�
 - curl 로 API 를 전부 통과해도 위 두 결함은 안 보인다 — **배포 확인은 실제 브라우저(헤드리스 포함)로 한 번 더** 할 것
 - Netlify 업로드는 **작업 디렉터리 전체**를 올린다 — 레포 루트에서 실행하면 `.env`·`.env.deploy` 가 함께 간다. 프론트+`netlify.toml` 만 담은 사본에서 실행할 것
 
-⚠ **OpenShell·NemoClaw 샌드박스는 이 경로에 없다** — 로컬 게이트웨이 전제다. 웹 콘솔만 올라간다.
-⚠ A2A 파트너(`MAINTQ_A2A_*_BASE_URL`)는 넣지 않았다 — 호출은 차단기(D136)로 실패 표시된다.
+**OpenShell·NemoClaw 샌드박스는 이 경로에 없다** — 로컬 게이트웨이 전제다. 웹 콘솔만 올라간다.
+A2A 파트너(`MAINTQ_A2A_*_BASE_URL`)는 넣지 않았다 — 호출은 차단기(D136)로 실패 표시된다.
 
-### 5-1. 🔴 확인 필요 — `Dockerfile` 헤더 주석이 "Northflank 배포용"이라고 적혀 있다
+### 5-1. 확인 필요 — `Dockerfile` 헤더 주석이 "Northflank 배포용"이라고 적혀 있다
 
 `Dockerfile` 2번째 줄: `# MaintQ — Northflank 배포용 Dockerfile`. Cloud Run으로 확정됐다면
 이 주석은 낡았다(실제 이미지 내용 — Python 3.13-slim, uv sync, uvicorn CMD, HEALTHCHECK —
@@ -320,7 +320,7 @@ P14는 *"docker-compose (backend + mcp-server **2서비스**)"*로 적혀 있으
 | `MAINTQ_DB` | — | **더 이상 읽히지 않는다**(SQLite 시절 변수, `backend/db.py`·`mcp_server/db.py`는 Postgres 전용). `.env`에 남아 있어도 무해하지만 넣을 필요 없음 |
 | `LAW_API_OC` · `DATA_GO_KR_SERVICE_KEY` · `IROS_API_KEY_*` | — | **런타임 미호출** (수집 스크립트 전용). 배포 컨테이너에 넣을 필요 없다 |
 
-> 🔴 `data/rules/fetch_laws.py`의 요청 파라미터에는 `LAW_API_OC`가 실린다. 2026-08-13에
+> `data/rules/fetch_laws.py`의 요청 파라미터에는 `LAW_API_OC`가 실린다. 2026-08-13에
 > 평문 자격증명이 추적 파일로 흘러 `git filter-repo`로 **커밋 10개**를 재작성한 사고가 있었다
 > (D103). **수집 키를 런타임 컨테이너 환경에 올리지 않는 것**이 노출면을 줄이는 가장 싼 방법이다.
 

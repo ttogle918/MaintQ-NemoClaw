@@ -1,6 +1,6 @@
 # 데모 영상 촬영 큐시트 (MQ-506)
 
-> 🔴 **2026-09-28 — 해커톤 제출 영상은 이 큐시트가 아니다.** 제출 영상(8장면)의 구성은
+> **2026-09-28 — 해커톤 제출 영상은 이 큐시트가 아니다.** 제출 영상(8장면)의 구성은
 > [`hackathon/SUBMISSION.md`](hackathon/SUBMISSION.md) §4 가 정본이다. 이 문서는 Sprint 5(MQ-506) 시절 S1~S4 촬영 계획으로 남겨 둔다 —
 > 포트(3003·8000)·`sqlite3` 확인 명령·`error_codes` 65건·Gemini 키 등은 **현재 환경과 다르다**(Postgres 5434 · 백엔드 8010 ·
 > 프론트 3000 · Nemotron · 70건).
@@ -27,7 +27,7 @@
      ```
    - 출력에서 `[error_codes] 65건 적재 · related_parts 임시 매핑 N건`과 "시드 케이스 맵 검증"
      표가 전부 통과(✓)인지 육안 확인. `[error_codes] 적재 건너뜀`이 나오면 관련 승인이 안
-     끝난 것이므로 **촬영 중단** — `TODO_직접할일.md`의 related_parts/승인 항목부터 처리한다.
+     끝난 것이므로 **촬영 중단** — related_parts 승인 항목부터 처리한다.
    - 개수만 별도 확인하려면:
      ```bash
      uv run python -c "import sqlite3; c=sqlite3.connect('data/maintq.db'); print(c.execute('SELECT count(*) FROM error_codes').fetchone())"

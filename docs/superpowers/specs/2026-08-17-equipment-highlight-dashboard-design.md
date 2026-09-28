@@ -56,7 +56,7 @@ CREATE TABLE part_lifecycle_mock (
 
 **범위**: §4-3의 하이라이트 대상 부품(냉각팬·키패드·제어보드에 대응하는 `part_no`) × 9자산 중, 그 부품이 실제로 해당 모델에 쓰이는 조합만 시드. 최대 27행, 실제로는 그보다 적음. 날짜는 데모 다양성을 위해 임박·여유·과거(이미 지남) 섞어서 부여.
 
-**⚠ 구현 계획 단계에서 확정할 것**: 이 테이블을 `data/seed.py`에 새 절로 추가할지, 별도 JSON 시드 파일로 둘지는 기존 컨벤션(예: `related_parts.seed.json` 선례)을 참고해 `writing-plans` 단계에서 정한다.
+**구현 계획 단계에서 확정할 것**: 이 테이블을 `data/seed.py`에 새 절로 추가할지, 별도 JSON 시드 파일로 둘지는 기존 컨벤션(예: `related_parts.seed.json` 선례)을 참고해 `writing-plans` 단계에서 정한다.
 
 ## 4. C — 설비 하이라이트 대시보드
 
@@ -64,7 +64,7 @@ CREATE TABLE part_lifecycle_mock (
 
 **① 목록** (가칭 `/technician/equipment-status`)
 - 9개 자산을 카드/행으로 나열
-- 각 카드에 상태 배지(예: 🔴1 🟠1 — 그 자산에 걸린 하이라이트 개수)
+- 각 카드에 상태 배지(예: 1 1 — 그 자산에 걸린 하이라이트 개수)
 - 카드 클릭 → ②로 드릴다운
 
 **② 하이라이트 상세** (모델 단위 도면 — 같은 모델의 설비는 도면을 공유, 상태만 자산별로 다름)
@@ -119,17 +119,17 @@ const IG5A_HOTSPOTS: Hotspot[] = [
 | 키패드 · 제어보드 | 기본 도면을 그 부위 좌표 중심으로 CSS 크롭/확대(별도 이미지 없음) |
 
 확대 패널에 표시할 텍스트는 **기존 진단 데이터 재사용**(신규 데이터 생성 안 함, 이번 대화에서 명시 확인):
-- 🔴 상태면 관련 `error_codes.causes`·`actions` 원문
-- 🔵 상태면 관련 `repair_records`의 서명 정보(수리 일자·작업자 등)
-- 🟠 상태면 `part_lifecycle_mock.next_maintenance_due`
+- 상태면 관련 `error_codes.causes`·`actions` 원문
+- 상태면 관련 `repair_records`의 서명 정보(수리 일자·작업자 등)
+- 상태면 `part_lifecycle_mock.next_maintenance_due`
 
 ### 4-5. 색상 판정 규칙 (부품 단위, 우선순위 순)
 
 | 우선순위 | 색 | 조건 | 데이터 출처 |
 |---|---|---|---|
-| 1 | 🔴 이상탐지 | 이 부품과 연결된 에러코드가 진단됐고, 그 이후 서명된 수리 기록이 없음(="아직 안 고침") | `error_history` + `related_parts`(에러코드↔부품 매핑) + `repair_records.signed_at` 비교 |
-| 2 | 🔵 최근 수리 | 최근 N일 내 서명된 수리 기록이 있고, 그 이후 새 에러 진단이 없음 | `repair_records.signed_at`(N=90일 제안, 구현 계획에서 확정) |
-| 3 | 🟠 곧 점검 | `part_lifecycle_mock.next_maintenance_due`가 임박(M일 이내, M=60일 제안) — 단 위 1·2에 해당하지 않을 때만 | `part_lifecycle_mock`(§3) |
+| 1 | 이상탐지 | 이 부품과 연결된 에러코드가 진단됐고, 그 이후 서명된 수리 기록이 없음(="아직 안 고침") | `error_history` + `related_parts`(에러코드↔부품 매핑) + `repair_records.signed_at` 비교 |
+| 2 | 최근 수리 | 최근 N일 내 서명된 수리 기록이 있고, 그 이후 새 에러 진단이 없음 | `repair_records.signed_at`(N=90일 제안, 구현 계획에서 확정) |
+| 3 | 곧 점검 | `part_lifecycle_mock.next_maintenance_due`가 임박(M일 이내, M=60일 제안) — 단 위 1·2에 해당하지 않을 때만 | `part_lifecycle_mock`(§3) |
 | — | (색 없음) | 위 셋 다 해당 없음 | — |
 
 "이상탐지"는 **새 탐지 로직(센서·임계치)을 만들지 않는다** — 기존 에러코드 진단·수리 기록 데이터를 재해석하는 것뿐이다(이번 대화에서 명시 확인, 이 프로젝트에 실시간 텔레메트리 데이터 자체가 없다).

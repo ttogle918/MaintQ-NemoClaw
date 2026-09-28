@@ -38,7 +38,7 @@ client** 역할이다. 예외는 S15 — InsuQ 응답을 받은 뒤 MaintQ가 Fi
 요청 payload 의 대상 식별자            = subject "누구 건인가"    → 대상 지정
 ```
 
-**⛔ `requester` 객체는 인증 정보가 아니다.** 식별자는 공개정보라 번호만 알면 남의 회사
+**`requester` 객체는 인증 정보가 아니다.** 식별자는 공개정보라 번호만 알면 남의 회사
 건을 요청할 수 있다 — 이 값만으로 상대 시스템이 요청을 승인해서는 안 된다.
 실제 인증은 파트너 자격증명(토큰)이 하고, 상대 서버가 "이 actor가 이 subject를 다룰
 권한이 있는가"를 자기 위임 테이블로 검사한다.
@@ -76,19 +76,19 @@ A2A_Q **결정 2(초대 기반 온보딩)**로 연결은 **2단계**로 확정�
 | 무엇 | 어디에 | 상태 |
 |---|---|---|
 | subject 매핑 (`finallq_company_id` 등) | 신규 `partner_links` 테이블 — 판정(`link_state`)과 식별자(`external_ref`)를 **분리**(D78 패턴) | ✅ **구현 (스키마)** — `data/seed.py §18`. DDL 세부는 D96 이 개정(`IS` · `subject_ref NOT NULL` · `linked_at DATETIME`) |
-| "이미 연결됨" 전제 | `seed.py`에 심는다. **`NOT_LINKED` 대조군 1건 포함** | ✅ **구현 (시드)** — 5행(`LINKED` 4 / `NOT_LINKED` 1 = `BLD-D`). ⚠ **목업 전제**(`PARTNER_LINKS_MOCK=True`) — 실제 연결 승인이 아니다 |
-| 파트너 자격증명 | `.env` + `backend/a2a/credentials.py`. **MCP 도구는 보지 않는다**(D15) | 🟡 **구현 (env 계층)** — 4키(값 전부 빈칸) + 상태 4종 로더. **토큰 캐시 미착수**(호출부가 없다) |
-| `request_chain_id` | `traces`에 nullable 컬럼 신설. `event_type` 신설은 **하지 않는다** | 🟡 **구현 (컬럼만)** — 전 행 NULL 이 정상. `event_type` 은 3종 그대로 |
-| 나간 요청 원문 | 해당 `tool_result` 행의 `tool_payload`. **⛔ 인증 헤더는 제외** | ⚠ **미구현** — **쓰는 쪽(A2A 호출부)이 없다.** 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 명시적으로 기록한다(D76-2 재발 방지) |
+| "이미 연결됨" 전제 | `seed.py`에 심는다. **`NOT_LINKED` 대조군 1건 포함** | ✅ **구현 (시드)** — 5행(`LINKED` 4 / `NOT_LINKED` 1 = `BLD-D`). **목업 전제**(`PARTNER_LINKS_MOCK=True`) — 실제 연결 승인이 아니다 |
+| 파트너 자격증명 | `.env` + `backend/a2a/credentials.py`. **MCP 도구는 보지 않는다**(D15) | **구현 (env 계층)** — 4키(값 전부 빈칸) + 상태 4종 로더. **토큰 캐시 미착수**(호출부가 없다) |
+| `request_chain_id` | `traces`에 nullable 컬럼 신설. `event_type` 신설은 **하지 않는다** | **구현 (컬럼만)** — 전 행 NULL 이 정상. `event_type` 은 3종 그대로 |
+| 나간 요청 원문 | 해당 `tool_result` 행의 `tool_payload`. **인증 헤더는 제외** | **미구현** — **쓰는 쪽(A2A 호출부)이 없다.** 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 명시적으로 기록한다(D76-2 재발 방지) |
 
-> ⛔ **위 호출 목록 표(§"이 레포에서 나가는 요청")는 여전히 전부 미구현이다.** Sprint 8 이 채운 것은
+> **위 호출 목록 표(§"이 레포에서 나가는 요청")는 여전히 전부 미구현이다.** Sprint 8 이 채운 것은
 > **신원·계측 자리**이지 요청을 보내는 코드가 아니다 — 실제 HTTP 호출·오케스트레이터는 QMesh 착수 후다.
 
-> ⚠ subject 매핑값을 trace **컬럼으로 복제하지 않는다.** "그때 어느 company_id로
+> subject 매핑값을 trace **컬럼으로 복제하지 않는다.** "그때 어느 company_id로
 > 보냈나"는 그 이벤트의 `tool_payload`(요청 원문)를 여는 것이 정식 판정 경로다 —
 > `link_state`가 나중에 바뀌어도 과거 원문은 그 시점 그대로 남는다.
 
-> 📌 **subject 매핑에서 InsuQ 는 예외 취급이 아니라 원칙 적용이다** — InsuQ 건물 행은
+> **subject 매핑에서 InsuQ 는 예외 취급이 아니라 원칙 적용이다** — InsuQ 건물 행은
 > `external_ref` **없이(NULL) 연결 승인(`link_state`)만** 담는다. **증권 식별자의 정본은
 > `assets.policy_id`** 이고 `partner_links` 에 복제하지 않는다 (**D95**). 나가는 payload 의
 > `policy_id` 는 그래서 `assets` 에서 읽는다. seed 검사 ㉔ 가 *"어디에도 복제되지 않았다"* 를 본다.

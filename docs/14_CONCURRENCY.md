@@ -279,9 +279,9 @@ def next_sequential_id(con, table: str, col: str, prefix: str) -> str:
 | `db_concurrency` | 7 | **10** (D126 축 3건 신설) |
 | `tools_profile_contract` | 7 | **7** |
 | pytest 7파일 | 128 | **128** |
-| pytest A2A 8파일 | 88(표기) | **107** ⚠ |
+| pytest A2A 8파일 | 88(표기) | **107** |
 
-⚠ 마지막 줄은 **이 변경과 무관한 문서 낡음**이다 — 이 작업은 테스트를 추가하지 않았다.
+마지막 줄은 **이 변경과 무관한 문서 낡음**이다 — 이 작업은 테스트를 추가하지 않았다.
 `CLAUDE.md` 의 88 이 낡은 값으로 보인다(같은 계열 정정이 반복돼 왔다). 다음 세션에서 확인할 것.
 
 ---
@@ -291,7 +291,7 @@ def next_sequential_id(con, table: str, col: str, prefix: str) -> str:
 - ✅ **회귀 축 신설 완료** — `spikes/db_concurrency.py` ⑭⑮⑯ (7 → **10건**).
   세 테이블 각각에 *"`locked_row()` 가 두 번째 읽기를 대기시키는가"* 를 세웠다.
 
-  ⚠ **처음에는 두 스레드를 경쟁시켜 "둘 다 성공하는가"를 보게 짰다가 폐기했다.**
+  **처음에는 두 스레드를 경쟁시켜 "둘 다 성공하는가"를 보게 짰다가 폐기했다.**
   뮤턴트(`FOR UPDATE` 제거)를 **놓치는 것을 실측했다** — SELECT→UPDATE 간격이 짧아
   잠금이 없어도 두 스레드가 우연히 어긋나면 그냥 통과한다. 경쟁 검사는 실패를
   *가끔* 잡으므로 회귀 가드가 될 수 없다. 대신 잠금의 **정의**를 직접 측정한다:
@@ -308,7 +308,7 @@ def next_sequential_id(con, table: str, col: str, prefix: str) -> str:
   3경로가 명시적으로 실패한다 · ⑳ `MAINTQ_DB` 설정·조회 0건.
   뮤턴트 4종으로 전부 실증했다.
 
-  🔴 **그 과정에서 오라클을 한 번 잘못 만들었다** — ⑳의 탐지기 생존 검사를 스캐너와
+  **그 과정에서 오라클을 한 번 잘못 만들었다** — ⑳의 탐지기 생존 검사를 스캐너와
   **같은 토큰**으로 조립했더니, 토큰을 망가뜨리는 뮤턴트에서 정규식과 probes 가 함께
   바뀌며 **자기충족적으로 통과**했다. 오라클 토큰을 독립적으로 조립(`"MAINT"+"Q_DB"` vs
   `"MAINTQ"+"_DB"`)해 해소. *부재 검사의 liveness 앵커는 검사 대상과 독립이어야 한다.*
@@ -316,7 +316,7 @@ def next_sequential_id(con, table: str, col: str, prefix: str) -> str:
   ㉑ `MAX+1` 채번 사본이 `data/txn.py` 밖에 0건 · ㉒ 세 결재 흐름이 전부
   `txn.next_sequential_id()` 를 거친다(양성 축).
 
-  🔴 **세우자마자 살아남은 사본 하나를 잡았다.** D126 은 *"네 벌이 한 곳으로 모였다"* 고
+  **세우자마자 살아남은 사본 하나를 잡았다.** D126 은 *"네 벌이 한 곳으로 모였다"* 고
   적었지만 실제로 모인 것은 **셋**이었다 —
   `mcp_server/tools/create_repair_record.py::_next_repair_id` 가 남아 있었다.
   호출부(203행)는 이미 `repair_record.next_repair_id()`(→ `txn`)로 옮겨 갔고
@@ -350,9 +350,9 @@ def next_sequential_id(con, table: str, col: str, prefix: str) -> str:
   | M5 위임 탐지 실명 | ㉒ FAIL ✅ (위임 0곳) |
   | M6 스캔 대상 0개 | ㉑㉒ 둘 다 FAIL ✅ |
 
-  🔴 **M3 이 살아남은 이유가 ⑳의 교훈과 같은 계열이다.** probe ㉡(위임 래퍼)의 설명문에
+  **M3 이 살아남은 이유가 ⑳의 교훈과 같은 계열이다.** probe ㉡(위임 래퍼)의 설명문에
   형식(`PO-%04d`)만 넣었더니, docstring 제외를 걷어내도 **축A 가 꺼져 있어** 판정이
   안 바뀌었다 — probe 가 자기가 지킨다고 주장하는 것을 실제로는 안 지킨 것이다.
   설명문에 옛 SQL 과 형식을 **둘 다** 넣어 해소했다.
   *부재 검사의 liveness 픽스처는 "그럴듯한 모양"이 아니라 **판정을 실제로 뒤집는 것**이어야 한다.*
-- 🟡 낙관적 잠금(`If-Match`)은 `07_BACKLOG.md` 로.
+- 낙관적 잠금(`If-Match`)은 `07_BACKLOG.md` 로.

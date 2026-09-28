@@ -1,6 +1,6 @@
 # eval/testset_draft.json — 검수 근거 노트 (MQ-501)
 
-> ⚠️ **경고**: 이 표의 `part_no` 는 검수 전(D12) 초안이다 — `related_parts` 검수 완료 전까지
+> **경고**: 이 표의 `part_no` 는 검수 전(D12) 초안이다 — `related_parts` 검수 완료 전까지
 > 이 testset 으로 낸 부품 특정 정확률을 실적으로 인용하지 말 것.
 > **`eval/testset.json` 반영은 사람이 직접 수행**한다(`.claude/hooks/guard_writes.py` 가
 > Claude 의 `eval/testset.json` 직접 반영을 exit 2 로 차단함 — Bash heredoc 등 우회 시도도

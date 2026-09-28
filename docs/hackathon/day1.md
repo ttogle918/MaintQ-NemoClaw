@@ -4,7 +4,7 @@
 **오늘 목표**: S1(진단→재고→발주 draft)·S4(미지 코드→추측 없이 A/S)가 **Nemotron** 으로,
 **OpenShell 샌드박스 안에서** 동작하는지 확인한다. 성능 측정은 하지 않는다.
 
-> ⚠ 이 문서에는 **이번 세션에서 직접 실행해 확인한 것만** 적는다. 문서로만 읽은 것은
+> 이 문서에는 **이번 세션에서 직접 실행해 확인한 것만** 적는다. 문서로만 읽은 것은
 > 「미확인」으로 따로 표시한다. 기존 평가 수치(오특정률 등)는 이전 모델 기준이라 **Nemotron 결과로 인용하지 않는다.**
 
 ---
@@ -63,10 +63,10 @@
 |---|---|
 | `nvidia/nemotron-3-super-120b-a12b` | ✅ 호출·도구 호출 확인 — **메인** |
 | `nvidia/nemotron-3-ultra-550b-a55b` | ✅ 도구 호출 확인(6.7s, 느림) |
-| `nvidia/nemotron-nano-3-30b-a3b` | ⛔ **목록에는 있는데 호출하면 404** |
+| `nvidia/nemotron-nano-3-30b-a3b` | **목록에는 있는데 호출하면 404** |
 | `openai/gpt-oss-120b` | 목록에 없음 — 9-05 의 410 EOL 을 목록으로도 확인 |
 
-⚠ OpenShell 문서 예시의 `nvidia/nemotron-3-nano-30b-a3b` 는 **목록에 없는 ID** 다(실제 목록은 `nemotron-nano-3-…`).
+OpenShell 문서 예시의 `nvidia/nemotron-3-nano-30b-a3b` 는 **목록에 없는 ID** 다(실제 목록은 `nemotron-nano-3-…`).
 **목록에 있다 ≠ 호출된다** — 모델을 바꿀 때는 반드시 1회 호출로 확인할 것.
 
 ---
@@ -107,7 +107,7 @@ NemoClaw 는 설치하지 않았다(RAM 7GB · WSL Node v18). 대신 NemoClaw �
   `/app/pgdata-template` 에 복원 → 기동 때 `/tmp/pgdata` 로 복사해 uid 1000 으로 loopback 에만 띄운다
   (`deploy/openshell/start.sh`). 복원 검증: `error_codes=70` · 사용자 트리거 **12개(원본과 동일)** —
   D10 가드는 DB 역할이 아니라 세션 설정(`default_transaction_read_only`) + 스키마 트리거라 덤프로 그대로 옮겨진다
-  - ⚠ 샌드박스는 매번 **빌드 시점 스냅샷**에서 시작하고, 안에서 만든 draft 는 샌드박스를 지우면 사라진다 —
+  - 샌드박스는 매번 **빌드 시점 스냅샷**에서 시작하고, 안에서 만든 draft 는 샌드박스를 지우면 사라진다 —
     데모 격리로는 오히려 장점(공유 DB 오염 없음)
   - 덤프 파일은 `deploy/openshell/build/`(gitignore) — 커밋하지 않는다
 
@@ -151,7 +151,7 @@ network_policies: {}
 D47 이 정의한 키워드 전용 경로(전부 0점)로 떨어진다. **코드 변경 0줄.**
 - 대안 ⓑ 데모 질의 임베딩을 미리 캐시해 이미지에 동봉 — `data/cache` 는 `.dockerignore` 대상이고, 질의가 조금만 달라도 캐시 미스라 취약
 - 대안 ⓒ 샌드박스에 키를 넣고 임베딩 호스트만 허용 — D143 의 핵심을 버린다. **기각**
-- ⚠ 지금은 dense 가 꺼진 것이 **warning 로그 없이** 조용하다(키 미설정 분기가 `return zeros`).
+- 지금은 dense 가 꺼진 것이 **warning 로그 없이** 조용하다(키 미설정 분기가 `return zeros`).
   데모에서 "검색이 키워드 전용" 임을 보여 주려면 Day 2 에 표시를 검토
 
 ### 5.3 차단 실측 (최종 정책)

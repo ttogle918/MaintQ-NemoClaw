@@ -454,7 +454,7 @@ export default function PoDetailV2Page({ params }: { params: { poId: string } })
           <Chip
             label={(() => {
               const s = stateView(q.selected.kind, q.selected.state);
-              return s.known ? s.text : `⚠ ${s.text}`;
+              return s.known ? s.text : `${s.text}`;
             })()}
             sx={{ mt: 1 }}
           />
@@ -634,13 +634,13 @@ function QueueItemV2({
         <Chip
           size="small"
           variant="outlined"
-          label={kind.known ? kind.text : `⚠ ${kind.text}`}
+          label={kind.known ? kind.text : `${kind.text}`}
         />
         <Chip
           size="small"
           variant={state.known ? "filled" : "outlined"}
           color={state.known ? toneToChipColor(state.tone) : "default"}
-          label={state.known ? state.text : `⚠ ${state.text}`}
+          label={state.known ? state.text : `${state.text}`}
         />
       </Stack>
       <Typography variant="body2" fontWeight={700} noWrap>
@@ -712,7 +712,7 @@ export default function PoDetailV2Page({ params }: { params: { poId: string } })
             <Chip
               label={(() => {
                 const s = stateView(q.selected.kind, q.selected.state);
-                return s.known ? s.text : `⚠ ${s.text}`;
+                return s.known ? s.text : `${s.text}`;
               })()}
               sx={{ mt: 1 }}
             />
@@ -927,7 +927,7 @@ export function SupplierCompareV2({ quotes }: { quotes: SupplierQuote[] }) {
 }
 ```
 
-⚠ `Grid` 는 `size={6}` 를 쓴다(`item xs={6}` 가 아니다) — 설치된 `@mui/material@9.x` 는 신 Grid API 다(2026-08-20 npm 레지스트리·타입 정의 실측 확인, `item` prop 이 제거됐다).
+`Grid` 는 `size={6}` 를 쓴다(`item xs={6}` 가 아니다) — 설치된 `@mui/material@9.x` 는 신 Grid API 다(2026-08-20 npm 레지스트리·타입 정의 실측 확인, `item` prop 이 제거됐다).
 
 - [ ] **Step 3: DecisionBarV2 작성**
 
@@ -1059,7 +1059,7 @@ export function PoDetailV2({
         <Chip
           size="small"
           variant={state.known ? "filled" : "outlined"}
-          label={state.known ? state.text : `⚠ ${state.text}`}
+          label={state.known ? state.text : `${state.text}`}
         />
         <Box sx={{ flex: 1 }} />
         <Typography variant="caption" color="text.secondary" fontFamily="monospace">
@@ -1287,7 +1287,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: 에러 없음.
 
-- [ ] **Step 3: 실제 승인 동작 확인 (⚠ 실 DB 를 바꾼다 — 시드에서 pending 상태인 발주로)**
+- [ ] **Step 3: 실제 승인 동작 확인 (실 DB 를 바꾼다 — 시드에서 pending 상태인 발주로)**
 
 ```bash
 curl -s http://localhost:8003/api/po/PO-0117 -H "X-Role: manager" -H "X-User: mgr-01" | grep -o '"state":"[a-z]*"'
@@ -1305,7 +1305,7 @@ curl -s -X POST http://localhost:8003/api/po/PO-0117/approve \
 
 Expected: `"state":"approved"`.
 
-⚠ **이 명령은 시드 DB 를 실제로 바꾼다.** 검증 후 재시드해 원복한다:
+**이 명령은 시드 DB 를 실제로 바꾼다.** 검증 후 재시드해 원복한다:
 
 ```bash
 uv run python data/seed.py --with-error-codes
@@ -1379,7 +1379,7 @@ kill %1 %2 2>/dev/null
 `CLAUDE.md:125` (2026-08-20 기준 실측 줄 번호 — 태스크 실행 시점에 세션 중 다른 커밋이 끼어 줄 번호가 밀려 있을 수 있으니, 아래 **문자열로** 찾는다) 에서 다음 문구를 찾는다:
 
 ```
-프론트 라우트 **18개**(`npx next build` — ⚠ `find frontend/app -name page.tsx` 로 세면 **17개**다.
+프론트 라우트 **18개**(`npx next build` — `find frontend/app -name page.tsx` 로 세면 **17개**다.
 ```
 
 이 줄의 `**18개**` 를 `**19개**` 로, 문장 맨 끝(그 줄의 마지막 마침 지점, 다음 항목 나열 `,` 앞)에 아래 델타 설명을 이어붙인다. 정확히는 파이썬으로 치환한다:

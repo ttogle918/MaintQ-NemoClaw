@@ -247,7 +247,7 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
       """A2A 호출 감사 이력 (D114) — `read_trace`(D76-2 ⓑ)와 달리 tool_payload 원문을 연다."""
       return list_a2a_history(skill=skill, po_id=po_id, building_id=building_id, chain_id=chain_id, limit=limit)
   ```
-  역할 게이트 없음(기존 `lookup_clause_endpoint`·`assess_loan_endpoint` 관례를 따름 — `require()` 미호출). ⚠ 리뷰 항목으로 남긴다: 사업 내용(대출액·보험 답변)이 무인증 노출이라는 점은 기존 2개 엔드포인트가 이미 그런 전제였다는 점만 확인하고 넘어간다.
+  역할 게이트 없음(기존 `lookup_clause_endpoint`·`assess_loan_endpoint` 관례를 따름 — `require()` 미호출). 리뷰 항목으로 남긴다: 사업 내용(대출액·보험 답변)이 무인증 노출이라는 점은 기존 2개 엔드포인트가 이미 그런 전제였다는 점만 확인하고 넘어간다.
 
   기존 두 엔드포인트에 chain_id 강제 주입 (성공 분기에서 `record_a2a_trace` 호출 **직전**):
   ```python
@@ -510,8 +510,8 @@ Stage 4 세 태스크가 전부 끝나야 "몇 건이 실제로 바뀌었는지"
   /**
    * A2A 이력(`GET /api/a2a/history`) 표시 규칙 (MQ-1605, D114).
    *
-   * ⛔ React 를 import 하지 않는다 — `ui_honesty` L1 이 단독 tsc 로 이 파일을 검증한다.
-   * ⛔ 경로 별칭(`@/…`)도 쓰지 않는다.
+   * React 를 import 하지 않는다 — `ui_honesty` L1 이 단독 tsc 로 이 파일을 검증한다.
+   * 경로 별칭(`@/…`)도 쓰지 않는다.
    */
 
   export type Tone = "ok" | "warn" | "error" | "unknown";

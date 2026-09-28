@@ -17,7 +17,7 @@ data/rules/
 ## 실행
 
 ```bash
-# ⚠ pytest 는 dev 의존성에 없다 (--with 로 임시 설치). `uv run python -m pytest` 는 실패한다.
+# pytest 는 dev 의존성에 없다 (--with 로 임시 설치). `uv run python -m pytest` 는 실패한다.
 uv run --with pytest python -m pytest data/rules/test_rules.py -q   # 46 passed
 uv run python spikes/law_fetch_contract.py                          # apply_fetch 계약 (네트워크 미사용)
 ```
@@ -68,7 +68,7 @@ result = check_disposal_blockers({
 
 ---
 
-## ⚠️ 법령 원문은 손으로 채우지 않는다
+## 법령 원문은 손으로 채우지 않는다
 
 `laws/*.json`의 `text`는 **API 로 받은 것만** 들어간다. 등록 직후에는 `text: null` · `fetch_status: PENDING` 이며 **그 상태로 두는 것이 의도**다.
 조문 원문을 손으로 타이핑하면 그 순간 "출처 있는 사실"이 아니라 "누가 적은 텍스트"가 되어 계층 1의 존재 이유가 무너진다. 각 파일의 `verification_note`에 확인 사항을 적어뒀다.
@@ -87,11 +87,11 @@ result = check_disposal_blockers({
 
 | 단계 | 함수 | 상태 |
 |---|---|---|
-| ① OPEN API 이용 신청 → `LAW_API_OC` 설정 | — | ✅ **완료** — 발급·실호출 검증까지 끝났다. ⛔ 값은 저장소 어디에도 적지 않는다 |
+| ① OPEN API 이용 신청 → `LAW_API_OC` 설정 | — | ✅ **완료** — 발급·실호출 검증까지 끝났다. 값은 저장소 어디에도 적지 않는다 |
 | ② 실호출·응답 파싱 | `fetch_from_api` | ✅ **완료 (Sprint 7 · MQ-701)** — `MST` 조회 + `JO` 6자리 + `조문내용/항/호/목` 평탄화 |
 | ③ 조문번호·제목 대조 → 파일 기입 → 해시 | `apply_fetch` | ✅ **완료** (`FILLED`/`UNCHANGED`/`REVISION_PENDING`) |
 | ④ 개정 감지 → `pending_revisions` | `check_revisions` | ✅ 완료 — 실행 시 6 `UNCHANGED` + 1 `NOT_FETCHED`(멱등) |
-| ⑤ `pending_revisions` 검토·서명 흐름 | — | ⛔ 미착수 (Sprint 7, 계층 3) |
+| ⑤ `pending_revisions` 검토·서명 흐름 | — | 미착수 (Sprint 7, 계층 3) |
 
 > ②의 파라미터는 **전부 실호출로 확정한 값**이다 — `display=100`(기본 20 이면 `상법` exact match 가
 > 페이지 밖으로 밀린다) · `search=1`(2 는 본문 검색이라 법령명 exact 0건) · `JO` **6자리**

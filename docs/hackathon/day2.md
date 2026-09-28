@@ -1,7 +1,7 @@
 # NVIDIA 해커톤 Day 2 — NemoClaw 도입과 게이트웨이 통합 (2026-09-24)
 
 > Day 1 결과는 [`day1.md`](day1.md), 착수 전 조사·미결정은 [`day2-prep.md`](day2-prep.md)(§8 에 결정 완료 표).
-> ⚠ 이 문서에도 **이번 세션에서 직접 실행해 확인한 것만** 적는다.
+> 이 문서에도 **이번 세션에서 직접 실행해 확인한 것만** 적는다.
 
 ---
 
@@ -9,7 +9,7 @@
 
 - 작업 위치: **WSL Ubuntu `~/MaintQ-NVIDIA`** (Claude Code 도 여기서 돈다)
 - 원격: `https://github.com/ttogle918/MaintQ-NemoClaw` — **비공개**, Apache-2.0
-- 🔴 **커밋 해시가 전부 바뀌었다 (두 번 재작성).** ㉠ 작성자 이메일 → GitHub noreply(537커밋)
+- **커밋 해시가 전부 바뀌었다 (두 번 재작성).** ㉠ 작성자 이메일 → GitHub noreply(537커밋)
   ㉡ D144 매뉴얼 추출물 퍼지. 문서가 인용하는 옛 해시는 조회되지 않는다 —
   대조표 `~/maintq-filter-repo-maps-20260924/commit-map`
 - 복구 번들(**매뉴얼 실데이터 포함 — 공개 금지**): `~/maintq-backup-20260924.bundle` ·
@@ -34,9 +34,9 @@
   (day1 §5 의 "OpenShell 공식 지원 에이전트 … Claude Code" 는 OpenShell 쪽 목록이고 서로 다르다)
 - 모델 provider 9종 (NVIDIA Endpoints=`build` · OpenRouter · OpenAI · **Anthropic** · Gemini ·
   Ollama · Model Router=`routed` 등). Anthropic 을 고르면 채점 ①(NVIDIA 기술 활용 심도)에서 손해
-- ⚠ **`routed` 는 "게이트웨이 기존 경로 재사용" 이 아니라 Model Router** 다 — 별도 키를 요구한다(실측)
+- **`routed` 는 "게이트웨이 기존 경로 재사용" 이 아니라 Model Router** 다 — 별도 키를 요구한다(실측)
 
-### 🔴 stdio MCP 를 받지 않는다 → D150 의 계기
+### stdio MCP 를 받지 않는다 → D150 의 계기
 
 > "Stdio-only MCP servers are not supported. NemoClaw does not start, wrap, or translate them."
 
@@ -55,7 +55,7 @@ openshell service expose maintq 8000 maintq-api
 - 인증서: `~/.config/openshell/gateways/<gw>/mtls/{ca.crt,tls.crt,tls.key}` · issuer `CN=openshell-ca`
 - 없이 호출하면 TLS 핸드셰이크 중 `certificate required` 로 끊긴다(`-k` 로도 안 된다 — CA 문제가 아니라 **클라이언트 인증서** 문제다)
 
-## 5. 🔴 NemoClaw 설치가 기존 게이트웨이를 빼앗는다 — 사고와 복구 절차
+## 5. NemoClaw 설치가 기존 게이트웨이를 빼앗는다 — 사고와 복구 절차
 
 **증상** (이번 세션에서 **세 번** 겪었다)
 - 설치/`onboard` 가 자기 게이트웨이(`nemoclaw`, **8080**)를 systemd 유저 서비스로 띄우고
@@ -101,7 +101,7 @@ KEK 이 `StateDirectory`(위치 불변)에 있어서 **암호화된 자격증명
 build.nvidia.com 의 `nvapi-` 키 하나이고 **변수 이름만 맥락마다 다르다.**
 게이트웨이 저장분도 `Credential keys: NVIDIA_API_KEY` 다. 우리 `.env` 에도 같은 키가 있다(임베딩용, day1 §3).
 
-⚠ **게이트웨이 자격증명 재사용은 첫 onboard 에서는 못 쓴다** —
+**게이트웨이 자격증명 재사용은 첫 onboard 에서는 못 쓴다** —
 `dist/lib/onboard/build-credential-reuse.js`: *"only the recovered-sandbox path (for example
 `onboard --recreate-sandbox`) may rely on the existing gateway credential. Explicit
 non-interactive provider selections still require a local key."* 등록된 샌드박스가 생긴 **두 번째부터** 열린다.
@@ -126,8 +126,8 @@ non-interactive provider selections still require a local key."* 등록된 샌�
   - 명시 질의: 규칙 1번을 **원문 그대로** 인용
   - 암묵 적용: 스킬 이름 없이 "iG5A 커버 열고 커패시터 점검 안전 주의" → "10분 이상 + 테스터 방전 확인 ·
     5분 등 단축 금지 · iG5A p.4/p.6 · S100 p.2 (D26)" — 전부 `SKILL.md:17-19` 에 있는 값이다
-  - ⚠ 첫 시도는 `FailoverError: The AI service is temporarily overloaded` (무료 티어 과부하 O1) — 재시도로 통과
-  - ⚠ 우리 8종 중 **제품용은 `safety-guardrail` 하나뿐**이다. 나머지 7종은 Claude Code 개발 워크플로
+  - 첫 시도는 `FailoverError: The AI service is temporarily overloaded` (무료 티어 과부하 O1) — 재시도로 통과
+  - 우리 8종 중 **제품용은 `safety-guardrail` 하나뿐**이다. 나머지 7종은 Claude Code 개발 워크플로
     (`/sprint`·`/stage` 등 — 서브에이전트·레포 명령 전제)라 OpenClaw 에 넣을 대상이 아니다
 - ✅ **스킬 공급망 게이트 — SkillSpector (2026-09-24, `skillspector:local`, `--no-llm`)**
   - NVIDIA 카탈로그 2종을 **설치 전** 스캔: `skill-card-generator` AE1 HIGH ×5 — 전부 "번들 스크립트 실행"
@@ -140,7 +140,7 @@ non-interactive provider selections still require a local key."* 등록된 샌�
     (`npx tsc` → `./node_modules/.bin/tsc`. 이 WSL 클론엔 `node_modules` 가 없어 옛 명령은 **실제로**
     npm 의 동명 `tsc` 패키지를 받아 올 상태였다) · `done` 21 그대로 — AS1 은 `reviewer.md` 의 D 범위를
     읽는 정당한 접근이라 **수용된 위험**
-  - ⚠ 재스캔 판정을 한 번 잘못 읽었다 — 결과 키는 `findings` 가 아니라 **`issues`** 다. 빈 키를 읽어
+  - 재스캔 판정을 한 번 잘못 읽었다 — 결과 키는 `findings` 가 아니라 **`issues`** 다. 빈 키를 읽어
     "3종 모두 0건" 이 나왔다(부재 검사 + liveness 앵커 규칙이 여기에도 적용된다)
 - ✅ **OpenClaw workspace + 제품 스킬 `maintq-diagnose` (2026-09-24, 샌드박스 `maintq-agent`)**
   - `deploy/nemoclaw/workspace/build.py` 가 `AGENTS.md`·`TOOLS.md`·`IDENTITY.md` 를 생성한다 — 안전 확정 문구·
@@ -148,7 +148,7 @@ non-interactive provider selections still require a local key."* 등록된 샌�
     **백엔드와 다른 점**: 웹 콘솔은 안전 블록·인용 칩을 시스템(`loop.py`)이 붙이지만 OpenClaw 에는 그 계층이 없어
     에이전트가 확정 문구를 그대로 붙이도록 규칙을 옮겨 적었다. 원본 기본 파일은 배포 전 백업
   - `skills/maintq-diagnose/`: 흐름 A~D(S1·S2·S3·S4) + `evals/evals.json` 4건 + `skill-card.md`(NVIDIA `skill-card-generator`).
-    SkillSpector **0점 · 커버리지 100%** — ⚠ 처음엔 0점이었지만 `permissions` 를 맵으로 써서 `manifest_parse_error`
+    SkillSpector **0점 · 커버리지 100%** — 처음엔 0점이었지만 `permissions` 를 맵으로 써서 `manifest_parse_error`
     (커버리지 50%, MCP 분석기 미실행)였다. 표준 `allowed-tools` 리스트로 바꿔 전 분석기가 돈 뒤의 0점이다
   - 도구는 OpenClaw 에서 `maintq__<이름>` 으로 보인다(코어 7종 + prompts/resources 4종)
   - 실행 결과(세션 JSONL 로 도구 호출 확인): S1 1턴 lookup→history→rag→inventory→quotes, 발주 없음, 페이지 202/43/205 전부
@@ -193,7 +193,7 @@ uv 프로젝트).
   `filesystem_policy.read_only`(`/app`) 때문에 빌드 후 파일을 얹으려면 `/tmp` 로 올려야
   한다.
 
-**🔴 사고 기록 — 운영 중이던 MCP-HTTP(127.0.0.1:8765, `maintq-agent`용) 를 실수로 내렸다
+**사고 기록 — 운영 중이던 MCP-HTTP(127.0.0.1:8765, `maintq-agent`용) 를 실수로 내렸다
 (발견 즉시 오케스트레이터가 복구, pid 40032 → 52442).**
 스파이크 서버를 정리하며 `pkill -f "mcp_server.http_entry"` 를 썼는데, 운영 서버와 스파이크
 서버(127.0.0.1:8775, 이 스파이크 전용)가 **같은 모듈 문자열**(`mcp_server.http_entry`)로
@@ -209,7 +209,7 @@ uv 프로젝트).
 ## 10. 데모 시나리오 (MQ-1912 — 초안, 2026-09-25)
 
 > 흐름: HV600 코드를 모름 → NAT 가 한국어로 정규화 → 사람이 검수·승격 → 진단할 수 있게 됨 → 안전 문구도 사람이 승인해야 붙음.
-> 🔴 **아직 실행하지 않은 단계에는 결과를 적지 않는다.** 사람 작업 H2(검수)·H3(승격)·H4(안전 승인)·H5(워크스페이스 재설치)·
+> **아직 실행하지 않은 단계에는 결과를 적지 않는다.** 사람 작업 H2(검수)·H3(승격)·H4(안전 승인)·H5(워크스페이스 재설치)·
 > H7(녹화)을 아직 하지 않았다. 이 초안을 쓸 때(2026-09-25) 공유 DB 상태: `error_codes` 70행(HV600 0) · `onboarding_promotions` 0 ·
 > 안전 후보 `approved` 0 · HV600 정규화 249/249(최신 기준 high 248 · low 1).
 > 매뉴얼 원문·번역문은 여기 옮기지 않는다(D144) — 코드·상태·페이지 번호·건수만 적는다.
@@ -234,7 +234,7 @@ L2 = 호스트 stdio). NAT 를 거치지 않는 단계는 `—` 로 두고 **어
   `ok` · `manual_page=202` · `냉각핀 과열`(카탈로그가 비어서 not_found 가 난 게 아님). 격리 스키마 회귀는 `spikes/model_enum_contract.py` ⑤
 - **확인 안 한 것**: OpenClaw 대화. 샌드박스 `maintq-agent` 의 워크스페이스·스킬이 아직 HV600 이전 판이라(아래 `build.py --check`)
   지금 물으면 옛 규칙 3(기종 3종)으로 답한다
-- ⚠ **녹화 순서 주의**: 표 H5 는 "H3·H4 뒤" 이지만, ①을 OpenClaw 로 녹화하려면 **H3(GF 승격) 전에** 현재 판 워크스페이스·스킬을
+- **녹화 순서 주의**: 표 H5 는 "H3·H4 뒤" 이지만, ①을 OpenClaw 로 녹화하려면 **H3(GF 승격) 전에** 현재 판 워크스페이스·스킬을
   한 번 설치해야 한다. GF 를 승격한 뒤에는 ①을 재현할 수 없다(승격 취소 API 없음, H10). 선택지는 두 가지 — ㉠ H3 전에 한 번 설치하고
   H4 뒤에 한 번 더 설치 ㉡ ①에는 승격 대상이 아닌 코드를 쓴다 → **㉠ 채택(2026-09-25 사용자 결정)** — 같은 GF 로 승격 전·후를 보인다
 
@@ -257,7 +257,7 @@ H2(데모 코드 원문 대조) → H3(승격, `flags` 확인 체크 포함)을 
   승인 행 2건이면 차단 · iG5A 출력 바이트 동일을 확인했다. **실데이터 HV600 승인은 아직 0건**(H4)
 - **OpenClaw 경로**: `build.py` 가 DB 승인 상태를 AGENTS.md 「온보딩 승인 기종」 절에 쓴다. 지금은 `onboarding_HV600=none` — 승인 후
   재생성·재설치(H5)하기 전까지는 AGENTS.md 에 HV600 안전 문구가 없다
-- 🔴 **한계**: OpenClaw 에는 `loop.py` 의 안전 게이트 계층이 없다. HV600 안전은 **에이전트가 AGENTS.md 규칙을 지키는지에 달려 있다**
+- **한계**: OpenClaw 에는 `loop.py` 의 안전 게이트 계층이 없다. HV600 안전은 **에이전트가 AGENTS.md 규칙을 지키는지에 달려 있다**
   (§8 "백엔드와 다른 점" 과 같은 구조). 시스템이 강제하는 것은 웹 콘솔 경로뿐이다
 
 ### ⑥ 샌드박스 A2A `policy_blocked` — Stage 2 확인분

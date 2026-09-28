@@ -67,7 +67,7 @@ parts ──< inventory
 
 partner_links   ← 외부 파트너 subject 대장. FK 없음(building_id 가 FK 없는 것과 같은 이유) · 인증 정보 아님
 
-equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 🟠(곧 점검) 판정 출처. mock(D65 고지 필수)
+equipment ──< part_lifecycle_mock >── parts   ← 하이라이트 (곧 점검) 판정 출처. mock(D65 고지 필수)
 
 sites ──< zones ──< equipment_locations >── equipment   ← 평면도(D158). equipment 쪽 컬럼 추가 없음 · 1:1
 ```
@@ -78,7 +78,7 @@ sites ──< zones ──< equipment_locations >── equipment   ← 평면�
 
 > **정본은 `data/extracted/error_codes.json`**(`data/extract_error_codes.py` 산출, D60·D33 승인 게이트).
 > `lookup_error_code`의 원천. M1에서 매뉴얼 PDF 표 → 이 테이블로 추출하는 게 최대 작업.
-> 🔴 승격 절차는 [`data/extracted/README.md`](../data/extracted/README.md) (**D106**) — 이 절은
+> 승격 절차는 [`data/extracted/README.md`](../data/extracted/README.md) (**D106**) — 이 절은
 > **④(drift 자가검증)의 유일한 선례**다(`seed.py` 검사 ㉚). 반대로 §17 은 ④가 없다.
 
 ```sql
@@ -205,7 +205,7 @@ CREATE TABLE parts (
 (D12 가 `related_parts` 에서 세운 태도 그대로).
 현재 분포는 `CONSUMABLE 14 / CRITICAL 26`, **`FAN-IG5-01` 은 `CRITICAL`**(S1 주인공).
 
-> ⚠ **사람 미검수 초안이다.** `seed.py` 의 `part_class_caveat()` 가 매 실행 말미에 경고를 찍는다.
+> **사람 미검수 초안이다.** `seed.py` 의 `part_class_caveat()` 가 매 실행 말미에 경고를 찍는다.
 > **게이트가 아니다** — 막으면 스프린트가 선다(`prompts.py` 안전 문구 미검수를 런타임에서
 > 막지 않는 것과 같은 태도). 검수 항목은 `TODO_직접할일.md`.
 
@@ -217,14 +217,14 @@ CREATE TABLE parts (
 | 상태 | 뜻 |
 |---|---|
 | 값 있음 | 제조사가 **공개한** 품번을 **사람이 원문에서 확인**했다 |
-| **NULL** | **공개돼 있지 않다** — ⛔ *"우리가 아직 못 찾았다"* 가 **아니다** |
+| **NULL** | **공개돼 있지 않다** — *"우리가 아직 못 찾았다"* 가 **아니다** |
 
 현재 **1/40종**: `PCB-IG5-CTRL` → **`SV-iG5A I/OPCBASSY`**(적용 `0.4~7.5KW-2/4`).
 나머지 39종의 NULL 은 4개 축 전수 조사 결과이며 근거는
 [`data/analysis/part_number_sources.md`](../data/analysis/part_number_sources.md) 에 있다
 (핵심: `FAN-IG5-01` 은 **제조사가 대리점 문의로 돌려 품번 자체가 비공개**).
 
-⛔ **넣으면 안 되는 값 3종** — 판매점 주문번호(`32155`) · 완제품 형명(`SV220iG5A-4`) ·
+**넣으면 안 되는 값 3종** — 판매점 주문번호(`32155`) · 완제품 형명(`SV220iG5A-4`) ·
 추측 품번. 앞의 둘은 시드 자가검증 **㉖** 이 정규식으로 거부하고, 셋째는 규칙이다
 (CLAUDE.md 절대규칙 6 과 같은 계열 — **모르면 NULL 이 정답**).
 
@@ -325,7 +325,7 @@ CREATE TABLE po_drafts (
 대해 한 벌 더 갖는 구조다. `finance_decision_note`도 반려 시 필수(D38과 동일한 원칙 — Sprint
 17 회귀 픽스처 PO-0119 참고).
 
-> ⚠️ **`PRAGMA foreign_keys=ON`을 커넥션마다 실행할 것.** SQLite는 FK 검증이 **기본 OFF**다. 이걸 안 켜면 위 복합 FK가 조용히 무시되어 매뉴얼에 없는 코드로도 발주서가 만들어진다 — D33의 보증이 통째로 사라진다. `mcp_server/db.py`의 커넥션 팩토리에서 강제한다.
+> **`PRAGMA foreign_keys=ON`을 커넥션마다 실행할 것.** SQLite는 FK 검증이 **기본 OFF**다. 이걸 안 켜면 위 복합 FK가 조용히 무시되어 매뉴얼에 없는 코드로도 발주서가 만들어진다 — D33의 보증이 통째로 사라진다. `mcp_server/db.py`의 커넥션 팩토리에서 강제한다.
 
 **검증 완료 (2026-07-23):** 위 DDL을 SQLite에서 실제로 실행해 9개 케이스를 확인했다 — 정상 발주·코드 없는 발주(S2)는 통과, 지어낸 코드(FK)·소문자·5자·특수문자·model만 있는 상태·깨진 JSON·**기종 오배정(S100 코드를 iG5A로)**은 전부 거부.
 
@@ -392,7 +392,7 @@ CREATE INDEX idx_traces_session ON traces(session_id, seq);
 `payload` 에 섞으면 "발행한 것과 저장한 것이 같다"는 대조가 조용히 깨진다. 그래서 컬럼을 따로 둔다.
 `tool_result` 행에만 값이 있으므로 **nullable** 이며, `tool_call`·`block` 행에는 NULL 이다.
 
-> ⚠ **Sprint 6 은 컬럼만 만든다.** 값을 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은
+> **Sprint 6 은 컬럼만 만든다.** 값을 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은
 > D76-2 담당이 별도로 처리한다. 시드는 `traces` 에 행을 넣지 않는다.
 
 **`request_chain_id` 를 컬럼으로 둔 이유 (D94-ⓐ).** A2A 는 한 요청이 여러 파트너를 거치므로
@@ -403,10 +403,10 @@ CREATE INDEX idx_traces_session ON traces(session_id, seq);
 `tool_call` 행은 그대로 NULL 이다(`trace_persist ⑫-b` 가 검사). subject(company/policy 매핑값)는
 **trace 컬럼으로 복제하지 않는다** — `link_state` 는 변할 수 있어(연결 해지) 과거 행에 박힌 값이
 현재 매핑과 어긋나면 어느 쪽이 맞는지 판정할 근거가 없다. *"그때 어느 subject 로 보냈나"* 는
-**그 이벤트의 원문을 여는 것**이 정식 경로다. ⛔ **인증 헤더는 저장 대상에서 제외**한다 — 대장에
+**그 이벤트의 원문을 여는 것**이 정식 경로다. **인증 헤더는 저장 대상에서 제외**한다 — 대장에
 자격증명을 두지 않는 것(D93)과 같은 이유다.
 
-> ⚠ **Sprint 8 은 컬럼만 만든다.** 쓰는 쪽(A2A 호출부)은 **미착수**이며 **현재 전 행 NULL 이
+> **Sprint 8 은 컬럼만 만든다.** 쓰는 쪽(A2A 호출부)은 **미착수**이며 **현재 전 행 NULL 이
 > 정상**이다. `spikes/a2a_identity_contract.py` 와 시드 검사 ㉕ 가 *"값이 비었다"* 가 아니라
 > *"쓰는 쪽이 없다"* 를 명시적 라벨로 기록한다 — `tool_payload` 가 컬럼만 있고 쓰는 쪽이 없어
 > 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기 위해서다.
@@ -462,7 +462,7 @@ CREATE TABLE assets (
 `required_facts` 검사에서 누락으로 잡혀 `INSUFFICIENT_FACTS` 가 된다. 시드는 이 경로를
 `AST-L4-DUST`(`tax_credit_applied = NULL`)로 재현한다. **"모른다"를 0/false 로 채우지 않는다.**
 
-> ⚠ 정확히는 **엔진이 아니라 `engine.build_facts` 가** 이 성질을 만든다. `evaluate_rule` 의
+> 정확히는 **엔진이 아니라 `engine.build_facts` 가** 이 성질을 만든다. `evaluate_rule` 의
 > 누락 검사는 `f not in facts` 로 **키 존재만** 보므로 `{"tax_credit_applied": None}` 을 그대로
 > 넘기면 "값이 있다"로 읽혀 조용히 `CLEAR` 가 된다. `build_facts` 가 NULL 컬럼의 **키를 빼기
 > 때문에** NULL→`INSUFFICIENT_FACTS` 가 성립한다. 도구는 `dict(row)` 를 판정기에 직접
@@ -528,7 +528,7 @@ CREATE TABLE law_refs (
 > 위 문단의 `LAW_TEXT_PENDING`·번들 거부 서술은 **삭제하지 않는다** — 새 조문 등록 직후,
 > 개정 감지로 `pending_revisions` 가 열렸을 때, 정체성 대조 실패(`KR-CITA-ENF-31`) 때 다시 발화하는 계약이다.
 
-⚠ **JSON 을 채운 뒤 재시드가 필요하다** (`uv run python data/seed.py --with-error-codes`).
+**JSON 을 채운 뒤 재시드가 필요하다** (`uv run python data/seed.py --with-error-codes`).
 이 테이블은 사본이라(D60) 빠뜨리면 파일만 바뀌고 도구·REST 는 옛 DB 를 본다.
 
 ## 13. rules — 계층 2 해석 룰 (조회용 사본)
@@ -559,7 +559,7 @@ CREATE TABLE rules (
 
 ## 14. decisions — 계층 3 서명
 
-> **⚠ 이 테이블에는 MCP 도구가 쓴다.** `generate_disposal_document`(`04 §15`)가 **`state='draft'`
+> **이 테이블에는 MCP 도구가 쓴다.** `generate_disposal_document`(`04 §15`)가 **`state='draft'`
 > INSERT 만** 한다 (D81). UPDATE·DELETE 는 TEMP TRIGGER 로 **물리 차단**된다
 > (`mcp_server/db.py:decision_writer`, D10). 상태 전이는 전부 사람 전용 API(`06 §2.6`)를 통한다.
 > `po_drafts` 와 **정확히 같은 태도**다 — 도구는 초안을 올릴 뿐, 확정은 사람이 서명한다.
@@ -606,7 +606,7 @@ CREATE TABLE decisions (
 **`created_at` 에 `DEFAULT` 가 있는 이유**: 도구의 draft INSERT 컬럼 목록이 **한 글자도 바뀌지
 않는다.** `requested_by`·`session_id`·`decision_note` 도 NULL 허용이라 같다 — `po_drafts` 와 같은 패턴이다.
 
-**⚠ `decision_note` 는 명세(MQ-707)에 없던 컬럼이다.** 3컬럼만 두면 `POST /sign{note}`·
+**`decision_note` 는 명세(MQ-707)에 없던 컬럼이다.** 3컬럼만 두면 `POST /sign{note}`·
 `/reject{reason}` 의 값을 담을 자리가 없어 **사유가 저장되지 않는다** — D38 이 요구한 것은 반려
 사유를 *받는 것*이 아니라 *남기는 것*이다.
 
@@ -621,7 +621,7 @@ CREATE TABLE decisions (
 - 신설 ② — 차단 판정(`BLOCKED`·`HOLD`·`INSUFFICIENT_FACTS`)에 서명하려면 `override=1` 이어야 하고,
   `override=1` 이면 위 D63 CHECK 가 사유를 강제한다. **두 CHECK 가 맞물려 "사유 없는 우회 서명"이
   스키마 수준에서 표현 불가능**해진다.
-- ⚠ ② 에 열거된 두 값은 `engine.VERDICTS` 의 **비차단** 어휘다. 엔진이 어휘를 늘리면 이 목록이
+- ② 에 열거된 두 값은 `engine.VERDICTS` 의 **비차단** 어휘다. 엔진이 어휘를 늘리면 이 목록이
   조용히 낡으므로 **시드 검증 ㉑ 이 DDL 문자열을 파싱해 엔진과 대조**한다.
 
 **D63을 문서가 아니라 스키마로 잠갔다.** "override 하려면 사유를 쓰라"를 애플리케이션 검증에만
@@ -716,8 +716,8 @@ CREATE TABLE repair_records (
 ## 17. residual_curve — 잔가율 격자 (D65·D74)
 
 > 정본은 `data/extracted/residual_curve.json`(`data/build_residual_curve.py` 산출).
-> 🔴 **파생 결과를 새로 테이블로 올리려면 먼저 [`data/extracted/README.md`](../data/extracted/README.md) 를 읽을 것**
-> — 승격 게이트 조건과 4단계 절차가 거기 있다 (**D106**). ⚠ 이 절(`residual_curve`)은 **4단계 중 ④(파일↔DB
+> **파생 결과를 새로 테이블로 올리려면 먼저 [`data/extracted/README.md`](../data/extracted/README.md) 를 읽을 것**
+> — 승격 게이트 조건과 4단계 절차가 거기 있다 (**D106**). 이 절(`residual_curve`)은 **4단계 중 ④(파일↔DB
 > drift 자가검증)가 없다** — 베낄 때 ④는 `error_codes` 검사 ㉚ 을 보고 채운다.
 
 ```sql
@@ -756,17 +756,17 @@ CREATE TABLE residual_curve (
 > 이 절이 더해져(Sprint 8 시점) `CREATE TABLE` 은 **19개**, 절은 **18절**이 됐다 — Sprint 10 이
 > `part_lifecycle_mock`(§19)을 더해 **20개 / 19절**, Sprint 11 이 §20~§23(`deadlines`·`incidents`·
 > `ownership_checks`·`risk_profile`)을 더해 지금은 **24개 / 23절**이다(서두 "세는 단위 주의" 참조).
-> ⚠ **A2A 호출부는 미착수다** — 이 스프린트가 만드는 것은 **대장(테이블)과 계측 자리**뿐이다.
+> **A2A 호출부는 미착수다** — 이 스프린트가 만드는 것은 **대장(테이블)과 계측 자리**뿐이다.
 
 ## 18. partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D95·D96)
 
 > *"나가는 A2A 요청의 **subject**(누구 건인가)를 무엇으로 적을 것인가"* 의 원천.
 > `link_state` 가 연결 승인 여부를, `external_ref` 가 상대 시스템 식별자를 담는다.
-> 🔵 **`link_state` 는 2026-09-16(D142)부터 «기록»이 아니라 «게이트»다** — 건물 결이 `LINKED`
+> **`link_state` 는 2026-09-16(D142)부터 «기록»이 아니라 «게이트»다** — 건물 결이 `LINKED`
 > 가 아니면 `build_notify_asset_change_payload` 가 조립을 거부하고 통지가 네트워크로 나가지
 > 않는다. 그전까지는 시드 주석만 *"연결 승인이 없으면 못 쏜다"* 고 주장했고 **강제하는 코드가
 > 없었다**(`NOT_LINKED` 인 `BLD-D` 로 S11 이 실제로 나가 200 completed 를 받은 적이 있다).
-> ⛔ **이 표는 MaintQ 쪽 대장이다** — 상대 대장과 다를 수 있고 다른 것이 정상이다
+> **이 표는 MaintQ 쪽 대장이다** — 상대 대장과 다를 수 있고 다른 것이 정상이다
 > (InsuQ 2026-09-16 회신: 4동 전부 `active`, 우리 `BLD-D` 는 `NOT_LINKED`). 여기 적는 것은
 > *"상대가 받아 줄까"* 가 아니라 *"우리 쪽 연결 승인이 끝났는가"* 다.
 > **DDL 정본은 `data/seed.py` 의 `SCHEMA` 문자열**이고 아래는 그 사본이다.
@@ -779,11 +779,11 @@ CREATE TABLE partner_links (
   -- ★ D78 패턴: 판정과 식별자를 분리한다. NULL=모름 / 'NOT_LINKED'=확인된 미연결 / 'LINKED'=사람 승인 완료
   link_state   TEXT,
   -- 상대 시스템 식별자(subject 지정용). **판정 근거가 아니다.**
-  -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
+  -- InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
   --    여기에 복제하지 않는다 (D95).
   external_ref TEXT,
   -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
-  -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ) — 자격증명 발급이 이 시점에 붙으므로 감사에는
+  -- 날짜가 아니라 **시각**이다 (D96-ⓓ) — 자격증명 발급이 이 시점에 붙으므로 감사에는
   --    "며칠"이 아니라 "몇 시 몇 분"이 필요하다. **저장은 UTC** (D39, `traces.ts` 와 같은 규약).
   linked_at    DATETIME,
   PRIMARY KEY (partner, subject_type, subject_ref),
@@ -794,7 +794,7 @@ CREATE TABLE partner_links (
 );
 ```
 
-### ⛔ 인증 정보가 아니다 (actor / subject 분리)
+### 인증 정보가 아니다 (actor / subject 분리)
 
 여기 행이 있다는 사실은 **"우리가 아는 상대 식별자"** 일 뿐이며 상대 시스템의 **승인 근거가
 되지 않는다.** **actor**(누가 호출했나)는 파트너 토큰이 담당하고(D93 — `.env` + 프로세스 메모리
@@ -810,9 +810,9 @@ A2A_Q 의 원 요청은 `assets.finallq_company_id` 컬럼 추가였는데 **결
 있는 일**이다: `policy_id` 가 이름과 달리 자산 단위가 아니라 **건물 단위 사실이 자산 행에
 복제된 상태**다(화재보험 목적물은 원래 건물이다). 9건 중 8건이 값을 갖는데 **서로 다른 증권은
 4종**뿐이다 — 같은 건물의 자산들이 같은 번호를 공유한다.
-> 🔵 **2026-09-16 — 목업 1종에서 InsuQ 발급 실번호 4종으로 바꿨다.** 종전에는 8건이 **전부**
+> **2026-09-16 — 목업 1종에서 InsuQ 발급 실번호 4종으로 바꿨다.** 종전에는 8건이 **전부**
 > `POL-2026-FIRE-01` 이라 *"한 행만 안 고쳐지는 drift"* 의 예시로 딱 맞았는데, 지금은 건물별로
-> 갈려 복제의 결이 **실제 사실과 일치**한다(같은 건물 = 같은 증권). ⚠ **그래도 이 절의 논지는
+> 갈려 복제의 결이 **실제 사실과 일치**한다(같은 건물 = 같은 증권). **그래도 이 절의 논지는
 > 그대로다** — 자산 행에 건물 단위 사실이 실리는 구조 자체는 변하지 않았다.
 그래서 사실의 결마다 행을 갖는 **별도 대장**으로 두고, 결은 `subject_type`(`company`/`building`/
 `asset`)이 표현한다.
@@ -870,7 +870,7 @@ NULL"* 이고 검사 ⑱ 이 그 규약을 지킨다(D62). 가짜 로컬 키(`'M
 건물 3행에 증권번호를 복제하면 D91 이 기각한 형태(단위가 다른 사실의 복제)를 **결만
 바꿔 재발**시키는 것이 된다.
 
-⚠ **판정은 `insured` 가 한다 (D78) — `policy_id` 는 증권 식별자일 뿐**이며 있어도 판정을 바꾸지
+**판정은 `insured` 가 한다 (D78) — `policy_id` 는 증권 식별자일 뿐**이며 있어도 판정을 바꾸지
 않는다(`data/rules/test_rules.py` 가 직접 검사). 그러므로 이 컬럼을 옮기지 않는 이유는 *"룰이
 읽어서"* 가 아니라 **의존처가 룰 밖에 흩어져 있어서**다(`data/rules/engine.py` 의
 `ASSET_FACT_COLUMNS` · `generate_disposal_document` 의 증권 식별자 렌더 · `data/ownership.py` ·
@@ -899,7 +899,7 @@ D78 이 `AST-L3-LIFT` 한 건만 `insured=0` 으로 남겨 `CLEAR` 경로를 확
 | `BLD-C` | `AST-L3-CONV`·`AST-L3-EXFAN` / **`AST-L3-LIFT`** | 1 / `SBP-2022-0003` · **0 / NULL** |
 | **`BLD-D`** | `AST-L4-CONV`·`AST-L4-WRAP`·`AST-L4-DUST` | **전부 1 / `SB-2024-0004`** |
 
-> 🔵 **증권번호는 InsuQ 가 발급한 실체계다** (2026-09-16 수령). ⚠ **접두사가 상품별로 2~3글자**다 —
+> **증권번호는 InsuQ 가 발급한 실체계다** (2026-09-16 수령). **접두사가 상품별로 2~3글자**다 —
 > `SB`(수퍼비즈니스) · `DS`(동산종합) · `SBP`(삼성비지니스패키지). 형식 검사를 `[A-Z]{2}` 로
 > 쓰면 `SBP-2022-0003`(BLD-C) **하나만 조용히 빠진다.** 시드 자가검증 ㊶~㊷ 이 형식과
 > 건물↔증권 짝을 함께 고정한다(양성 축 포함).
@@ -910,16 +910,16 @@ D78 이 `AST-L3-LIFT` 한 건만 `insured=0` 으로 남겨 `CLEAR` 경로를 확
   승인이 없으면 S11·S14 를 못 쏜다"* 가 한눈에 보인다 — D91 의 actor/subject 분리를 **데이터가
   직접 증명**한다. 자산 수가 가장 많아(3건) 화면·쿼리에서도 눈에 띈다.
 
-> ⛔ **`link_state` 와 `insured` 를 엮지 않는다 — 별개 축이다.** *"부보돼 있다"(보험 사실)* 와
+> **`link_state` 와 `insured` 를 엮지 않는다 — 별개 축이다.** *"부보돼 있다"(보험 사실)* 와
 > *"InsuQ 와 A2A 연결이 승인됐다"(파트너 대장)* 는 서로 다른 사실이며, `NOT_LINKED` 건물의 자산이
 > `policy_id` 를 갖고 있는 것은 **모순이 아니다.** 두 축을 엮는 검사·쿼리를 만들면 **D78 이 분리한
 > 두 사실을 되붙이는** 셈이 된다 — 검사 ㉔ 도 그래서 `link_state` 조건을 넣지 않는다.
 
-> ⚠ **시드 전제(목업)다 — 실제 발급값·연결 승인이 아니다.** `LINKED` 4행도 `CMP-MAINTQ-001` 도
+> **시드 전제(목업)다 — 실제 발급값·연결 승인이 아니다.** `LINKED` 4행도 `CMP-MAINTQ-001` 도
 > 사람이 받은 실값이 아니고 **A2A 호출부 자체가 미착수**다. 고지 문구는 하드코딩이 아니라
 > `data/seed.py` 의 `PARTNER_LINKS_MOCK` **상태에서 유도**되며(`partner_links_caveat()`, D90 —
 > `part_class_caveat()` 선례), **시드 검사 ㉒-ⓕ 가 문구와 접두 기호 두 축을 함께 잠근다**
-> (문구 축만 보면 *"`[사람 확인]` ⚠ … 목업 …"* 같은 **자기모순 라벨**이 통과한다).
+> (문구 축만 보면 *"`[사람 확인]` … 목업 …"* 같은 **자기모순 라벨**이 통과한다).
 > 사람이 실값을 받으면 플래그를 `False` 로 바꾸고, **줄은 없애지 않고 문구만 바꾼다**(D90).
 
 **FK 를 걸지 않는다.** `subject_ref` 는 결에 따라 회사(`''`)·건물(`assets.building_id`)·자산을
@@ -929,19 +929,19 @@ D78 이 `AST-L3-LIFT` 한 건만 `insured=0` 으로 남겨 `CLEAR` 경로를 확
 
 **`linked_at` 은 실행일 기준 상대 시각이고 UTC 로 적는다** (D96-ⓓ·D39). 고정 값을 박으면 해가
 바뀔 때 조용히 밀리고, 로컬 시각을 쓰면 검증(㉒-ⓓ)이 다른 시계를 보고 **자정 근처에서 위양성
-FAIL** 한다. ⛔ `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보다 미래"* 가 되어 같은 검사가
+FAIL** 한다. `--today` 로 날짜를 핀하면 `linked_at` 이 *"지금보다 미래"* 가 되어 같은 검사가
 위양성 FAIL 한다 — 감사 시점은 재현 대상이 아니다.
 
 ## 19. part_lifecycle_mock — 부품 생애주기 경고 목업 (Sprint 10 브레인스토밍 D)
 
 > 설비 하이라이트 대시보드(`GET /api/assets/{asset_id}/hotspot-status`, `docs/06_REPO_API.md`)가
-> 🟠(곧 점검) 판정에 쓰는 **유일한 출처**. `equipment` × 하이라이트 대상 부품 3종(냉각팬·키패드·
+> (곧 점검) 판정에 쓰는 **유일한 출처**. `equipment` × 하이라이트 대상 부품 3종(냉각팬·키패드·
 > 제어보드 — `frontend/lib/hotspots.ts`·`data/hotspot_status.py`의 `MODEL_HOTSPOT_PARTS`와 `part_no`가
 > 짝이어야 한다) 조합마다 "다음 점검 예정일" 1행을 둔다.
 
 ```sql
 -- §19 part_lifecycle_mock — 생애주기 경고(D) 목업 (Sprint 10 브레인스토밍).
--- ⛔ 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
+-- 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
 --    부품별 다음 점검일 직접 부여"를 선택했다. 화면에 mock 고지 필수(D65).
 CREATE TABLE part_lifecycle_mock (
   equipment_id TEXT NOT NULL REFERENCES equipment,
@@ -957,12 +957,12 @@ CREATE TABLE part_lifecycle_mock (
 (spec §4-5), 사용자가 "새 가짜 필드로 부품별 다음 점검일을 직접 부여" 방식을 선택했다. 그래서
 화면(`EquipmentHotspotDiagram.tsx` 확대 패널)은 이 값을 보여줄 때 **"생애주기 mock 데이터입니다 —
 실제 정비 이력에서 유도한 값이 아닙니다"** 고지를 함께 렌더해야 한다(D65) — 수동 확인(Task 10)에서
-🟠 항목마다 이 문구가 뜨는 것을 확인했다.
+항목마다 이 문구가 뜨는 것을 확인했다.
 
 `equipment`·`parts` 에 FK 를 걸되 **`next_maintenance_due` 자체에는 CHECK 를 두지 않는다** — 이미
 지난 날짜(overdue)도 유효한 상태이고(임박도를 판정하는 것은 `data/hotspot_status.py`의
 `M_UPCOMING_DAYS` 창이지 DDL 이 아니다), 날짜 하한을 스키마에 박으면 "지금 막 지난 점검일"을
-표현할 자리가 없어진다. 색 우선순위는 🔴(이상탐지) > 🔵(최근 수리) > 🟠(곧 점검) 이므로 같은
+표현할 자리가 없어진다. 색 우선순위는 (이상탐지) > (최근 수리) > (곧 점검) 이므로 같은
 부품에 진단 이력이나 최근 서명 수리가 있으면 이 테이블 값은 조회는 되어도 최종 색에는 반영되지
 않는다 — `hotspot_status()` 가 순서대로 판정하고 하나만 고른다.
 
@@ -980,7 +980,7 @@ CREATE TABLE part_lifecycle_mock (
 > 아래는 그 사본이다(D60 과 같은 사본 규약). 넷 다 `assets`(또는 `assets.building_id`)를
 > 참조하는 결이라 **`seed_assets()` 이후**에 적재한다.
 >
-> ⛔ **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
+> **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
 > 3종뿐이다.** 넷 중 어느 테이블도 이 3종의 쓰기 대상이 아니고, **향후에도 그렇다** — 새 도구가
 > 이 절의 테이블에 쓰게 하려면 그 자체가 계약 변경(새 쓰기 도구 4번째)이라 이 문서 수정만으로는
 > 안 된다. `deadlines`·`ownership_checks`는 이번 스프린트에서 **시드가** INSERT 하지만, 그건
@@ -1129,7 +1129,7 @@ CREATE TABLE manual_chunks (
   model       TEXT NOT NULL,                  -- iG5A | S100 | IE5 (D109)
   page        INTEGER NOT NULL,               -- 물리 페이지 (D26 — 인쇄 페이지 변환은 manifest 소관)
   section     TEXT NOT NULL,
-  text        TEXT NOT NULL,                  -- ⚠ 정본이 아니다 (아래 참고)
+  text        TEXT NOT NULL,                  -- 정본이 아니다 (아래 참고)
   char_len    INTEGER NOT NULL,
   embedding   vector(2048),                   -- NULL = 아직 임베딩 안 됨
   embedded_at TIMESTAMP,
@@ -1188,7 +1188,7 @@ MCP 쓰기 도구 3종은 이 테이블에 관여하지 않는다 — **D10 대�
 > (§24 `manual_chunks` 와 같은 이유로 `data/seed.py` 의 SQLite `SCHEMA` 에는 넣지 않는다 —
 > Postgres 전용, D117 선례), 아래는 그 사본이다.
 >
-> ⛔ **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
+> **D10 — MCP 쓰기 도구는 `create_po_draft`·`generate_disposal_document`·`create_repair_record`
 > ·`stage_code_normalization` 4종뿐이다(D154 — 절대규칙 1 개정).** 이 중 `stage_code_normalization`
 > 만 아래 스테이징 4테이블(`onboarding_batches`·`onboarding_code_rows`·`onboarding_normalizations`·
 > `onboarding_safety_candidates`)에 **INSERT** 한다 — 전용 DB 역할 `maintq_onboarding`(NOLOGIN)
@@ -1435,7 +1435,7 @@ CREATE INDEX IF NOT EXISTS idx_equipment_locations_zone ON equipment_locations(z
 > 요구하거나(`sale_amount`·`risk_grade_*`) 부재가 곧 트리거인 필드를 선언해
 > (`lien_consent_ref`) 전 자산이 `INSUFFICIENT_FACTS` 로 수렴했다.
 >
-> ⚠ **`AST-L3-LIFT` 의 `CLEAR` 는 `disposal_mode='SCRAP'` 에서만 나온다.** `VAT-INVOICE` 가
+> **`AST-L3-LIFT` 의 `CLEAR` 는 `disposal_mode='SCRAP'` 에서만 나온다.** `VAT-INVOICE` 가
 > `disposal_mode='SALE' ∧ vat_invoice_issued=false` 로 발화하는데 precheck 은 거래 성립 전이라
 > `vat_invoice_issued` 는 **항상 false** 이므로, **매각 판정은 정의상 최소 `CONDITIONAL`** 이다
 > (세금계산서 발급이 언제나 남아 있다). 결함이 아니라 도메인 사실이며 D78 이 명시했다.
@@ -1465,7 +1465,7 @@ CREATE INDEX IF NOT EXISTS idx_equipment_locations_zone ON equipment_locations(z
 | ㉑ | DDL 의 비차단 verdict 목록 == `engine.VERDICTS` 파생 (하드코딩 대조가 아니라 **파싱 대조**) | D79 |
 | ㉒ | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · `subject_ref` 집합 == `assets.building_id` **동적 대조** · 회사 결 `''` · `linked_at` UTC·과거 · **목업 고지(문구+접두 기호 두 축)** | D92·D95·D96·D90 |
 | ㉓ | `partner_links` CHECK **음성 3 + 양성 2** (`NULL`+식별자 거부 ← `IS` 가 아니면 통과한다 / `NULL`+`NULL` 은 통과) | D91·D96·D62 |
-| ㉔ | **`partner_links` 가 증권 식별자를 복제하지 않는다 — 음성 검사** (insuq `external_ref` 전부 NULL · 값 복제 0건 · 정본 존재 확인). ⛔ `link_state` 와 `insured` 를 엮지 않는다 | D95·D78 |
+| ㉔ | **`partner_links` 가 증권 식별자를 복제하지 않는다 — 음성 검사** (insuq `external_ref` 전부 NULL · 값 복제 0건 · 정본 존재 확인). `link_state` 와 `insured` 를 엮지 않는다 | D95·D78 |
 | ㉕ | `traces.request_chain_id` 컬럼 존재 · nullable — detail 에 **"쓰는 쪽 없음(A2A 호출부 미착수)"** 을 명시 | D94-ⓐ |
 | ㉖ | `parts.mfr_part_no` 컬럼 존재·nullable · **정본(`MFR_PART_NO`) 과 DB 완전 일치**(양성) · 판매점 주문번호·완제품 형명 등 금지값 **0건**(음성) — NULL 39종은 "미조사"가 아니라 "미공개" | D97 |
 | ㉗ | `repair_records` **상태 불변식**(D98) — `state='signed' ⇔ signed_at·record_hash·verified_by 전부 non-null` 을 **양방향**(iff)으로 검사, 어휘 밖 상태 0건 + 미서명 정확히 1건(`RPR-2403`) | D98 |

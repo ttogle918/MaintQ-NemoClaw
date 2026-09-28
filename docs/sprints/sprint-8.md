@@ -1,6 +1,6 @@
 # Sprint 8 — A2A 신원 식별 **기반층** (스키마·시드·회귀·env)
 
-> ℹ️ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
+> ℹ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
 
 **수립**: 2026-08-13 · **개정**: 2026-08-13 (tool-builder 현실성 평가 반영) ·
 **부제**: 실제 호출은 없다. 호출이 생겼을 때 **거짓말하지 않을 자리**를 먼저 만든다
@@ -13,7 +13,7 @@
 
 ---
 
-## ⚠ 읽는 순서
+## 읽는 순서
 
 > **§3(결정 정정)과 §A(사용자 확정 사항)가 다른 절보다 우선한다.**
 > §3 의 SQL 결함 2건은 **sqlite 3.50.4 에서 실제로 재현·확인**됐고, §A 는 사용자가 확정한 설계 판단이다.
@@ -25,7 +25,7 @@
 
 | 축 | 값 | 확인처 |
 |---|---|---|
-| 결정 | **D1~D94** (D91~D94 는 전부 *"⚠ 설계 확정·미구현"*) | `docs/10_DECISIONS.md:97~100` |
+| 결정 | **D1~D94** (D91~D94 는 전부 *"설계 확정·미구현"*) | `docs/10_DECISIONS.md:97~100` |
 | DB | 절 **17** / `CREATE TABLE` **18개** | `data/seed.py` SCHEMA · `docs/05_DB_SCHEMA.md:9~13` |
 | seed 자가검증 | **21건** (①~㉑) | `data/seed.py:1707~2070` |
 | spikes | **27스위트 / 616건** | `CLAUDE.md` 실측 기준선 (2026-08-12, MQ-713b) |
@@ -69,14 +69,14 @@
 **이 확정이 바꾼 것**: 검사 ㉔ 의 전제가 바뀐다. 대조할 `external_ref` 가 없으므로
 **"복제가 없다"를 확인하는 음성 검사**로 재설계한다(MQ-804 ㉔).
 
-> ⛔ **`link_state` 와 `insured` 를 엮는 검사를 넣지 않는다.** 연결 승인과 부보는 **별개 축**이고,
+> **`link_state` 와 `insured` 를 엮는 검사를 넣지 않는다.** 연결 승인과 부보는 **별개 축**이고,
 > `BLD-D` 를 대조군으로 고른 이유가 정확히 그것이다. 엮는 순간 **D78 이 분리한 두 사실을 되붙이는** 셈이 된다.
 
 ---
 
 ## 1. 범위 판정 — 이건 MVP 인가 백로그인가
 
-⚠ **A2A 신원 식별은 `docs/00_MVP_SCOPE.md` 에도 `docs/07_BACKLOG.md`(P1~P29)에도 없다.**
+**A2A 신원 식별은 `docs/00_MVP_SCOPE.md` 에도 `docs/07_BACKLOG.md`(P1~P29)에도 없다.**
 그러므로 **백로그 승격이 아니다** — 승격이라면 P번호가 있어야 하는데 없다.
 근거는 다음 넷이고, 이 중 하나라도 무너지면 이 스프린트는 범위 이탈이다.
 
@@ -113,7 +113,7 @@ A2A 시나리오(S5~S16)의 정본은 A2A_Q 레포에 있다. 이 레포에서�
 | `related_parts` 검수 | 해제됨(2026-08-12). 이번 범위와 무관 |
 | `ANTHROPIC_API_KEY` | **불필요.** 에이전트 루프·`/run-eval` 을 돌리지 않는다 |
 | 임베딩·벡터스토어 미결 | 무관 (RAG 미접촉) |
-| **A2A 파트너 자격증명 실값** | ⛔ **블로커가 아니다.** MQ-802 는 **env 읽기만** 하고, 값이 비면 `not_configured` 를 돌려주는 것이 정상 동작이다. 실값이 없어도 회귀가 전부 통과해야 한다 — 그게 이 태스크의 DoD 다 |
+| **A2A 파트너 자격증명 실값** | **블로커가 아니다.** MQ-802 는 **env 읽기만** 하고, 값이 비면 `not_configured` 를 돌려주는 것이 정상 동작이다. 실값이 없어도 회귀가 전부 통과해야 한다 — 그게 이 태스크의 DoD 다 |
 | **연결 승인·자격증명 실값 (사람)** | 이번 스프린트를 막지 않지만 **미착수 사실을 남긴다** — MQ-807 이 `TODO_직접할일.md` 에 1줄 추가하고, 시드 값은 **목업임을 검사로 강제**한다(MQ-804 ㉒-ⓕ) |
 
 **결론: 스테이지 배치에서 "사람 승인 대기로 막히는 태스크"를 뒤로 뺄 필요가 없다.**
@@ -139,7 +139,7 @@ D91 이 이 CHECK 를 건 목적은 *"식별자만 있고 승인은 없는 상�
 link_state = NULL, external_ref = 'CMP-X' 인 행:
   (link_state = 'LINKED')  →  NULL          -- NULL 과의 = 비교는 NULL
   (external_ref IS NULL)   →  0
-  NULL OR 0                →  NULL          -- CHECK 통과 ⛔  (sqlite 3.50.4 재현 확인)
+  NULL OR 0                →  NULL          -- CHECK 통과 (sqlite 3.50.4 재현 확인)
 ```
 
 즉 **`NOT_LINKED` + 식별자만 막히고, "모름" + 식별자는 그대로 저장된다.**
@@ -174,7 +174,7 @@ InsuQ 행은 **subject 지정용**, 값이 갈리지 않도록 **seed 자가검�
 §A 의 확정(InsuQ 행 `external_ref` = NULL)으로 **복제 자체가 0건**이 되므로, 대조는
 *"복제가 없는가"* 를 보는 **음성 검사**가 된다.
 
-> ⚠ **D95 의 채택 이유로 *"D78 판정 로직이 `policy_id` 를 읽으므로 못 옮긴다"* 라고 쓰면 안 된다 —
+> **D95 의 채택 이유로 *"D78 판정 로직이 `policy_id` 를 읽으므로 못 옮긴다"* 라고 쓰면 안 된다 —
 > 그 문장은 거짓이다.** 실측: `data/rules/rules/INSURANCE-NOTIFY.json` 의 `required_facts` 는
 > `["insured"]` 뿐이고 trigger 도 `insured`·`risk_grade_changed` 다. `data/rules/test_rules.py:222`
 > 는 오히려 *"policy_id 는 이제 증권 식별자일 뿐 — 있어도 판정을 바꾸지 않는다"* 를 **명시적으로 검사**한다.
@@ -253,7 +253,7 @@ MQ-802 ────────────────────────�
 | `docs/05_DB_SCHEMA.md` | MQ-806 | 5 |
 | `CLAUDE.md` · `README.md` · `docs/README.md` · `docs/00_MVP_SCOPE.md` · `docs/07_BACKLOG.md` · `docs/02_SCENARIOS.md` · `docs/06_REPO_API.md` · `docs/09_RUNTIME.md` · `docs/A2A_IDENTITY.md` · `docs/A2A_CONTRACTS.md` · `docs/status/maintq-status.html` · `docs/status/maintq-data-map.html` · `docs/status/maintq-diagrams.html` · `TODO_직접할일.md` · `.claude/agents/reviewer.md` | MQ-807 | 5 |
 
-> ⚠ **같은 파일을 두 태스크가 소유하는 곳이 2군데다. 둘 다 스테이지가 다르다.**
+> **같은 파일을 두 태스크가 소유하는 곳이 2군데다. 둘 다 스테이지가 다르다.**
 > `data/seed.py`(803: SCHEMA 문자열만 / 804: 그 밖) · `docs/10_DECISIONS.md`(801: 신규 D 행 + D91 각주 /
 > 807: D91~D94 마커 문구). 같은 스테이지에 넣으면 병렬 실행이 같은 파일을 덮어쓴다.
 
@@ -268,7 +268,7 @@ MQ-802 ────────────────────────�
 - **복무 시나리오**: 인프라 (S1 꼬리·S10 꼬리의 선행 규약)
 - **변경 파일**: `docs/10_DECISIONS.md` (수정 — 표 끝에 2행 추가 + **D91 행에 각주 추가**)
 - **인터페이스**: 문서. 기존 표 형식 그대로 `| D95 | 결정 | 대안 | 채택 이유 |`.
-  D91~D94 와 달리 **`⚠설계 확정·미구현` 마커를 붙이지 않는다** — 이번 스프린트가 구현하기 때문이다.
+  D91~D94 와 달리 **`설계 확정·미구현` 마커를 붙이지 않는다** — 이번 스프린트가 구현하기 때문이다.
 - **핵심 로직**:
 
   **1. D95 — `assets.policy_id` 가 정본, `partner_links` 는 subject 지정용**
@@ -277,7 +277,7 @@ MQ-802 ────────────────────────�
     *"`partner_links` 어디에도 증권 식별자가 복제되지 않았다"* 를 확인한다.
   - 대안: ① `partner_links` 로 `policy_id` 이전 ② InsuQ 행 `external_ref` 에 증권번호 복제(1차안)
     ③ `insuq_policy_id` 신설 ④ 대조 없이 병존.
-  - **채택 이유 (⚠ 아래 문장을 그대로 쓸 것 — 실측 목록이다)**:
+  - **채택 이유 (아래 문장을 그대로 쓸 것 — 실측 목록이다)**:
     - **판정은 `insured` 가 한다 (D78).** `policy_id` 는 증권 식별자일 뿐 판정을 바꾸지 않으며,
       `data/rules/test_rules.py:222` 가 그 사실을 **직접 검사**한다. 그러므로 ①을 기각하는 근거는
       *"룰이 그 컬럼을 읽어서"* 가 **아니다**.
@@ -293,7 +293,7 @@ MQ-802 ────────────────────────�
       §A 확정으로 복제는 **0건**이다.
     - ③은 D91 이 이미 명시적으로 금지했다. ④는 두 값이 조용히 갈린다 —
       **D60 이 계층 1 사본을 파일 목록과 대조하는 것(검사 ⑬)과 같은 이유로** 대조를 건다.
-  - ⛔ 함께 적을 것: **`NOT_LINKED` 건물의 자산이 `policy_id` 를 갖고 있는 것은 모순이 아니다** —
+  - 함께 적을 것: **`NOT_LINKED` 건물의 자산이 `policy_id` 를 갖고 있는 것은 모순이 아니다** —
     *"부보돼 있다"(보험 사실)* 와 *"InsuQ 와 A2A 연결이 승인됐다"(파트너 대장)* 는 **별개 축**이다.
     이 구분이 D91 의 actor/subject 분리를 데이터로 보여 주는 지점이며, **두 축을 엮는 검사를
     만들지 않는 이유**이기도 하다(엮으면 D78 이 분리한 것을 되붙인다).
@@ -332,7 +332,7 @@ MQ-802 ────────────────────────�
   - D95 셀에 **`test_rules.py:222`·`engine.py:301`·`generate_disposal_document.py:252`·
     `ownership.py:533`·`approvals_contract.py:330`** 5개 위치가 인용돼 있다.
   - D95 셀에 *"D78 판정 로직이 policy_id 를 읽는다"* 류의 문장이 **없다**.
-  - ⚠ D 범위 표기(5곳)·D91~D94 마커 갱신은 **MQ-807 소유**다. 여기서 하지 않는다.
+  - D 범위 표기(5곳)·D91~D94 마커 갱신은 **MQ-807 소유**다. 여기서 하지 않는다.
 
 ---
 
@@ -357,7 +357,7 @@ class PartnerCredential:
     partner: str
     status: str            # 'configured' | 'incomplete' | 'not_configured' | 'unknown_partner'
     client_id: str = ""
-    client_secret: str = field(default="", repr=False)   # ⛔ repr 에 싣지 않는다
+    client_secret: str = field(default="", repr=False)   # repr 에 싣지 않는다
     @property
     def usable(self) -> bool: ...                        # status == 'configured'
     def __repr__(self) -> str: ...                       # 값 대신 길이만: secret_len=N
@@ -367,7 +367,7 @@ def load(partner: str) -> PartnerCredential: ...
 def status_report() -> dict[str, str]: ...   # {'finallq': 'not_configured', 'insuq': ...} — 값 없음
 ```
 
-> ⚠ **`load()` 는 호출할 때마다 `os.environ` 을 읽는다 — 모듈 수준 캐시를 두지 않는다.**
+> **`load()` 는 호출할 때마다 `os.environ` 을 읽는다 — 모듈 수준 캐시를 두지 않는다.**
 > 캐시하면 첫 import 시점의 값이 굳어 **스파이크 ⑯ 이 env 를 갈아끼우며 4상태를 검사하는 것이
 > 원리적으로 불가능**해지고, 실운영에서도 *"어느 값으로 돌았는지"* 를 디버깅할 수 없다(D56 의 취지).
 
@@ -377,7 +377,7 @@ def status_report() -> dict[str, str]: ...   # {'finallq': 'not_configured', 'in
   2. `partner` 를 `strip().lower()` 하고 `PARTNERS` 밖이면 `status="unknown_partner"` (값은 읽지 않는다).
   3. `client_id`·`client_secret` 을 각각 `.strip()`. 판정:
      - 둘 다 비었다 → `not_configured`
-     - **한쪽만 있다 → `incomplete`** (⛔ 부분값으로 호출을 시도할 수 있는 상태를 만들지 않는다)
+     - **한쪽만 있다 → `incomplete`** (부분값으로 호출을 시도할 수 있는 상태를 만들지 않는다)
      - 둘 다 있다 → `configured`
   4. `status_report()` 는 **상태 문자열만** 담은 dict 를 돌려준다. 값·길이·마스킹본 어느 것도 싣지 않는다.
   5. **토큰 캐시를 만들지 않는다.** D93 이 *"액세스 토큰은 프로세스 메모리 캐시"* 라고 정했지만
@@ -387,17 +387,17 @@ def status_report() -> dict[str, str]: ...   # {'finallq': 'not_configured', 'in
      (D93 이 ②"자격증명을 대장 테이블에" 를 기각한 근거를 코드 구조로 유지) ·
      `httpx`/`requests` 등 네트워크 라이브러리 import 금지 · `logging` 으로 값을 찍는 코드 금지.
 - **`.env.example` 추가 절** — `MAINTQ_MCP_AUTOSTART` **아래**, `══ 외부 데이터 원천 ══` 구분선 **위**에 넣는다.
-  ⛔ 수집 스크립트 키 절 **안에 넣지 않는다** — 그 절의 규칙 문장이 *"backend/·mcp_server/ 는 아래 키를
+  수집 스크립트 키 절 **안에 넣지 않는다** — 그 절의 규칙 문장이 *"backend/·mcp_server/ 는 아래 키를
   절대 참조하지 않는다"* 인데 A2A 는 **런타임에 백엔드가** 읽으므로, 같은 절에 두면 그 문장이 거짓이 된다(D93 ③ 기각).
 
 ```
 # ══ A2A 파트너 자격증명 (QMesh · 호출부 미착수) ══
-# ⚠ LLM 키와 성격이 다르다: 이 자격증명으로 나가는 요청은 돈을 움직인다(S5).
+# LLM 키와 성격이 다르다: 이 자격증명으로 나가는 요청은 돈을 움직인다(S5).
 #    발급 주체는 상대 시스템의 ADMIN 콘솔이며, 사람 간 연결 승인 후에만 발급된다.
 #    한도·허용 작업·유효기간이 함께 발급되므로 만료 처리가 필요하다.
 # 읽는 곳: backend/a2a/credentials.py 한 곳. **MCP 도구는 접근하지 않는다** (D15·D93).
 # 비어 있어도 앱 기동·회귀·평가에 영향이 없다 → status='not_configured'.
-# ⛔ 실제 값을 이 파일·세션 로그·주석 어디에도 적지 말 것.
+# 실제 값을 이 파일·세션 로그·주석 어디에도 적지 말 것.
 MAINTQ_A2A_FINALLQ_CLIENT_ID=
 MAINTQ_A2A_FINALLQ_CLIENT_SECRET=
 MAINTQ_A2A_INSUQ_CLIENT_ID=
@@ -408,7 +408,7 @@ MAINTQ_A2A_INSUQ_CLIENT_SECRET=
   | 입력 | 반환 |
   |---|---|
   | env 미설정 | `status='not_configured'`, `client_id=''`, `client_secret=''` — **예외를 던지지 않는다** |
-  | `..._CLIENT_ID` 만 설정 | `status='incomplete'` (⚠ `configured` 로 올리지 않는다) |
+  | `..._CLIENT_ID` 만 설정 | `status='incomplete'` (`configured` 로 올리지 않는다) |
   | 값이 공백뿐(`"  "`) | `strip()` 후 빈 문자열 → 미설정과 같게 취급 |
   | `load("FinAllQ")` | 소문자 정규화 후 정상 처리 |
   | `load("qmesh")` | `status='unknown_partner'` (env 를 읽지도 않는다) |
@@ -423,7 +423,7 @@ MAINTQ_A2A_INSUQ_CLIENT_SECRET=
   - `rg -n "load_dotenv|sqlite3|partner_links|httpx|requests" backend/a2a/` → **0건**.
   - `rg -n "^_[A-Z_]+\s*=|lru_cache|functools.cache" backend/a2a/credentials.py` → **모듈 수준 값 캐시 0건**.
   - `.env.example` 의 4키가 `외부 데이터 원천` 구분선 **위**에 있다.
-  - ⚠ `backend/main.py` 를 수정하지 않는다 — `/health` 노출은 범위 밖(호출부가 생길 때 함께).
+  - `backend/main.py` 를 수정하지 않는다 — `/health` 노출은 범위 밖(호출부가 생길 때 함께).
 
 ---
 
@@ -438,18 +438,18 @@ CREATE TABLE traces (
   ...
   tool_payload TEXT,
   -- A2A 멀티홉 추적용 (D94-ⓐ). nullable — 기존 행·기존 INSERT 문에 영향이 없다.
-  -- ⚠⚠ **쓰는 쪽이 아직 없다.** A2A 호출부(QMesh)가 미착수라 **현재 전 행 NULL 이 정상**이며,
+  -- **쓰는 쪽이 아직 없다.** A2A 호출부(QMesh)가 미착수라 **현재 전 행 NULL 이 정상**이며,
   --     spikes/a2a_identity_contract.py 가 그 사실을 **명시적 라벨로 기록**한다.
   --     D76-2 가 컬럼만 만들고 쓰는 쪽이 없어 3차 평가까지 전부 NULL 이었던 전례를 반복하지 않기
   --     위해, "값이 비었다"가 아니라 "쓰는 쪽이 없다"를 회귀가 말하게 한다.
   request_chain_id TEXT,
   ts           DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CHECK (event_type IN ('tool_call','tool_result','block')),   -- ⛔ 3종 그대로 (D94 채택 근거)
+  CHECK (event_type IN ('tool_call','tool_result','block')),   -- 3종 그대로 (D94 채택 근거)
   UNIQUE (session_id, seq)
 );
 
 -- §18 partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D96)
--- ⛔ **인증 정보가 아니다.** 여기 행이 있다는 사실은 "우리가 아는 상대 식별자"일 뿐이며
+-- **인증 정보가 아니다.** 여기 행이 있다는 사실은 "우리가 아는 상대 식별자"일 뿐이며
 --    상대 시스템의 승인 근거가 되지 않는다 — actor(누가 호출했나)는 파트너 토큰(D93)이 담당하고,
 --    **나가는 요청 payload 의 subject 값을 이 대장에서 가져온다** (A2A_Q A2A_IDENTITY 결정 1).
 CREATE TABLE partner_links (
@@ -459,11 +459,11 @@ CREATE TABLE partner_links (
   -- ★ D78 패턴: 판정과 식별자를 분리한다. NULL=모름 / 'NOT_LINKED'=확인된 미연결 / 'LINKED'=사람 승인 완료
   link_state   TEXT,
   -- 상대 시스템 식별자(subject 지정용). **판정 근거가 아니다.**
-  -- ⚠ InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
+  -- InsuQ building 행은 NULL 이다 — 증권 식별자의 정본은 assets.policy_id 이고
   --    여기에 복제하지 않는다 (D95).
   external_ref TEXT,
   -- 연결 승인 시점 (사람 단계). NOT_LINKED 행은 NULL.
-  -- ⚠ 날짜가 아니라 **시각**이다 (D96-ⓓ). **저장은 UTC** (D39, `traces.ts` 와 같은 규약)
+  -- 날짜가 아니라 **시각**이다 (D96-ⓓ). **저장은 UTC** (D39, `traces.ts` 와 같은 규약)
   linked_at    DATETIME,
   PRIMARY KEY (partner, subject_type, subject_ref),
   -- NULL 은 이 CHECK 에서 NULL 로 평가돼 통과한다 = "모름"이 표현 가능하다 (D62). 의도된 동작이다
@@ -499,7 +499,7 @@ CREATE TABLE partner_links (
     `PRAGMA table_info(traces)` 에 `request_chain_id` 존재·`notnull=0`.
   - **회귀 무증감**: `spikes/trace_persist.py` **17건** · `spikes/sp3_sse_events.py` **22건** ·
     `spikes/api_contract.py` **28건** 이 전부 그대로 통과.
-    ⚠ **이 세 스위트 중 하나라도 수정이 필요하다면 그 자체가 설계 위반이다**(D94 의 채택 근거가
+    **이 세 스위트 중 하나라도 수정이 필요하다면 그 자체가 설계 위반이다**(D94 의 채택 근거가
     *"기존 스파이크를 하나도 수정하지 않는다"* 였다).
   - `uv run ruff check data`.
 
@@ -513,7 +513,7 @@ CREATE TABLE partner_links (
 
 ```python
 # ── partner_links 시드 (D92·D95) ─────────────────────────────────────────
-# ⚠ 시드 전제(목업)다 — 실제 연결 승인·발급값이 아니다. PARTNER_LINKS_MOCK 참조.
+# 시드 전제(목업)다 — 실제 연결 승인·발급값이 아니다. PARTNER_LINKS_MOCK 참조.
 # ★ InsuQ building 행의 external_ref 는 **전부 NULL** — 증권 식별자의 정본은 assets.policy_id 다 (D95).
 # (partner, subject_type, subject_ref, link_state, external_ref, linked_days_ago)
 PARTNER_LINKS: list[tuple[str, str, str, str | None, str | None, int | None]] = [
@@ -535,9 +535,9 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 - **핵심 로직**:
   1. `linked_at` 은 **실행일 기준 상대 시각**이다 (D96-ⓓ 로 `DATE`→`DATETIME` 변경됨).
      고정 값을 박으면 해가 바뀔 때 조용히 밀린다(시드 전체 규약, `acquired_at`·반복 고장과 동일).
-     ⚠ **저장은 UTC** (D39). `datetime.utcnow()` 기준으로 `timedelta(days=linked_days_ago)` 를 빼고
+     **저장은 UTC** (D39). `datetime.utcnow()` 기준으로 `timedelta(days=linked_days_ago)` 를 빼고
      `'YYYY-MM-DD HH:MM:SS'` 로 적는다 — `traces.ts`(`CURRENT_TIMESTAMP`, UTC)와 같은 모양이다.
-     ⛔ **로컬 시각을 쓰지 마라.** 시드는 실행일 기준 상대값인데 검증(㉒-ⓓ)이 다른 시계를 보면
+     **로컬 시각을 쓰지 마라.** 시드는 실행일 기준 상대값인데 검증(㉒-ⓓ)이 다른 시계를 보면
      자정 근처에서 위양성 FAIL 이 난다 — CLAUDE.md 가 경고한 `--today` 함정과 같은 계열이다.
   2. `main()` 에서 `seed_assets(...)` **직후** 호출한다. FK 는 없지만 `building_id` 를 참조하므로
      자산이 먼저 들어간 뒤가 읽기 쉽다.
@@ -569,9 +569,9 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 
   | # | 검사 | 판정 내용 |
   |---|---|---|
-  | **㉒** | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · 목업 고지 (D92) | ⓐ `LINKED` ≥ 1 **그리고** `NOT_LINKED` ≥ 1 ⓑ `partner` ⊆ {`finallq`,`insuq`} · `subject_type` ⊆ {`company`,`building`,`asset`} ⓒ **insuq 의 `building` 결 행**(⚠ `subject_type='building'` 으로 좁힌다 — 권고 ④. insuq 에 company 결이 늘면 `''` 때문에 집합이 어긋나는데 그 실패는 "대장 누락"이 아니다)**의 `subject_ref` 집합 == `SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL`** — detail 에 **`building_id` NULL 자산 건수를 별도 표기**(현재 0건이지만 생기면 대장에서 조용히 빠진다) ⓓ `linked_at` 은 `LINKED` 행만 non-null 이고 **현재 UTC 시각 이전**(D96-ⓓ·D39 — 비교도 반드시 UTC 로. 로컬 시계와 섞으면 자정 근처 위양성) · 값이 `'YYYY-MM-DD HH:MM:SS'` 로 **시·분·초를 포함**한다 ⓔ company 행의 `subject_ref == ''` (D96) ⓕ **`PARTNER_LINKS_MOCK` 이 True 인 동안 `partner_links_caveat()` 가 '목업'을 포함한 비어 있지 않은 문구를 돌려준다** (검사 ⑯ 의 `source LIKE '%목업%'` 선례). ⚠ **문구와 접두 기호 두 축을 함께 잠근다**(권고 ②) — `main()` 이 라벨을 `startswith('✓')` 로 고르므로 문구 축만 보면 *"`[사람 확인]` ⚠ … 목업 전제 …"* 라는 **자기모순 라벨**이 통과한다(D90 이 기각한 ③과 같은 유형) |
-  | **㉓** | `partner_links` **CHECK 음성 3 + 양성 2** (D91·D96·D62) | `SAVEPOINT` 로 실제 INSERT 시도 후 되돌린다(⑩·⑰·⑳ 패턴). **음성** ⓐ `('NOT_LINKED','X')` 거부 ⓑ **`(NULL,'X')` 거부 ← `IS` 가 아니면 통과한다** ⓒ `link_state='linked'` 거부 / **양성** ⓓ `(NULL, NULL)` **통과**(=모름을 적을 수 있다) ⓔ `('LINKED','CMP-X')` 통과. ⚠ 양성이 없으면 "전부 거부하는 CHECK" 도 통과해 검사가 방어선이 아니게 된다 |
-  | **㉔** | **`partner_links` 가 증권 식별자를 복제하지 않는다** (D95) — **음성 검사** | ⓐ `partner='insuq'` 행의 `external_ref` 가 **전부 NULL**(`link_state` 무관 — 증권은 `assets.policy_id` 가 정본) ⓑ `SELECT count(*) FROM partner_links WHERE external_ref IN (SELECT policy_id FROM assets WHERE policy_id IS NOT NULL)` = **0** (값 수준 복제 0건) ⓒ finallq 행의 `external_ref` 는 non-null 이고 `'CMP-'` 로 시작 ⓓ `assets` 의 distinct `policy_id` 와 건수를 detail 에 출력해 **"정본은 여기"** 를 보이게 하고, **정본 존재를 판정 조건에도 넣는다**(`and bool(policies)` — Stage 3 reviewer 권고 ③). ⓑ 의 `IN (SELECT policy_id …)` 은 **우변이 공집합이면 무조건 0** 이라, `assets.policy_id` 가 전부 NULL 이 되면 ⓑ 가 **공허참으로 통과**한다. ⛔ **`link_state` 와 `insured` 를 엮는 조건을 넣지 않는다** — 별개 축이다(§A) |
+  | **㉒** | `partner_links` 시드 정합 · **`NOT_LINKED` 대조군 존재** · 목업 고지 (D92) | ⓐ `LINKED` ≥ 1 **그리고** `NOT_LINKED` ≥ 1 ⓑ `partner` ⊆ {`finallq`,`insuq`} · `subject_type` ⊆ {`company`,`building`,`asset`} ⓒ **insuq 의 `building` 결 행**(`subject_type='building'` 으로 좁힌다 — 권고 ④. insuq 에 company 결이 늘면 `''` 때문에 집합이 어긋나는데 그 실패는 "대장 누락"이 아니다)**의 `subject_ref` 집합 == `SELECT DISTINCT building_id FROM assets WHERE building_id IS NOT NULL`** — detail 에 **`building_id` NULL 자산 건수를 별도 표기**(현재 0건이지만 생기면 대장에서 조용히 빠진다) ⓓ `linked_at` 은 `LINKED` 행만 non-null 이고 **현재 UTC 시각 이전**(D96-ⓓ·D39 — 비교도 반드시 UTC 로. 로컬 시계와 섞으면 자정 근처 위양성) · 값이 `'YYYY-MM-DD HH:MM:SS'` 로 **시·분·초를 포함**한다 ⓔ company 행의 `subject_ref == ''` (D96) ⓕ **`PARTNER_LINKS_MOCK` 이 True 인 동안 `partner_links_caveat()` 가 '목업'을 포함한 비어 있지 않은 문구를 돌려준다** (검사 ⑯ 의 `source LIKE '%목업%'` 선례). **문구와 접두 기호 두 축을 함께 잠근다**(권고 ②) — `main()` 이 라벨을 `startswith('✓')` 로 고르므로 문구 축만 보면 *"`[사람 확인]` … 목업 전제 …"* 라는 **자기모순 라벨**이 통과한다(D90 이 기각한 ③과 같은 유형) |
+  | **㉓** | `partner_links` **CHECK 음성 3 + 양성 2** (D91·D96·D62) | `SAVEPOINT` 로 실제 INSERT 시도 후 되돌린다(⑩·⑰·⑳ 패턴). **음성** ⓐ `('NOT_LINKED','X')` 거부 ⓑ **`(NULL,'X')` 거부 ← `IS` 가 아니면 통과한다** ⓒ `link_state='linked'` 거부 / **양성** ⓓ `(NULL, NULL)` **통과**(=모름을 적을 수 있다) ⓔ `('LINKED','CMP-X')` 통과. 양성이 없으면 "전부 거부하는 CHECK" 도 통과해 검사가 방어선이 아니게 된다 |
+  | **㉔** | **`partner_links` 가 증권 식별자를 복제하지 않는다** (D95) — **음성 검사** | ⓐ `partner='insuq'` 행의 `external_ref` 가 **전부 NULL**(`link_state` 무관 — 증권은 `assets.policy_id` 가 정본) ⓑ `SELECT count(*) FROM partner_links WHERE external_ref IN (SELECT policy_id FROM assets WHERE policy_id IS NOT NULL)` = **0** (값 수준 복제 0건) ⓒ finallq 행의 `external_ref` 는 non-null 이고 `'CMP-'` 로 시작 ⓓ `assets` 의 distinct `policy_id` 와 건수를 detail 에 출력해 **"정본은 여기"** 를 보이게 하고, **정본 존재를 판정 조건에도 넣는다**(`and bool(policies)` — Stage 3 reviewer 권고 ③). ⓑ 의 `IN (SELECT policy_id …)` 은 **우변이 공집합이면 무조건 0** 이라, `assets.policy_id` 가 전부 NULL 이 되면 ⓑ 가 **공허참으로 통과**한다. **`link_state` 와 `insured` 를 엮는 조건을 넣지 않는다** — 별개 축이다(§A) |
   | **㉕** | `traces.request_chain_id` 컬럼 존재 · nullable (D94-ⓐ) | `PRAGMA table_info(traces)` (검사 ⑲ 의 방식). detail 에 **"쓰는 쪽 없음 — A2A 호출부 미착수, 계측 회귀는 `spikes/a2a_identity_contract.py` 가 본다"** 를 반드시 적는다 |
 
 - **엣지 케이스**:
@@ -589,14 +589,14 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     `SELECT count(*) FROM error_codes` = **65**.
   - 통과 표 **뒤에** 목업 고지 1줄이 출력된다.
   - ㉓ 의 detail 에 **음성 3·양성 2 가 개별 문자열로** 보인다(뭉뚱그린 True/False 금지).
-  - ⚠ **검사 번호 ㉒·㉔ 가 `D96`·`D95` 본문이 인용한 번호와 일치**하는지 대조한다
+  - **검사 번호 ㉒·㉔ 가 `D96`·`D95` 본문이 인용한 번호와 일치**하는지 대조한다
     (Stage 1 reviewer 권고). 번호가 밀리면 **이미 커밋된 D 본문이 조용히 거짓이 된다** —
     번호를 바꿔야 하면 `docs/10_DECISIONS.md` 도 같은 커밋에서 고친다.
   - **뮤턴트 확인 (제출 전 필수)**: `SCHEMA` 의 두 번째 CHECK 를 `IS` → `=` 로 임시 변경 →
     **㉓-ⓑ 가 FAIL** 하는 것을 눈으로 본 뒤 되돌린다. FAIL 하지 않으면 그 검사는 아무것도 지키지 않는다.
     **되돌린 뒤 `git diff --stat data/seed.py` 로 SCHEMA 블록 변경이 0줄임을 확인한다** —
     임시 편집이 남으면 MQ-803 의 산출물이 조용히 뒤집힌다.
-    ⚠ **하드 게이트다 (Stage 2 reviewer 권고 1).** MQ-803 이 넣은 `IS` 를 지키는 검사는
+    **하드 게이트다 (Stage 2 reviewer 권고 1).** MQ-803 이 넣은 `IS` 를 지키는 검사는
     **MQ-805 가 아니라 이 ㉓-ⓑ 가 유일한 행동 방어선**이다(MQ-805 ③ 은 "왜 실패했는지"를
     말해 주는 DDL 파싱 보완이지 대체가 아니다). **FAIL 을 눈으로 본 증거(실제 출력)를
     보고에 그대로 남길 것** — 통과했다는 말만으로는 이 게이트가 작동한 근거가 되지 않는다.
@@ -619,7 +619,7 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
   | # | 검사 | 무엇을 막는가 |
   |---|---|---|
   | ① | `partner_links` 존재 · 컬럼 6종 · PK 3열 · `subject_ref.notnull=1` | 스키마 드리프트 |
-  | ② | **필수 CHECK 2종이 존재**하고 `partner`·`subject_type` 에는 CHECK 가 **없다** | D96-ⓒ. ⚠ **개수 상한을 잠그지 않는다** — 나중에 정당한 CHECK 가 추가될 수 있다. 보는 것은 *"두 개가 있는가 + 저 두 컬럼엔 없는가"* 다 |
+  | ② | **필수 CHECK 2종이 존재**하고 `partner`·`subject_type` 에는 CHECK 가 **없다** | D96-ⓒ. **개수 상한을 잠그지 않는다** — 나중에 정당한 CHECK 가 추가될 수 있다. 보는 것은 *"두 개가 있는가 + 저 두 컬럼엔 없는가"* 다 |
   | ③ | **DDL 문자열 파싱** — 두 번째 CHECK 가 `link_state IS 'LINKED'`(null-safe) | **`=` 로 되돌리는 회귀.** 동작 검사(⑤)만 있으면 왜 실패했는지 알 수 없다. 검사 ㉑ 이 DDL 을 파싱해 엔진과 대조한 선례 |
   | ④ | 음성 — `('NOT_LINKED','X')` 거부 | D91 본래 목적 |
   | ⑤ | 음성 — **`(NULL,'X')` 거부** | §3 결함 ①. ③의 동작 증명 |
@@ -655,7 +655,7 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     (`#` 주석은 `ast` 가 애초에 버린다.)
   - 파일별로 남은 문자열 상수를 이어붙인 뒤:
     ```python
-    # ⚠ 아래는 초안이며 **쓰지 말 것** — Stage 4 실측으로 폐기됐다(사유는 바로 아래).
+    # 아래는 초안이며 **쓰지 말 것** — Stage 4 실측으로 폐기됐다(사유는 바로 아래).
     # STMT = re.compile(r"(?is)(insert\s+into\s+traces|update\s+traces)(.{0,400}?)(?=;|insert\s+into|update\s+|$)")
     ANCHOR     = re.compile(r"(?is)insert\s+into\s+traces|update\s+traces")
     STMT_END   = re.compile(r"(?is);|insert\s+into|update\s+")
@@ -665,14 +665,14 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     → **전 파일에서 `hit` 이 0건**이고 **`anchors > 0`** 이어야 통과. (`backend/agent/trace.py:195`
     처럼 SQL 이 인접 문자열 리터럴로 쪼개져 있어도, 상수를 이어붙였으므로 잡힌다.)
 
-    ⚠ **초안 단일 정규식을 폐기한 이유 (Stage 4 교차 검증, 2026-08-13).** 그 정규식은
+    **초안 단일 정규식을 폐기한 이유 (Stage 4 교차 검증, 2026-08-13).** 그 정규식은
     lookahead 종결자(`;`·두 번째 `insert into`·`update `·`$`)가 400자 안에 없으면 **매치 자체가
     실패**하고, 그러면 `hit` 이 항상 `False` 가 되어 검사가 **공허하게 통과**한다.
     더 나쁜 것은 **생사가 blob 조립 방식에 좌우된다**는 점이다 — 같은 `backend/agent/trace.py` 라도
     `ast.walk()` 순서 + `""` 조인이면 뮤턴트를 **잡고**, `lineno` 정렬 + `"\n"` 조인(= 구현이 쓰는
     방식)이면 **놓친다**(양쪽 다 실측). 앵커에서 종결자까지의 거리가 창(400)에 **근접**해 있어
     조립 순서·조인 문자·로그 문구 한 줄이 결과를 뒤집는다.
-    ⛔ **구체 매치 수를 논거로 적지 말 것** — 소스가 바뀌면 그 수치가 낡고, 수치가 틀리면 이 문단
+    **구체 매치 수를 논거로 적지 말 것** — 소스가 바뀌면 그 수치가 낡고, 수치가 틀리면 이 문단
     전체의 신뢰가 무너진다. 불변인 명제는 *"판정의 생사가 무관한 구현 세부에 좌우된다"* 이고,
     재현이 필요하면 `sql_blob()` 로 blob 을 만들어 두 판정식을 각각 돌려 비교한다.
     즉 결함은 "정규식이 틀렸다"가 아니라
@@ -684,14 +684,14 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
   | 상황 | 처리 |
   |---|---|
   | `MAINTQ_A2A_*` 가 개발자 OS env 에 **실제로 설정돼 있음** | ⑯ 은 `os.environ` 을 **직접 조작해 격리**한다(설정/삭제 후 복원). 안 하면 개발자 머신에서만 다른 결과가 나온다 |
-  | ⑯ 이 secret 을 assert 문에 담음 | ⚠ **금지** — 실패 메시지에 값이 찍힌다. 길이·상태만 비교한다 |
+  | ⑯ 이 secret 을 assert 문에 담음 | **금지** — 실패 메시지에 값이 찍힌다. 길이·상태만 비교한다 |
   | ⑪-b 가 DDL 주석·docstring 에 걸림 | **오탐이다.** `ast` 기반 추출로 원천 차단하고, DoD 에서 직접 확인한다 |
   | `backend.a2a` import 시 `MAINTQ_DB` 오염 | `credentials.py` 는 DB 를 열지 않으므로 무관. ⑬ 전에 `MAINTQ_DB` 를 임시 DB 로 심는다(`trace_persist.main()` 방식) |
   | Windows 소켓 고갈로 1건 실패 | CLAUDE.md 규칙 — **단독 재실행**해 확인하고, 재시도로 통과하면 보고에 적는다 |
 - **지켜야 할 결정**: D91·D92·D93·D94·D95·D96 · D30 · D62 · D15 · D76-2(재발 방지).
 - **DoD**:
   - `uv run python spikes/a2a_identity_contract.py` → **19건 통과**(실제 건수는 러너 출력 기준).
-  - ⚠ **검사 번호 ②·③ 이 `D96` 본문이 인용한 번호와 일치**하는지 대조한다 (Stage 1 reviewer 권고).
+  - **검사 번호 ②·③ 이 `D96` 본문이 인용한 번호와 일치**하는지 대조한다 (Stage 1 reviewer 권고).
     어긋나면 `docs/10_DECISIONS.md` 를 같은 커밋에서 고친다.
   - ⑰ 에 **`dataclasses.asdict(cred)` 경로**를 1건 추가한다 (Stage 1 reviewer 권고) —
     `repr`/`str` 은 막혀 있으나 `asdict`·`astuple` 은 `client_secret` 원문을 그대로 낸다.
@@ -702,7 +702,7 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     들어 있어 필연적으로 겹친다 — 1:1 을 강제하면 방어선을 하나 지우는 셈이라 **중복이 정답**이다) /
     ⓒ `.env.example` 4키 제거 → ⑭ / ⓓ `mcp_server/db.py` 에 `partner_links` 참조 1줄 → ⑮ /
     ⓔ **`backend/agent/trace.py` 의 INSERT 에 `request_chain_id` 추가 → ⑪-b**.
-    ⚠ **ⓔ 는 반드시 "동작하는" 뮤턴트여야 한다** (2026-08-13 실측) — 컬럼만 넣고 placeholder 를
+    **ⓔ 는 반드시 "동작하는" 뮤턴트여야 한다** (2026-08-13 실측) — 컬럼만 넣고 placeholder 를
     안 맞추면(`8컬럼/7값`) `TraceWriter` 쓰기가 실패해 `traces` 가 0행이 되고, ⑬ 이 먼저 죽어
     **표가 인쇄되기 전에 프로세스가 끝난다.** 그러면 ⑪-b 가 평가조차 되지 않는다.
     컬럼과 값을 함께 맞출 것: `VALUES (?,?,?,?,?,?,NULL,?)`.
@@ -715,7 +715,7 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 
 ---
 
-#### MQ-806 — `docs/05_DB_SCHEMA.md` 갱신 (⚠ 절 번호 함정)
+#### MQ-806 — `docs/05_DB_SCHEMA.md` 갱신 (절 번호 함정)
 
 - **복무 시나리오**: 인프라 (스키마 정본 문서)
 - **변경 파일**: `docs/05_DB_SCHEMA.md` (수정)
@@ -733,16 +733,16 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
      - 파일 맨 끝(`§17 residual_curve` 뒤)에 `# Sprint 8 확장 — A2A 신원 식별 기반층` 헤더와 함께.
      - DDL 전문 + **왜 `assets` 확장이 아닌가**(결/grain, D91) + **왜 판정과 식별자를 나누는가**(D78 패턴) +
        **왜 `IS` 인가**(D96, 3값 논리 예시 3줄) + **왜 `subject_ref=''` 인가**(D96) +
-       **⛔ 인증 정보가 아니다**(actor/subject).
+       **인증 정보가 아니다**(actor/subject).
      - **`assets.policy_id` 와의 관계 (D95)** — *"정본은 `assets.policy_id` 이고 **InsuQ 행의
        `external_ref` 는 NULL 이다**. `partner_links` 는 연결 승인 여부만 담는다. 복제 0건을 ㉔ 가 확인한다."*
-       ⚠ *"판정은 `insured` 가 한다(D78) — `policy_id` 는 증권 식별자일 뿐"* 도 함께 적어 오해를 차단한다.
+       *"판정은 `insured` 가 한다(D78) — `policy_id` 는 증권 식별자일 뿐"* 도 함께 적어 오해를 차단한다.
      - 시드 5행 표 + **`BLD-D` 대조군 근거**(MQ-804 의 표를 그대로) +
-       **⚠ *"시드 전제(목업) — 실제 발급값·연결 승인이 아니다"*** 고지(㉒-ⓕ 가 검사한다는 사실 포함).
-     - ⛔ *"`link_state` 와 `insured` 를 엮지 않는다 — 별개 축"* 을 명시.
+       ***"시드 전제(목업) — 실제 발급값·연결 승인이 아니다"*** 고지(㉒-ⓕ 가 검사한다는 사실 포함).
+     - *"`link_state` 와 `insured` 를 엮지 않는다 — 별개 축"* 을 명시.
   3. **§9 traces 갱신** — DDL 블록에 `request_chain_id` 추가 + D94 근거 문단(원문은 `tool_result` 행의
      `tool_payload`, `event_type` 신설 없음, 인증 헤더 제외) + **`tool_payload` 의 기존 경고 박스와
-     같은 형식으로** *"⚠ Sprint 8 은 컬럼만 만든다 — 쓰는 쪽(A2A 호출부)은 미착수이며 전 행 NULL 이 정상"* 박스.
+     같은 형식으로** *"Sprint 8 은 컬럼만 만든다 — 쓰는 쪽(A2A 호출부)은 미착수이며 전 행 NULL 이 정상"* 박스.
   4. **ERD 개요**에 1줄: `partner_links   ← 외부 파트너 subject 대장. FK 없음(building_id 가 FK 없는 것과 같은 이유) · 인증 정보 아님`.
   5. **자가 검증 목록 표**에 ㉒~㉕ 4행 추가 + 하단 실측 문구를 **`전부 통과 (25건)` + 실행일**로 갱신.
 - **엣지 케이스**:
@@ -772,14 +772,14 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 - **핵심 로직**:
   1. **회귀 기준선 (`CLAUDE.md`)** — 스위트 목록에 **`a2a_identity_contract`** 추가(27→**28종**),
      실측 기준선 줄을 *"spikes **28스위트 / N건** · seed **25건** · pytest **46건** · 프론트 **10개**"* 로 갱신하고
-     **스위트별 건수 목록에도 새 스위트를 추가**한다. ⛔ **숫자는 러너 출력을 그대로 옮긴다**(추정 금지).
+     **스위트별 건수 목록에도 새 스위트를 추가**한다. **숫자는 러너 출력을 그대로 옮긴다**(추정 금지).
   2. **`CLAUDE.md` 05 참조 줄** — *"테이블 17절(실제 18개)"* → *"**18절(실제 19개)**"*,
      괄호 설명(`§10` 부재 · `§7` 이 2테이블)은 유지하고 *"Sprint 6 이 §11~§17 로 이어받는다"* 뒤에
      *"**Sprint 8 이 §18 을 더한다**"* 를 잇는다.
   3. **D 범위 표기 5곳** `D1~D94` → **`D1~D96`**: `CLAUDE.md:12` · `README.md:120` ·
      `docs/README.md:17` · `.claude/agents/reviewer.md:3` · `docs/00_MVP_SCOPE.md:144`.
-  4. **`docs/10_DECISIONS.md` — D91~D94 의 `⚠설계 확정·미구현` 마커를 부분 구현 문구로 정확히 갱신**
-     (⚠ 이 파일에서 **마커 문구 외에는 아무것도 건드리지 않는다**. 신규 D 행·D91 각주는 MQ-801 소유):
+  4. **`docs/10_DECISIONS.md` — D91~D94 의 `설계 확정·미구현` 마커를 부분 구현 문구로 정확히 갱신**
+     (이 파일에서 **마커 문구 외에는 아무것도 건드리지 않는다**. 신규 D 행·D91 각주는 MQ-801 소유):
      | 결정 | 새 마커 |
      |---|---|
      | D91 | **구현 완료 (Sprint 8)** — DDL 세부는 D96 으로 개정 |
@@ -805,13 +805,13 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
      `:119` *"27스위트를 연속 실행하면"* → **28스위트**.
   10. **`docs/status/*.html` 3파일** — `maintq-status.html:306·557·678·765` ·
       `maintq-data-map.html:228·243·286` · `maintq-diagrams.html:180·854` 의
-      *"27스위트 / 616건 / seed 21 / 18테이블"* 표기를 갱신. ⚠ `:477`(618→616 설명)은 **과거 사건 기록**이므로
+      *"27스위트 / 616건 / seed 21 / 18테이블"* 표기를 갱신. `:477`(618→616 설명)은 **과거 사건 기록**이므로
       건드리지 않는다.
   11. **`docs/00_MVP_SCOPE.md:97`** — *"**17절·실제 테이블 18개** … 자가검증 **21건**"* →
       **18절·19개 · 25건**. **`docs/README.md:40`** — 회귀 줄을 **28스위트/실측 건수 · seed 25** 로.
   12. **`create_repair_record` 이월 표기** — `docs/00_MVP_SCOPE.md`(추가기능 9 · Sprint 7 결과 ⓒ ·
       "Sprint 8 잔여" · 경계 표) · `docs/07_BACKLOG.md` P25 · `docs/02_SCENARIOS.md:82`(S19) ·
-      `docs/README.md` 다음 액션 7 을 **`Sprint 9`** 로 정정. ⚠ *"이번에 안 했다"* 를 지우지 말고
+      `docs/README.md` 다음 액션 7 을 **`Sprint 9`** 로 정정. *"이번에 안 했다"* 를 지우지 말고
       **미룬 사실과 이유(범위 확정)를 남긴다.**
   13. **`TODO_직접할일.md`** — *"A2A 연결 승인·파트너 자격증명 실값 — **미착수**"* 1줄 추가
       (시드는 목업이며 `PARTNER_LINKS_MOCK=True` · `.env` 4키는 비어 있음, 받으면 플래그를 False 로).
@@ -827,17 +827,17 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 - **DoD**:
   - **D 범위** — `rg -n "D1~D[0-9]+" -g '!docs/sessions/**' -g '!docs/sprints/**'` 로 **전 히트를 뽑아**
     각각을 **선언 / 과거 기록**으로 분류하고, **선언은 전부 `D1~D96`** 이어야 한다.
-    ⚠ **열거 목록만 믿지 말 것** — Stage 5 에서 열거 밖 선언이 둘 나왔다:
+    **열거 목록만 믿지 말 것** — Stage 5 에서 열거 밖 선언이 둘 나왔다:
     `docs/status/maintq-status.html`(`D1~D88`, **8단계 낡음**) · `.claude/commands/stage.md`(`D1~D39`,
     **57단계 낡아 리뷰 범위를 좁히고 있었다**). 그래서 스코프에 **`.claude/**` 와 `docs/status/*.html`** 를 포함한다.
-    ⛔ **기록은 검사에 맞추지 않는다** — 전역 카운트로 재면 `A2A_IDENTITY` 의 **D 번호 부여 이력**이
+    **기록은 검사에 맞추지 않는다** — 전역 카운트로 재면 `A2A_IDENTITY` 의 **D 번호 부여 이력**이
     섞여, 검사를 맞추려고 **과거 기록의 표기를 고치는** 일이 벌어진다(Stage 5 에서 실제로 발생 → 원표기 복원).
   - `rg -n "a2a_identity_contract" CLAUDE.md docs/06_REPO_API.md` → 각 파일에 존재(CLAUDE.md 는 **2곳**).
   - `rg -n "27스위트|593건|616건|17절|테이블 18개|seed 21" -g '!docs/sprints/**' -g '!docs/status/maintq-status.html:477'`
     → 갱신 누락 0건(과거 기록 줄 제외).
   - `create_repair_record`·`flags` 에 대해 **일정을 Sprint 8 로 지정하는 줄이 0건**이다.
-    ⚠ *"Sprint 8 은 이 도구를 만들지 않았다"* 류의 **이월 사실 서술은 남긴다**(그게 이 태스크의 요구다).
-    ⛔ **문자열 부재로 재지 말 것** — `docs/sprints/**`·`docs/sessions/**` 는 당시 기록이라 원리상 0건이
+    *"Sprint 8 은 이 도구를 만들지 않았다"* 류의 **이월 사실 서술은 남긴다**(그게 이 태스크의 요구다).
+    **문자열 부재로 재지 말 것** — `docs/sprints/**`·`docs/sessions/**` 는 당시 기록이라 원리상 0건이
     불가능하고, `create_repair_record` 토큰이 **같은 줄에 없는** 일정 지정(status HTML 7곳)은
     그 grep 이 놓친다(Stage 5 reviewer 실측).
     ✅ **탐지축을 도구명이 아니라 스프린트 번호로 뒤집는다**:
@@ -845,13 +845,13 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
     `  docs/README.md TODO_직접할일.md` → 히트 전건을 **일정 지정 / 이월 사실 서술**로 육안 분류.
     (이번에 놓친 7곳이 전부 이 grep 에 걸린다. 다음 스프린트에는 토큰이 `Sprint 9` 로 바뀐다.)
   - `rg -n "policy_id 를 읽으므로|판정 로직.*policy_id" docs/A2A_IDENTITY.md` → **0건**(거짓 문장 제거 확인).
-  - ⚠ **`A2A_IDENTITY.md §4.3` 의 DDL 스케치를 실제 `data/seed.py` 와 동기화**한다. 현재 **3곳이 어긋나 있다**
+  - **`A2A_IDENTITY.md §4.3` 의 DDL 스케치를 실제 `data/seed.py` 와 동기화**한다. 현재 **3곳이 어긋나 있다**
     (Stage 2 시점 실측): ⓐ `subject_ref TEXT` → **`NOT NULL`** 이고 회사 결은 `''`(주석의 *"company 는
     NULL"* 은 **거짓**) ⓑ `CHECK (link_state = 'LINKED' ...)` → **`IS`** ⓒ `linked_at DATE` → **`DATETIME`**.
     셋 다 **D96 이 supersede 한 것**이므로 스케치를 고치거나, 그 블록에 *"D96 이전 초안"* 표기를 단다.
-    ⛔ 고치지 않으면 §4.3 이 **`§8.2-1` 거짓 문장과 같은 유형의 부채**가 된다.
+    고치지 않으면 §4.3 이 **`§8.2-1` 거짓 문장과 같은 유형의 부채**가 된다.
   - `rg -n "설계 확정·미구현" docs/10_DECISIONS.md` → **D91~D94 행에 0건**(부분 구현 문구로 대체).
-  - ⚠ **조건부 이월 (Stage 2 reviewer 권고 2)** — `data/seed.py` 의 `request_chain_id` DDL 주석이
+  - **조건부 이월 (Stage 2 reviewer 권고 2)** — `data/seed.py` 의 `request_chain_id` DDL 주석이
     *"`spikes/a2a_identity_contract.py` 가 그 사실을 명시적 라벨로 기록한다"* 고 **현재형**으로 쓴다.
     **MQ-805 가 누락되거나 파일명이 바뀌면 이 주석을 반드시 정정**하라(미래형으로 바꾸거나 파일명 갱신).
     없는 파일을 계속 가리키면 **D76-2 재발을 막으려고 쓴 문장이 그 자체로 거짓**이 되어,
@@ -879,8 +879,8 @@ def seed_partner_links(con: sqlite3.Connection, today: date) -> None: ...
 ## 7. 회귀 실행 (CLAUDE.md 그대로 — 바꾸지 말 것)
 
 ```bash
-uv run python data/seed.py --with-error-codes     # ⚠ 맨몸 실행 금지 → error_codes 0행 리셋
-                                                  # ⛔ --today 금지 → 검사 ⑤ 위양성 FAIL
+uv run python data/seed.py --with-error-codes     # 맨몸 실행 금지 → error_codes 0행 리셋
+                                                  # --today 금지 → 검사 ⑤ 위양성 FAIL
 #   재시드 후 확인:  SELECT count(*) FROM error_codes  → 65
 uv run python spikes/a2a_identity_contract.py     # ★ 신규
 uv run python spikes/trace_persist.py             # 17건 — **수정 금지 대상**
@@ -890,7 +890,7 @@ uv run --with pytest python -m pytest data/rules/test_rules.py -q   # 46건
 uv run ruff check data backend mcp_server spikes
 ```
 
-> ⚠ **Windows 소켓 고갈** — 28스위트를 연속 실행하면 매번 **다른** 스위트가 1건 실패할 수 있다
+> **Windows 소켓 고갈** — 28스위트를 연속 실행하면 매번 **다른** 스위트가 1건 실패할 수 있다
 > (`OSError: [WinError 10014]`). **코드 결함이 아니다.** 실패한 스위트는 **반드시 단독 재실행**하고,
 > 재시도로 통과하면 그 사실을 보고에 적는다. 재시도해도 실패하면 진짜 회귀다.
 
@@ -936,7 +936,7 @@ uv run ruff check data backend mcp_server spikes
 ### 회귀
 spikes **27스위트 / 616건** · seed **21건**(`error_codes` 65) · pytest **46** · ruff 통과.
 기준선 대비 **증감 0**. 소켓 고갈 미발생 — **단독 재실행한 스위트 없음**.
-⚠ `eval/run_eval.py`·S1~S4 스모크는 **돌리지 않았다** — 기존 코드 경로 변경이 0이고
+`eval/run_eval.py`·S1~S4 스모크는 **돌리지 않았다** — 기존 코드 경로 변경이 0이고
 신규 모듈을 import 하는 곳이 없어 지표가 움직일 근거가 없다.
 
 ### reviewer
@@ -975,7 +975,7 @@ spikes **27스위트 / 616건** · seed **21** · pytest **46** · ruff 통과. 
   `IS` 를 지키는 **행동 방어선은 MQ-805 가 아니라 ㉓-ⓑ 가 유일**하다는 판단에 따른 것.
 - 권고 2 → MQ-807 DoD 에 **조건부 이월** 1건(주석이 가리키는 스파이크가 안 생기면 주석 정정).
 
-### ⚠ 남은 공백 (Stage 3·4 가 메운다)
+### 남은 공백 (Stage 3·4 가 메운다)
 회귀 616건은 이번 변경이 **"깨지지 않았다"만 증명하고 "새 계약이 맞다"는 증명하지 않는다**
 (eval-runner 관찰). `partner_links` 의 두 CHECK 와 `request_chain_id` 의 nullable 성질을
 검증하는 스파이크가 **아직 0건**이다 — MQ-804(행동)·MQ-805(정적)가 채운다.
@@ -1002,7 +1002,7 @@ spikes **27스위트 / 616건** · seed **21** · pytest **46** · ruff 통과. 
 ### reviewer 권고 4건 반영 (같은 커밋)
 | # | 내용 | 근거 |
 |---|---|---|
-| ② | ㉒-ⓕ 에 **접두 기호 축** 추가 | 문구 축만 보면 *"`[사람 확인]` ⚠ … 목업 …"* 자기모순 라벨이 통과 |
+| ② | ㉒-ⓕ 에 **접두 기호 축** 추가 | 문구 축만 보면 *"`[사람 확인]` … 목업 …"* 자기모순 라벨이 통과 |
 | ③ | ㉔ 판정에 `and bool(policies)` | `IN (SELECT …)` 우변이 공집합이면 **공허참**. 사본에서 `policy_id` 전부 NULL → ㉔ 가 실제로 **FAIL** 하는 것 확인 |
 | ④ | ㉒-ⓒ 를 `building` 결로 한정 | insuq 에 company 결이 늘면 `''` 로 어긋나는데 "대장 누락"으로 오독 |
 | ① | D96-ⓓ 에 *"기준은 `--today` 가 아니라 벽시계 UTC"* 명시 | 시그니처가 계획 스케치와 달라진 근거 |
@@ -1030,7 +1030,7 @@ pytest **46** · ruff 통과 · **재시도 0건**.
   계측한다'로 교체하는 것"* 을 명시했다.
 - `data/seed.py` 의 두 문장(DDL 주석·검사 ㉕ detail)이 가리키던 파일이 **실재하게 됐다.**
 
-### ⚠ 이번 스테이지의 핵심 발견 — 계획서 판정식이 조건부로 죽어 있었다
+### 이번 스테이지의 핵심 발견 — 계획서 판정식이 조건부로 죽어 있었다
 초안 정규식은 lookahead 종결자가 창(400) 안에 없으면 **매치 자체가 실패**해 `hit` 이 항상
 `False` 가 되고 검사가 **공허하게 통과**한다. 교차 검증 결과 **생사가 blob 조립 방식에
 좌우됐다** — `ast.walk()` 순서 + `""` 조인이면 뮤턴트를 **잡고**, `lineno` 정렬 + `"\n"` 조인
@@ -1069,7 +1069,7 @@ spikes **28스위트 635건** · seed **25** · pytest **46** · ruff · **재�
 - D 범위 5곳 `D1~D96` · 스위트 28종/635건 · 테이블 19개 전파. D91~D94 마커를 부분 구현 문구로.
 - `A2A_IDENTITY §8.2-1` 거짓 문장 제거 · `§4.3` DDL 스케치 동기화(3곳).
 
-### ⚠ 이 스테이지가 남긴 교훈 — 문자열 카운트 DoD 가 **세 번 뚫렸다**
+### 이 스테이지가 남긴 교훈 — 문자열 카운트 DoD 가 **세 번 뚫렸다**
 
 reviewer 가 두 라운드에 걸쳐 잡았고, 셋 다 **grep 사각지대**였다.
 

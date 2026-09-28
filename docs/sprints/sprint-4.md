@@ -29,7 +29,7 @@ frontend 변경이 깨뜨릴 수 있는 정적 검사는 `tsc --noEmit`·`next b
   = D44 개정 + 회귀 수정이라 기각. 표시 측 중복 제거(MQ-401)로 해소
 - 환각률 LLM judge · `eval/testset.json` 20문항 · 실 DB 채점 배선(`has_replay` 분모 제외) — M4
 - `AnthropicClient` 실 API 검증 — 키 없음, 사람 항목
-- `07_BACKLOG` P1~P21 승격 없음 — `VoiceBar`(P8)·📷(P1)은 자리만 유지, 배선하지 않는다
+- `07_BACKLOG` P1~P21 승격 없음 — `VoiceBar`(P8)·(P1)은 자리만 유지, 배선하지 않는다
 
 ---
 
@@ -70,7 +70,7 @@ MQ-402 ──────────────────┘
 
 ## 태스크별 상세 구현 명세
 
-> ⚠ 표시가 붙은 항목은 tool-builder 현실성 평가에서 보강된 것 — 구현 시 누락 금지.
+> 표시가 붙은 항목은 tool-builder 현실성 평가에서 보강된 것 — 구현 시 누락 금지.
 
 ### MQ-401 — trace 표시 규약 정리 + replay 배지
 
@@ -88,7 +88,7 @@ MQ-402 ──────────────────┘
     - `isHoldCard` 기존 함수 export 승격, `HOLD_STEP` 도 export
   - `toTraceSession` 시그니처 불변, 내부를 위 함수로 재조립
 - **핵심 로직**:
-  1. **N-c (이중 `✗` 제거)**: ⚠ **범위 한정 — status 가 `error` 인 행의 summary 선두 `"✗ "`
+  1. **N-c (이중 `✗` 제거)**: **범위 한정 — status 가 `error` 인 행의 summary 선두 `"✗ "`
      접두를 표시용으로만 제거한다. 요약 문자열 재작성 금지.** 붉은 점 글리프 `✗` 는 유지
      (09_RUNTIME §3). traces 저장값·백엔드 불변 — 저장값 자기설명성(D44)은 그대로이고
      렌더에서 같은 정보의 중복만 지우는 것이라 D 불요. docstring 에 이 근거를 남길 것
@@ -103,7 +103,7 @@ MQ-402 ──────────────────┘
   5. **error 색 토큰화**: `globals.css` 4테마(`.app-root` dark / `dgray` / `gray` / `light`)에
      `--error-dot:#C0392B; --error-tx:#D64545;` 추가(4테마 동일값). `TraceStep.tsx` 의
      `ERROR_DOT`/`ERROR_TX` 리터럴을 `var()` 로 교체, 리터럴 상수·주석 제거.
-     ⚠ 라이트 2테마(gray·light)용은 **신규 선정값**이므로 4테마 육안 확인이 DoD
+     라이트 2테마(gray·light)용은 **신규 선정값**이므로 4테마 육안 확인이 DoD
 - **엣지 케이스**: `data.replay` 가 boolean `true` 아닌 truthy → false 취급 (계약은 boolean,
   D55 — 지어서 넓히지 않는다). summary 가 `"✗"` 한 글자 → strip 후 비면 status 문자열 폴백.
   mock 데이터는 replay 필드 없음 → 배지 없음, 기존 화면 무변화
@@ -111,18 +111,18 @@ MQ-402 ──────────────────┘
   D55(표식 읽기 전용) · D21·D30(저장값 무변경)
 - **DoD**: `tsc`·`next build` 통과 · 회귀 241건 통과 · 육안: 재생 세션 trace 에서
   ① `재생 데이터` 배지 ② meta `4 calls · 재생` ③ 타임아웃 행 `✗` 1회만
-  ④ ⚠ error 색 **4테마 전부** 가독
+  ④ error 색 **4테마 전부** 가독
 
 ### MQ-402 — ChatComposer 실 입력 활성화
 
 - **복무 시나리오**: S1 (전 시나리오 진입 입력 표면)
 - **변경 파일**: `frontend/components/chat/ChatComposer.tsx` 단독
 - **인터페이스**: `{ onSend?: (text: string) => void; disabled?: boolean; placeholder?: string }`
-  ⚠ **전부 옵셔널** — DiagnosticConsole 이 Stage 3 전까지 `<ChatComposer />` 로 부른다
+  **전부 옵셔널** — DiagnosticConsole 이 Stage 3 전까지 `<ChatComposer />` 로 부른다
 - **핵심 로직**: placeholder div → `<input type="text">`(기존 `--field` 토큰 스타일).
   Enter + 전송 버튼 두 경로, 전송 후 입력 비움. **한글 IME 조합 가드 필수**
   (`isComposing`/keyCode 229 시 Enter 무시). `disabled` 면 비활성 + "응답 생성 중…".
-  🎤·📷 는 자리만 유지 (P8·P1 승격 금지)
+  ·는 자리만 유지 (P8·P1 승격 금지)
 - **엣지 케이스**: 공백만 → 전송 안 함. `onSend` 미지정(mock) → 무동작이되 입력은 가능
 - **DoD**: `tsc`·`next build`. 육안: 한글 조합 중 Enter 이중 전송 없음.
   `?scenario=s1` mock 화면 기존과 동일
@@ -132,7 +132,7 @@ MQ-402 ──────────────────┘
 - **복무 시나리오**: S1·S2 (화면 B 근거 카드 = 승인 판단 근거, passthrough 는 화면 A 전제)
 - **변경 파일**: `frontend/lib/citation.ts` · `frontend/components/ui/CitationChip.tsx`(key 만)
   · `frontend/lib/mappers.tsx`(주석 정합만)
-- **인터페이스**: ⚠ **`Citation.manual` 을 optional 로 완화한다** — SSE 인용 payload 는
+- **인터페이스**: **`Citation.manual` 을 optional 로 완화한다** — SSE 인용 payload 는
   `{page, print_page, label}` **뿐**이라(backend/sse.py `citation_data`, manual·section 필드
   없음) manual 이 required 면 Stage 2 리듀서가 값을 지어내거나 tsc 에러가 난다. 이걸 지금 안
   하면 404 가 Stage 2 에서 403 소유 파일을 재수정하는 순서 위반이 생긴다 (tool-builder 실측):
@@ -157,7 +157,7 @@ MQ-402 ──────────────────┘
 - **엣지 케이스**: manual·label 둘 다 없으면 `"매뉴얼 PDF p.{page}"` 폴백 (빈 라벨 금지).
   `printPage === page` 명시 제공 → `p.X` (병기 불요)
 - **지켜야 할 결정**: D26 · D32 · W-6 근본 해소는 D 선행이라 범위 밖
-- **DoD**: `tsc`·`next build`. ⚠ 육안: `/manager/po/PO-0117` DIAGNOSIS 칩이
+- **DoD**: `tsc`·`next build`. 육안: `/manager/po/PO-0117` DIAGNOSIS 칩이
   `"iG5A 매뉴얼 PDF p.202"` 로 **바뀌는 것이 정상** (mappers 가 printPage 를 안 넣으므로 —
   화면 B 체크리스트에 포함). 목업(scenarios·queue)은 printPage 명시라 무영향
 
@@ -183,20 +183,20 @@ MQ-402 ──────────────────┘
   2. `tool_call`: `stepFromCall`(MQ-401) 로 pending 스텝 push, calls +1, 열린 버블 닫기
   3. `tool_result`: trace.ts 와 **같은 FIFO 페어링**(같은 tool 의 가장 이른 pending 스텝)으로
      `stepPatchFromResult` 적용. `replay===true` 면 `trace.replay=true` + elapsed 합산 제외
-     (meta 규칙 MQ-401 과 동일). ⚠ `pages` 필드는 표시에 안 쓰지만 파싱을 깨지 말 것
+     (meta 규칙 MQ-401 과 동일). `pages` 필드는 표시에 안 쓰지만 파싱을 깨지 말 것
   4. `block safety`: `{kind:"safety", title, body, citation: toCitation(...)}`.
-     ⚠ `toCitation`: `{page, print_page, label}` → `{page, printPage, label}` (스네이크 변환
+     `toCitation`: `{page, print_page, label}` → `{page, printPage, label}` (스네이크 변환
      명시). **라벨 재조립 금지** (MQ-403 passthrough)
   5. `block citation`: 가장 최근 agent item 의 `citations` 에 부착. 앞에 agent 가 없으면 빈
      agent 를 만들어 부착 — **인용을 조용히 버리지 않는다**
   6. `block po_card draft`: camelCase 매핑 → `{kind:"po_draft"}`. 누락 키는 지어내지 않고
      `0`/`""` (카드 안 깨지게)
   7. `block po_card hold` (D45): `{kind:"po_hold", hold:{reason, checklist(각 citation →
-     toCitation)}}`. ⚠ **`repeat_banner` 는 리듀서 산출물이 아니다** — hold payload 의
+     toCitation)}}`. **`repeat_banner` 는 리듀서 산출물이 아니다** — hold payload 의
      `repeated` 는 hold 카드 안에 렌더될 뿐, 별도 배너를 만들 구조화 소스(도구 결과)가
      스트림에 없다. S3 라이브에서 배너 없이 hold 카드만 뜨는 것이 **의도**임을 주석으로 명시
      (나중에 summary 파싱 같은 우회 금지). **hold 를 po_draft 로 렌더 금지** (D35)
-  8. ⚠ **error_log 액션**: `lookup_error_code` 의 tool_result `status:"ok"` 시 —
+  8. **error_log 액션**: `lookup_error_code` 의 tool_result `status:"ok"` 시 —
      `code` 는 payload 에 없으므로 **FIFO 로 짝지어진 tool_call 의 `input.code` 에서** 꺼낸다.
      `equipmentId` 가 null 이면 **push 하지 않는다(스킵)**. 같은 (equipmentId, code) 중복
      push 금지. push 는 버튼 표시일 뿐, 기록은 사용자 클릭(D29·A7)
@@ -231,7 +231,7 @@ MQ-402 ──────────────────┘
   3. live 렌더: `ChatThread` + `TracePanel` 이 같은 state (D14 동기가 그대로 화면).
      `ChatComposer disabled={streaming}`. `error` 는 `StatusBanner tone="error"`
   4. replay 데모: mount 시 1회 자동 send("iG5A 인버터에 OHt 에러가 떴어").
-     ⚠ **StrictMode 이중 mount 가드(ref) 필수** — dev 에서 POST 2회 나가면 같은 세션 seq 에
+     **StrictMode 이중 mount 가드(ref) 필수** — dev 에서 POST 2회 나가면 같은 세션 seq 에
      타임라인이 2벌 append 된다(TraceWriter MAX(seq)+1 이어쓰기)
   5. 장비 선택기: `getEquipment()` 기반 select (SelectChip 스타일). 조회 실패 시
      `equipment_id: null` 전송 — 에이전트가 모델 확인 질문(06_REPO_API §2.1). 기본값 지어내기 금지
@@ -241,7 +241,7 @@ MQ-402 ──────────────────┘
 - **엣지 케이스**: 스트리밍 중 이탈 → abort, 콘솔 에러 0 (백엔드는 D42 라 취소 안전).
   `?replay=S1` 오타 → live 기본 (백엔드 400 을 애초에 유발하지 않음). 스트리밍 중 send → 무시
 - **지켜야 할 결정**: D40 · D36 · D23 · D10·D18(카드에 "확정" 버튼 금지) · D55 · D6·D13
-- **DoD**: `tsc`·`next build` · 회귀 241건. ⚠ 육안 체크리스트 (라이브 DoD 는 error_codes
+- **DoD**: `tsc`·`next build` · 회귀 241건. 육안 체크리스트 (라이브 DoD 는 error_codes
   승인에 **비의존** — 해피패스 육안은 replay 경로 한정):
   1. `/technician?replay=s1` → 도구 4스텝 pending→ok 순차(A1), 안전 블록이 "커버를 열고…"
      **이전**(D22), 인용 칩 `iG5A 매뉴얼 p.202`, PO 카드, meta `4 calls · 재생` + 배지
@@ -261,7 +261,7 @@ Stage 1 파일 교집합 없음.
 
 | 스테이지 | TASK | 리스크 | 처리 |
 |---------|------|--------|------|
-| 1 | MQ-401 | 하 — N-c 범위·라이트 테마 색 신규 선정 | 명세에 반영 (⚠ 표기) |
+| 1 | MQ-401 | 하 — N-c 범위·라이트 테마 색 신규 선정 | 명세에 반영 (표기) |
 | 1 | MQ-402 | 하 — props 옵셔널 필수 | 반영 |
 | 1 | MQ-403 | 중 — SSE payload 에 manual 없음 → `Citation.manual` required 면 Stage 2 가 403 파일 재수정 | **manual optional 완화를 Stage 1 로 이동** (반영) |
 | 2 | MQ-404 | 중 — error_log 의 code 소스 부재·repeat_banner 소스 부재·스네이크 변환 | 명세에 반영 |

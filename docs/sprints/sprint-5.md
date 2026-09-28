@@ -19,15 +19,15 @@
 - **시드 데이터 실측 확인 완료**: `INV-L3-01`+`OCT` 가 30일 내 유일한 3회 반복 조합(다른 조합
   없음), `error_codes` 65건에 `XY9`/`QQ1` 부재, `PCB-S100-CTRL-R2`(재고4·공급사2)·
   `PWR-S100-MOD`(재고0·대체품0) 실측 일치, S1 후보 장비 전부 `GET /api/equipment` 존재.
-- ⚠ **`.claude/hooks/guard_writes.py` 가 `eval/testset.json` Write/Edit 을 exit 2 로 하드
+- **`.claude/hooks/guard_writes.py` 가 `eval/testset.json` Write/Edit 을 exit 2 로 하드
   차단한다** (matcher `Edit|Write`, 파일명이 `eval/testset.json` 로 끝나면 무조건 차단 —
   `run-eval` 스킬 규칙 "기대 정답 변경은 사람 승인"을 도구 레벨에서 강제). **Claude 는 이 파일을
   직접 쓸 수 없다** — Bash heredoc 등으로 우회하는 것은 금지(안전장치 무력화). MQ-501 설계를
   이에 맞춰 변경함(아래).
-- ⚠ **`.claude/settings.json` 의 Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.** `judge.py`·
+- **`.claude/settings.json` 의 Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.** `judge.py`·
   `run_eval.py` 에 `test_*` 로 시작하는 함수/파일명을 두면 안 된다 — 실비용 API 호출이 매 턴
   자동 실행되는 사고로 이어진다.
-- ⚠ **`GeminiClient.stream()`(`backend/agent/llm.py`) 은 `tools=[]` 여도 항상
+- **`GeminiClient.stream()`(`backend/agent/llm.py`) 은 `tools=[]` 여도 항상
   `types.Tool(function_declarations=[])` 를 `config.tools` 에 넣는다** — 실 Gemini API 가 빈
   선언 목록의 Tool 을 받아들이는지 이 저장소에서 한 번도 검증된 적이 없다(기존 실 스모크는
   전부 MCP 도구가 채워진 경로). judge.py 가 이 미검증 경로의 첫 소비자가 된다 — 방어적으로
@@ -90,7 +90,7 @@ MQ-506  (독립, 데모 촬영 준비)
   - `eval/testset_draft.json` (신규 — **`eval/testset.json` 이 아니다**, 훅 미보호 경로)
   - `eval/testset_review_notes.md` (신규 — 사람 검수용 근거 대조표)
   - `docs/06_REPO_API.md` §3 (`expect_hold` 필드 추가, 계약 변경 아님)
-- ⚠ **`eval/testset.json` 자체는 Claude 가 Write/Edit 할 수 없다**(`guard_writes.py` 하드
+- **`eval/testset.json` 자체는 Claude 가 Write/Edit 할 수 없다**(`guard_writes.py` 하드
   차단, exit 2). Bash heredoc 등 우회 시도 금지 — reviewer 게이트에서 이 우회 여부를 확인한다.
   사람이 `testset_draft.json` 을 검수한 뒤 **직접** `eval/testset.json` 으로 옮긴다(그대로
   복사든 수정 후든 사람 손을 거쳐야 함).
@@ -171,7 +171,7 @@ MQ-506  (독립, 데모 촬영 준비)
 - **변경 파일**: `eval/judge.py`(신규) · `eval/prompts/hallucination_judge.md`(신규) ·
   `backend/agent/llm.py`(수정 — `GeminiClient.stream` 방어)
 
-- ⚠ **선행 수정 — `backend/agent/llm.py` `GeminiClient.stream`**: `tools` 가 빈 리스트면
+- **선행 수정 — `backend/agent/llm.py` `GeminiClient.stream`**: `tools` 가 빈 리스트면
   `config` 에 `tools` 키 자체를 넣지 않는다(현재는 `tools=[types.Tool(function_declarations=[])]`
   를 항상 넣어 실 Gemini API 가 빈 선언 Tool 을 받아들이는지 이 저장소에서 검증된 적이 없다 —
   judge.py 가 이 미검증 경로의 첫 소비자가 되므로 방어적으로 없앤다). 기존 실 루프
@@ -190,7 +190,7 @@ MQ-506  (독립, 데모 촬영 준비)
       question: str, response_text: str, *, client: LlmClient | None = None
   ) -> JudgeVerdict: ...
   ```
-  ⚠ **함수·파일명에 `test_` 접두 금지** — Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.
+  **함수·파일명에 `test_` 접두 금지** — Stop 훅이 매 턴 `pytest eval/ -q` 를 실행한다.
   pytest 가 이 함수를 테스트로 오인해 자동 실행하면 매 턴 실비용 API 호출 사고가 된다.
 
 - **핵심 로직**:
@@ -242,12 +242,12 @@ MQ-506  (독립, 데모 촬영 준비)
 ### MQ-502 — `eval/run_eval.py`
 
 - **변경 파일**: `eval/run_eval.py`(신규, 유일)
-- ⚠ **`MAINTQ_MCP_AUTOSTART` 는 기본값(1)을 유지한다 — `sp3_sse_events.py` 처럼 `"0"` 으로
+- **`MAINTQ_MCP_AUTOSTART` 는 기본값(1)을 유지한다 — `sp3_sse_events.py` 처럼 `"0"` 으로
   끄지 않는다.** 20문항이 실 도구를 호출해야 하므로 MCP 가 반드시 떠 있어야 한다. 서버 기동
   후 `GET /health` 로 `{"status":"ok","mcp":true}` 를 확인하는 단계를 하네스에 넣고, 이게
   `mcp:false` 면 즉시 `SystemExit`(전체 문항이 조용히 "도구 서버 연결 불가"로 fail 처리되는
   참사 방지).
-- ⚠ **`run_*`/`main` 등은 되나 `test_*` 명명 금지**(Stop 훅 pytest 자동 실행 방지).
+- **`run_*`/`main` 등은 되나 `test_*` 명명 금지**(Stop 훅 pytest 자동 실행 방지).
 
 - **인터페이스**:
   ```python

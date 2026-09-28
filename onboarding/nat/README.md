@@ -45,7 +45,7 @@ printf '%s\n' "$TOKEN" | openshell sandbox exec -n maintq-nat --workdir /tmp/mq/
 - `openshell sandbox exec` 은 이미지 `ENV` 를 넘기지 않는다 → `--env MAINTQ_SANDBOX=openshell` 필수
   (없으면 드라이버가 호스트(L1)로 판단하고 `.env` 키를 찾다 실패한다).
 - 셸에서 stdin 을 주지 않는 `exec` 은 `</dev/null` 을 붙인다(안 붙이면 멈춘 채 기다린다).
-- ⚠ 실행 stderr 에 매뉴얼 원문이 찍힌다 — **`2>` 로 파일에 리다이렉트하지 말 것**(D144 — 원문·번역문을 산출물로 남기지 않는다).
+- 실행 stderr 에 매뉴얼 원문이 찍힌다 — **`2>` 로 파일에 리다이렉트하지 말 것**(D144 — 원문·번역문을 산출물로 남기지 않는다).
 
 ### 재정규화 (이미 정규화된 행)
 

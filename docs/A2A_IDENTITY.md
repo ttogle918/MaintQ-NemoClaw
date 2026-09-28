@@ -28,7 +28,7 @@ FinAllQ 문서와 같은 구분을 쓴다.
    그 자체로 없다.
 2. **`policy_id`는 이미 있다.** `assets.policy_id`가 9건 중 8건에 시드돼 있다.
    **`insuq_policy_id`를 새로 만들면 안 된다** — 기존 컬럼과 이중 진실이 된다.
-   🔵 **2026-09-16 — 값이 InsuQ 발급 실번호 4종으로 바뀌었다**(아래 표). 종전 목업
+   **2026-09-16 — 값이 InsuQ 발급 실번호 4종으로 바뀌었다**(아래 표). 종전 목업
    `POL-2026-FIRE-01` 로 부르면 InsuQ 가 `policy_not_found`(200 `rejected`)를 돌려준다.
 3. **`request_chain_id` 자리는 trace에 없다.** 전제가 사실과 다르다 — §6에서 정정한다.
    `traces` 테이블에는 없고, `docs/A2A_CONTRACTS.md`의 **payload 스펙 문장**에만 있다.
@@ -76,7 +76,7 @@ risk_profile       건물 단위 속성
 
 그리고 같은 절이 이렇게 못박아 뒀다 — *"넷 중 내부 활용도가 가장 낮으므로 **후순위**로 둔다."*
 
-> ⚠ **이게 A2A에는 역전된다.** 내부(처분 판정·실사)에서 가장 쓸모가 적어서 후순위였던
+> **이게 A2A에는 역전된다.** 내부(처분 판정·실사)에서 가장 쓸모가 적어서 후순위였던
 > 테이블이, **S7·S11·S14(InsuQ 통지)에서는 가장 먼저 필요한 테이블**이 된다.
 > `risk_grade`·`fire_handling`은 S14("위험등급 변동 통지")가 보낼 내용 그 자체다.
 > 후순위 판단의 근거가 A2A 편입으로 바뀌었다는 점은 기록해 둘 가치가 있다.
@@ -91,9 +91,9 @@ risk_profile       건물 단위 속성
 | `AST-L4-CONV`·`AST-L4-WRAP`·`AST-L4-DUST` (BLD-D) | 1 | `SB-2024-0004` |
 | `AST-L3-LIFT` | 0 (확인된 미부보) | NULL |
 
-⚠ **접두사가 2~3글자로 가변**이다(`SB`/`DS`/`SBP`) — 형식 검사를 `[A-Z]{2}` 로 쓰면
+**접두사가 2~3글자로 가변**이다(`SB`/`DS`/`SBP`) — 형식 검사를 `[A-Z]{2}` 로 쓰면
 `SBP-2022-0003` 하나만 조용히 빠진다. 시드 자가검증 ㊶~㊷ 참조.
-⛔ **해소는 InsuQ 쪽에서 2단계**다(파트너 건물 매핑 → 사업장+증권 동시 조회 + active).
+**해소는 InsuQ 쪽에서 2단계**다(파트너 건물 매핑 → 사업장+증권 동시 조회 + active).
 둘 중 무엇이 실패해도 응답은 **똑같이 `policy_not_found`** 라 원인을 응답으로 못 가른다 —
 위 표를 **행 단위로** 짝지어 쓸 것.
 
@@ -142,7 +142,7 @@ CREATE TABLE traces (
 `docs/A2A_CONTRACTS.md`의 payload 스펙 두 줄에만 존재한다 — 즉 **"계약 문서에 자리가
 있다"이지 "trace에 자리를 마련해뒀다"가 아니다.** §6에서 다시 다룬다.
 
-> 📌 **위 DDL 블록·grep 결과는 조사 시점(2026-08-13 오전) 실측이다.** Sprint 8 이후 `traces` 에는
+> **위 DDL 블록·grep 결과는 조사 시점(2026-08-13 오전) 실측이다.** Sprint 8 이후 `traces` 에는
 > `request_chain_id TEXT` (nullable, 기본 NULL) 가 **한 줄 추가돼 있다** — CHECK 3종·`payload`
 > 바이트 동일 계약은 그대로다. **쓰는 코드는 아직 0건**이고 `spikes/a2a_identity_contract.py ⑪-b`
 > 가 그 사실을 검사 이름에 적어 둔다.
@@ -191,13 +191,13 @@ QMesh 결정 1은 이렇게 말한다:
 
 §2에서 본 결(grain) 문제 때문에 `assets` 확장이 아니라 별도 테이블을 둔다.
 
-> ⚠ **아래 블록은 `data/seed.py` 의 실제 DDL 이다** (Sprint 8 MQ-801 구현분, D96 반영).
+> **아래 블록은 `data/seed.py` 의 실제 DDL 이다** (Sprint 8 MQ-801 구현분, D96 반영).
 > 이 절의 최초 스케치와 **세 곳이 다르다** — 각주 참조. 정본은 `data/seed.py §18` ·
 > `docs/05_DB_SCHEMA.md §18` 이고, 여기서 두 벌로 관리하지 않는다.
 
 ```sql
 -- §18 partner_links — 외부 파트너 subject 매핑 대장 (D91·D92·D96)
--- ⛔ 이 테이블은 **인증 정보가 아니다.** 여기 행이 있다는 사실은
+-- 이 테이블은 **인증 정보가 아니다.** 여기 행이 있다는 사실은
 --    "우리가 아는 상대 식별자"일 뿐, 상대 시스템의 승인 근거가 되지 않는다.
 --    실제 인증은 파트너 자격증명(토큰, §7)이 한다 — A2A_Q A2A_IDENTITY 결정 1.
 CREATE TABLE partner_links (
@@ -208,7 +208,7 @@ CREATE TABLE partner_links (
   link_state   TEXT,            -- NULL=모름 / 'NOT_LINKED'=확인된 미연결
                                 -- / 'LINKED'=사람 승인 완료(§5 2단계 중 1단계 끝)
   external_ref TEXT,            -- 상대 시스템 식별자(subject 지정용). 판정 근거 아님
-                                -- ⚠ InsuQ building 행은 NULL — 증권 정본은 assets.policy_id (D95)
+                                -- InsuQ building 행은 NULL — 증권 정본은 assets.policy_id (D95)
   linked_at    DATETIME,        -- 연결 승인 시점 (사람 단계). **UTC 저장** (D96-ⓓ·D39)
   PRIMARY KEY (partner, subject_type, subject_ref),
   CHECK (link_state IN ('NOT_LINKED','LINKED')),
@@ -231,7 +231,7 @@ CREATE TABLE partner_links (
 | ⓑ | `subject_ref TEXT` + 주석 *"company 는 NULL"* | `subject_ref TEXT NOT NULL`, **회사 결은 `''`** | 주석이 **거짓이었다.** SQLite 는 `INTEGER PRIMARY KEY` 가 아닌 PK 컬럼의 NULL 을 허용하고 NULL 끼리는 서로 다르므로, `subject_ref=NULL` 인 **동일 행을 3회 INSERT 해도 전부 통과해 3행이 남는다** — 회사 매핑이 갈려도 아무도 모른다. `''`(확인된 해당 없음) 규약은 `lien_creditor`/`lien_consent_ref` 선례 그대로다 (D96-ⓑ·D62) |
 | ⓒ | `linked_at DATE` | `linked_at DATETIME` (UTC) | **사람 확정 (2026-08-13).** 이 시점은 단순 사건 날짜가 아니라 **파트너 자격증명이 발급되는 순간**이고 그 자격증명으로 돈이 움직이는 요청(S5)이 나간다 — 감사에 필요한 것은 *"며칠"* 이 아니라 *"몇 시 몇 분"* 이다. `decisions.signed_at`·`repair_records.signed_at`·`flags.raised_at` 이 이미 전부 `DATETIME` 이라 **예외가 아니라 기존 규약에 맞춘 정정**이다 (D96-ⓓ) |
 
-⛔ **이 각주를 지우지 말 것.** 초안을 그대로 둔 채 실제와 어긋나게 방치하면 §8.2-1 이 겪은
+**이 각주를 지우지 말 것.** 초안을 그대로 둔 채 실제와 어긋나게 방치하면 §8.2-1 이 겪은
 것과 **같은 유형의 부채**(문서가 자신 있게 틀린 사실을 말하는 상태)가 된다.
 
 ### 4.4 검토했으나 권하지 않는 대안
@@ -261,7 +261,7 @@ CREATE TABLE partner_links (
 ("insuq",   "building", "BLD-D", "NOT_LINKED", None,             None),  # ★ 대조군
 ```
 
-> ⚠ **초안은 InsuQ 행의 `external_ref` 에 증권번호를 넣었는데 그건 폐기됐다** (§A·**D95**).
+> **초안은 InsuQ 행의 `external_ref` 에 증권번호를 넣었는데 그건 폐기됐다** (§A·**D95**).
 > 증권 식별자의 정본은 `assets.policy_id` 하나이고 `partner_links` 에 **복제하지 않는다** —
 > 건물 3행에 같은 증권번호를 복제하면 D91 이 기각한 형태(회사·건물 단위 사실의 복제)를
 > **결(grain)만 바꿔 재발**시키는 것이 된다. 확정안에서 복제는 **0건**이고 seed 검사 **㉔** 가 그걸 본다.
@@ -378,7 +378,7 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
    (`backend/agent/trace.py:114`)인데 A2A는 **요청**도 함께 담는다. 컬럼·회귀는
    그대로 두고 **정의 문장만** "도구 또는 외부 호출의 원문(A2A는 요청+응답 봉투)"으로
    확장한다. 코드 변경 없음.
-2. **⛔ 자격증명은 `tool_payload`에 들어가지 않는다.** 토큰은 헤더(actor)이지 payload가
+2. **자격증명은 `tool_payload`에 들어가지 않는다.** 토큰은 헤더(actor)이지 payload가
    아니다(§7). 원문을 통째로 저장하는 결정이므로 **헤더를 저장 대상에서 명시적으로
    제외**해야 한다 — 안 그러면 액세스 토큰이 DB에 평문으로 남는다.
 3. **여는 경로가 지금은 없다.** ⑫-d가 검사하듯 `read_trace`(D43)는 `tool_payload`를
@@ -421,7 +421,7 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
 ```
 .env.example
   # ══ A2A 파트너 자격증명 (QMesh · 미착수) ══
-  # ⚠ LLM 키와 성격이 다르다: 이 자격증명으로 나가는 요청은 돈을 움직인다(S5).
+  # LLM 키와 성격이 다르다: 이 자격증명으로 나가는 요청은 돈을 움직인다(S5).
   #    발급 주체는 FinAllQ ADMIN 콘솔이며, 사람 간 연결 승인 후에만 발급된다.
   #    한도·허용 작업·유효기간이 함께 발급되므로 만료 처리가 필요하다.
   MAINTQ_A2A_FINALLQ_CLIENT_ID=
@@ -443,7 +443,7 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
   §4.3 주석대로 **인증 정보가 아니다.** 둘을 한 테이블에 두면 결정 1의 actor/subject
   분리가 스키마에서 다시 무너진다.
 - **DB·`data/`에는 절대 두지 않는다.** `.env`는 이미 git 제외이고, `.env.example`이
-  *"⛔ 실제 값을 이 파일·세션 로그·주석 어디에도 적지 말 것"*을 이미 규칙으로 갖고 있다.
+  *"실제 값을 이 파일·세션 로그·주석 어디에도 적지 말 것"*을 이미 규칙으로 갖고 있다.
 - **읽는 위치를 새 모듈로 분리하는 이유:** D15(MCP ↔ backend 프로세스 분리)에 따라
   **MCP 도구는 이 자격증명을 보면 안 된다.** A2A 호출은 사람 승인 뒤 백엔드가 하는
   일이지 도구가 하는 일이 아니다(절대규칙 1 — 도구는 draft INSERT만).
@@ -457,11 +457,11 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
 | 항목 | 상태 |
 |---|---|
 | §4 `partner_links`(D78 패턴) | ✅ 확정 · **Sprint 8 구현 완료 (MQ-801~807)** — `data/seed.py §18`. DDL 세부 3곳은 **D96 이 개정**했다(§4.3 각주). **A2A_Q 표의 원 요청("`assets`에 `finallq_company_id` 컬럼 추가")과 다른 답이므로**, A2A_Q 갱신 시 그 행을 함께 고쳐야 한다 |
-| §5 seed A안 + `NOT_LINKED` 1건 | ✅ 확정 · **Sprint 8 구현 완료** — 5행(`LINKED` 4 / `NOT_LINKED` 1 = `BLD-D`). ⚠ **목업 전제**다(`PARTNER_LINKS_MOCK=True`) — 실제 연결 승인·발급값이 아니며 시드 출력이 그 사실을 고지한다 |
-| §6 trace(원문 보관·컬럼 신설·event_type 유지) | 🟡 **부분** — `traces.request_chain_id` 컬럼만 생겼다(D94-ⓐ). **쓰는 쪽(A2A 호출부)은 미착수라 전 행 NULL 이 정상**이고, 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 **명시적 라벨로** 기록한다(D76-2 재발 방지). 원문 보관(ⓑ)·`a2a:` 접두어는 호출부와 함께 |
-| §7 자격증명 위치 | 🟡 **env 층 구현** — `.env.example` 4키(값 전부 빈칸) + `backend/a2a/credentials.py`(상태 4종). **토큰 캐시는 미착수** — 호출부가 없다. `mcp_server/**` 에서 보이지 않음을 스파이크 ⑮ 가 단언한다(D15·D93) |
+| §5 seed A안 + `NOT_LINKED` 1건 | ✅ 확정 · **Sprint 8 구현 완료** — 5행(`LINKED` 4 / `NOT_LINKED` 1 = `BLD-D`). **목업 전제**다(`PARTNER_LINKS_MOCK=True`) — 실제 연결 승인·발급값이 아니며 시드 출력이 그 사실을 고지한다 |
+| §6 trace(원문 보관·컬럼 신설·event_type 유지) | **부분** — `traces.request_chain_id` 컬럼만 생겼다(D94-ⓐ). **쓰는 쪽(A2A 호출부)은 미착수라 전 행 NULL 이 정상**이고, 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 **명시적 라벨로** 기록한다(D76-2 재발 방지). 원문 보관(ⓑ)·`a2a:` 접두어는 호출부와 함께 |
+| §7 자격증명 위치 | **env 층 구현** — `.env.example` 4키(값 전부 빈칸) + `backend/a2a/credentials.py`(상태 4종). **토큰 캐시는 미착수** — 호출부가 없다. `mcp_server/**` 에서 보이지 않음을 스파이크 ⑮ 가 단언한다(D15·D93) |
 | `docs/A2A_CONTRACTS.md` 갱신 | ✅ **2026-08-13 완료** — actor/subject 구분 반영, 해소된 "미해결" 문구 제거. Sprint 8 종료 시 *"이 레포가 채워야 할 자리"* 표를 구현 상태로 재갱신 |
-| **D 번호 부여** | ✅ **2026-08-13 완료** — **D91**(`partner_links`) · **D92**(seed A안) · **D93**(자격증명 위치) · **D94**(trace). 넷 다 *"⚠ 설계 확정·미구현"* 으로 표기했다. D 범위 표기 5곳(`CLAUDE.md` · 루트 `README.md` · `docs/README.md` · `.claude/agents/reviewer.md` · `docs/00_MVP_SCOPE.md`)도 그때 `D1~D94` 로 갱신 → **Sprint 8 에서 D96 까지 확장**(D95 증권 정본 · D96 DDL 정정)되어 같은 5곳이 `D1~D96` 으로 다시 갱신됐고, D91~D94 의 미구현 마커도 부분 구현 문구로 바뀌었다 |
+| **D 번호 부여** | ✅ **2026-08-13 완료** — **D91**(`partner_links`) · **D92**(seed A안) · **D93**(자격증명 위치) · **D94**(trace). 넷 다 *"설계 확정·미구현"* 으로 표기했다. D 범위 표기 5곳(`CLAUDE.md` · 루트 `README.md` · `docs/README.md` · `.claude/agents/reviewer.md` · `docs/00_MVP_SCOPE.md`)도 그때 `D1~D94` 로 갱신 → **Sprint 8 에서 D96 까지 확장**(D95 증권 정본 · D96 DDL 정정)되어 같은 5곳이 `D1~D96` 으로 다시 갱신됐고, D91~D94 의 미구현 마커도 부분 구현 문구로 바뀌었다 |
 
 ### 8.2 미해결이었던 것 — 2건 종결, 2건 남음
 
@@ -470,7 +470,7 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
    `policy_id` 를 **옮기지도 복제하지도 않는다** — InsuQ 건물 행의 `external_ref` 는 **NULL** 이고,
    대조는 *"어디에도 복제되지 않았다"* 를 확인하는 **음성 검사**(seed ㉔)가 된다.
 
-   > 🚨 **이 항목이 적고 있던 근거는 거짓이었다 — 기록으로 남긴다.**
+   > **이 항목이 적고 있던 근거는 거짓이었다 — 기록으로 남긴다.**
    > 초안은 *"D78 판정 로직(`INSURANCE-NOTIFY` 룰·`test_rules.py`)이 그 컬럼을 읽으므로
    > 못 옮긴다"* 고 썼지만 **사실이 아니다.** `INSURANCE-NOTIFY.json` 의 `required_facts` 는
    > **`["insured"]` 뿐**이고, `data/rules/test_rules.py:222` 는 오히려
@@ -484,14 +484,14 @@ len(tp_rows) == 2 and tp_rows[0][2] is None and saved_raw == raw,
    > `spikes/approvals_contract.py:330`(`UPDATE assets SET policy_id=…` 로 번들 무결성 시나리오를 만든다).
    > **컬럼을 옮기면 이 다섯이 동시에 깨진다.**
    >
-   > ⛔ **`NOT_LINKED` 건물의 자산이 `policy_id` 를 갖고 있는 것은 모순이 아니다** —
+   > **`NOT_LINKED` 건물의 자산이 `policy_id` 를 갖고 있는 것은 모순이 아니다** —
    > *"부보돼 있다"(보험 사실)* 와 *"InsuQ 와 A2A 연결이 승인됐다"(파트너 대장)* 는 **별개 축**이다.
    > 두 축을 엮는 검사를 만들지 않는 이유이기도 하다(엮으면 D78 이 분리한 두 사실을 되붙인다).
 
 2. **미결 — `tool_payload` 조회 수단** (§6.4-3). "원문을 여는 것이 정식 판정 경로"인데
    `read_trace`(D43)가 의도적으로 싣지 않아 **지금은 DB 직접 조회뿐이다.**
    사람 전용 조회 API를 둘지, 감사 목적이므로 DB 조회로 충분하다고 볼지.
-   ⚠ **Sprint 8 범위 밖이다** — 아직 쓰는 쪽이 없어 열어 볼 원문 자체가 0건이다.
+   **Sprint 8 범위 밖이다** — 아직 쓰는 쪽이 없어 열어 볼 원문 자체가 0건이다.
 3. **미결 — `risk_profile` 우선순위 재조정.** §1.2 — A2A 편입으로 "후순위" 판단의 근거가 바뀌었다.
    S14가 보낼 내용(`risk_grade`·`fire_handling`)이 그 테이블에 있다. **Sprint 8 범위 밖.**
 4. ✅ **종결 (2026-08-13) — `seed.py` 자가검증 항목 추가.** 예상은 "최소 2건"이었으나

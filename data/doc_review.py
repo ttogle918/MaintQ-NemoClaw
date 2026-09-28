@@ -58,7 +58,7 @@ def _notice(reviewed: bool, reviewed_at: str | None) -> str:
     *"언제 누가 검수했는가"* 가 남는 편이 낫다 — 침묵은 검수 여부를 알려주지 않는다.
     """
     if not reviewed:
-        return "문서 문안은 미검수 초안이다 (TODO_직접할일.md)"
+        return "문서 문안은 미검수 초안이다"
     return f"문안 사람 검수 완료 ({reviewed_at})"
 
 

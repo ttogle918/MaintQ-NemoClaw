@@ -16,11 +16,11 @@
 
 이 절의 규칙은 **모든 태스크의 요구사항에 암묵적으로 포함된다.**
 
-- 🔴 **MCP 도구에 UPDATE 를 추가하지 않는다** (절대규칙 1 · D10). 새 도구는 `read_only()` 커넥션만 쓴다. `spikes/write_tool_contract.py` 는 **30건 그대로**여야 하며, 그것이 "쓰기 경로가 안 늘었다"의 증거다.
-- 🔴 **생성물을 디스크·DB 에 저장하지 않는다** (D86). docx bytes 는 `io.BytesIO` 안에서만 존재한다. 임시 파일도 만들지 않는다.
-- 🔴 **문안을 새로 쓰지 않는다.** 라벨은 템플릿 docx 가, 값은 기존 `render_*_document()`·`render_documents()` 의 계산이 갖는다.
-- ⛔ **04(담보대출심사회신서)는 만들지 않는다** — D118, FinAllQ 소관.
-- ⛔ `data/templates/*.docx` 는 **읽기만** 한다. 파일을 수정하지 않는다.
+- **MCP 도구에 UPDATE 를 추가하지 않는다** (절대규칙 1 · D10). 새 도구는 `read_only()` 커넥션만 쓴다. `spikes/write_tool_contract.py` 는 **30건 그대로**여야 하며, 그것이 "쓰기 경로가 안 늘었다"의 증거다.
+- **생성물을 디스크·DB 에 저장하지 않는다** (D86). docx bytes 는 `io.BytesIO` 안에서만 존재한다. 임시 파일도 만들지 않는다.
+- **문안을 새로 쓰지 않는다.** 라벨은 템플릿 docx 가, 값은 기존 `render_*_document()`·`render_documents()` 의 계산이 갖는다.
+- **04(담보대출심사회신서)는 만들지 않는다** — D118, FinAllQ 소관.
+- `data/templates/*.docx` 는 **읽기만** 한다. 파일을 수정하지 않는다.
 - **필수 파라미터에 기본값을 두지 않는다** (D80).
 - **도구는 예외를 던지지 않는다** — `status` 필드로 실패를 반환한다 (D9).
 - `data/doc_fields.py` 는 **DB 경로를 모른다.** 커넥션은 호출자가 열어 넘긴다 (`data/po_draft.py` 규약).
@@ -96,8 +96,8 @@ FINANCE_APPROVER FINANCE_SIGNED_AT
 SIGNED_BY        SIGNED_AT             OVERRIDE      OVERRIDE_REASON
 ```
 
-📌 **`REQUEST_CHAIN_ID` 는 여기 없다** — 결재선 추적 ID 이지 사람이 아니다. 값 원천이 없는 경로에서는 `확인되지 않음` 이 된다(D62).
-📌 `OVERRIDE`·`OVERRIDE_REASON` 이 여기 있는 이유는 D81 이다 — 도구가 채울 수 있으면 LLM 이 추징 감수 사유를 지어내 BLOCKING 을 뚫는 경로가 생긴다.
+**`REQUEST_CHAIN_ID` 는 여기 없다** — 결재선 추적 ID 이지 사람이 아니다. 값 원천이 없는 경로에서는 `확인되지 않음` 이 된다(D62).
+`OVERRIDE`·`OVERRIDE_REASON` 이 여기 있는 이유는 D81 이다 — 도구가 채울 수 있으면 LLM 이 추징 감수 사유를 지어내 BLOCKING 을 뚫는 경로가 생긴다.
 
 ---
 
@@ -427,7 +427,7 @@ git commit -m "[M4] feat(docx): 템플릿 채우기 계층 — 메모리에서�
 
 Task 3~6 이 `render_*` 를 필드맵 소비 형태로 재작성한다. 그 문자열은 `spikes/api_contract.py` 52건과 화면(`DocumentPreview.tsx`)이 함께 본다. **리팩터 전에 출력을 고정해 두지 않으면 미묘하게 바뀐 것을 아무도 못 잡는다.**
 
-### ⚠ 이건 부재검사 계열이다
+### 이건 부재검사 계열이다
 
 "차이가 없다"는 주장은 *사실이 참* 과 *스캐너가 눈이 멀었다* 를 구분하지 못한다. 골든 파일이 비거나 경로가 바뀌면 **조용히 통과**한다. CLAUDE.md 규칙대로 판정에 양성 축을 넣고, detail 에는 결론이 아니라 실측값을 찍는다.
 
@@ -450,7 +450,7 @@ Create `spikes/docx_contract.py`:
   D. 다운로드 엔드포인트 — MIME · Content-Disposition · 가용성 규칙
   E. 읽기 도구 — 조회만 · withheld/unavailable 분리 · 실패는 status
 
-## ⚠ A 는 부재검사다 — liveness 앵커를 함께 건다
+## A 는 부재검사다 — liveness 앵커를 함께 건다
 
 "차이가 없다"는 원리적으로 *사실이 참* 과 *스캐너가 눈이 멀었다* 를 구분하지 못한다.
 골든 파일이 비거나 경로가 바뀌면 조용히 통과한다. 그래서:
@@ -820,7 +820,7 @@ Create `data/doc_fields.py`:
 `mcp_server/tools/get_document_facts.py`(읽기 도구)가 이 모듈로 위임한다 —
 `data/po_draft.py`·`data/maint_value.py` 와 같은 구조다.
 
-⛔ 이 모듈은 `mcp_server` 도 `backend` 도 import 하지 않는다 (D15 — 두 런타임 프로세스의
+이 모듈은 `mcp_server` 도 `backend` 도 import 하지 않는다 (D15 — 두 런타임 프로세스의
 상호 import 금지). 커넥션은 호출자가 열어서 넘긴다 — 이 모듈은 DB 경로를 모른다.
 
 ★ 신원·서명 필드는 여기서 만들지 않는다 (D23·D37)
@@ -833,7 +833,7 @@ TEMP TRIGGER 로 막은 것과 같은 태도다.
 `OVERRIDE`·`OVERRIDE_REASON` 이 여기 있는 이유는 D81 이다 — 도구가 채울 수 있으면
 LLM 이 추징 감수 사유를 지어내 BLOCKING 을 뚫는 경로가 생긴다.
 
-📌 `REQUEST_CHAIN_ID` 는 `WITHHELD_KEYS` 에 **없다** — 결재선 추적 ID 이지 사람이 아니다.
+`REQUEST_CHAIN_ID` 는 `WITHHELD_KEYS` 에 **없다** — 결재선 추적 ID 이지 사람이 아니다.
    값 원천이 없는 경로에서는 `UNKNOWN` 이 된다.
 
 ★ 값이 없으면 지어내지 않는다 (D62)
@@ -1029,7 +1029,7 @@ def render_po_request_document(po: dict) -> str:
 """
 ```
 
-⚠ `_stock_section()`·`_quotes_section()` 은 **그대로 둔다** — 템플릿의 칸 단위와 입도가 다르다.
+`_stock_section()`·`_quotes_section()` 은 **그대로 둔다** — 템플릿의 칸 단위와 입도가 다르다.
 
 - [ ] **Step 5: 골든 + B 축 통과 확인**
 
@@ -1145,7 +1145,7 @@ git commit -m "[M4] feat(docx): fields_01 진단보고서 (D124)"
 
 담보·대출 4자리(`COLLATERAL_ID` `COLLATERAL_TYPE` `COLLATERAL_VALUE` `LOAN_AMOUNT` `LTV` `REPAYMENT_PLAN`)는 **`drop_rows_03` 대상이 아니라 고정 문구**다 — 미리보기가 이미 §3 을 *"해당 없음 — 본 문서는 일반 부품 발주(S1/S2) 전용이며 담보·대출 취급 대상이 아니다"* 로 적었다. 각 자리에 `"해당 없음"` 을 넣는다.
 
-⚠ **이건 `UNKNOWN` 이 아니다.** D62 는 *모르는 것*을 통과로 반올림하지 말라는 규칙이고, 여기는 **알고 있다** — 이 문서 종류가 담보 거래가 아니라는 것이 확정 사실이다(D77 의 `vat_invoice_issued=False` 와 같은 성질).
+**이건 `UNKNOWN` 이 아니다.** D62 는 *모르는 것*을 통과로 반올림하지 말라는 규칙이고, 여기는 **알고 있다** — 이 문서 종류가 담보 거래가 아니라는 것이 확정 사실이다(D77 의 `vat_invoice_issued=False` 와 같은 성질).
 
 `PAYEE_BIZ_NO` 는 `UNKNOWN` (suppliers 테이블에 없음). `EXECUTION_DATE` 도 `UNKNOWN`.
 
@@ -1207,7 +1207,7 @@ git commit -m "[M4] feat(docx): fields_03 자금집행요청서 (D124·D119)
 
 이 셋은 `decisions` **행**에서 오는데 `render_documents()` 는 번들과 판정값만 받는다(그 함수의 docstring: *"여기서 DB 를 다시 읽지 않는다"*). 도구 경로(초안 생성 직후)에서는 아직 알 수 없으므로 기본값 `UNKNOWN`, 다운로드 엔드포인트(Task 9)가 실제 값을 넘긴다.
 
-⛔ **`SIGNED_BY`·`SIGNED_AT`·`OVERRIDE`·`OVERRIDE_REASON` 은 인자로도 받지 않는다** — `WITHHELD_KEYS` 다. Task 9 가 얹는다.
+**`SIGNED_BY`·`SIGNED_AT`·`OVERRIDE`·`OVERRIDE_REASON` 은 인자로도 받지 않는다** — `WITHHELD_KEYS` 다. Task 9 가 얹는다.
 
 ### 이관할 헬퍼
 
@@ -1342,7 +1342,7 @@ WITHHELD_KEYS 이고 다운로드 엔드포인트가 얹는다(D23·D81)."
   - `po_context(con, po_id: str) -> dict | None`
   - `disposal_context(con, decision_id: str) -> dict | None`
 
-**🔴 여기부터 Postgres 가 필요하다.**
+**여기부터 Postgres 가 필요하다.**
 
 ### `po_context()` 가 하는 일
 
@@ -1367,7 +1367,7 @@ from backend.db import connect
 with connect() as c: print('error_codes:', c.execute('SELECT count(*) FROM error_codes').fetchone()[0])"
 ```
 
-Expected: `error_codes: 70` — **65 가 나오면 IE5 5건(D109) 병합이 안 된 상태다.** 0 이면 `uv run python data/seed.py --with-error-codes` 로 재시드(⛔ `--today` 금지).
+Expected: `error_codes: 70` — **65 가 나오면 IE5 5건(D109) 병합이 안 된 상태다.** 0 이면 `uv run python data/seed.py --with-error-codes` 로 재시드(`--today` 금지).
 
 - [ ] **Step 2: 실패하는 검사를 쓴다**
 
@@ -1521,7 +1521,7 @@ def run_read_tool() -> None:
     )
 ```
 
-⚠ E⑦ 은 부재검사다 — `has_readonly`(양성 축)와 소스 바이트 수를 판정·detail 에 함께 넣었다.
+E⑦ 은 부재검사다 — `has_readonly`(양성 축)와 소스 바이트 수를 판정·detail 에 함께 넣었다.
 
 - [ ] **Step 2: 실패 확인**
 
@@ -1892,7 +1892,7 @@ def download_po_document(po_id: str, doc: str, c: Caller = Depends(caller)) -> R
 
 `backend/routers/decisions.py` 에 같은 형태로.
 
-⚠ `get_po()` 는 `documents_preview` 를 만들 때 `controls`·`a2a_info`·`payee` 를 지역 변수로 쓰고 버린다. 다운로드도 그 값이 필요하므로 `get_po()` 가 **`_fund_inputs` 키로 함께 돌려주도록** 한다 — 단, `spikes/api_contract.py` 의 `PO_DETAIL_KEYS` 가 응답 키를 고정하므로 **라우터가 응답 전에 `pop()` 한다.**
+`get_po()` 는 `documents_preview` 를 만들 때 `controls`·`a2a_info`·`payee` 를 지역 변수로 쓰고 버린다. 다운로드도 그 값이 필요하므로 `get_po()` 가 **`_fund_inputs` 키로 함께 돌려주도록** 한다 — 단, `spikes/api_contract.py` 의 `PO_DETAIL_KEYS` 가 응답 키를 고정하므로 **라우터가 응답 전에 `pop()` 한다.**
 
 - [ ] **Step 5: 통과 확인**
 
@@ -1987,7 +1987,7 @@ git commit -m "[M4] test(docx): 뮤턴트 4종으로 검사 생존 실증
 
 - [ ] **Step 3: `data/templates/README.md` 의 거짓 문구를 정정**
 
-⚠ 「아직 하지 않은 것」 절이 아직 이렇게 적혀 있다:
+「아직 하지 않은 것」 절이 아직 이렇게 적혀 있다:
 
 > **이 템플릿을 실제로 채워 `.docx` 를 만드는 코드는 없다.** … **QMesh 프로젝트가 진행 중**이라 이 저장소에서 먼저 착수하지 않는다.
 
@@ -2005,7 +2005,7 @@ git commit -m "[M4] test(docx): 뮤턴트 4종으로 검사 생존 실증
 - 스위트별 건수 표에 `docx_contract 49` 추가, `tools_profile_contract 7` → `8`
 - 헤드라인 `33스위트 / 1,120건` → `34스위트 / 1,170건`(1,120 + 49 + tools_profile +1)
 
-⚠ **건수는 러너 출력이 기준이다.** 위 산술이 실측과 어긋나면 **실측을 적고 산술을 정정**한다.
+**건수는 러너 출력이 기준이다.** 위 산술이 실측과 어긋나면 **실측을 적고 산술을 정정**한다.
 
 - [ ] **Step 6: 전수 회귀**
 
@@ -2042,7 +2042,7 @@ Expected:
 - pytest 4파일군 **114 + 7 = 121건**, A2A 8파일군 **88건**
 - ruff clean
 
-⚠ **Windows 소켓 고갈**(`OSError: [WinError 10014]`)로 매번 다른 스위트가 1건 실패할 수 있다. **실패한 스위트는 반드시 단독 재실행해 확인**하고, 재시도로 통과하면 그 사실을 보고에 적는다. 재시도해도 실패하면 진짜 회귀다.
+**Windows 소켓 고갈**(`OSError: [WinError 10014]`)로 매번 다른 스위트가 1건 실패할 수 있다. **실패한 스위트는 반드시 단독 재실행해 확인**하고, 재시도로 통과하면 그 사실을 보고에 적는다. 재시도해도 실패하면 진짜 회귀다.
 
 - [ ] **Step 7: 커밋**
 

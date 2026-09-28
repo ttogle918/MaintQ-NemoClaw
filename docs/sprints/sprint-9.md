@@ -2,10 +2,10 @@
 
 **상태**: ✅ **확정** — tool-builder 현실성 평가 반영 완료 (2026-08-14)
 
-> ℹ️ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
+> ℹ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
 
-> 🔴 **§4 스테이지 계획과 §7 압축 순서는 §9 가 대체한다.** 평가 결과 §7 의 ③(MQ-907 컷)이 틀렸고
-> 스테이지 배치에 🔴 6건이 있었다. **§9 "확정 실행 계획"을 읽고 실행할 것.**
+> **§4 스테이지 계획과 §7 압축 순서는 §9 가 대체한다.** 평가 결과 §7 의 ③(MQ-907 컷)이 틀렸고
+> 스테이지 배치에 6건이 있었다. **§9 "확정 실행 계획"을 읽고 실행할 것.**
 > §6 태스크 상세는 유효하되 **§9-4 의 명세 델타가 우선**한다.
 
 **수립**: 2026-08-14 · **부제**: 두 번 이월된 쓰기 도구를 닫고, 조치문 결측 37건의 **원인을 먼저 재고**,
@@ -38,7 +38,7 @@ D80 · D81 · D84 · D85 · D86 · D87 · D88 · D89 · D90 · D97
 
 | 항목 | 처리 |
 |---|---|
-| `create_repair_record` (P25 · S19) | **Sprint 7 → 8 에서 두 번 이월.** 이번 스프린트의 축 A 다. ⚠ 그러나 **Stage 1 에 넣지 않는다** — 이 도구는 `repair_records` DDL 확장(신원·시각 컬럼)과 `data/maint_value.classify_expenditure` 를 **둘 다** 선행으로 요구한다. 선행 없이 앞에 두면 스테이지가 통째로 멈춘다. Stage 3 에 배치하고, 그 선행 2건을 Stage 1·2 에 깐다 |
+| `create_repair_record` (P25 · S19) | **Sprint 7 → 8 에서 두 번 이월.** 이번 스프린트의 축 A 다. 그러나 **Stage 1 에 넣지 않는다** — 이 도구는 `repair_records` DDL 확장(신원·시각 컬럼)과 `data/maint_value.classify_expenditure` 를 **둘 다** 선행으로 요구한다. 선행 없이 앞에 두면 스테이지가 통째로 멈춘다. Stage 3 에 배치하고, 그 선행 2건을 Stage 1·2 에 깐다 |
 | Sprint 8 미완 | `traces.request_chain_id` 는 **컬럼만**(전 행 NULL 이 정상) · A2A 호출부 미착수. **이번 스프린트 범위 밖** — QMesh 착수 후다(`docs/README.md` 다음 액션 8) |
 | 사람 대기 (기존) | `SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE` 문구 검수 · `RESIDUAL_AT_LIFE_END`/`FLOOR` 가정 동의 · LS 고객센터 팬 품번 문의. **셋 다 이 스프린트를 막지 않는다** (§2) |
 
@@ -48,8 +48,8 @@ D80 · D81 · D84 · D85 · D86 · D87 · D88 · D89 · D90 · D97
 
 | 축 | 판정 | 근거 |
 |---|---|---|
-| **A. `create_repair_record`** | ✅ **본 범위** | `00_MVP_SCOPE` 확장 기능 **9번**(수리 증빙 서명)이고 상태가 *"🟡 부분 — 쓰기 도구는 Sprint 9"* 로 이미 적혀 있다. P25 는 "확장 범위 편입분"(D67)이라 **백로그 승격이 아니다** — `07_BACKLOG` 스스로 *"나중에 할지 모를 아이디어가 아니라 하기로 정한 일"* 이라고 구분한다 |
-| **B. `actions` 회수 (P31)** | ⚠ **P31 은 백로그 번호지만 승격이 아니다** | 회수 대상은 `error_codes.actions` = **MVP 기능 1(에러코드 진단)의 필수 필드**이고 DDL 이 `NOT NULL` 이다. P31 이 백로그에 있는 것은 *"triage 인프라를 만들자"* 라는 **방법론** 때문이고, 이번에 하는 것은 **이미 MVP 인 필드의 결측 복구**다. 단 ⛔ **유료 OCR 호출·InsuQ 모델 이식은 하지 않는다** — 그건 P31 의 백로그 부분이고 이번 범위 밖이다(§4 MQ-902) |
+| **A. `create_repair_record`** | ✅ **본 범위** | `00_MVP_SCOPE` 확장 기능 **9번**(수리 증빙 서명)이고 상태가 *"부분 — 쓰기 도구는 Sprint 9"* 로 이미 적혀 있다. P25 는 "확장 범위 편입분"(D67)이라 **백로그 승격이 아니다** — `07_BACKLOG` 스스로 *"나중에 할지 모를 아이디어가 아니라 하기로 정한 일"* 이라고 구분한다 |
+| **B. `actions` 회수 (P31)** | **P31 은 백로그 번호지만 승격이 아니다** | 회수 대상은 `error_codes.actions` = **MVP 기능 1(에러코드 진단)의 필수 필드**이고 DDL 이 `NOT NULL` 이다. P31 이 백로그에 있는 것은 *"triage 인프라를 만들자"* 라는 **방법론** 때문이고, 이번에 하는 것은 **이미 MVP 인 필드의 결측 복구**다. 단 **유료 OCR 호출·InsuQ 모델 이식은 하지 않는다** — 그건 P31 의 백로그 부분이고 이번 범위 밖이다(§4 MQ-902) |
 | **C. 프론트 노출** | ✅ **본 범위** | `00_MVP_SCOPE` 인프라 절의 **UI 2종**과 확장 기능 7·8·11 의 노출이다. Sprint 7 ⓓ 가 이미 *"확장 도구의 UI 노출"* 을 같은 근거로 수행했고(자산 목록·처분 사전판정·실사·서명 화면) 이번은 그 **나머지 5종**이다 |
 
 ### 복무 시나리오 — 솔직하게 적는다
@@ -70,13 +70,13 @@ D80 · D81 · D84 · D85 · D86 · D87 · D88 · D89 · D90 · D97
 
 | 블로커 | 이번 스프린트 영향 | 배치 |
 |---|---|---|
-| `error_codes` 사람 승인 (D33) | 🔴 **축 B 의 지배 변수.** `seed.error_codes_gate()` 는 `_status` 에 `"초안"` 이 들어가면 **전량 미적재(65 → 0행)** 로 떨어뜨린다. 부분 결과를 정본에 쓰면 DB·평가·회귀가 스프린트 내내 죽는다 | **D99 로 우회한다** — 추출은 **후보 파일**에만 쓰고 정본은 손대지 않는다. 승인이 필요한 병합은 **Stage 10(조건부)** 로 뺀다 |
-| 🔴 safety-guardrail (`actions` = 점검 절차 서술) | **생성 금지.** 조치문은 PDF 원문 추출이어야 하고 페이지 근거가 있어야 한다 | **코드 게이트 + 사람 게이트 2겹**: MQ-905·907 이 *"후보의 모든 조치문이 해당 페이지 텍스트에 실재하는가"* 를 **자동 대조**로 강제하고(생성이면 실패), MQ-911 이 위험 문구(활선·방전·10분)를 따로 뽑아 사람 검수에 올린다 |
+| `error_codes` 사람 승인 (D33) | **축 B 의 지배 변수.** `seed.error_codes_gate()` 는 `_status` 에 `"초안"` 이 들어가면 **전량 미적재(65 → 0행)** 로 떨어뜨린다. 부분 결과를 정본에 쓰면 DB·평가·회귀가 스프린트 내내 죽는다 | **D99 로 우회한다** — 추출은 **후보 파일**에만 쓰고 정본은 손대지 않는다. 승인이 필요한 병합은 **Stage 10(조건부)** 로 뺀다 |
+| safety-guardrail (`actions` = 점검 절차 서술) | **생성 금지.** 조치문은 PDF 원문 추출이어야 하고 페이지 근거가 있어야 한다 | **코드 게이트 + 사람 게이트 2겹**: MQ-905·907 이 *"후보의 모든 조치문이 해당 페이지 텍스트에 실재하는가"* 를 **자동 대조**로 강제하고(생성이면 실패), MQ-911 이 위험 문구(활선·방전·10분)를 따로 뽑아 사람 검수에 올린다 |
 | `related_parts` 검수 | ✅ 해제됨(2026-08-12). 이번 범위와 무관 | — |
-| `ANTHROPIC_API_KEY` · 평가 비용 | ⚠ **Stage 1~9 전부 불필요.** 에이전트 루프·`/run-eval` 을 돌리지 않는다 | 평가 재측정은 **Stage 10 이후**, 사람이 비용을 승인해야 시작한다(§5-G3) |
+| `ANTHROPIC_API_KEY` · 평가 비용 | **Stage 1~9 전부 불필요.** 에이전트 루프·`/run-eval` 을 돌리지 않는다 | 평가 재측정은 **Stage 10 이후**, 사람이 비용을 승인해야 시작한다(§5-G3) |
 | 임베딩·벡터스토어 미결 | 무관 (RAG 미접촉) | — |
-| `RESIDUAL_AT_LIFE_END`·`FLOOR` 가정 미동의 | ⛔ **축 C 를 막지 않는다.** D65·D74 가 이미 *"값은 제공하되 성격을 표시한다"* 로 정리했다 | 대신 화면에 **추정치·가정 미승인 고지를 강제**하고 `spikes/ui_honesty_contract.py` 로 잠근다 |
-| LS 팬 품번 (P32) | ⛔ **부재 확정.** 4축 전부 닫혔다 | 이번 스프린트에서 다시 뒤지지 않는다. `mfr_part_no` 는 **읽기만** 한다 |
+| `RESIDUAL_AT_LIFE_END`·`FLOOR` 가정 미동의 | **축 C 를 막지 않는다.** D65·D74 가 이미 *"값은 제공하되 성격을 표시한다"* 로 정리했다 | 대신 화면에 **추정치·가정 미승인 고지를 강제**하고 `spikes/ui_honesty_contract.py` 로 잠근다 |
+| LS 팬 품번 (P32) | **부재 확정.** 4축 전부 닫혔다 | 이번 스프린트에서 다시 뒤지지 않는다. `mfr_part_no` 는 **읽기만** 한다 |
 
 **결론**: 사람 승인 대기로 막히는 것은 **축 B 의 마지막 한 걸음(병합·적재)뿐**이고, 그것만 Stage 10 으로 뺐다.
 Stage 1~9 는 사람 없이 완주 가능하다.
@@ -116,7 +116,7 @@ REST 로 노출된 두 도구는 **로직이 `data/` 에 있다** — `check_dis
 `backend/services/decisions.py:520` 이 스스로 *"도구는 mcp_server 소유라 import 할 수 없다(D15).
 **그래서 산식이 두 벌 존재한다**"* 라고 적어 뒀다. → **`data/maint_value.py` 로 옮기고 도구는 얇은 위임으로.**
 
-> ⛔ **`build_evidence_bundle` 은 옮기지 않는다.** backend 에 이미 `services/decisions.rebuild_bundle()`
+> **`build_evidence_bundle` 은 옮기지 않는다.** backend 에 이미 `services/decisions.rebuild_bundle()`
 > (D84 재산출 경로)이 있고 그것이 **정식 소비자**다. 새로 옮기면 세 번째 사본이 생긴다.
 
 ---
@@ -177,7 +177,7 @@ REST 로 노출된 두 도구는 **로직이 `data/` 에 있다** — `check_dis
 |------|------|------|------|
 | MQ-918 | 문서·개수 전파 — 기준선·도구 개수·절 번호·시나리오·백로그 상태 | `docs/**` · `CLAUDE.md` · `README.md` | MQ-913, MQ-917 |
 
-### Stage 10 — ⚠ **사람 승인 뒤에만 착수. 이번 스프린트 안에 끝난다고 가정하지 않는다**
+### Stage 10 — **사람 승인 뒤에만 착수. 이번 스프린트 안에 끝난다고 가정하지 않는다**
 | TASK | 제목 | 범위 | 선행 |
 |------|------|------|------|
 | MQ-919 | 승인된 `actions` **병합 적재** + 재시드 + 회귀 + 평가 재측정 절차 안내 | `data/extracted/` · `data/seed.py` · `spikes/lookup_contract.py` | **사람 검수(G1)**, MQ-911, MQ-918 |
@@ -255,7 +255,7 @@ MQ-902 ─────► MQ-905          MQ-903 ─► MQ-908 ─► MQ-912
 | `docs/**`(그 밖) · `CLAUDE.md` · `README.md` · `TODO_직접할일.md` | MQ-918 | 9 |
 | `data/analysis/actions_review.md` · `TODO_직접할일.md`(§actions 절만) | MQ-911 | 4 |
 
-> ⚠ **같은 파일을 두 태스크가 소유하는 곳이 4군데다. 전부 스테이지가 다르다.**
+> **같은 파일을 두 태스크가 소유하는 곳이 4군데다. 전부 스테이지가 다르다.**
 > `docs/10_DECISIONS.md`(901/918) · `data/seed.py`(904/919) · `data/extract_error_codes.py`(905/907) ·
 > `TODO_직접할일.md`(911 은 §actions 절만 / 918 이 나머지).
 
@@ -265,13 +265,13 @@ MQ-902 ─────► MQ-905          MQ-903 ─► MQ-908 ─► MQ-912
 
 | 게이트 | 무엇을 | 언제 걸리나 | 막는 것 |
 |---|---|---|---|
-| **G1** 🔴 | **`actions` 후보 37건 검수** — 코드별 조치문·출처 페이지 대조 + **위험 문구(활선·방전·"10분 이상") 안전 검수** | **Stage 4 종료 후**(MQ-911 이 검수 패키지를 산출한 시점) | **MQ-919 만** 막는다. Stage 5~9 는 계속 진행된다 |
+| **G1** | **`actions` 후보 37건 검수** — 코드별 조치문·출처 페이지 대조 + **위험 문구(활선·방전·"10분 이상") 안전 검수** | **Stage 4 종료 후**(MQ-911 이 검수 패키지를 산출한 시점) | **MQ-919 만** 막는다. Stage 5~9 는 계속 진행된다 |
 | **G2** | `error_codes` **재승인 범위 확정** — 전량 65건인가 **변경분 37건**인가 | G1 과 동시 | D99 가 *"변경분 37건"* 을 제안한다. 기존 65건의 `code`·`error_name`·`causes`·`manual_page` 는 **한 글자도 바뀌지 않으므로** 재승인 대상이 아니다. 그 사실을 MQ-919 가 **해시 대조로 증명**한다 |
-| **G3** | **평가 재측정 비용 승인** (`--repeat 3` × 2회 = 병합 전/후) | MQ-919 이후 | 지표 개선 주장. ⛔ **비용을 지어내지 않는다** — `run_eval.py:237 estimate_cost()` 가 실행 시 출력한다 |
+| **G3** | **평가 재측정 비용 승인** (`--repeat 3` × 2회 = 병합 전/후) | MQ-919 이후 | 지표 개선 주장. **비용을 지어내지 않는다** — `run_eval.py:237 estimate_cost()` 가 실행 시 출력한다 |
 | G4 (기존) | `SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE` 문구 검수 | 이미 대기 중 | **이 스프린트를 막지 않는다.** 단 G1 의 안전 검수와 **같은 회차에 처리하면** 왕복이 준다 |
 | G5 (기존) | `RESIDUAL_AT_LIFE_END=0.50`·`FLOOR=0.10` 가정 동의 | 이미 대기 중 | **축 C 를 막지 않는다** — D65·D74 가 "값은 제공하되 성격을 표시"로 정리했고, MQ-917 이 **화면에 고지가 있는지**를 회귀로 잠근다 |
 
-> ⛔ **G1 을 Stage 1 에 끌어오지 않는다.** 검수 대상(후보 37건)이 MQ-905·907 의 **산출물**이라
+> **G1 을 Stage 1 에 끌어오지 않는다.** 검수 대상(후보 37건)이 MQ-905·907 의 **산출물**이라
 > 그 전에는 검수할 것이 존재하지 않는다.
 
 ---
@@ -389,7 +389,7 @@ def main() -> None: ...   # 리포트·JSON 산출
   1. `error_codes.json` 의 65건을 `(model, code)` 로 순회하며 `causes`·`actions` 결측을 센다.
      **기대값을 브리핑 실측으로 고정한다** — `S100: 41 / actions 결측 26 / causes 결측 0`,
      `iG5A: 24 / actions 결측 11 / causes 결측 0`, `_unparsed 0`, `_pending_review 0`.
-     ⚠ 이 값이 다르면 **입력이 이미 바뀐 것**이므로 스크립트가 경고하고 실측값을 그대로 리포트한다
+     이 값이 다르면 **입력이 이미 바뀐 것**이므로 스크립트가 경고하고 실측값을 그대로 리포트한다
      (하드코딩 assert 로 죽이지 않는다 — 이 도구는 계측기다).
   2. **양성 축(liveness anchor)을 반드시 함께 잰다.** 각 후보 페이지 텍스트에서 코드 토큰
      (`[A-Z0-9]{2,4}` 중 `error_codes` 에 실재하는 것)을 세어 `code_tokens_found` 에 넣는다.
@@ -399,9 +399,9 @@ def main() -> None: ...   # 리포트·JSON 산출
        (같은 페이지에서 어떤 코드는 성공했다 = **파서 결함**)
      - 두 신호가 다 없고 길이 이상치/표 붕괴만 있으면 `RE_OCR_CANDIDATE`
   3. **신호 2종만 쓴다** — `length_outlier`(셀 텍스트 길이 z-score) · `table_collapse`(행당 유효 셀 수의
-     급감). ⛔ **문자 깨짐 계열은 넣지 않는다** — InsuQ 실측에서 그 코퍼스 전체 0건이었고, 한국어 나열
+     급감). **문자 깨짐 계열은 넣지 않는다** — InsuQ 실측에서 그 코퍼스 전체 0건이었고, 한국어 나열
      구분자(`ㆍ`)를 고립 자모로 오탐한 전례가 있다(P31 기록). 없는 신호를 넣으면 오탐만 늘린다.
-  4. `estimate_ocr_cost()` 는 **페이지 수 × 45원** 을 계산만 한다. ⛔ **네트워크 호출 0** —
+  4. `estimate_ocr_cost()` 는 **페이지 수 × 45원** 을 계산만 한다. **네트워크 호출 0** —
      `httpx`·`requests` import 금지. "무엇을 살지 고르는 것까지"가 이 모듈의 경계다.
   5. 리포트에는 **결론이 아니라 두 축의 실측값**을 찍는다(CLAUDE.md 부재검사 규칙) —
      `"iG5A p.204: missing 11 / code_tokens 0 → SOURCE_MISSING"` 형태.
@@ -421,7 +421,7 @@ def main() -> None: ...   # 리포트·JSON 산출
     `data/analysis/extract_triage.md` + `data/extracted/extract_triage.json` 을 남긴다.
   - 리포트에 브리핑 실측이 재현된다 — **S100 26 · iG5A 11 · causes 0 · `_unparsed` 0**.
   - iG5A 조치 결측 코드가 **`SOURCE_MISSING`**, S100 결측 페이지가 **`CELL_SPLIT`** 으로 라벨링된다
-    (⚠ 실측이 다르면 **라벨이 아니라 실측을 적는다** — 계획이 데이터를 이기지 않는다).
+    (실측이 다르면 **라벨이 아니라 실측을 적는다** — 계획이 데이터를 이기지 않는다).
   - `rg -n "httpx|requests|urllib|socket" data/extract_triage.py` → **0건**.
   - `SELECT count(*) FROM error_codes` = **65** (이 태스크는 DB 를 건드리지 않는다).
 
@@ -465,14 +465,14 @@ def assess_repair_value(equipment_id: str, failed_part: str,
      `repair_scope` 만 optional. `data/` 쪽 함수의 키워드 기본값은 **MCP 스키마와 무관**하다.
   4. `int | str` 유니온을 **좁히지 않는다**(`spikes/tools_profile_contract.py ③` 이 검사한다).
   5. 도구 간 직접 호출(`assess → criticality`·`metrics`)은 **`data/` 안에서 함수 호출**로 바뀐다.
-     ⚠ `04 §13` 의 *"하위 도구 실패를 삼키지 않는다"* 계약을 그대로 유지 — `status != "ok"` 면
+     `04 §13` 의 *"하위 도구 실패를 삼키지 않는다"* 계약을 그대로 유지 — `status != "ok"` 면
      그 `status`·`reason` 을 **재포장 없이** 전파한다.
   6. `data/maint_value.py` 는 **`mcp_server` 를 import 하지 않는다**(반대 방향도 금지 대상은 아니지만
      이 모듈은 순수 데이터 계층이다). `read_only()` 도 import 하지 않는다 — 커넥션은 받는다.
 - **엣지 케이스**:
   | 상황 | 기대 |
   |---|---|
-  | `spikes/asset_tools_contract.py` **49건** | ⚠ **한 건도 수정하지 않고 통과해야 한다.** 수정이 필요하면 그 자체가 리팩터 실패 신호다 |
+  | `spikes/asset_tools_contract.py` **49건** | **한 건도 수정하지 않고 통과해야 한다.** 수정이 필요하면 그 자체가 리팩터 실패 신호다 |
   | `mcp_server/tools/_asset_ref.py` 의존 | `data/` 로 함께 옮길지 판단 — 도구 전용 정규화라면 도구에 남긴다 |
   | `data/rules/engine.ASSET_FACT_COLUMNS` import | 그대로 유지(이미 `data/` 안이다) |
   | 순환 import (`data/maint_value` ↔ `data/rules/engine`) | 단방향만 허용. 역참조가 필요하면 **중단하고 보고** |
@@ -540,13 +540,13 @@ CREATE TABLE repair_records (
 - **핵심 로직**:
   1. `repair_records` DDL 에 컬럼 4개 + CHECK 3종 추가. **기존 CHECK 4종은 한 글자도 건드리지 않는다.**
   2. `error_codes` DDL 에 컬럼 2개 + CHECK 1종 추가.
-  3. ⚠ **`load_error_codes()` 의 `INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?)` 를
+  3. **`load_error_codes()` 의 `INSERT INTO error_codes VALUES (?,?,?,?,?,?,?,?,?)` 를
      명시적 컬럼 목록으로 바꾼다.** 위치 인자 9개짜리 INSERT 는 컬럼이 늘어나는 순간 조용히 깨진다.
      새 두 컬럼은 JSON 에 키가 있으면 채우고 없으면 `None` (**현재는 전건 `None` 이 정상** — 병합은 MQ-919).
-  4. 시드 12행에 `created_at`(실행일 기준 상대일 — ⛔ `--today` 로 핀하지 않는다) ·
+  4. 시드 12행에 `created_at`(실행일 기준 상대일 — `--today` 로 핀하지 않는다) ·
      `requested_by='tech-01'` · `session_id=NULL` · `note=NULL` 을 채운다.
      **`state` 는 기존 그대로** `'signed'` 11 / `'draft'` 1 (`RPR-2403`).
-     ⚠ `'signed'` 11행은 새 CHECK ②를 만족해야 하므로 **`record_hash` 를 채워야 한다** —
+     `'signed'` 11행은 새 CHECK ②를 만족해야 하므로 **`record_hash` 를 채워야 한다** —
      `05 §16` 이 *"시드 전량 NULL"* 이라고 적은 근거는 *"해시 규약을 Sprint 7 이 정한다"* 였고
      그 규약이 이번에 정해진다. 시드도 **같은 규약으로 계산**해 넣는다(MQ-909 와 동일 함수를
      `data/` 에 두고 양쪽이 읽는다 — D73).
@@ -614,7 +614,7 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> list[str]:
 
 ```json
 {
-  "_status": "초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에 적재되지 않는다",
+  "_status": "초안 — 사람 검수 대기 (D99). 이 파일은 DB 에 적재되지 않는다",
   "_source_of_truth": "data/extracted/error_codes.json (이 파일은 병합 후보다)",
   "generated_at": "2026-08-xx",
   "counts": {"iG5A": 11, "S100": 0},
@@ -635,7 +635,7 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> list[str]:
 
 - **핵심 로직**:
   1. `check_manifest()` 를 그대로 재사용해 `ig5a-troubleshooting` 해시를 검증한다(D19).
-     ⛔ `data/raw/` 는 읽기 전용 — 파일을 수정하지 않는다.
+     `data/raw/` 는 읽기 전용 — 파일을 수정하지 않는다.
   2. p.22~29 를 `column_sentences()`(기존 함수) 로 읽어 **항목명 → 조치문** 사전을 만든다.
   3. `norm_name()` 으로 정규화해 기존 `error_codes.json` 의 `error_name` 과 조인한다.
      **조인 결과는 `ig5a_action_map.json` 에 대장으로 남긴다** — 무엇이 무엇에 붙었는지가
@@ -643,10 +643,10 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> list[str]:
   4. **조인 실패는 버린다.** `span_key()` 주석이 이미 규약을 적어 뒀다 —
      *"가장 가까운 항목으로 흘려보내면 남의 조치문이 붙는다 … 엉뚱한 에러코드에 붙은 조치는 누락보다 나쁘다."*
      실패분은 `_pending_review` 로 간다.
-  5. 🔴 **`verify_verbatim()` 을 반드시 통과해야 파일을 쓴다.** 정규화(공백·개행) 후 각 조치문이
+  5. **`verify_verbatim()` 을 반드시 통과해야 파일을 쓴다.** 정규화(공백·개행) 후 각 조치문이
      해당 페이지 텍스트의 **부분 문자열**이어야 한다. 하나라도 아니면 **파일을 쓰지 않고 중단**한다 —
      이것이 *"추출이 아니라 생성으로 새는 것"* 을 코드가 막는 지점이다(safety-guardrail).
-  6. ⛔ **`error_codes.json` 을 쓰지 않는다** (D99). 열어서 읽기만 한다.
+  6. **`error_codes.json` 을 쓰지 않는다** (D99). 열어서 읽기만 한다.
 - **엣지 케이스**:
   | 상황 | 반환 |
   |---|---|
@@ -685,19 +685,19 @@ def verify_verbatim(cand: list[dict], pdf_path: Path) -> list[str]:
   3. **`span_key()` 의 "못 고르면 버린다" 규약은 그대로 유지한다.** 회수율을 올리려고 이 규약을 풀면
      *"Out Phase Open 이 이웃 항목 조치 6건을 흡수"* 한 사고가 재발한다.
   4. 회수분은 **후보 파일에 append**(D99). 정본 미수정.
-  5. ⛔ **유료 OCR 을 호출하지 않는다.** 이 태스크로도 안 풀리는 페이지는 triage 의
+  5. **유료 OCR 을 호출하지 않는다.** 이 태스크로도 안 풀리는 페이지는 triage 의
      `RE_OCR_CANDIDATE` 로 남기고 **비용 견적만** 리포트에 적는다.
 - **엣지 케이스**:
   | 상황 | 기대 |
   |---|---|
-  | 🔴 **기존 성공분 오염** | **S100 의 기존 보유 15건 `actions` 가 한 글자도 변하지 않아야 한다.** 파서 수정 전후 diff **0** 을 DoD 로 건다 — 이게 이 태스크에서 가장 중요한 안전망이다 |
-  | `causes` 가 변함 | ⛔ **범위 밖.** `causes` 는 결측 0건이므로 손댈 이유가 없다. 변하면 회귀다 |
+  | **기존 성공분 오염** | **S100 의 기존 보유 15건 `actions` 가 한 글자도 변하지 않아야 한다.** 파서 수정 전후 diff **0** 을 DoD 로 건다 — 이게 이 태스크에서 가장 중요한 안전망이다 |
+  | `causes` 가 변함 | **범위 밖.** `causes` 는 결측 0건이므로 손댈 이유가 없다. 변하면 회귀다 |
   | `_unparsed` 증가 | 증가 0 이어야 한다 |
   | MQ-905 의 iG5A 후보가 사라짐 | 같은 파일을 순차 수정하므로 **append 로만** 쓴다. iG5A 11건이 남아 있는지 확인 |
 - **지켜야 할 결정**: D99 · D100 · D24 · D26 · 절대규칙 3 · 절대규칙 5
 - **회귀**: MQ-902 triage 재실행 + `verify_verbatim()`(905 가 만든 함수를 S100 페이지에도 적용).
 - **DoD**:
-  - S100 `actions` 결측 **26 → M**(M 실측 기록. ⛔ 목표치를 지어내지 않는다).
+  - S100 `actions` 결측 **26 → M**(M 실측 기록. 목표치를 지어내지 않는다).
   - **기존 보유 15건 diff 0** (스크립트가 대조 결과를 출력한다).
   - `_unparsed` 증가 **0** · `causes` 변화 **0** · `error_codes.json` 해시 **불변**.
   - `verify_verbatim()` 위반 **0건** · iG5A 후보 11건 **잔존 확인**.
@@ -904,7 +904,7 @@ def compute_record_hash(row: dict) -> str:   # "sha256:…"
 - **엣지 케이스**:
   | 상황 | 기대 |
   |---|---|
-  | 🔴 **시드 12행이 큐에 나타난다** | `list_approvals()` 는 필터 없으면 전부 준다(po·disposal 과 동일). **11 signed + 1 draft = 12건이 보이는 것이 정상**이고, `spikes/approvals_contract.py ③` 의 *"0건"* 기대를 **정정해야 한다** |
+  | **시드 12행이 큐에 나타난다** | `list_approvals()` 는 필터 없으면 전부 준다(po·disposal 과 동일). **11 signed + 1 draft = 12건이 보이는 것이 정상**이고, `spikes/approvals_contract.py ③` 의 *"0건"* 기대를 **정정해야 한다** |
   | 정비사가 `sign` | **403** |
   | 팀장이 `submit` | **403** (양방향으로 막아야 지표가 반쪽이 되지 않는다) |
   | `signed` 를 다시 `sign` | 409 `invalid_transition` |
@@ -947,7 +947,7 @@ def compute_record_hash(row: dict) -> str:   # "sha256:…"
      저장·검증은 물리 페이지 그대로(D26).
   3. **`null` 의 뜻을 docstring·`04 §1` 에 명시** — *"출처가 기록되지 않았다"* 이지
      *"본문과 같은 페이지"* 가 아니다.
-  4. ⛔ 다른 키를 건드리지 않는다. `actions` 배열 자체는 그대로다.
+  4. 다른 키를 건드리지 않는다. `actions` 배열 자체는 그대로다.
 - **엣지 케이스**:
   | 상황 | 반환 |
   |---|---|
@@ -973,7 +973,7 @@ def compute_record_hash(row: dict) -> str:   # "sha256:…"
 - **핵심 로직**:
   1. 표 1 — **코드별 대조표**: `model` · `code` · `error_name` · 후보 `actions` · `actions_manual_id` ·
      `actions_page`(+ 인쇄 페이지 병기) · `join_key` · `confidence` · **자동/수기 구분**.
-  2. 표 2 — 🔴 **안전 문구 별도 절**: 후보 조치문 중 활선·방전·대기시간·감전·고전압 키워드가 걸린 항목만.
+  2. 표 2 — **안전 문구 별도 절**: 후보 조치문 중 활선·방전·대기시간·감전·고전압 키워드가 걸린 항목만.
      각 항목에 **원문 발췌**와 페이지를 붙인다. *"매뉴얼 명시값 '10분 이상' 과 어긋나는 표기가 있는가"* 를
      검수자가 한 화면에서 볼 수 있어야 한다(`00_MVP_SCOPE §5` · `manual_eda.md:76`).
   3. 표 3 — **`_pending_review`**: 조인 실패·모호 항목과 그 이유.
@@ -995,7 +995,7 @@ def compute_record_hash(row: dict) -> str:   # "sha256:…"
   - `data/analysis/actions_review.md` 에 표 3종 + 재승인 범위 절이 있다.
   - 표 1 의 행 수 = 후보 `entries` 수(**기계 생성 증명** — 두 수가 다르면 손으로 옮긴 것이다).
   - `TODO_직접할일.md` 에 `## actions 검수` 절이 신설되고 3항목이 **미체크** 상태다.
-  - ⛔ 이 태스크는 **승인하지 않는다.** 승인 문구를 대신 적으면 게이트가 무의미해진다.
+  - 이 태스크는 **승인하지 않는다.** 승인 문구를 대신 적으면 게이트가 무의미해진다.
 
 ---
 
@@ -1035,7 +1035,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
      **전역 매퍼가 표시를 정한다**(D87) — 컴포넌트가 상태 문자열을 갖지 않는다.
   3. `kind` 는 **유니온이 아니라 `string`** 으로 받는 기존 규약을 유지한다(백엔드가 어휘를 늘려도 안 깨진다).
   4. `maintValue.ts` 는 **React·별칭 무의존**이어야 한다 — 그래야 `ui_honesty` L1 이 단독 `tsc` 로 돈다.
-     (⚠ 이 제약은 계약이다. `lib/ownership.ts` 가 같은 전제로 서 있다.)
+     (이 제약은 계약이다. `lib/ownership.ts` 가 같은 전제로 서 있다.)
 - **엣지 케이스**:
   | 상황 | 기대 |
   |---|---|
@@ -1070,7 +1070,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 │ │  verdict: REPAIR|REPLACE|SELL_AS_IS|HOLD|       │ │ (보조·근거 옆)    │ │
 │ │           ROOT_CAUSE_FIRST                       │ │ MTBF/추세/MTTR/  │ │
 │ │  estimates[] ← 추정치 고지 (D65·D74)             │ │ 가용도/예방비    │ │
-│ │  not_considered[] ← 무엇을 보지 않았는가         │ │ ⚠ 대시보드 아님   │ │
+│ │  not_considered[] ← 무엇을 보지 않았는가         │ │ 대시보드 아님   │ │
 │ │  [부품 칩] 클릭 → CriticalityDrawer 펼침         │ │                  │ │
 │ │  ┌ ExpenditureCard (작은 카드) ────────────┐     │ │                  │ │
 │ │  │ CAPITAL | REVENUE | HOLD + 근거          │     │ │                  │ │
@@ -1091,7 +1091,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
      **`HOLD` 는 경고색이되 에러가 아니다.**
   4. `MetricsAside` 는 **격자 대시보드가 아니다.** 값 6개를 **근거 문장과 함께** 세로로 놓고,
      `null`/`insufficient_data` 는 **"판단 근거 부족"** 으로 표기한다.
-     ⛔ **점수·등급·색 랭킹을 만들지 않는다** — D64 의 실질 위험은 OEE 계산이 아니라
+     **점수·등급·색 랭킹을 만들지 않는다** — D64 의 실질 위험은 OEE 계산이 아니라
      **MTBF·가용도를 성능 점수처럼 나열해 사실상 OEE 대시보드가 되는 것**이다(도구는 이미 OEE 를
      계산도 출력도 하지 않고 `not_considered` 에 금지 사유만 남긴다).
   5. **추정치 고지(D65·D74)는 접히지 않는 위치**에 둔다. `RESIDUAL_AT_LIFE_END`·`FLOOR` 가
@@ -1102,7 +1102,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
   |---|---|
   | 자산에 서명된 수리 0건(9자산 중 5) | 지표 대부분 "판단 근거 부족". **빈칸 아님** |
   | `verdict: ROOT_CAUSE_FIRST` | **3지 선택지를 그리지 않는다**(도구가 안 낸다 — 규칙 14). 반복 고장 안내가 먼저 |
-  | 하위 도구 실패 | 값 없음 + `reason` 노출. ⛔ "일시적 오류"로 바꿔 쓰지 않는다 |
+  | 하위 도구 실패 | 값 없음 + `reason` 노출. "일시적 오류"로 바꿔 쓰지 않는다 |
   | `market_value_*` null | 추정 불가 표기 + 사유. 0원으로 그리지 않는다 |
   | 부품이 `mfr_part_no: null` | **"공개되지 않음"**(D97). "미조사"·"없음"이 아니다 |
 - **지켜야 할 결정**: **D64**(성능 점수화 금지) · D65·D70·D74(추정치·`mtbf_basis`·가정 고지) ·
@@ -1130,7 +1130,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 - **핵심 로직**:
   1. **근거 번들 화면** — `build_evidence_bundle` 의 **5키**(D83)를 그대로 보여준다:
      `facts` · `laws` · `rules` · `evaluated` · `judgment` + `bundle_hash`.
-     🔴 **`hash_fixed` 의 의미를 화면에 명시**한다 — 해시가 고정하는 것은 **5키뿐**이고 렌더된 문서·증빙
+     **`hash_fixed` 의 의미를 화면에 명시**한다 — 해시가 고정하는 것은 **5키뿐**이고 렌더된 문서·증빙
      패키지는 그 밖이다(`12 §8`). 이 사실을 숨기면 계층 3의 존재 이유가 무너진다.
   2. `MetricsAside`(MQ-914 산출물)를 **여기서도 근거 옆 보조로 재사용**한다 — import 만 하고 수정하지 않는다.
      사용자 지정 배치(*"근거 옆에 보조로"*)가 문자 그대로 성립하는 지점이다.
@@ -1172,7 +1172,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
   3. 서명 바는 `SignBar` 패턴을 따르되 **`override` 개념이 없다** — 수리 증빙에는 차단 판정이 없다.
      `verdict`·`requires_override` 가 `null` 로 오는 것을 **`false` 로 접지 않는다**(D62).
   4. `state` 표시는 **전역 매퍼**(MQ-912)만 쓴다.
-  5. 🔴 **`self_sign` 409 를 사용자 언어로 보여준다** — "본인이 수행한 수리는 본인이 서명할 수 없습니다".
+  5. **`self_sign` 409 를 사용자 언어로 보여준다** — "본인이 수행한 수리는 본인이 서명할 수 없습니다".
 - **엣지 케이스**:
   | 상황 | 화면 |
   |---|---|
@@ -1203,7 +1203,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 - **핵심 로직**:
   1. **`write_tool_contract` 에 `create_repair_record` 축 추가** — 기존 2종과 같은 방식으로 **증명**한다:
      ⓐ `repair_writer()` 커넥션으로 실제 UPDATE·DELETE SQL 을 날려 **ABORT 확인**
-     (⛔ `draft_writer()`·`decision_writer()` 로 확인하지 않는다 — 잠기지 않은 경로를 통과시킨다)
+     (`draft_writer()`·`decision_writer()` 로 확인하지 않는다 — 잠기지 않은 경로를 통과시킨다)
      ⓑ 스키마에 `override`/`signed_at`/`record_hash`/`performed_by`/`verified_by`/`state` **키가 없다**
      ⓒ 미존재 부품 → `unknown_part` 이고 **`repair_records` 행 수가 그대로다**
      (실패했다고 "말하는" 것이 아니라 **아무것도 쓰지 않았음**을 센다)
@@ -1213,9 +1213,9 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
      `reject` 사유 필수 → **서명 후 `get_maintenance_metrics` 의 `n_repairs_signed` +1**.
      그리고 **MQ-908 의 5경로를 `core` 프로파일에서 호출**해 200 을 확인한다(D73 증명).
   3. `approvals_contract ③` 정정 — *"0건"* → **양성 축(12건 · `kind` 별 분포) + 음성 축(`kind=nope` 422)**.
-     ⛔ detail 에 결론이 아니라 **실측값**을 찍는다(`"repair=12 · kinds=3 · 422 확인"`).
+     detail 에 결론이 아니라 **실측값**을 찍는다(`"repair=12 · kinds=3 · 422 확인"`).
   4. `lookup_contract` +2 — `actions_source` 키 존재 · 현재 전건 null.
-     🔴 **부재 검사에 양성 축을 건다**: `not filled and rows == 65` 형태.
+     **부재 검사에 양성 축을 건다**: `not filled and rows == 65` 형태.
   5. `tools_profile_contract` — core **7** / full **16** · `create_repair_record` 의 required 3~5종 ·
      `int | str` 유니온 유지.
 - **엣지 케이스**:
@@ -1227,7 +1227,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 - **지켜야 할 결정**: D98 · D10 · D85 · D88 · D100 · **CLAUDE.md 부재검사 규칙**(양성 축 · detail 실측값)
 - **DoD**:
   - `ls spikes/*.py` → **29개**.
-  - 5스위트 전건 통과 · 총 건수가 **635 + Δ**(Δ 실측 기록). ⛔ 줄었으면 테스트가 사라진 것이다.
+  - 5스위트 전건 통과 · 총 건수가 **635 + Δ**(Δ 실측 기록). 줄었으면 테스트가 사라진 것이다.
   - `uv run python spikes/write_tool_contract.py` 출력에 **UPDATE·DELETE ABORT 실측 문구**가 있다.
   - `rg -n "draft_writer|decision_writer" spikes/repair_flow_contract.py` → **0건**.
 
@@ -1276,17 +1276,17 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
   `docs/status/*.html` · `TODO_직접할일.md`(§actions 외)
 - **핵심 로직 (전파 목록 — 빠뜨리면 다음 세션이 "했는데 안 한" 상태를 읽는다)**:
   1. **회귀 기준선** — spikes **29스위트/N건** · seed **29건** · pytest 46 · 프론트 라우트 **13개** ·
-     `error_codes` **65건**. ⚠ 러너 출력을 그대로 옮긴다.
+     `error_codes` **65건**. 러너 출력을 그대로 옮긴다.
   2. **도구 개수** — 코어 7 + 확장 **9** = **16**, 쓰기 도구 **3종**.
      고칠 곳: `CLAUDE.md`·`docs/README.md`·`00_MVP_SCOPE`(인프라 절·확장 표 9번)·
      `04_MCP_TOOLS`(머리말·§16·reason 색인)·`07_BACKLOG`(경계 메모).
   3. **DB** — `05_DB_SCHEMA §1`(출처 컬럼)·**§16 개정**(컬럼 4 + CHECK 3) · 자가검증 목록 26 → 29.
-     ⚠ **절 번호를 재배치하지 않는다**(§10 부재 규약 유지).
+     **절 번호를 재배치하지 않는다**(§10 부재 규약 유지).
   4. **API** — `06_REPO_API` 에 **§2.8 수리 증빙** 신설 + §2.5 에 확장 REST 5종 + §2.7 의
      *"repair 는 현재 항상 0건"* **정정**.
   5. **시나리오** — `02_SCENARIOS` S19 행을 *"미구현 — Sprint 9"* → **구현 완료 + 도구 시퀀스**로.
-  6. **백로그** — P25 를 ✅ 완료(Sprint 9)로 · P31 을 🟡 부분(triage + ⓐⓑ 회수, **병합은 사람 승인 대기**)으로.
-     ⛔ **P30·P32 를 건드리지 않는다.**
+  6. **백로그** — P25 를 ✅ 완료(Sprint 9)로 · P31 을 부분(triage + ⓐⓑ 회수, **병합은 사람 승인 대기**)으로.
+     **P30·P32 를 건드리지 않는다.**
   7. **D 범위 표기 5곳** — `D1~D97` → **`D1~D101`**.
   8. `docs/status/*.html` 의 개수·상태.
 - **엣지 케이스**:
@@ -1303,14 +1303,14 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 
 #### MQ-919 — (조건부) 승인된 `actions` 병합 적재 + 재시드 + 회귀
 
-- ⚠ **선행: 사람 검수(G1)·재승인 범위 확정(G2). 승인 전에는 착수하지 않는다.**
+- **선행: 사람 검수(G1)·재승인 범위 확정(G2). 승인 전에는 착수하지 않는다.**
 - **복무 시나리오**: S1 · S3 · S4
 - **변경 파일**: `data/extracted/error_codes.json`(병합) · `data/extracted/ig5a_action_map.json`(승인 반영) ·
   `data/seed.py`(병합 검증 1건) · `spikes/lookup_contract.py`(전건 null 검사 → 실측 대조로 전환)
 - **핵심 로직**:
   1. 후보 파일 중 **승인된 항목만** 정본에 병합한다. `actions`·`actions_manual_id`·`actions_page`
      **3필드만** 쓴다.
-  2. 🔴 **병합 전후 해시 대조로 "그 밖은 안 바뀌었다"를 증명한다** — 각 엔트리의
+  2. **병합 전후 해시 대조로 "그 밖은 안 바뀌었다"를 증명한다** — 각 엔트리의
      `(code, error_name, causes, manual_page, severity, display_code, related_parts)` 를 정준 직렬화해
      **병합 전후 해시가 65건 전건 동일**해야 한다. 하나라도 다르면 **중단**한다(G2 의 근거가 무너진다).
   3. `_status` 승격은 **`ig5a_action_map.json` 의 `pending_review` 가 비고 전 항목이 `high` 일 때만**
@@ -1321,13 +1321,13 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
      - `uv run python eval/run_eval.py --yes --repeat 3` 를 **병합 전/후 각각** 1회.
      - 판정은 **`stable_fail` → `stable_pass` 로 넘어간 칸으로만** 한다
        (`eval_gap_3rd.md §4`: 같은 코드·같은 문항이 2·3차에서 **7문항 뒤집혔다** — 단일 실행 비교는 무의미).
-     - ⛔ `MAINTQ_TOOLS_PROFILE=full` 로 돌리지 않는다(D88 이 `SystemExit(2)` 로 막는다).
+     - `MAINTQ_TOOLS_PROFILE=full` 로 돌리지 않는다(D88 이 `SystemExit(2)` 로 막는다).
        확장 9번째 도구는 **core 에 없으므로** 평가 조건이 변하지 않는다.
 - **엣지 케이스**:
   | 상황 | 기대 |
   |---|---|
   | 사람이 **일부만** 승인 | 승인분만 병합. 나머지는 후보 파일에 남는다 |
-  | 안전 문구 수정 요구 | ⛔ **자동 반영 금지.** 원문과 다른 문장을 넣는 것은 생성이다 → 매뉴얼 재확인 후 별도 처리 |
+  | 안전 문구 수정 요구 | **자동 반영 금지.** 원문과 다른 문장을 넣는 것은 생성이다 → 매뉴얼 재확인 후 별도 처리 |
   | 해시 대조 실패 | **병합 중단 + 보고.** 파일을 손대기 전에 멈춘다(`apply_fetch` 의 `LawMismatchError` 선례) |
   | 승인 0건 | 아무것도 하지 않는다. **실패가 아니다** |
 - **지켜야 할 결정**: D99 · D100 · D19 · D33 · D60 · D88 · 절대규칙 3
@@ -1336,7 +1336,7 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
   - 병합 전후 **비-actions 필드 해시 65/65 동일**(출력에 실측).
   - `actions` 결측 **37 → K**(K 실측).
   - `uv run python spikes/lookup_contract.py` 통과.
-  - ⛔ 평가 지표 개선을 **주장하지 않는다** — G3 이후 `--repeat 3` 2회 결과로만 말한다.
+  - 평가 지표 개선을 **주장하지 않는다** — G3 이후 `--repeat 3` 2회 결과로만 말한다.
 
 ---
 
@@ -1351,9 +1351,9 @@ export function isHoldVerdict(v: string): boolean;             // HOLD 는 에�
 | ② | **MQ-916**(큐 repair 상세) | 축 A 는 **API 까지 완결**된다. 화면 없이도 `/api/repairs` 로 검증 가능. 단 데모 서사가 반쪽 |
 | ③ | **MQ-907**(ⓑ S100 26건) | ⓐ 11건만 회수. **triage(902)가 남아 있으므로 다음 스프린트가 이어받을 수 있다** — 그게 902 를 먼저 만든 이유다 |
 | ④ | **MQ-910**(`actions_source` 노출) | D100 은 등재된 채로 남고 DDL 도 있다. 도구 출력만 다음으로 |
-| ⑤ | **축 C 전체**(903·908·912·914~917) | ⚠ 이때 **MQ-901 의 D101 도 함께 보류**해야 한다. 결정만 남기고 안 지키면 문서가 거짓이 된다 |
+| ⑤ | **축 C 전체**(903·908·912·914~917) | 이때 **MQ-901 의 D101 도 함께 보류**해야 한다. 결정만 남기고 안 지키면 문서가 거짓이 된다 |
 
-⛔ **덜어내면 안 되는 것**: MQ-901(결정) · MQ-902(triage 계측) · MQ-904(DDL) · MQ-906(쓰기 도구) ·
+**덜어내면 안 되는 것**: MQ-901(결정) · MQ-902(triage 계측) · MQ-904(DDL) · MQ-906(쓰기 도구) ·
 MQ-909(서명 API) · MQ-913(회귀) · MQ-918(전파). 이 7개가 **축 A 의 최소 완결 집합**이고,
 902 는 축 B 를 **다음 스프린트가 이어받을 수 있게 만드는 유일한 조각**이다.
 
@@ -1384,7 +1384,7 @@ MQ-909(서명 API) · MQ-913(회귀) · MQ-918(전파). 이 7개가 **축 A 의 
 
 ## 8. 현실성 평가 (tool-builder · 2026-08-14)
 
-> ⚠ 이 절의 번호는 원래 `## 7` 로 중복돼 있었다(§7 압축 순서와 같은 번호). **§8 로 정정했다.**
+> 이 절의 번호는 원래 `## 7` 로 중복돼 있었다(§7 압축 순서와 같은 번호). **§8 로 정정했다.**
 
 **규모 판정: 과대 · 계획 수정 필요: Y**
 
@@ -1403,8 +1403,8 @@ MQ-909(서명 API) · MQ-913(회귀) · MQ-918(전파). 이 7개가 **축 A 의 
 | `ui_honesty_contract.py` L2 글롭이 `components/asset/*.tsx` 자동 포함 | `:55 L2_GLOBS` 확인 · `:312~314` 확장 · `L2_FILES_FLOOR=8` | ✅ 참 |
 | `RepairDetail.tsx` 는 L2 글롭(`Decision*.tsx`)에 안 잡혀 `L2_EXTRA` 필요 | 확인 | ✅ 참 |
 | `ig5a-troubleshooting` PDF 실재 + manifest 등록 + p.22~29 에 조치문 표 존재 | `iG5A_Troubleshooting_Rev1.0_150415.pdf`(46p) 실재 · manifest 에 sha256·`role=supplement` 등록 · **PDF 직접 열람** 결과 물리 p.22~28 에 `키패드 표시/고장 상태/내용` + `원인 \| 조치사항` 표가 코드별로 존재(과전류·과전류2·인버터 과부하·출력 결상·저전압·브레이크 제어 이상 …). 한글 항목명 조인키 성립 | ✅ 참 — **축 B-ⓐ 는 실현 가능하다** |
-| 확장 도구 4종에 `_asset_ref.py` 의존이 있을 수 있다(MQ-903 엣지케이스) | `_asset_ref` 는 **처분 3종 전용**이고 이 4종은 쓰지 않는다. `data/rules/engine.py` 도 `data.*` 를 import 하지 않아 순환 없음 | ⚠ **기우 — 엣지케이스 삭제 대상** |
-| `ownership_api_contract.py:62` 가 `SELECT *` 라 컬럼 추가로 깨질 수 있다 | `:57` 은 `SELECT COUNT(*)`. `SELECT *` 는 `assets` 에만 | ⚠ **기우 — 무해** |
+| 확장 도구 4종에 `_asset_ref.py` 의존이 있을 수 있다(MQ-903 엣지케이스) | `_asset_ref` 는 **처분 3종 전용**이고 이 4종은 쓰지 않는다. `data/rules/engine.py` 도 `data.*` 를 import 하지 않아 순환 없음 | **기우 — 엣지케이스 삭제 대상** |
+| `ownership_api_contract.py:62` 가 `SELECT *` 라 컬럼 추가로 깨질 수 있다 | `:57` 은 `SELECT COUNT(*)`. `SELECT *` 는 `assets` 에만 | **기우 — 무해** |
 | manifest `ig5a-troubleshooting.print_page_offset: 0` (D100 §3-쟁점③ 이 전제로 삼음) | ❌ **거짓.** PDF 실측 — 물리 p.20→인쇄 "19", p.22→"21", p.24→"23", p.28→"27". `backend/manifest.py:141`(`printed = page - offset`) 규약으로 **실제 offset = 1**. manifest `:28~29` 는 값도 `page_note`(*"물리 = 인쇄"*)도 틀렸다 | ❌ **거짓** |
 | MQ-905 DoD *"재실행 후 `error_codes.json` 해시 불변"* | ❌ **거짓.** `extract_error_codes.py:483` 이 정본을 **무조건 덮어쓰고** `:474 generated_at=date.today()`(현재 파일은 `2026-08-05`) · `:473 _status` 재유도 | ❌ **거짓** |
 | *"19태스크/10스테이지는 이 레포 최대"* | sprint-7 = 13계획(분할 후 20 실행)/8스테이지 · sprint-8 = 7/5. **계획 시점 기준 최대 맞음** | ✅ 참 |
@@ -1435,7 +1435,7 @@ tool-builder 는 오프셋 오류가 *"`backend/manifest.py`·`sse.py`·`fronten
 | R10 | 2 | MQ-903 | 실물 규모 **4파일 1,378줄**(assess 588 / metrics 355 / expenditure 317 / criticality 118). `_assess` 가 `read_only()` 를 **두 번**(`:272`·`:395`) 열고 그 사이에서 하위 도구 2종이 각자 커넥션을 연다 → 호출자 주입으로 바꾸면 **커넥션 생명주기가 통째로 재배치**된다. "출력 dict 무변경"은 가능하지만 **단일 태스크로는 크다** | 🟡 |
 | R11 | 6 | MQ-914 | 4컴포넌트 + 신규 라우트 + API 4종 + D64/D65/D87 방어선. 크기가 상한선. (신규 `components/asset/*.tsx` 가 L2 규칙 6종에 자동 노출되는 것은 **정상 동작이며 위험이 아니다**) | 🟡 |
 | R12 | 10 | MQ-919 | 스프린트 안에 끝난다고 가정하지 않음 — **배치가 옳다** | 🟢 |
-| **R13** | 4 | MQ-910 | 🔴 **코디네이터 추가 발견 (tool-builder 미검출).** 명세 핵심로직 2 가 `lookup_error_code` 에 manifest 오프셋을 적용해 `print_page` 를 싣게 하는데, **고치려는 그 파일의 docstring**(`mcp_server/tools/lookup_error_code.py:11`)이 *"환산은 백엔드 렌더 1곳(backend/manifest.py)만 담당한다 (D32)"* 라고 적혀 있다. `mcp_server/rag.py:23` 도 동일. 실제로 **`mcp_server` 는 manifest 를 읽지 않는다**(grep 0건). 명세대로 하면 ⓐ 환산 지점이 2곳이 되어 **D32 가 깨지고** ⓑ `mcp_server` 에 새 의존이 생긴다 | 🔴 |
+| **R13** | 4 | MQ-910 | **코디네이터 추가 발견 (tool-builder 미검출).** 명세 핵심로직 2 가 `lookup_error_code` 에 manifest 오프셋을 적용해 `print_page` 를 싣게 하는데, **고치려는 그 파일의 docstring**(`mcp_server/tools/lookup_error_code.py:11`)이 *"환산은 백엔드 렌더 1곳(backend/manifest.py)만 담당한다 (D32)"* 라고 적혀 있다. `mcp_server/rag.py:23` 도 동일. 실제로 **`mcp_server` 는 manifest 를 읽지 않는다**(grep 0건). 명세대로 하면 ⓐ 환산 지점이 2곳이 되어 **D32 가 깨지고** ⓑ `mcp_server` 에 새 의존이 생긴다 | 🔴 |
 
 ### 8-3. 명세 보완이 필요한 곳
 
@@ -1485,7 +1485,7 @@ tool-builder 는 오프셋 오류가 *"`backend/manifest.py`·`sse.py`·`fronten
 **규모의 정직한 보고**: 태스크 수는 19 → **20**, 스테이지는 10 → **10** 이다. **숫자는 줄지 않았다.**
 줄어든 것은 **작업량**이다 — 프론트 라우트 2개 + 컴포넌트 3개가 빠지고, 들어온 셋 중 MQ-922 는
 **새 일이 아니라 MQ-903 을 쪼갠 절반**이며 MQ-920·921 은 각각 수십 줄짜리 방어 태스크다.
-⛔ *"17태스크로 줄였다"* 고 적지 않는다 — 그건 사실이 아니다.
+*"17태스크로 줄였다"* 고 적지 않는다 — 그건 사실이 아니다.
 
 ### 9-2. 확정 스테이지
 
@@ -1500,7 +1500,7 @@ tool-builder 는 오프셋 오류가 *"`backend/manifest.py`·`sse.py`·`fronten
 | **7** | MQ-914 | 단독 | 도구 4종이 한 화면에 모인다(§4 근거 유지) | 912 |
 | **8** | MQ-917 | 단독 | L2 글롭이 914 산출물을 스캔 | 914 |
 | **9** | MQ-918 | 단독 | 기준선 숫자는 러너 출력이 기준 | 913 · 917 |
-| **10** | MQ-919 | ⚠ 조건부 | **G1·G2 승인 후에만** | 911 · 918 · **사람** |
+| **10** | MQ-919 | 조건부 | **G1·G2 승인 후에만** | 911 · 918 · **사람** |
 
 ```
 MQ-901 ─┬─► MQ-903 ─┬─► MQ-922 ─┬─► MQ-908 ─┐
@@ -1523,13 +1523,13 @@ MQ-902 ──► MQ-905
 - **핵심 로직**:
   1. `ig5a-troubleshooting` 의 `print_page_offset` 을 **0 → 1** 로 고치고 `page_note` 를
      *"물리 = 인쇄 + 1 (PDF 실측: 물리 p.22 → 인쇄 21)"* 로 바꾼다.
-     ⚠ **`data/raw/` 읽기 전용 규칙(절대규칙 5)은 PDF 원본에 대한 것**이고 `manifest.json` 은 대장이다 —
+     **`data/raw/` 읽기 전용 규칙(절대규칙 5)은 PDF 원본에 대한 것**이고 `manifest.json` 은 대장이다 —
      `sha256`·`file`·`source_url` 은 **한 글자도 건드리지 않는다**(그게 읽기 전용의 실체다).
   2. `backend/manifest.py` 에 **`manual_offset(manual_id: str) -> int`** 를 추가한다.
      기존 `print_page_offset(model)` 은 **그대로 둔다**(`role="primary"` 우선 규약 유지).
      `to_print_page` 와 같은 D49 경계 조건(`< 1` 이면 미적용)을 적용한 `to_print_page_for_manual()` 도 함께.
   3. `spikes/citation_render.py` ⑨ 는 `role=="primary"` 만 대조한다 → **supplement 축을 추가**한다.
-     🔴 **양성 축 필수**: `대조한 매뉴얼 수 > 0 and 불일치 0`. detail 에 `{id: offset}` 실측을 찍는다.
+     **양성 축 필수**: `대조한 매뉴얼 수 > 0 and 불일치 0`. detail 에 `{id: offset}` 실측을 찍는다.
 - **엣지 케이스**: PDF 를 다시 열어 재확인하지 않는다(이미 실측). / 다른 매뉴얼 오프셋(`iG5A` 0 · `S100` 16)은 **건드리지 않는다**.
 - **지켜야 할 결정**: D19(manifest 단일 원천) · D26(저장은 물리) · D32(환산 1곳) · D49(경계) · 절대규칙 5
 - **DoD**:
@@ -1543,7 +1543,7 @@ MQ-902 ──► MQ-905
 - **복무 시나리오**: 인프라 (S1·S3·S4 의 데이터 방어선)
 - **변경 파일**: `data/extract_error_codes.py`(수정 — `main()` 과 출력 경로만)
 - **핵심 로직**:
-  1. 🔴 **문제**: `:483 OUTPUT.write_text(...)` 가 정본을 **무조건 덮어쓴다.** `:474 generated_at=date.today()`
+  1. **문제**: `:483 OUTPUT.write_text(...)` 가 정본을 **무조건 덮어쓴다.** `:474 generated_at=date.today()`
      때문에 **내용이 같아도 해시가 바뀌고**, `:473 _status` 가 `ig5a_approval_status()` 로 재유도된다.
      MQ-905·907 빌더가 스크립트를 한 번 돌리면 **CLAUDE.md 가 기록한 65→0행 사고가 재현될 수 있다.**
   2. **`--candidates-only` 플래그 신설** — MQ-905·907 은 **이 모드로만** 돌린다. 정본을 열지 않는다.
@@ -1572,13 +1572,13 @@ MQ-902 ──► MQ-905
 - **변경 파일**: `mcp_server/tools/assess_repair_value.py`(수정) · `data/maint_value.py`(**`repair_value()` 추가**)
 - **핵심 로직**:
   1. MQ-903 이 만든 `data/maint_value.py` 에 **`repair_value(con, *, …)` 만** 더한다.
-  2. 🔴 **커넥션 생명주기 재배치가 이 태스크의 본체다** — 현재 `_assess` 가 `read_only()` 를
+  2. **커넥션 생명주기 재배치가 이 태스크의 본체다** — 현재 `_assess` 가 `read_only()` 를
      **`:272`·`:395` 두 번** 열고 그 사이에서 하위 도구 2종이 각자 또 연다.
      → `data/` 쪽은 **호출자가 넘긴 커넥션 하나만** 쓰고, 하위는 **함수 호출**로 바뀐다.
   3. `04 §13` *"하위 도구 실패를 삼키지 않는다"* 를 유지 — `status != "ok"` 면 **재포장 없이** 전파.
   4. **`DESCRIPTION` 과 `DEFAULT_REPAIR_SCOPE` 는 도구 파일에 남긴다.**
      `mcp_server/server.py:183` 이 후자를 import 하므로, 남겨야 **`server.py` 를 안 건드리고**
-     같은 스테이지의 MQ-906(= `server.py` 소유)과 충돌하지 않는다. ⛔ **`server.py` 를 수정하지 말 것.**
+     같은 스테이지의 MQ-906(= `server.py` 소유)과 충돌하지 않는다. **`server.py` 를 수정하지 말 것.**
 - **지켜야 할 결정**: D101 · D73 · D15 · D80 · D9 · D65·D70·D74 · D64 · `04 §13`
 - **DoD**:
   - `uv run python spikes/asset_tools_contract.py` → **49건 전건 통과, 검사 파일 diff 0.**
@@ -1591,17 +1591,17 @@ MQ-902 ──► MQ-905
 | TASK | 무엇을 고치나 | 왜 |
 |---|---|---|
 | **MQ-901** | D100 셀에 ⓐ `ig5a-troubleshooting` 오프셋을 **1**(MQ-920 정정)로 적는다 — §3 쟁점③ 의 *"`print_page_offset: 0`"* 은 **틀렸다** ⓑ **`actions_source` 는 `{manual_id, page}` 만 담고 `print_page` 는 담지 않는다** 를 명시 | R7 · **R13** |
-| **MQ-903** | ⓐ 범위를 **3종**(metrics·criticality·expenditure)으로 축소 ⓑ 🔴 `REPEAT_THRESHOLD`·`REPEAT_WINDOW_DAYS` 는 **`data/ownership.py:70~71` 의 상수를 쓰고 `verify_ownership.py:34` 와 같은 드리프트 assert 를 건다** — 새 사본을 만들지 않는다 ⓒ `_asset_ref` 엣지케이스 **삭제**(이 4종은 안 쓴다) | R5 · §8-1 |
+| **MQ-903** | ⓐ 범위를 **3종**(metrics·criticality·expenditure)으로 축소 ⓑ `REPEAT_THRESHOLD`·`REPEAT_WINDOW_DAYS` 는 **`data/ownership.py:70~71` 의 상수를 쓰고 `verify_ownership.py:34` 와 같은 드리프트 assert 를 건다** — 새 사본을 만들지 않는다 ⓒ `_asset_ref` 엣지케이스 **삭제**(이 4종은 안 쓴다) | R5 · §8-1 |
 | **MQ-904** | ⓐ **`data/repair_hash.py` 를 이 태스크가 만든다**(`HASHED_KEYS`·`canonical_json`·`compute_record_hash`). MQ-909 는 **import 만** ⓑ `ownership_api_contract:62` 엣지케이스 **삭제**(`:57` 은 `COUNT(*)`, 무해) ⓒ `created_at` 신설이 `decisions.py:602` 주석을 낡게 만든다 → **MQ-918 전파 목록에 추가** | R4 · §8-1 |
-| **MQ-905** | ⓐ `IG5A_TROUBLE_PAGES` 주석의 *"print_page_offset 0"* → **1** ⓑ DoD *"해시 불변"* 은 **MQ-921 의 가드가 보장**한다(905 가 따로 구현하지 않는다) ⓒ **조인 소스 후보 추가**: 물리 p.20~21 의 고장/경보 일람표(분류·고장표시·설명·Page)가 더 안정적이다 — 단 그 `Page` 열은 **인쇄 페이지라 +1 보정** 필요 ⓓ 🔴 **`EST`(비상정지) 1건은 트러블슈팅본에도 명칭이 없다** — MQ-902 탐침 실측(결측 11건 중 명칭 실재 **10건**). 별도로 다루고 **지어내지 않는다** ⓔ MQ-921 이 만든 `--candidates-only` 의 docstring 은 *"정본을 열지도 쓰지도 않는다"* 인데 905 는 정본을 **읽어야** 한다 → 문구를 *"쓰지 않는다"* 로 좁힌다 | R6·R7 · §8-3 · **Stage 1 실측** |
-| **MQ-906** | 소유 파일 **4개 추가**: `backend/agent/prompts.py`(`_EXT_TOOL_LINES` 에 `create_repair_record` 1행 — **안 넣으면 LLM 에게 도구가 안 보여 S19 를 채팅으로 시연 못 한다**) · `spikes/tools_profile_contract.py`(full 15→**16**) · `spikes/s10_smoke.py`(`EXPECTED_TOOLS_FULL` 15→**16**). ⚠ `EXT_RULES` 확장은 `assert len(EXT_RULES)==len(_EXT_RULE_TOOLS)` 때문에 **신중히** | R1·R2·R8 |
-| **MQ-908** | 🔴 **`decisions._metrics()`(`:517~520`) 방침을 정해야 한다** — ⓐ `data.maint_value.maintenance_metrics` 위임으로 전환하거나 ⓑ 유지하되 **D101 채택 이유에서 `:520` 인용을 뺀다**. ⛔ 지금처럼 두면 *"산식이 두 벌"* 을 근거로 삼고서 두 벌을 그대로 남기는 셈이라 **문서가 거짓이 된다** | R9 |
+| **MQ-905** | ⓐ `IG5A_TROUBLE_PAGES` 주석의 *"print_page_offset 0"* → **1** ⓑ DoD *"해시 불변"* 은 **MQ-921 의 가드가 보장**한다(905 가 따로 구현하지 않는다) ⓒ **조인 소스 후보 추가**: 물리 p.20~21 의 고장/경보 일람표(분류·고장표시·설명·Page)가 더 안정적이다 — 단 그 `Page` 열은 **인쇄 페이지라 +1 보정** 필요 ⓓ **`EST`(비상정지) 1건은 트러블슈팅본에도 명칭이 없다** — MQ-902 탐침 실측(결측 11건 중 명칭 실재 **10건**). 별도로 다루고 **지어내지 않는다** ⓔ MQ-921 이 만든 `--candidates-only` 의 docstring 은 *"정본을 열지도 쓰지도 않는다"* 인데 905 는 정본을 **읽어야** 한다 → 문구를 *"쓰지 않는다"* 로 좁힌다 | R6·R7 · §8-3 · **Stage 1 실측** |
+| **MQ-906** | 소유 파일 **4개 추가**: `backend/agent/prompts.py`(`_EXT_TOOL_LINES` 에 `create_repair_record` 1행 — **안 넣으면 LLM 에게 도구가 안 보여 S19 를 채팅으로 시연 못 한다**) · `spikes/tools_profile_contract.py`(full 15→**16**) · `spikes/s10_smoke.py`(`EXPECTED_TOOLS_FULL` 15→**16**). `EXT_RULES` 확장은 `assert len(EXT_RULES)==len(_EXT_RULE_TOOLS)` 때문에 **신중히** | R1·R2·R8 |
+| **MQ-908** | **`decisions._metrics()`(`:517~520`) 방침을 정해야 한다** — ⓐ `data.maint_value.maintenance_metrics` 위임으로 전환하거나 ⓑ 유지하되 **D101 채택 이유에서 `:520` 인용을 뺀다**. 지금처럼 두면 *"산식이 두 벌"* 을 근거로 삼고서 두 벌을 그대로 남기는 셈이라 **문서가 거짓이 된다** | R9 |
 | **MQ-909** | ⓐ `data/repair_hash.py` 는 **MQ-904 산출물** — import 만 ⓑ `spikes/approvals_contract.py ③` 정정을 **이 태스크가 한다**(0건 → 12건 실측 + `kind=nope` 422 음성 축) | R3·R4 |
-| **MQ-910** | 🔴 **`print_page` 를 출력에서 뺀다.** `actions_source: {manual_id, page} \| null` 만. 인쇄 환산은 `backend/sse.py:citation_for()` 1곳 유지(D32) — **고치려는 파일 `:11` 의 docstring 이 그렇게 적혀 있다** | **R13** |
+| **MQ-910** | **`print_page` 를 출력에서 뺀다.** `actions_source: {manual_id, page} \| null` 만. 인쇄 환산은 `backend/sse.py:citation_for()` 1곳 유지(D32) — **고치려는 파일 `:11` 의 docstring 이 그렇게 적혀 있다** | **R13** |
 | **MQ-911** | 표 1 의 "인쇄 페이지 병기"는 **MQ-920 정정값(offset 1)** 을 쓴다 | R7 |
-| **MQ-913** | 범위 **축소** — 남는 것: `spikes/repair_flow_contract.py`(신규) · `write_tool_contract` 확장(2→3종) · `lookup_contract` +2. **이관**: `tools_profile_contract`·`s10_smoke` → MQ-906 · `approvals_contract ③` → MQ-909 ⓑ 🔴 **추가**: MQ-921 의 정본 쓰기 가드에 **회귀가 0건**이다 — 65→0행 사고를 막는 유일한 코드(`extract_error_codes.write_canonical()`)가 사람이 손으로 두 번 돌리는 DoD 로만 지켜진다. *"정본 쓰기 경로는 `write_canonical` 하나 · exit 1/2 계약 · `--candidates-only` 는 `OUTPUT` 미접촉"* 을 **양성 축과 함께** 넣는다 | R1·R2·R3 · **Stage 1 reviewer 권고 4** |
+| **MQ-913** | 범위 **축소** — 남는 것: `spikes/repair_flow_contract.py`(신규) · `write_tool_contract` 확장(2→3종) · `lookup_contract` +2. **이관**: `tools_profile_contract`·`s10_smoke` → MQ-906 · `approvals_contract ③` → MQ-909 ⓑ **추가**: MQ-921 의 정본 쓰기 가드에 **회귀가 0건**이다 — 65→0행 사고를 막는 유일한 코드(`extract_error_codes.write_canonical()`)가 사람이 손으로 두 번 돌리는 DoD 로만 지켜진다. *"정본 쓰기 경로는 `write_canonical` 하나 · exit 1/2 계약 · `--candidates-only` 는 `OUTPUT` 미접촉"* 을 **양성 축과 함께** 넣는다 | R1·R2·R3 · **Stage 1 reviewer 권고 4** |
 | **MQ-917** | `L2_EXTRA` 에 `RepairDetail.tsx` 추가 **삭제**(MQ-916 컷) | 컷 반영 |
-| **MQ-918** | ⓐ 프론트 라우트 **13 → 11**(914 만 추가) ⓑ 전파 대상에 **`data/raw/manifest.json` 오프셋 정정**·**`05_DB_SCHEMA §16` 컬럼 수 15→19** 추가 ⓒ **MQ-915·916 을 `07_BACKLOG` 에 "Sprint 10 이월"로 등재**(조용히 사라지게 두지 않는다) ⓓ `decisions.py:602` 주석 갱신 ⓔ 🔴 **D69 원문이 낡았다** — *"코어 7 + 확장 7"* 로 적혀 있는데 실측은 **확장 8**(Sprint 9 후 9). 갱신 대상 ⓕ **기존 `D74`·`D77` 행은 셀 안 `\|` 가 이스케이프돼 있지 않아** 마크다운에서 열이 밀린다(셀 파싱 6개·5개). **Stage 1 이 발견했고 손대지 않았다** — 여기서 정정 ⓖ **정본 갱신 경로가 바뀐 사실**을 전파한다 — MQ-921 이후 *"정정은 `extract_error_codes.py` 재실행으로만"* 은 더 이상 참이 아니다(`TODO_직접할일.md:24` · `data/analysis/ig5a_code_mapping.md:62` · `data-analysis/reports/preprocessing_report.md:94`). 셋 다 **완료 기록(과거형)이라 당장 거짓은 아니지만** 앞으로의 경로를 함께 적는다 ⓗ ✅ **§6 핵심로직 7(D 범위 표기)은 Stage 1 종료 시 선행 처리됐다** — `D1~D97`(일부 `D1~D96`)→ **`D1~D101`** 6곳. `.claude/agents/reviewer.md` 가 낡아 있으면 **Stage 2 reviewer 가 D98~D101 을 지나칠 실제 위험**이 있어 미룰 수 없었다. 여기서는 **재확인만** 한다 | 컷 반영 · §8-3 · **Stage 1 실측·reviewer 권고 5** |
+| **MQ-918** | ⓐ 프론트 라우트 **13 → 11**(914 만 추가) ⓑ 전파 대상에 **`data/raw/manifest.json` 오프셋 정정**·**`05_DB_SCHEMA §16` 컬럼 수 15→19** 추가 ⓒ **MQ-915·916 을 `07_BACKLOG` 에 "Sprint 10 이월"로 등재**(조용히 사라지게 두지 않는다) ⓓ `decisions.py:602` 주석 갱신 ⓔ **D69 원문이 낡았다** — *"코어 7 + 확장 7"* 로 적혀 있는데 실측은 **확장 8**(Sprint 9 후 9). 갱신 대상 ⓕ **기존 `D74`·`D77` 행은 셀 안 `\|` 가 이스케이프돼 있지 않아** 마크다운에서 열이 밀린다(셀 파싱 6개·5개). **Stage 1 이 발견했고 손대지 않았다** — 여기서 정정 ⓖ **정본 갱신 경로가 바뀐 사실**을 전파한다 — MQ-921 이후 *"정정은 `extract_error_codes.py` 재실행으로만"* 은 더 이상 참이 아니다(`TODO_직접할일.md:24` · `data/analysis/ig5a_code_mapping.md:62` · `data-analysis/reports/preprocessing_report.md:94`). 셋 다 **완료 기록(과거형)이라 당장 거짓은 아니지만** 앞으로의 경로를 함께 적는다 ⓗ ✅ **§6 핵심로직 7(D 범위 표기)은 Stage 1 종료 시 선행 처리됐다** — `D1~D97`(일부 `D1~D96`)→ **`D1~D101`** 6곳. `.claude/agents/reviewer.md` 가 낡아 있으면 **Stage 2 reviewer 가 D98~D101 을 지나칠 실제 위험**이 있어 미룰 수 없었다. 여기서는 **재확인만** 한다 | 컷 반영 · §8-3 · **Stage 1 실측·reviewer 권고 5** |
 | **MQ-919** | 변경 없음 | — |
 
 ### 9-5. 이월 (다음 스프린트)
@@ -1609,10 +1609,10 @@ MQ-902 ──► MQ-905
 | 항목 | 이유 |
 |---|---|
 | **MQ-915** — 근거 번들 화면 + 지출 독립 페이지 | 규모 압축. **REST(MQ-908)·`api.ts`(MQ-912)는 이번에 만들어 두므로** 다음 스프린트는 화면만 그리면 된다 |
-| **MQ-916** — 큐 `kind:"repair"` 상세 | 같음. 축 A 는 **API 까지 완결**되어 `/api/repairs` 로 검증 가능하다. ⚠ **데모 서사는 반쪽이다** — 서명을 화면으로 못 보여준다 |
+| **MQ-916** — 큐 `kind:"repair"` 상세 | 같음. 축 A 는 **API 까지 완결**되어 `/api/repairs` 로 검증 가능하다. **데모 서사는 반쪽이다** — 서명을 화면으로 못 보여준다 |
 | `traces.request_chain_id` A2A 호출부 | 원래 범위 밖 (§0) |
 
-⛔ **MQ-912 의 `getEvidenceBundle` 은 남겨 둔다** — MQ-913 이 core 프로파일에서 5경로를 검증하므로
+**MQ-912 의 `getEvidenceBundle` 은 남겨 둔다** — MQ-913 이 core 프로파일에서 5경로를 검증하므로
 소비자가 없어도 계약은 살아 있다. 다음 스프린트가 바로 쓴다.
 
 ### 9-6. 실행
@@ -1626,7 +1626,7 @@ MQ-902 ──► MQ-905
 
 ## 10. Stage 1 완료 (2026-08-14)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 
 ### 10-1. 태스크별 결과
 
@@ -1635,7 +1635,7 @@ MQ-902 ──► MQ-905
 | **MQ-901** | `docs/10_DECISIONS.md` **+4행 / −0** (D98·D99·D100·D101). 인용 4곳 전부 실제 파일과 대조 확인 | 문서 |
 | **MQ-902** | `data/extract_triage.py` · `data/analysis/extract_triage.md` · `data/extracted/extract_triage.json` | 계측기 자체가 판정 소스 |
 | **MQ-920** | `data/raw/manifest.json`(**2줄**) · `backend/manifest.py`(함수 3개) · `spikes/citation_render.py` | **13 → 18건** |
-| **MQ-921** | `data/extract_error_codes.py` — `write_canonical()` 가드 + `--candidates-only` | ⚠ **회귀 0건** → MQ-913 |
+| **MQ-921** | `data/extract_error_codes.py` — `write_canonical()` 가드 + `--candidates-only` | **회귀 0건** → MQ-913 |
 
 ### 10-2. 회귀 실측 (전건 통과 · 감소 0 · 재시도 0)
 
@@ -1647,7 +1647,7 @@ MQ-902 ──► MQ-905
 `generated_at` = `2026-08-05` 유지(오늘 계산값 `2026-08-14` 가 **기록되지 않았다** = 가드 작동),
 `_status` = `승인 완료 (2026-07-28)` 되돌림 0.
 
-### 10-3. 🔴 계획의 가정 하나가 데이터에 뒤집혔다 (MQ-905 에 직접 영향)
+### 10-3. 계획의 가정 하나가 데이터에 뒤집혔다 (MQ-905 에 직접 영향)
 
 MQ-902 DoD 는 *"iG5A 결측 11건이 `SOURCE_MISSING` 으로 라벨링된다"* 를 기대했으나 **실측은 다르다**:
 
@@ -1659,7 +1659,7 @@ s100-manual p.416~419: missing 26 / tokens 5,6,1,3 → CELL_SPLIT (26/26 기대�
 
 **원인은 파서가 아니라 양성 축 자체의 적용 범위다.** iG5A 추출은 ASCII 코드 토큰이 아니라
 **한글 명칭**으로 조인해서, 조치문 추출에 **성공한** 코드가 6·4건 있는 페이지에서도 토큰이 0 이다.
-→ ⛔ **iG5A 에서 `code_tokens_found` 를 소스 유무의 증거로 쓰면 안 된다.**
+→ **iG5A 에서 `code_tokens_found` 를 소스 유무의 증거로 쓰면 안 된다.**
 
 **그래서 독립 축을 하나 더 쟀다** (명세에 없던 추가분 — `probe_supplement()`):
 
@@ -1674,7 +1674,7 @@ s100-manual p.416~419: missing 26 / tokens 5,6,1,3 → CELL_SPLIT (26/26 기대�
 
 | 권고 | 조치 |
 |---|---|
-| 🔴 `anchor_conflict` 가 **산문에만** 있어 `label` 로 필터링하는 MQ-905 에게 통째로 증발한다 | `PageVerdict` 에 **`anchor_conflict: bool`·`scanned: bool`** 신설(`asdict` 로 JSON 자동 반영). 실측 결과 `p.202`·`p.204` 2건이 `True` 로 실렸다 |
+| `anchor_conflict` 가 **산문에만** 있어 `label` 로 필터링하는 MQ-905 에게 통째로 증발한다 | `PageVerdict` 에 **`anchor_conflict: bool`·`scanned: bool`** 신설(`asdict` 로 JSON 자동 반영). 실측 결과 `p.202`·`p.204` 2건이 `True` 로 실렸다 |
 | 스캔 불가를 `SOURCE_MISSING` 으로 접는 것은 *"재지 못함"* 을 **결론**으로 바꾸는 것(D65) | `LABELS` 에 **`UNSCANNED`** 추가 + `scanned=False`. note 에 *"이 0 들은 실측이 아니라 재지 못함"* 명시 |
 | `citation_render ⑨` 의 `len(by_id) > len(primary)` 는 **supplement 축이 죽어도 통과**한다 (P30 유형) | supplement 를 **이름으로** 세도록 교체 — `len(supplements) > 0 and len(supp_compared) == len(supplements)`. detail 에 `supplement 1/1=['ig5a-troubleshooting']` 실측 인쇄 |
 
@@ -1690,7 +1690,7 @@ s100-manual p.416~419: missing 26 / tokens 5,6,1,3 → CELL_SPLIT (26/26 기대�
 
 ## 11. Stage 2 완료 (2026-08-16)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `2f955fd` — `[M1] Sprint 9 Stage 2 — data/maint_value.py 위임(D101) · repair_records DDL 확장(D98) · iG5A actions 후보 추출(D99)`
 
 ### 11-1. 태스크별 결과
@@ -1734,7 +1734,7 @@ Windows 소켓 고갈 징후 없음(스위트 1개씩 분리 호출).
 
 ## 12. Stage 3 완료 (2026-08-16)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `b16d946` — `[M2] Sprint 9 Stage 3 — create_repair_record 신설(D98·16번째 도구) · assess_repair_value 위임 · S100 재추출`
 
 ### 12-1. 태스크별 결과
@@ -1774,7 +1774,7 @@ Windows 소켓 고갈 징후 없음(1회차 완주 후 D9 수정 반영해 재�
 
 ## 13. Stage 4 완료 (2026-08-16)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `1ec937e` — `[M2] Sprint 9 Stage 4 — 확장 도구 REST 노출 5종(D73) · decisions._metrics() 위임(D101) · lookup_error_code actions_source(D100) · 사람 검수 패키지(G1 입력)`
 
 ### 13-1. 착수 전 결정 — `decisions._metrics()` 방침 확정 (사람, ⓐ 위임)
@@ -1812,7 +1812,7 @@ seed **29건** · pytest **46건** · spikes **28스위트**(Stage 3 기준선�
 
 ---
 
-## 14. 🔴 스테이지 순서 오류 — "Stage 5" 로 잘못 실행된 것을 정정 (2026-08-16)
+## 14. 스테이지 순서 오류 — "Stage 5" 로 잘못 실행된 것을 정정 (2026-08-16)
 
 ### 14-1. 무슨 일이 있었나
 
@@ -1851,7 +1851,7 @@ seed **29건** · pytest **46건** · spikes **28스위트**(Stage 3 기준선�
 
 ## 15. Stage 7 완료 (2026-08-17)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `bb2ae93` — `[M3] Sprint 9 Stage 7 — 수리 가치 판단 화면 (S1+, MQ-914)`
 
 착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 7 = **MQ-914 단독** 확인 후 실행. MQ-915·916 은 §9-5 에 실제로 이월 등재돼 있음을 재확인(Stage 5 사고와 달리 이번엔 사실).
@@ -1883,7 +1883,7 @@ seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contrac
 
 ## 16. Stage 8 완료 (2026-08-17)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `9f2fd34` — `[M3] Sprint 9 Stage 8 — ui_honesty_contract 확장 (D65·D74·D87·D64 방어선, MQ-917)`
 
 착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 8 = **MQ-917 단독** 확인 후 실행.
@@ -1913,21 +1913,21 @@ seed **29건** · pytest **46건** · spikes **29스위트**(`ui_honesty_contrac
 
 ## 17. Stage 9 완료 (2026-08-17)
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `ae96912` — `[M3] Sprint 9 Stage 9 — 문서·개수 전파 (MQ-918)`
 
 착수 전 §9-2 표 재확인(§14 재발 방지 규칙 적용): Stage 9 = **MQ-918 단독** 확인. 코디네이터가 착수 전 spikes 29스위트를 직접 실행해 정확한 스위트별 건수(총 702건)를 실측한 뒤 실행에 착수(기억으로 적지 않는다는 CLAUDE.md 규칙 준수).
 
 ### 17-1. 산출
 
-`CLAUDE.md`·`README.md`·`docs/README.md`·`docs/00_MVP_SCOPE.md`·`docs/02_SCENARIOS.md`·`docs/05_DB_SCHEMA.md`(§1·§16 DDL 전면 교체, 자가검증 26→29)·`docs/06_REPO_API.md`(§2.8 신설, §2.5·§2.7 정정)·`docs/07_BACKLOG.md`(P25 ✅ 완료, P31 🟡 유지)·`docs/10_DECISIONS.md`(D69·D74·D77 사실관계·렌더링 결함만 정정)·`docs/12_MAINT_VALUE.md`·`docs/status/*.html`(3개)·`TODO_직접할일.md`·`data/maint_value.py`(주석만).
+`CLAUDE.md`·`README.md`·`docs/README.md`·`docs/00_MVP_SCOPE.md`·`docs/02_SCENARIOS.md`·`docs/05_DB_SCHEMA.md`(§1·§16 DDL 전면 교체, 자가검증 26→29)·`docs/06_REPO_API.md`(§2.8 신설, §2.5·§2.7 정정)·`docs/07_BACKLOG.md`(P25 ✅ 완료, P31 유지)·`docs/10_DECISIONS.md`(D69·D74·D77 사실관계·렌더링 결함만 정정)·`docs/12_MAINT_VALUE.md`·`docs/status/*.html`(3개)·`TODO_직접할일.md`·`data/maint_value.py`(주석만).
 
 ### 17-2. reviewer 게이트 — 1차 FAIL(블로커 2건) → 수정 → 2차 PASS
 
 | 회차 | 판정 | 사유 |
 |---|---|---|
 | 1차 | **FAIL** | ⓐ `docs/07_BACKLOG.md`에 MQ-915·916(§9-5 이월 확정)이 등재돼 있지 않아 **정본 백로그에서 조용히 사라진 상태** — §9-4 델타 ⓒ가 명시적으로 막으려던 바로 그 상황이 재현됨. ⓑ `CLAUDE.md:24-25`(절대 규칙 1) 본체가 여전히 `po_drafts`·`decisions`/`po.py`·`decisions.py`만 언급하고 `repair_records`·`backend/routers/repairs.py`(D98)가 빠짐 — 하위 불릿(쓰기 도구 3종)은 정정됐는데 정작 규칙 제목이 낡은 채 남음 |
-| 수정 | — | `docs/07_BACKLOG.md`에 **P37**(MQ-915)·**P38**(MQ-916)을 "🟡 Sprint 10 이월"로 신규 등재(API는 이미 완결·화면만 남았다는 근거 포함) · `CLAUDE.md` 규칙 1 본체에 `repair_records`·`backend/routers/repairs.py` 추가 |
+| 수정 | — | `docs/07_BACKLOG.md`에 **P37**(MQ-915)·**P38**(MQ-916)을 "Sprint 10 이월"로 신규 등재(API는 이미 완결·화면만 남았다는 근거 포함) · `CLAUDE.md` 규칙 1 본체에 `repair_records`·`backend/routers/repairs.py` 추가 |
 | 2차 | **PASS** | reviewer가 P37·P38 내용을 실제 라우터 코드(`backend/routers/maint_value.py`·`repairs.py`)와 대조해 근거 검증, `CLAUDE.md` 정정 확인, P36 서술 훼손 없음·P 번호 중복 없음 확인 |
 
 reviewer가 "마커만" 제약(§4, `docs/10_DECISIONS.md`) 위반 여부도 별도 확인: D69·D74·D77 수정은 §9-4 델타 ⓔⓕ가 지시한 **사실관계 오탈자(도구 개수)·마크다운 렌더링 결함(`|` 미이스케이프)** 정정뿐이고 결정의 판단·이유·채택근거는 한 글자도 안 바뀌었음을 diff 대조로 확인 — 제약 위반 아님, 새 D 등재 대상도 아님.
@@ -1950,10 +1950,10 @@ seed **29건** · pytest **46건** · spikes **29스위트 / 702건**(무증감 
 
 ## 19. Stage 10 완료 (2026-08-17) — 마지막 스테이지
 
-**브랜치**: `sprint-9-repair-record` (⛔ master 미머지 — 머지는 사람 요청 시에만)
+**브랜치**: `sprint-9-repair-record` (master 미머지 — 머지는 사람 요청 시에만)
 **커밋**: `d29143a` — `[M1] Sprint 9 Stage 10 — 승인된 actions 3건 정본 병합 (D99·G1·G2, MQ-919)`
 
-🔴 이 스테이지는 `CLAUDE.md`가 두 번의 DB 파괴 사고(MQ-708·MQ-713a)를 기록한 `data/extracted/error_codes.json`(정본)을 직접 수정하는 가장 위험한 작업이었다. 코디네이터가 착수 전 현재 상태를 직접 조회해 확보한 뒤(65 entries, 승인 대상 3건의 정확한 현재값), 매우 상세한 안전 지침과 함께 위임했다.
+이 스테이지는 `CLAUDE.md`가 두 번의 DB 파괴 사고(MQ-708·MQ-713a)를 기록한 `data/extracted/error_codes.json`(정본)을 직접 수정하는 가장 위험한 작업이었다. 코디네이터가 착수 전 현재 상태를 직접 조회해 확보한 뒤(65 entries, 승인 대상 3건의 정확한 현재값), 매우 상세한 안전 지침과 함께 위임했다.
 
 ### 19-1. 산출
 
@@ -1979,7 +1979,7 @@ reviewer가 해시 대조 로직(`_entry_hash` 제외 필드 3종 정확성 · `
 - `spikes/lookup_contract.py` → **14/14 통과**.
 - **멱등성**: 스크립트 3회 재실행 후 `git hash-object`로 파일 해시 불변 확인.
 - 전체 회귀: seed 30건 · pytest 46건 · spikes 29스위트 전건 통과(`s4_smoke` 1회 Windows 소켓 고갈 재시도 후 통과, CLAUDE.md 기록된 정상 현상) · ruff 통과.
-- ⛔ `eval/run_eval.py` 미실행 — G3(평가 재측정 비용 승인) 대기 중, 이번 스테이지 범위 밖.
+- `eval/run_eval.py` 미실행 — G3(평가 재측정 비용 승인) 대기 중, 이번 스테이지 범위 밖.
 
 ### 19-5. Sprint 9 종료
 
@@ -2001,7 +2001,7 @@ Stage 1~10(MQ-901~921, MQ-919 포함) **전부 완료**. 이월 확정 2건(MQ-9
 | 시퀀스 제약 준수 | 100% | 100% | 0 |
 | 미지 코드 환각률 | 0% | 0% | 0 |
 
-### 20-2. 🔴 결론 — 이 차이를 병합 효과로 주장하지 않는다 (명세 지시 그대로)
+### 20-2. 결론 — 이 차이를 병합 효과로 주장하지 않는다 (명세 지시 그대로)
 
 두 가지 이유로 **판정 불가**로 결론 내렸다:
 

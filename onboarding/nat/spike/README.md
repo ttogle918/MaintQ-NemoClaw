@@ -47,7 +47,7 @@ uv run python spike/mcp_client_check.py real http://127.0.0.1:8775/mcp <스파�
 `[도구 호출 결과] lookup_error_code -> '{"status": "ok", ..., "manual_page": 202, ...}'`
 가 나오면 확인(D151 과 같은 기대값).
 
-⚠ `nat mcp client tool call` **CLI 는 쓰지 않았다** — `--bearer-token` 만 있고
+`nat mcp client tool call` **CLI 는 쓰지 않았다** — `--bearer-token` 만 있고
 `custom_headers`(X-User 등 임의 헤더)를 받지 않는다. 대신 `nvidia-nat-mcp` 가 워크플로
 YAML 을 해석할 때 내부적으로 호출하는 것과 **같은 코드 경로**
 (`WorkflowBuilder.add_function_group()` → `MCPClientConfig` → `MCPStreamableHTTPClient`)

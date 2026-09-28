@@ -99,14 +99,14 @@
 - **MCP 도구 코어 7종** = 읽기 6 + 쓰기 1 (위 기능들에 매핑, `04_MCP_TOOLS §1~§7`) **+ 확장 13종**(`§8~§20`,
   읽기 11 + **쓰기 2** — 신규 2종(`search_insurance_clause`·`assess_equipment_loan`, §19·§20, Sprint 16,
   D112)도 읽기 전용, 프로파일 게이트 **D69**)
-  - ⚠ **쓰기 도구는 4종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
+  - **쓰기 도구는 4종이다** — `create_po_draft`(§7) · `generate_disposal_document`(§15, Sprint 7 신설) ·
     `create_repair_record`(§16, Sprint 9 신설, D98) — 셋 다 draft INSERT 만 — + `stage_code_normalization`(온보딩 프로필,
     Sprint 19, D154 — 스테이징 INSERT 만). 전부 UPDATE 권한이 없다 (D10·D81·D98·D154)
 - **Postgres DB** (**29절·실제 테이블 30개**(2026-09-25 — Sprint 19 온보딩 5테이블 `onboarding_*` §25~§29 포함) — 아래는 옛 내역: 코어 11 + 확장 7 + A2A 1(`partner_links`, Sprint 8) +
   UI목업 1(`part_lifecycle_mock`, Sprint 10) + F5·F6 4(`deadlines`·`incidents`·`ownership_checks`·
   `risk_profile`, Sprint 11, D102). 실측: `data/seed.py` 의 `CREATE TABLE` **24개**) + pgvector(매뉴얼
   임베딩, `manual_chunks`, D117) + `seed.py`(시드 케이스 7종, 자가검증 **29건**) (`05_DB_SCHEMA`).
-  ⚠ **D27이 정한 SQLite는 Sprint 16(D116, 2026-08-23)에서 Postgres로 전환됐다** — 로컬은 Docker
+  **D27이 정한 SQLite는 Sprint 16(D116, 2026-08-23)에서 Postgres로 전환됐다** — 로컬은 Docker
   Compose(`docker-compose.yml`, pgvector/pgvector:pg15)로 띄운다
 - **UI 2종**: 정비사 진단 콘솔(화면 A) / 팀장 승인 큐(화면 B) (`03_WIREFRAME`)
 - **환경**: uv + venv + Docker(로컬 Postgres 컨테이너 필수, D116) — D27의 "Docker는 MVP 제외"는
@@ -188,14 +188,14 @@
 > 단 **사람용 REST(`/api/assets/…`)는 `core` 에서도 동작한다** (D73).
 
 **Sprint 7 결과** — ⓐ ✅ 법제처 조문 원문 실수집(`fetch_from_api`, 6/7) ⓑ ✅ 계층 3 서명 API + `decisions` 저장
-ⓒ 🟡 쓰기 도구 — `generate_disposal_document` **완료** / `create_repair_record` **이월**
+ⓒ 쓰기 도구 — `generate_disposal_document` **완료** / `create_repair_record` **이월**
 (Sprint 7 → Sprint 8 → **Sprint 9**. Sprint 8 도 손대지 않았다 — 아래 참조)
 ⓓ ✅ 확장 도구의 UI 노출(자산 목록·처분 사전판정·실사·처분서 서명 화면).
 
 **Sprint 8 결과** — A2A 신원 계층(`partner_links` 테이블·시드 5행·자격증명 env 층·`traces.request_chain_id`).
 D91~D96 이 여기서 나왔고 스키마·시드·env 계층까지 구현됐다. **호출부(나가는 A2A 요청)는 미착수.**
 
-**Sprint 9 잔여** — `create_repair_record`(P25·S29). ⚠ **두 번 미뤄졌다**: Sprint 7 은 처분 서명(F3)에,
+**Sprint 9 잔여** — `create_repair_record`(P25·S29). **두 번 미뤄졌다**: Sprint 7 은 처분 서명(F3)에,
 Sprint 8 은 A2A 신원에 범위를 썼다. 기능이 취소된 것이 아니라 **범위 확정에서 계속 밀린 것**이고,
 계약 자리(`kind: "repair"`)는 두 스프린트 내내 비어 있는 채로 유지됐다.
 

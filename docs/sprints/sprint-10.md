@@ -82,7 +82,7 @@ Claude-in-Chrome 으로 세 화면을 실제 렌더링·상호작용까지 확�
 - **승인 큐 repair 상세** (`/manager/repair/{id}`): 목록에서 이동 가능(리뷰 블로커 수정 확인) · signed 레코드의
   "대조 일치" 색(파란 정보 톤, D87 수정 확인) · 서명/반려 컨트롤이 상태별로 정확히 노출/은폐되는 것 확인.
 
-**🐛 실사용 중 신규 발견 · 수정**: 서명/반려 직후 상세 패널이 새로고침 없이는 갱신되지 않는 버그 발견
+**실사용 중 신규 발견 · 수정**: 서명/반려 직후 상세 패널이 새로고침 없이는 갱신되지 않는 버그 발견
 (`RepairDetail.tsx`의 로컬 `repair` state가 `onUpdated` 콜백에서 안 바뀜 — 부모 목록은 갱신되는데 열려 있는
 상세만 낡은 채로 남음). 커밋 `95e09a8`으로 수정, 서명·반려 둘 다 재검증(새로고침 없이 즉시 갱신 확인).
 
@@ -101,7 +101,7 @@ PM 조사에서 원 브리핑과 실제 코드가 갈리는 지점 3건을 확�
 1. **D83 5키 정정** — `facts·laws·rules·evaluated·judgment`(원 브리핑, 오기) → **`laws·rules·evaluated·contracts·facts`**
    (`verdict`는 5키 밖 별도 필드, 해시 대상 아님). `04_MCP_TOOLS.md §14`·D83 로 재확인.
 2. **`queueState.ts` 의 `STATE_LABEL.repair` 가 여전히 `{}`** — Sprint 8 이 "어휘 미정"으로 비워 둔 채였다.
-   `RepairDetail.tsx` 를 만들어도 승인 큐 **목록**(`StateBadge` 경유)의 repair 행은 이 맵을 안 채우면 계속 `⚠` 미지값으로
+   `RepairDetail.tsx` 를 만들어도 승인 큐 **목록**(`StateBadge` 경유)의 repair 행은 이 맵을 안 채우면 계속 `` 미지값으로
    뜬다. `mappers.repairStateView`(상세 전용, Sprint 9 산출물, 현재 미사용)와 이 맵이 **같은 어휘의 두 번째 맵**이 되는
    D87 위반이 이미 잠재해 있었다 — MQ-1002 가 이걸 먼저 고친다.
 3. **`ui_honesty_contract.py` 의 `L2_GLOBS`/`L2_EXTRA`/`L2_FILES_FLOOR` 는 같은 날 다른 스레드(설비 하이라이트
@@ -249,12 +249,12 @@ MQ-1002 ─┘
 
 ### MQ-1002 — 승인 큐 `kind:"repair"` 상세 (P38)
 
-**복무 시나리오**: S19 (⚠ `docs/07_BACKLOG.md` P33 — 이 번호는 Q 시리즈 전사 지도의 S19(FinAllQ 기업 고객
+**복무 시나리오**: S19 (`docs/07_BACKLOG.md` P33 — 이 번호는 Q 시리즈 전사 지도의 S19(FinAllQ 기업 고객
 온보딩)와 충돌 중이며 아직 사람 협의 대기다. 기능·계약(D·enum·DB)에는 영향 없음 — 번호는 문서에만 있다. 이
 스프린트가 그 미결을 늘리는 것은 아니지만, 정정되면 이 문서의 표기도 따라 바뀐다. — 2026-08-18 Sprint 12에서 S29로 정정 확정)
 
 **선행 정정(반드시 먼저)**: `frontend/lib/queueState.ts`의 `STATE_LABEL.repair`가 현재 `{}`다. 채우지 않으면
-큐 **목록**(`StateBadge` 경유)의 repair 행은 상세 화면이 생긴 뒤에도 `⚠` 미지값으로 뜬다 — `mappers.repairStateView`
+큐 **목록**(`StateBadge` 경유)의 repair 행은 상세 화면이 생긴 뒤에도 `` 미지값으로 뜬다 — `mappers.repairStateView`
 (상세 전용)와 `STATE_LABEL.repair`(목록 배지 전용)가 같은 어휘의 두 번째 맵이 되는 D87 위반이 이미 잠재해 있다.
 
 **변경 파일**
@@ -338,7 +338,7 @@ MQ-1002 ─┘
 - `cd frontend && npx tsc --noEmit` 통과.
 - `npm run build` → 라우트 수 **MQ-1001 완료 후 값과 동일하게 유지**(큐 안이므로 신규 라우트 없음).
 - `rg -n "\"pending\"|\"signed\"|\"draft\"|\"rejected\"" frontend/components/queue/RepairDetail.tsx` → 술어 함수(`isPendingState` 등) 호출부를 제외한 직접 `state === "..."` 리터럴 비교 **0건**.
-- 수동: 팀장 승인 큐에서 repair 항목 선택 → 상세 렌더 → 서명(또는 반려) → 목록 배지가 `◔ pending` → `✓ signed`(또는 `✕ rejected`)로 정상 갱신(이전엔 `⚠` 미지값이었는지 함께 확인).
+- 수동: 팀장 승인 큐에서 repair 항목 선택 → 상세 렌더 → 서명(또는 반려) → 목록 배지가 `◔ pending` → `✓ signed`(또는 `✕ rejected`)로 정상 갱신(이전엔 `` 미지값이었는지 함께 확인).
 - `rg -n "REPAIR_STATE_LABEL" frontend/lib/mappers.tsx` → **0건**(로컬 맵 삭제 확인).
 
 ---
@@ -353,7 +353,7 @@ MQ-1002 ─┘
 1. `L2_EXTRA = ("components/queue/SignBar.tsx", "components/queue/RepairDetail.tsx")`.
 2. `L2_FILES_FLOOR`를 **실제로 스위트를 실행해 나온 값**으로 올린다. 산술 예상치(검증용, 실행 후 대조):
    기존 26 + `app/(console)/**/*.tsx` 신규 2개 + `components/asset/*.tsx` 신규 2개 + `L2_EXTRA` 신규 1개 = **31**.
-   ⚠ 지어내지 말고 `len(l2_targets())` 실측으로 확정한다.
+   지어내지 말고 `len(l2_targets())` 실측으로 확정한다.
 3. 상단 주석에 "MQ-1003 — Sprint 10, `RepairDetail.tsx` 편입 + 하한 31(실측 확정)" 한 줄 추가.
 
 **지켜야 할 결정**: D87 · CLAUDE.md 부재검사 규칙(양성 축 필수) · Sprint 9 §14 재발방지(자기 코드 자기 검증 금지)
@@ -373,7 +373,7 @@ MQ-1002 ─┘
 **변경 파일**: `docs/07_BACKLOG.md` · `CLAUDE.md`
 
 **핵심 로직**
-1. `docs/07_BACKLOG.md` P37·P38 행의 `🟡 Sprint 10 이월` → `✅ 완료 (Sprint 10)`로 갱신, 산출물을 실제 생성된
+1. `docs/07_BACKLOG.md` P37·P38 행의 `Sprint 10 이월` → `✅ 완료 (Sprint 10)`로 갱신, 산출물을 실제 생성된
    파일명으로 채운다.
 2. `CLAUDE.md`의 "실측 기준선" 표: 프론트 라우트 `11개` → `13개`, `ui_honesty_contract` 건수를 MQ-1003 실행
    결과로 갱신, spikes 총 건수를 그만큼 조정.

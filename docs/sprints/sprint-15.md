@@ -15,7 +15,7 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
 `OHt 냉각핀 과열`·`Ovt 과전압`·`Lvt 저전압`) 전부 원문 대조로 정확성이 확인됐고 `IOL` 채택도 확정됐다.
 **즉 IE5 5개 에러코드를 정본에 병합할 준비는 이미 끝나 있다.**
 
-### 0-1. 🔴 백로그 P11의 "enum 확장 지점 4곳"은 부정확하다 — 실제로는 그보다 많다
+### 0-1. 백로그 P11의 "enum 확장 지점 4곳"은 부정확하다 — 실제로는 그보다 많다
 
 `docs/07_BACKLOG.md` P11: *"enum 확장 지점 4곳: `mcp_server/tools/*.VALID_MODELS`, DB
 `CHECK(model IN ...)`, `manifest.json`, 프론트 타입"* — 이건 백로그 작성 당시 추정이다. PM·tool-builder
@@ -30,7 +30,7 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
   `mcp_server/rag.py MODELS` · `backend/manifest.py MODELS` · `mcp_server/tools/create_po_draft.py
   VALID_MODELS` · `mcp_server/tools/create_repair_record.py VALID_MODELS` · `data/inventory.py
   VALID_MODELS` · `backend/agent/prompts.py MODELS` · `backend/agent/loop.py:517`(하드코딩 튜플).
-- ⚠ **이 "8곳"도 완전하지 않다** — tool-builder 재검토에서 하드코딩된 **에러 메시지 문자열** 3건이
+- **이 "8곳"도 완전하지 않다** — tool-builder 재검토에서 하드코딩된 **에러 메시지 문자열** 3건이
   추가로 드러났다(§0-3). 게다가 sprint-14 §0-5는 *"iG5A·S100 쌍을 언급하는 파일이 28개"* 라고
   이미 적어 뒀다 — 언급(참조)과 정의(enum 검사 로직) 개수가 다르다는 점을 다시 한번 확인한다.
   **DDL(`equipment.model` CHECK)은 이번 스프린트가 의도적으로 건드리지 않는다** — IE5 실물 설비를
@@ -42,15 +42,15 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
 `ValueError`로 **예외로 죽는 것**이 sprint-14에서 실증됐다. 이번 스프린트는 둘을 **같은 스테이지**
 (Stage 2)에서 함께 진행한다.
 
-### 0-3. 🔴 tool-builder 현실성 평가가 드러낸 추가 결함 3건 (전부 이 계획에 흡수)
+### 0-3. tool-builder 현실성 평가가 드러낸 추가 결함 3건 (전부 이 계획에 흡수)
 
 | # | 결함 | 근거(실측) | 이 계획의 대응 |
 |---|---|---|---|
 | ① | 하드코딩 에러 메시지 3곳이 8개 지점 목록에서 빠짐 | `mcp_server/tools/rag_search_manual.py:37`(`MODELS`를 import는 하지만 메시지는 자체 하드코딩) · `create_po_draft.py:86` · `data/inventory.py:37` — 전부 `f"model 은 iG5A|S100 이어야 합니다"` 리터럴 | MQ-1504·MQ-1505 범위에 각각 추가 (§1 Stage 2) |
 | ② | `null_count==62` 하드코딩이 **두 곳**에 있는데 계획은 한 곳만 고침 | `data/seed.py`(㉚)뿐 아니라 `spikes/lookup_contract.py:288`(검사 ⑭)도 같은 값을 독립적으로 단언 | MQ-1508 범위에 `spikes/lookup_contract.py:288` 갱신 추가 |
-| ③ | 🔴 **안전 회귀** — `prompt_rules ⑭`가 `MODELS`와 `SAFETY_BASELINE` 키 집합의 **완전 일치**를 검사 | `spikes/prompt_rules.py:185-200` `baseline_quoted == set(MODELS)`. MQ-1501이 `SAFETY_BASELINE`에 IE5를 추가하지 않기로 결정(안전 문구 근거 미검증, 절대규칙 3)했으므로 `MODELS`가 3-tuple이 되는 순간 이 등식이 깨진다 | MQ-1509 범위에 이 검사 갱신 추가 — `baseline_quoted <= set(MODELS)`(부분집합)로 완화하고, "IE5는 SAFETY_BASELINE 근거가 아직 없다"를 판정식 주석에 명시 |
+| ③ | **안전 회귀** — `prompt_rules ⑭`가 `MODELS`와 `SAFETY_BASELINE` 키 집합의 **완전 일치**를 검사 | `spikes/prompt_rules.py:185-200` `baseline_quoted == set(MODELS)`. MQ-1501이 `SAFETY_BASELINE`에 IE5를 추가하지 않기로 결정(안전 문구 근거 미검증, 절대규칙 3)했으므로 `MODELS`가 3-tuple이 되는 순간 이 등식이 깨진다 | MQ-1509 범위에 이 검사 갱신 추가 — `baseline_quoted <= set(MODELS)`(부분집합)로 완화하고, "IE5는 SAFETY_BASELINE 근거가 아직 없다"를 판정식 주석에 명시 |
 
-> ⚠ 이 표는 "누가 틀렸다"가 아니라 **다음 사람이 같은 구멍을 다시 뚫지 않기 위한 기록**이다.
+> 이 표는 "누가 틀렸다"가 아니라 **다음 사람이 같은 구멍을 다시 뚫지 않기 위한 기록**이다.
 > tool-builder는 fresh agent로 PM의 요약 명세만 받았고, 코디네이터가 프롬프트를 압축하는 과정에서
 > PM 원안의 세부(예: `severity` 매핑)가 일부 누락돼 tool-builder가 "명세 불충분"으로 오판한 항목도
 > 있었다 — MQ-1507의 `severity` 매핑은 PM 원안에 **이미 있었다**(§2 참조). 재확인 과정에서
@@ -71,13 +71,13 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
 
 ## 1. 스테이지 계획
 
-### Stage 1 — D109 결정 초안 (🛑 사용자 확인 게이트)
+### Stage 1 — D109 결정 초안 (사용자 확인 게이트)
 
 | TASK | 제목 | 범위 | 선행 |
 |------|------|------|------|
 | MQ-1501 | D109 결정 등재 — model enum 3종 확장, 범위 경계 명시 | `docs/10_DECISIONS.md` | — |
 
-> 🛑 **Stage 2는 사용자가 D109를 확인하기 전에는 착수하지 않는다.** `model` enum은 CLAUDE.md 절대규칙
+> **Stage 2는 사용자가 D109를 확인하기 전에는 착수하지 않는다.** `model` enum은 CLAUDE.md 절대규칙
 > 4(D6·D13)가 보호하는 값이고, "설계와 다른 구현을 하려면 먼저 D를 추가하고 진행"이 이 저장소의
 > 규칙이다. Stage 1을 단독으로 둔 이유 — 이후 모든 코드 변경이 D109의 범위 경계(§0-4)를 따라야
 > 하므로, 결정문 확정 전에 코드를 건드리면 문서·코드가 어긋나는 드리프트가 재발한다.
@@ -99,7 +99,7 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
 | MQ-1507 | IE5 5건 정본 병합 스크립트 신설 + 실행 | `data/merge_ie5_codes.py`(신규), `data/extracted/error_codes.json`(데이터), `data/extracted/ie5_code_candidates.json`(데이터) | MQ-1502, MQ-1503 |
 | MQ-1508 | 회귀 하드코딩 값 갱신 + IE5 적재 검사 신설 | `data/seed.py`, **`spikes/lookup_contract.py:288`(§0-3②)** | MQ-1507 |
 
-> ⚠ **직렬 필수** — MQ-1508의 정확한 값(65→70 등)은 MQ-1507이 실제로 만든 개수를 실측해서 넣는다
+> **직렬 필수** — MQ-1508의 정확한 값(65→70 등)은 MQ-1507이 실제로 만든 개수를 실측해서 넣는다
 > (추정치 하드코딩 금지, CLAUDE.md 실측 우선 원칙).
 
 ### Stage 4 — 회귀 갱신 (병렬)
@@ -143,7 +143,7 @@ Sprint 14(2026-08-20)가 IE5 추출 경로(P29)를 완성하고, 같은 날 IE5 
 
 ### MQ-1502 — 후보 파일 `_status` 갱신
 
-`_status`를 `"승인 완료 (2026-08-20). ⛔ 이 파일은 여전히 DB 에 적재되지 않는다 — 정본 병합은
+`_status`를 `"승인 완료 (2026-08-20). 이 파일은 여전히 DB 에 적재되지 않는다 — 정본 병합은
 MQ-1507 이 별도로 한다"`로 갱신(`data/merge_approved_actions.py` 선례 형식). `_status` 외 키는
 건드리지 않는다.
 
@@ -275,7 +275,7 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 `seed 36` · `sp2 20` · `write_tool 30` · `api 31` · `sp3 22` · `ruff clean` — 문서만 변경이라 코드
 회귀 영향은 없으나 고정 스위트 전부 재확인.
 
-### 🛑 다음 단계 — 사용자 승인 대기
+### 다음 단계 — 사용자 승인 대기
 
 **Stage 2(실제 enum 코드 확장)는 사용자가 D109 결정문을 확인·승인해야 착수한다.** 결정문 전문은
 `docs/10_DECISIONS.md`의 D109 행 참조 — 요지는 §0 그대로:
@@ -304,7 +304,7 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 | MQ-1505 | `create_po_draft.py`·`create_repair_record.py`·`data/inventory.py` — `VALID_MODELS` 3-tuple화 |
 | MQ-1506 | `prompts.py`·`loop.py` — `MODELS` 3-tuple화(`SAFETY_BASELINE` 등은 불변) |
 
-### 🔴 reviewer 1차 FAIL — 계획에 없던 세 번째 하드코딩
+### reviewer 1차 FAIL — 계획에 없던 세 번째 하드코딩
 
 `backend/agent/prompts.py`의 `RULES` 규칙 9가 "`model` 파라미터에는 `iG5A` 또는 `S100` 만 쓴다"로
 하드코딩돼 있어, 같은 시스템 프롬프트 안에서 `build_system_prompt()`의 장비 컨텍스트 절(`MODELS`
@@ -374,7 +374,7 @@ IE5 편입** — DoD에서 detail 문자열에 `IE5`가 실측값으로 찍히�
 | MQ-1509 | `spikes/prompt_rules.py` | 검사 ⑤ 3종 갱신, 검사 ⑭ 부분집합 완화. 건수 불변 24건 |
 | MQ-1510 | `spikes/citation_render.py` | 검사 ④ IE5 케이스 추가, 신규 ⑯-b. 18→19건 |
 
-### 🔴 reviewer 1차 FAIL — 완화가 항등식으로 무력화
+### reviewer 1차 FAIL — 완화가 항등식으로 무력화
 
 검사 ⑭를 `baseline_quoted <= set(MODELS)`로 완화했는데, `baseline_quoted`가 `for m in MODELS`
 컴프리헨션 산물이라 **구조상 항상 참**이었다. `SAFETY_SOURCES`에서 "10분 이상" 원문 근거를 전부

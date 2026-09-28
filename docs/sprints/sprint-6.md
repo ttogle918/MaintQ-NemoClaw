@@ -1,19 +1,19 @@
 # Sprint 6 — 확장 범위 F1·F2·F4 · 읽기 판정 도구 7종
 
-> ℹ️ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
+> ℹ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
 
 **수립**: 2026-08-09 · **부제**: 근거 계층을 DB로 내리고, 판정 도구 7종을 얹는다
 
 **사용자 지시**: "성능 튜닝(3차 평가·지표 개선)은 나중으로 미루고, **기능 구현을 싹 다 먼저** 한다."
 
-> 🔀 **이 스프린트는 병행 세션과 같은 저장소에서 돌았다.** 상대 세션(`4dc6448`·`c3a46c8`)이
+> **이 스프린트는 병행 세션과 같은 저장소에서 돌았다.** 상대 세션(`4dc6448`·`c3a46c8`)이
 > **D76(도구 결과 구조 보존)** 을 먼저 가져갔고, 이쪽에서 D76 으로 기입했던 룰 정합 결정은
 > **D77 로 재번호**했다. 회귀 기준선도 상대 세션의 `agent_loop_contract` +5 를 반영해
 > **303건**(273 + `law_fetch` 25 + `agent_loop` 5)이 정본이다.
 > 파일 교집합은 없었다 — 상대는 `backend/agent/`·`spikes/`, 이쪽은 `data/`.
 
 **선행 상태**: M1~M4 완료. Sprint 5 종료(`sprint-5.md`) — 회귀 **273건(17스위트)** + 정적 3종 통과.
-> ⚠ 계획 수립 시 인용한 "257건(16스위트)"은 **오집계였다**(Sprint 4 기준선 248 + 9 로 계산하며 `eval_replay_guard` 16건을 누락). `sprint-5.md:554-577` 의 2026-08-08 실측 정정치 **273건 · 17스위트**가 정본이다. Stage 1 실측으로 재확인됨.
+> 계획 수립 시 인용한 "257건(16스위트)"은 **오집계였다**(Sprint 4 기준선 248 + 9 로 계산하며 `eval_replay_guard` 16건을 누락). `sprint-5.md:554-577` 의 2026-08-08 실측 정정치 **273건 · 17스위트**가 정본이다. Stage 1 실측으로 재확인됨.
 S1~S4 파이프라인은 실 서버·실 LLM·실 MCP로 20문항 2회 완주 확인됨. 완료 기준 5지표 중 3개 미달이나
 **사용자 방침에 따라 이번 스프린트에서 다루지 않는다.**
 
@@ -54,7 +54,7 @@ S1~S4 파이프라인은 실 서버·실 LLM·실 MCP로 20문항 2회 완주 �
 
 ## 사전 조사 핵심 발견 (PM + tool-builder 실측)
 
-### 🚨 하드 블로커 — `LAW_API_OC` 미발급
+### 하드 블로커 — `LAW_API_OC` 미발급
 
 `.env` 에 키 이름은 있으나 **값이 빈 문자열**(len=0). 실호출 결과
 `{"result":"필수입력요소 검증에 실패하였습니다"}`. `11 §8` 체크리스트의 "OPEN API 이용 신청"도 미체크다.
@@ -67,7 +67,7 @@ S1~S4 파이프라인은 실 서버·실 LLM·실 MCP로 20문항 2회 완주 �
 | 대상 | 조문 미수집 시 |
 |---|---|
 | `check_disposal_blockers`(F2) · `verify_ownership`(F4) | ✅ 동작. `evidence_completeness:"LAW_TEXT_PENDING"` 으로 정직하게 표시 |
-| `classify_expenditure` | ⚠️ 조문 **등록**만 되면 동작 (수집 불필요) → `MQ-602L` 이 파일만 추가 |
+| `classify_expenditure` | 조문 **등록**만 되면 동작 (수집 불필요) → `MQ-602L` 이 파일만 추가 |
 | `build_evidence_bundle` | ❌ **의도적 거부**(`law_text_unavailable`). `text_hash` 가 null 인 번들은 무결성을 증명하지 못한다 |
 | S10 데모 | ❌ 막힘 → Sprint 7 로 미룬 또 하나의 이유 |
 
@@ -95,7 +95,7 @@ S1~S4 파이프라인은 실 서버·실 LLM·실 MCP로 20문항 2회 완주 �
 
 ---
 
-## 제안 결정 D69~D73 (⚠ 사람 승인 필요 — 착수 전제)
+## 제안 결정 D69~D73 (사람 승인 필요 — 착수 전제)
 
 CLAUDE.md 규칙상 설계 공백을 코드가 임의로 메우면 근거가 사라진다. 아래 5건은 `10_DECISIONS.md` 와
 충돌은 아니지만 **문서에 없는 공백**이다. 승인 후 MQ-613 이 본문을 기입한다.
@@ -170,13 +170,13 @@ MQ-602L ────────────────────────
 
 #### MQ-602L — 법령 참조 등록 · `LAW_API_OC` 개명 · 수집 계약 회귀 (네트워크 무관)
 
-> 🔴 **구 MQ-602(법령 원문 실수집)는 삭제됐다.** `LAW_API_OC` 미발급으로 하드 블로커.
+> **구 MQ-602(법령 원문 실수집)는 삭제됐다.** `LAW_API_OC` 미발급으로 하드 블로커.
 > 실수집은 Sprint 7 Stage 1. 이 태스크는 **키 없이 완주**해야 한다.
 
 - **복무 시나리오**: S9(근거 인용) · S1+(`classify_expenditure` 선행)
 - **변경 파일**: `data/rules/laws/KR-CITA-ENF-31.json`(신규) · `data/rules/fetch_laws.py`(수정) ·
   `.env.example`(수정) · `data/rules/README.md`(수정) · `spikes/law_fetch_contract.py`(신규)
-- ⛔ **실호출 금지.** ⛔ `engine.py`·`test_rules.py`·`seed.py` 접근 금지
+- **실호출 금지.** `engine.py`·`test_rules.py`·`seed.py` 접근 금지
 
 - **핵심 로직**
   1. **신규 법령 참조 1건** — MQ-608 이 근거 없이는 존재할 수 없다(불변식 1·2):
@@ -207,7 +207,7 @@ MQ-602L ────────────────────────
 - **지켜야 할 결정**: D59(법령은 룩업, RAG 아님 — 벡터 인덱싱 금지) · D60 · D61(불변식 2) · D19
   6-1. **정체성 대조 키 누락도 중단한다** (Stage 1 reviewer W5 반영) — `IDENTITY_KEYS = ("article","title")` 를
      상수로 두고 **누락 검사를 불일치 검사보다 먼저** 수행한다. `None`·`""`·공백 전부 누락으로 보고 `LawMismatchError`.
-     ⚠ **선택적 필드(`effective_from`·`promulgation_no` 등)는 대상이 아니다** — 과잉 게이트면 Sprint 7 수집이 통째로 막힌다.
+     **선택적 필드(`effective_from`·`promulgation_no` 등)는 대상이 아니다** — 과잉 게이트면 Sprint 7 수집이 통째로 막힌다.
      근거: 대조할 값이 없는 것은 대조를 통과한 것이 아니다 (D50·D62 와 같은 유형).
   6-2. **`applied` 는 3상태 + `requires_signature`** (Stage 1 reviewer N7 반영 · **D75**) —
      `null`(반영 시도 없음) / `"intent"`(기입 직전) / `"confirmed"`(기입 성공 후 승격).
@@ -225,7 +225,7 @@ MQ-602L ────────────────────────
     **ⓒ-5** `_write_law` 에 `OSError` 주입 → 법령 파일 불변 · 기록은 `intent`·`requires_signature:true` ·
     **ⓒ-6** `intent→confirmed` 전이가 스냅샷 payload 6키 불변 · **ⓒ-7** 서명 큐 필터 동작
   - `git grep -n LAW_API_KEY` → **이 태스크 소유 파일 기준 0건**(`fetch_laws.py` 폴백 1곳은 허용).
-    ⚠ 문서 잔여 3곳(`docs/11_ASSET_LIFECYCLE.md`·`data/data_list.md`·`docs/sessions/`)은 **MQ-613 소유**이므로
+    문서 잔여 3곳(`docs/11_ASSET_LIFECYCLE.md`·`data/data_list.md`·`docs/sessions/`)은 **MQ-613 소유**이므로
     이 DoD 의 판정 대상이 아니다 — 저장소 전역 grep 으로 판정하면 이 게이트는 구조적으로 통과 불가다
   - `data/rules/laws/*.json` **7개**, 전부 `fetch_status:"PENDING"` · 회귀 실행 전후 md5 불변
   - `ruff check` 통과
@@ -234,7 +234,7 @@ MQ-602L ────────────────────────
 
 #### MQ-603 — 잔가곡선 산출 (**D74** — D72 는 실측으로 반증돼 supersede 됨)
 
-> 🔄 **이 절은 Stage 1 실행 중 개정됐다.** 최초 명세(D72: 중진공 호가 중앙값 기반 상대 잔가율)로 산출해 본
+> **이 절은 Stage 1 실행 중 개정됐다.** 최초 명세(D72: 중진공 호가 중앙값 기반 상대 잔가율)로 산출해 본
 > 결과 **5종 카테고리 전부 우상향**했고(신품보다 20년 된 설비가 비쌈), `카테고리2` 층화·동일 모델명 비교로도
 > 사라지지 않았다. **호가는 연차가 아니라 기계 규격이 지배한다** → D74 로 값 원천을 목업 공식으로 교체.
 > 아래 명세는 개정 후 기준이며, **원 D72 분석은 삭제하지 않고 `residual_curve.md §4` 한계 실증으로 보존한다.**
@@ -254,7 +254,7 @@ MQ-602L ────────────────────────
   3. **필터 고정**: `유효 = 제조년월에서 연도 파싱 성공 ∧ 희망가격 ≥ 10,000`.
      스크립트가 **3단계 감소를 전부 출력**한다 (참고 실측: 결측제외 5,911 → 가격>0 5,685 → **가격≥10,000 = 5,475**).
      최종이 **5,475 와 다르면 경고**(중단 아님 — 원본 갱신 감지).
-  > ⚠ 위 1~3 은 **(B) 한계 실증 분석** 경로에만 적용된다. 곡선 값은 아래 (A) 가 만든다.
+  > 위 1~3 은 **(B) 한계 실증 분석** 경로에만 적용된다. 곡선 값은 아래 (A) 가 만든다.
 
   4. **스크립트를 두 경로로 나눈다** — (A) 곡선 생성(목업 공식, **외부 파일 무의존**) / (B) 실데이터 분석(중진공 CSV).
      **CSV 가 없으면 (B)만 건너뛰고 (A)는 정상 동작해야 한다** — `SystemExit` 대상이 아니다. 곡선이 CI 에서 재생성 가능해야 하기 때문.
@@ -303,9 +303,9 @@ MQ-602L ────────────────────────
 
 - **복무 시나리오**: S9·S10·S18·S1+·S19 (전 확장 시나리오의 토대)
 - **변경 파일**: `data/seed.py` · `docs/05_DB_SCHEMA.md`
-- ⛔ `engine.py`·`test_rules.py`·`data/rules/laws/` 접근 금지 (MQ-601b·MQ-602L 소유)
+- `engine.py`·`test_rules.py`·`data/rules/laws/` 접근 금지 (MQ-601b·MQ-602L 소유)
 
-> ### 🔗 D76-2 편입 (2026-08-09 추가 — 병행 세션에서 인계)
+> ### D76-2 편입 (2026-08-09 추가 — 병행 세션에서 인계)
 >
 > **`traces` 에 `tool_payload TEXT` 컬럼을 함께 추가한다.** `data/seed.py` 가 이 태스크의
 > 단독 소유라 여기서 처리해야 충돌이 없다.
@@ -314,13 +314,13 @@ MQ-602L ────────────────────────
 > ALTER TABLE traces ADD COLUMN tool_payload TEXT;   -- 도구 원본 JSON. tool_result 행만, nullable
 > ```
 >
-> - ⚠️ **기존 `payload` 컬럼을 재사용하지 말 것.** `payload` 는 **SSE `data` 와 바이트 동일**이
+> - **기존 `payload` 컬럼을 재사용하지 말 것.** `payload` 는 **SSE `data` 와 바이트 동일**이
 >   계약이고(D30) `spikes/trace_persist.py ②`·`sp3_sse_events ⑬` 이 바이트 단위로 검증한다.
 >   여기에 도구 원본을 넣으면 평가의 두 소스 대조가 깨진다.
 > - `tool_payload` 는 **nullable** — `tool_call`·`block` 행에는 없다.
 > - 쓰는 쪽(`backend/agent/trace.py` 의 큐·배리어)은 **D76-2 담당자가 별도로** 처리한다.
 >   이 태스크는 **컬럼 추가와 `05_DB_SCHEMA` 반영까지만**.
-> - 근거·전체 맥락: **D76**(도구 결과 구조 보존 — 병행 세션 결정). ⚠ **D77 이 아니다** —
+> - 근거·전체 맥락: **D76**(도구 결과 구조 보존 — 병행 세션 결정). **D77 이 아니다** —
 >   D77 은 룰 `required_facts` 정합이며 무관하다
 
 - **DDL — 신규 7테이블**
@@ -422,7 +422,7 @@ CREATE TABLE repair_records (
   work_type TEXT NOT NULL,               -- PLANNED | UNPLANNED  ★미기재 거부 (12 §7)
   expenditure_class TEXT,                -- CAPITAL | REVENUE | HOLD
   cost INTEGER NOT NULL,
-  downtime_hours REAL,                   -- MTTR 산식의 유일한 원천 (아래 ⚠)
+  downtime_hours REAL,                   -- MTTR 산식의 유일한 원천 (아래 )
   parts TEXT,                            -- JSON array
   performed_by TEXT REFERENCES users, verified_by TEXT REFERENCES users,
   signed_at DATETIME, record_hash TEXT,
@@ -435,7 +435,7 @@ CREATE TABLE repair_records (
 );
 
 -- §17 residual_curve — 잔가율 (D65·D74). 정본은 data/extracted/residual_curve.json
--- ⚠ D74 로 값 원천이 목업 공식으로 바뀌었다 → 표본 필드 4종은 전부 NULL 이 정상이다.
+-- D74 로 값 원천이 목업 공식으로 바뀌었다 → 표본 필드 4종은 전부 NULL 이 정상이다.
 --    NOT NULL 을 걸면 "표본이 없는데 표본 수를 채우는" 거짓말을 스키마가 강제하게 된다.
 CREATE TABLE residual_curve (
   category   TEXT NOT NULL,
@@ -454,9 +454,9 @@ ALTER: equipment.asset_id TEXT REFERENCES assets   -- NULL 허용
 ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
 ```
 
-> ⚠ **`downtime_hours` 는 `12 §9` 에 없는 컬럼이다.** `12 §2` 가 MTTR 을 요구하는데 저장소에 수리 시간
+> **`downtime_hours` 는 `12 §9` 에 없는 컬럼이다.** `12 §2` 가 MTTR 을 요구하는데 저장소에 수리 시간
 > 원천이 전혀 없어 추가한다. `12 §9` 반영은 MQ-613 이 한다.
-> ⚠ **법정 조건 사실 컬럼을 `equipment` 가 아니라 `assets` 에 둔다.** `11 §7` 은 "equipment 확장"이라 쓰지만
+> **법정 조건 사실 컬럼을 `equipment` 가 아니라 `assets` 에 둔다.** `11 §7` 은 "equipment 확장"이라 쓰지만
 > D68 이 대상을 호스트 설비로 바꿨다. 문서 수정은 MQ-613.
 
 - **`assets` 시드 9건** (10건 아님) — `equipment.location` 문자열에서 유도 (`seed.py:279-290` 실측):
@@ -501,7 +501,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   - `AST-L4-DUST`: `tax_credit_applied=NULL` → **INSUFFICIENT_FACTS**
   - `AST-L3-LIFT`: 전 사실 채움·무해당 → **CLEAR**
 
-  > ⚠ 처분 age 요구(17/23개월)와 잔가 age 요구(6/16/12/20/3년)가 **같은 자산에 동시에 걸린다.**
+  > 처분 age 요구(17/23개월)와 잔가 age 요구(6/16/12/20/3년)가 **같은 자산에 동시에 걸린다.**
   > `acquired_at` 은 잔가 격자 기준으로 잡고, 처분 룰의 `months_since_acquisition` 은
   > `disposal_date` 를 조절해 트리거한다(도구 파라미터이므로 시드와 독립).
 
@@ -527,7 +527,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   - ⑭ `rules` 5행, 전 행 `law_refs`+`contract_refs` 비어있지 않음
   - ⑯ `parts.part_class` NULL 0건 · `residual_curve` 적재 시 **42행**(카테고리 7 × 버킷 6, 격자 공백 없음) ·
     전 행 `0 < residual_ratio ≤ 1` · **버킷 순서대로 단조 감소** · `source` 에 목업 표기 존재
-    (⚠ `base_n ≥ 30` 검사는 **폐기** — D74 로 표본 개념이 사라졌다)
+    (`base_n ≥ 30` 검사는 **폐기** — D74 로 표본 개념이 사라졌다)
 
 - **엣지 케이스**
 
@@ -556,7 +556,7 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
 - **변경 파일**: `data/rules/engine.py` · `data/rules/test_rules.py` · **`data/rules/rules/*.json`(신규 소유 — D77)** ·
   `spikes/rules_db_load.py`(신규) · `data/seed.py`(⑮ 1건만 추가 — MQ-601a 완료 후이므로 순차 편집, 충돌 없음)
 
-- **🔴 선행 과제 — 룰 카탈로그 정합 (D77, Stage 2 실측으로 발견)**
+- **선행 과제 — 룰 카탈로그 정합 (D77, Stage 2 실측으로 발견)**
 
   **현재 처분 판정 5종 중 `CONDITIONAL`·`CLEAR` 가 어떤 시드로도 도달 불가다.** 룰 5종 중 3종의
   `required_facts` 가 자기 트리거와 어긋나 **모든 자산에서 항상 `INSUFFICIENT_FACTS`** 를 만들기 때문이다.
@@ -569,17 +569,17 @@ ALTER: parts.part_class TEXT   -- 'CONSUMABLE' | 'CRITICAL'
   | `VAT-INVOICE` | `sale_amount`·`buyer_biz_no` **제거**, `vat_invoice_issued` **추가** → `["disposal_mode","vat_invoice_issued"]` | 거래 사실은 자산 사실이 아니다. 트리거가 실제 읽는 것은 `vat_invoice_issued` 인데 선언돼 있지 않았다 |
   | **`SAFETY-INSPECTION`** (Stage 2 추가 발견) | `last_inspection_date`·`inspection_valid_until` **제거** → `["safety_inspection_target","disposal_mode"]` | 트리거가 `safety_inspection_target` 만 읽는다. 두 날짜는 메시지·체크리스트용이라 D77 원칙 ③ 대상. **이 4번째 룰을 안 고치면 3종만 고쳐도 `CONDITIONAL`·`CLEAR` 는 여전히 미도달**(eval-runner 실측: 5자산 전부 `missing=['disposal_mode']`) |
 
-  > ⚠ **Stage 2 에서 시드가 이 결함을 데이터로 덮었다가 되돌렸다** — 안전검사 **비대상** 자산 8건에
+  > **Stage 2 에서 시드가 이 결함을 데이터로 덮었다가 되돌렸다** — 안전검사 **비대상** 자산 8건에
   > `last_inspection_date` 를 채워 넣었던 것을 reviewer 가 D62·D65 위반으로 잡았다(없는 법정 사실 생성).
   > 되돌린 결과 **비대상 자산은 NULL** 이므로, 이 룰을 고치기 전에는 `verify ⑮` 가 정직하게 실패한다.
   > **그게 정상이다** — 허위 데이터로 GREEN 을 만들지 않는다.
 
-  - ⛔ **`trigger`·`boundary`·`interpretation`·`law_refs` 는 건드리지 마라.** `required_facts` 만 고친다
+  - **`trigger`·`boundary`·`interpretation`·`law_refs` 는 건드리지 마라.** `required_facts` 만 고친다
     — **예외 1건**: `INSURANCE-NOTIFY.trigger` 첫 분기는 **D78 이 명시적으로 허가**했다. 그 외에는 결정 없이 열지 말 것
-  - ⛔ **`rule_version` 을 올려라** — 해석이 바뀐 게 아니라 선언 오류 정정이지만, `rules` 테이블이
+  - **`rule_version` 을 올려라** — 해석이 바뀐 게 아니라 선언 오류 정정이지만, `rules` 테이블이
     `(rule_id, rule_version)` 복합 PK 이고 D60 이 "해석은 개정된다"를 전제한다. 변경 사유를 파일에 남길 것
   - **`build_facts` 가 `vat_invoice_issued` 를 채운다** — precheck 는 **거래 성립 전**이므로 `False` 가 확정 사실이다.
-    ⚠ 지어내는 게 아니라 **판정 시점의 정의**이며, 그 근거를 docstring 에 남겨라. 다른 거래 사실은 채우지 마라
+    지어내는 게 아니라 **판정 시점의 정의**이며, 그 근거를 docstring 에 남겨라. 다른 거래 사실은 채우지 마라
   - **`risk_score_delta_pct` 경계 확인** — `INSURANCE-NOTIFY.boundary` 가 이 필드를 읽는데 원천이 없다.
     **키 부재 시 경계 검사가 예외를 내거나 잘못 `HOLD` 로 빠지지 않는지** 실제로 확인하고, 문제가 있으면 보고해라
   - **`test_rules.py` 에 발화 가능성(satisfiability) 회귀 추가 (D77)** — 룰 5종 **각각**에 대해
@@ -649,10 +649,10 @@ def build_facts(
 > - `mcp_server` 가 `backend` 를 import 하지 않는다 (D15). **`data.rules.engine` import 는 허용 (D73)** —
 >   `server.py:28` 이 레포 루트를 `sys.path` 에 넣으므로 `from data.rules.engine import ...` 가 동작한다
 > - 판정 결과에는 **항상** `not_considered[]` 와 `disclaimer` 를 싣는다 (불변식 6)
-> - 🔴 **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 를 경유한다 (D62).**
+> - **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 를 경유한다 (D62).**
 >   `evaluate_rule` 은 **키 존재**만 보므로 `dict(row)` 를 그대로 넘기면 **NULL 이 "값 있음"으로 읽혀 조용히 `CLEAR`** 가 된다.
 >   "모른다"를 "조건 미해당"으로 바꾸는 단 하나의 지점이다. 상세: `05_DB_SCHEMA §11` 경고 블록
-> - 🔴 **`check_disposal_blockers` 를 `disposal_date` 없이 부르면 `TAX-CREDIT-2Y` 가 항상 `INSUFFICIENT_FACTS`** 다
+> - **`check_disposal_blockers` 를 `disposal_date` 없이 부르면 `TAX-CREDIT-2Y` 가 항상 `INSUFFICIENT_FACTS`** 다
 >   (오늘로 메우지 않는다 — D62). 즉 에이전트가 날짜 없이 부르면 **verdict 가 늘 `INSUFFICIENT_FACTS` 로 수렴**한다.
 >   `DESCRIPTION` 은 명세 고정 문안이라 도구 쪽에서 못 고친다 — **MQ-612 가 파라미터 스키마 설명에서**
 >   **"처분 예정일을 알면 `disposal_date` 를 함께 넘길 것"을 유도**해야 한다. 안 하면 S9 데모가 전부 INSUFFICIENT 로 죽는다
@@ -660,7 +660,7 @@ def build_facts(
 >   그대로 흘리면 `VAT-INVOICE` 트리거(`eq "SALE"`)를 빗나가 **오타 하나가 `CONDITIONAL` 을 `CLEAR` 로 만든다**
 > - **`engine` 은 예외를 던진다**(`RuleIntegrityError`·`KeyError`·`TypeError` 등). 도구는 `RuleIntegrityError` 하나만
 >   잡지 말고 **광범위하게 포착해 `status:"error"` 로 닫아야** "어떤 입력에도 예외가 새어나오지 않음" DoD 를 만족한다
-> - ⛔ **공유 파일(`server.py`·`prompts.py`·`mcp_client.py`) 일절 접근 금지** — MQ-612 소유
+> - **공유 파일(`server.py`·`prompts.py`·`mcp_client.py`) 일절 접근 금지** — MQ-612 소유
 
 #### MQ-604 — `check_disposal_blockers` (S9 진입점)
 
@@ -703,7 +703,7 @@ def check_disposal_blockers(
      `"LAW_TEXT_PENDING"` + `disclaimer` 에 "조문 원문 미수집 상태이며 인용은 조문 번호·제목 기준이다" 덧붙임.
      **판정 자체는 막지 않는다** — 근거 참조 무결성(불변식 1·2)은 파일 존재로 이미 보장된다.
   5. `verdict` 우선순위 (**D79 — 5종**): `blockers > holds > insufficient > preconds > CLEAR`.
-     ⚠ `insufficient` 를 `HOLD` 에 흡수하던 구 4종 로직으로 되돌리지 마라 — D71 의 HTTP 매핑이 깨진다.
+     `insufficient` 를 `HOLD` 에 흡수하던 구 4종 로직으로 되돌리지 마라 — D71 의 HTTP 매핑이 깨진다.
   6. `RuleIntegrityError` → `status:"error", reason:"rule_integrity"` (도구는 예외를 던지지 않는다).
 
 - **엣지 케이스**
@@ -763,7 +763,7 @@ def check_disposal_blockers(
 
   3. **`verdict` 규칙**: `UNVERIFIED` 가 하나라도 있으면 최대 `PARTIAL`. 전 항목 `VERIFIED` 일 때만 `VERIFIED`.
      **`PARTIAL` 은 어떤 조건으로도 `VERIFIED` 로 승격되지 않는다** (`11 §6`). **코드에 승격 경로 자체를 만들지 않는다.**
-  4. ⛔ **외부 API 런타임 호출 금지.** `.env.example:40-43` 이 "`backend/`·`mcp_server/` 는 이 절의 키를
+  4. **외부 API 런타임 호출 금지.** `.env.example:40-43` 이 "`backend/`·`mcp_server/` 는 이 절의 키를
      절대 참조하지 않는다 — 요청마다 외부 기관을 호출하면 서명 시점 스냅샷 재현 전제가 깨진다"고 못박았다.
      해당 항목은 `UNVERIFIED` + `limit:"사전 수집 스냅샷 없음"`.
   5. `residual_risk`·`mitigation` 은 **UNVERIFIED 항목에서 조립**. 전부 확인되면 `residual_risk: null`.
@@ -871,7 +871,7 @@ def classify_expenditure(
      - `REPLACE_UNIT` → `HOLD`
      - `asset_id` 주어지고 `amount / acquisition_cost ≥ 0.20` 이면 결과와 무관하게 **`HOLD` 로 격상**. 사유를 `reasoning` 에 남긴다.
   3. `HOLD` 일 때 `requires_expert_review: true` + "세무 전문가 확인 필요". **`CAPITAL`/`REVENUE` 로 반올림하지 않는다.**
-  4. ⛔ **룰 카탈로그(`data/rules/rules/`)에 파일을 추가하지 말 것.** 그 디렉토리는 처분 플래그 전용이고
+  4. **룰 카탈로그(`data/rules/rules/`)에 파일을 추가하지 말 것.** 그 디렉토리는 처분 플래그 전용이고
      (`disposal_type` 필수), `check_disposal_blockers` 가 `RULES_DIR` 전체를 로드하므로 지출 판정 룰을 넣으면
      **처분 판정에 섞여 들어간다.** `test_rules.py` 의 `COVERED` 집합도 깨진다.
 - **엣지 케이스**: enum 밖 → `error`/`invalid_input`(폴백 금지) / `amount ≤ 0` → `error`/`invalid_input` /
@@ -936,7 +936,7 @@ def classify_expenditure(
 | `AST-L3-LIFT` 하위 (`acquisition_cost` NULL) | `HOLD` + 사유 문장 |
 
   - `residual_curve` 를 비우고 재호출 → **반복 고장 자산을 제외한 8자산 전부 `HOLD`** (잔가 원천 없음). **값을 지어내지 않음을 증명**
-    ⚠ `INV-L3-01`(반복 고장)은 이때도 **`ROOT_CAUSE_FIRST`** 다 — 최우선 분기가 잔가 조회보다 먼저다.
+    `INV-L3-01`(반복 고장)은 이때도 **`ROOT_CAUSE_FIRST`** 다 — 최우선 분기가 잔가 조회보다 먼저다.
     "전 자산 HOLD" 라고 쓰면 최우선 규약과 모순된다(Stage 5 에서 실제로 충돌해 문구를 정정했다).
   - 출력에 `estimates[]` 존재 · `oee` 키 부재 · `repair_cost ≤ 0` → `invalid_input`
   - 하위 도구가 `status != "ok"` 면 그 status·reason 그대로 전파 · `ruff check`
@@ -966,7 +966,7 @@ def classify_expenditure(
      이 규칙을 docstring 에 명시 — **Sprint 7 의 서명 검증이 같은 함수를 쓴다.**
   6. 이 도구는 **아무것도 저장하지 않는다.** `decisions` INSERT 는 Sprint 7 의 사람 전용 API (D10 태도 유지).
 - **지켜야 할 결정**: D60 · D63 · D10 · D9
-- **DoD** (⚠ 법령이 전부 `PENDING` 이므로 실 DB 에서 이 도구는 **설계상 항상 실패한다.**
+- **DoD** (법령이 전부 `PENDING` 이므로 실 DB 에서 이 도구는 **설계상 항상 실패한다.**
   "성공 시 ok + 해시"는 이번 스프린트에 검증할 수 없다)
   1. **실패 경로 정확성** — 실 DB `AST-L3-CONV` 호출 → `status:"error", reason:"law_text_unavailable"` +
      `missing_law_refs` 가 인용 룰의 `law_refs` 합집합과 **정확히 일치**
@@ -1004,7 +1004,7 @@ GET  /api/equipment  (수정)                     # 응답에 asset_id 추가 (n
      근거 없는 체크리스트 항목을 만들지 않는다.
   5. 응답 시각은 UTC ISO-8601 (D39, `services/po.iso_utc` 규약과 동일).
   6. **저장하지 않는다.** 응답에 `"note":"판정 결과이며 처분 요청이 생성되지 않았습니다. 확정은 서명으로만 이뤄집니다."`
-- **⚠ 리뷰 필수 항목**: `GET /api/equipment` 에 `asset_id` 추가는 **작동 중인 API 계약 변경**(가산)이다.
+- **리뷰 필수 항목**: `GET /api/equipment` 에 `asset_id` 추가는 **작동 중인 API 계약 변경**(가산)이다.
   `spikes/api_contract.py` 가 이 응답의 키 집합을 단언하는지 **먼저 확인**하고, 단언한다면 spike 를 함께 갱신한다.
   가산이므로 깨지지 않아야 정상이지만, 확인 없이 넘기면 조용히 깨질 수 있는 종류다.
   프론트 `frontend/lib/mappers.tsx` 타입이 초과 키를 허용하는지 `tsc --noEmit` 로 확인(프론트 코드 변경 없이 통과해야 함).
@@ -1074,7 +1074,7 @@ def build_system_prompt(
   타입을 좁히면 스키마 검증이 예외를 던져 도구가 `status` 로 실패를 못 돌려준다(D9 위반).
   `asset_id`·`equipment_id`·`disposal_date` 는 전부 `str | None`, `repair_cost`·`amount` 는 `int | str` 로 넓게 받는다.
 
-> 🔀 **병행 세션의 D76(커밋 `4dc6448`) 영향 — Stage 6 착수 전 재확인 필수.**
+> **병행 세션의 D76(커밋 `4dc6448`) 영향 — Stage 6 착수 전 재확인 필수.**
 > 도구 결과가 프로즈 요약 대신 **원본 dict** 로 LLM 에 가고, `PRESERVE_FIELDS` 화이트리스트가
 > **블랙리스트로 뒤집혔다**. `summarize_result` 는 살아 있으나 역할이 바뀌었다 —
 > `loop.py:124` 가 이를 `_summary` 로 **trimmed dict 안에 넣어 LLM 입력에도 싣는다**(이전엔 trace·SSE 전용).
@@ -1088,7 +1088,7 @@ def build_system_prompt(
   `assess_repair_value` → `"REPAIR_RECOMMENDED · 회수비 1.06 (추정)"` / `classify_expenditure` → `"HOLD · 전문가 확인 필요"` /
   `classify_part_criticality` → `"CRITICAL"` / `build_evidence_bundle` → `"번들 해시 sha256:9d1e…"`
 
-- **⛔ `loop.py` 의 `_pages_from`·`_parts_from`(D54·D66)은 건드리지 않는다.** 신규 도구는 매뉴얼 페이지도
+- **`loop.py` 의 `_pages_from`·`_parts_from`(D54·D66)은 건드리지 않는다.** 신규 도구는 매뉴얼 페이지도
   부품 목록도 생산하지 않으므로 현재 구현이 빈 리스트를 싣는 게 정확하다. 손대면 인용률·부품 특정 판정이 오염된다.
 
 - **엣지 케이스**: `MAINTQ_TOOLS_PROFILE` enum 밖 → `SystemExit`(폴백 금지) /
@@ -1102,7 +1102,7 @@ def build_system_prompt(
     `len(RULES)==11 and len(EXT_RULES)==3` 고정 검사(기존 52행 단언 **유지**) ·
     `build_system_prompt(tool_names=CORE_7)` → EXT 규칙·확장 도구명 **부재** ·
     `build_system_prompt(tool_names=ALL_14)` → EXT 규칙 3개 존재 + 각 D 태그 존재
-  - ⚠ **이 파일은 Stage 4 에서 이미 만들어졌고 도구 5종만 덮는다.** MQ-612 는 Stage 5 산출물
+  - **이 파일은 Stage 4 에서 이미 만들어졌고 도구 5종만 덮는다.** MQ-612 는 Stage 5 산출물
     (`assess_repair_value`·`build_evidence_bundle`) **2종을 더해 7종으로 확장**해야 한다 —
     확장하지 않으면 **5종짜리 파일로 이 DoD 가 거짓 통과**한다. 확장 전 건수를 먼저 적어 두고 대조할 것
   - `uv run python spikes/asset_tools_contract.py` 통과 — 도구 7종 × (정상/잘못된 입력/없는 대상)
@@ -1116,7 +1116,7 @@ def build_system_prompt(
 - **변경 파일**: `docs/04_MCP_TOOLS.md` · `docs/06_REPO_API.md` · `docs/11_ASSET_LIFECYCLE.md` ·
   `docs/12_MAINT_VALUE.md` · `docs/10_DECISIONS.md` · `docs/00_MVP_SCOPE.md` · `docs/07_BACKLOG.md` ·
   `docs/README.md` · `CLAUDE.md` · `TODO_직접할일.md` · **`data/data_list.md`**(신규 배정 — 아래 12번)
-- ⛔ `docs/05_DB_SCHEMA.md` 는 MQ-601a 가 이미 갱신 — **손대지 않는다**(중복 편집 방지)
+- `docs/05_DB_SCHEMA.md` 는 MQ-601a 가 이미 갱신 — **손대지 않는다**(중복 편집 방지)
 - **핵심 로직**
   1. `04_MCP_TOOLS` — 제목을 "읽기 6+쓰기 1 = 7종" → **"코어 7종 + 확장 7종(프로파일 게이트, D69)"**.
      신규 7종 입출력 계약을 §8~§14 로 추가. **각 도구 파일의 `DESCRIPTION` 상수를 그대로 인용**(두 벌 관리 금지).
@@ -1139,7 +1139,7 @@ def build_system_prompt(
      **P28 본문 오기 정정** — "`data/rules/README.md`·`11 §7` 이 SQLite 적재라고 쓴다"에서
      **`data/rules/README.md` 를 뺀다**(실제로 그 문장은 `11 §7` 261행에만 있다). P29 는 손대지 않는다.
   8. **D 범위 표기 4곳** (`CLAUDE.md`·`docs/README.md`·`.claude/agents/reviewer.md`·`docs/00_MVP_SCOPE.md`)
-     → **`D1~D77`** (현재 전부 `D1~D68`). ⚠ 최종 D 번호는 커밋 시점에 `10_DECISIONS.md` 마지막 행으로 재확인할 것 —
+     → **`D1~D77`** (현재 전부 `D1~D68`). 최종 D 번호는 커밋 시점에 `10_DECISIONS.md` 마지막 행으로 재확인할 것 —
      Stage 1 처럼 스테이지 도중 결정이 추가될 수 있다.
   9. **`CLAUDE.md` 회귀 스위트 목록을 실제와 맞춘다** — 현재 15개인데 `spikes/` 는 **16파일**
      (`eval_replay_guard.py` 누락). 신규 4종을 더해 **20개**로 갱신.
@@ -1196,7 +1196,7 @@ Sprint 6 안에 프론트·서명·큐 계약이 들어와 위 1·3번 문제가
 
 ## 사람 선행 / 승인 항목
 
-### 🔴 스프린트 착수 전 (승인 필요)
+### 스프린트 착수 전 (승인 필요)
 
 - [x] ~~**D69~D73 승인**~~ — **2026-08-09 승인 완료**, `10_DECISIONS.md` 기입됨(Stage 1 착수 전).
       D69 는 기본 프로파일 **`core`** 로 확정
@@ -1205,14 +1205,14 @@ Sprint 6 안에 프론트·서명·큐 계약이 들어와 위 1·3번 문제가
       `법인세법 시행규칙` 별표 원문과 대조되지 않았다. `residual_curve.md §2-2` 에 미검증으로 표시돼 있다.
       law.go.kr 키 확보 시 **기준내용연수 별표를 함께 수집**해 재검증할 것
 
-### 🔴 Sprint 7 하드 선행 (지금 시작해야 함)
+### Sprint 7 하드 선행 (지금 시작해야 함)
 
 - [ ] **law.go.kr OPEN API 활용신청 → `.env` 의 `LAW_API_OC` 에 신청 이메일 ID 앞부분 기입**
   - 현재 `.env` 에 키는 있으나 **값이 빈 문자열**이고 실호출이 `필수입력요소 검증에 실패` 로 떨어진다
   - 확인법: `https://www.law.go.kr/DRF/lawSearch.do?OC=<값>&target=law&type=JSON&query=조세특례제한법`
   - 이게 없으면 계층 1 이 영구히 `PENDING` 이고 **S10(서명·증빙)이 성립하지 않는다** — Sprint 7 의 유일한 외부 블로커
 
-### 🟡 Sprint 6 중 (막지 않음, 병행)
+### Sprint 6 중 (막지 않음, 병행)
 
 - [ ] **`parts.part_class` 40종 감수** (신규) — `assess_repair_value` 3지 판단에 직접 영향.
       `related_parts` 와 같은 성격(D12). 미검수 상태로도 코드는 돌고, 시드가 매 실행 경고를 찍는다
@@ -1253,7 +1253,7 @@ Sprint 6 안에 프론트·서명·큐 계약이 들어와 위 1·3번 문제가
 ### 검증
 
 - 회귀 **298건 / 18스위트** 전건 통과 (기준선 273 + `law_fetch_contract` 25). 감소 0
-  > 🔀 커밋 직후 병행 세션의 `4dc6448` 이 `agent_loop_contract` 를 24→29 로 올려 **직전값은 303건**이 됐다.
+  > 커밋 직후 병행 세션의 `4dc6448` 이 `agent_loop_contract` 를 24→29 로 올려 **직전값은 303건**이 됐다.
   > Stage 2 는 그 위에서 시작한다.
 - `ruff check` clean · `data/rules/test_rules.py` 19 passed · 정본 `laws/*.json` 7파일 md5 불변
 - 프론트 무변경이라 `tsc --noEmit`·`next build` 생략
@@ -1344,9 +1344,9 @@ reviewer 판정: *"완화가 아니라 테스트를 강하게 만드는 방향. 
 - `ruff` clean · `mcp_server/`·`backend/`·`frontend/` 참조 0건(기존 도구 7종 무영향)
 - reviewer 1차 **FAIL**(블로커 1건 — MQ-604 계약 스케치가 D79 이전 상태) → **문서 2줄 수정 후 해소**
 
-### Stage 4 인계 사항 (⚠ 공통 규약에 반영 완료)
+### Stage 4 인계 사항 (공통 규약에 반영 완료)
 
-1. 🔴 **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 경유 (D62).**
+1. **`assets` 행을 판정기에 직접 넘기지 마라 — 반드시 `engine.build_facts()` 경유 (D62).**
    `evaluate_rule` 은 **키 존재**만 보므로 `dict(row)` 를 그대로 넘기면 **NULL 이 "값 있음"으로 읽혀 조용히 `CLEAR`** 가 된다.
    Stage 4 도구 5종이 전부 이 경로를 탄다
 2. **`disposal_mode` 는 `engine.DISPOSAL_MODES` 를 단일 출처로 import 해 검증** — 오타 하나가 `CONDITIONAL` 을 `CLEAR` 로 만든다
@@ -1427,7 +1427,7 @@ reviewer 판정: *"완화가 아니라 테스트를 강하게 만드는 방향. 
 - 퍼징 **126회 호출 예외 누출 0**
 - 프론트 무변경이라 `tsc`·`next build` 생략
 
-### ⚠ 알려진 플래키 (이번 변경과 무관 — Sprint 6 잔여 태스크)
+### 알려진 플래키 (이번 변경과 무관 — Sprint 6 잔여 태스크)
 
 `s4_smoke`·`mcp_client_contract`·`sp2_mcp_roundtrip` 이 **연속 실행 시 산발적으로 실패**한다.
 **개별 실행은 항상 통과**하고 실패 조합이 매 실행 다르다.
@@ -1487,7 +1487,7 @@ writer 락을 잡으면 `busy_timeout` 만료가 산발적으로 난다. **경�
 | **W3** | 서비스에 MCP 도구의 `if not laws` 게이트가 없었다. 계약 전용 룰만 남는 구성에서 **법령 0행인데 판정이 진행**된다(D50 이 막으려던 형태). 게이트 추가 · 검증: 계약 전용 픽스처 → `rule_catalog_not_loaded` |
 | **W8** | `build_evidence_bundle` 이 `verdict` 를 최상위에 싣는 이상 소비자에겐 판정 결과로 읽힌다 → `judgment["not_considered"]` **그대로 전달**(새 문장 금지). **번들 밖**에 둔다 — 안에 넣으면 문구 변경이 `bundle_hash` 를 흔들어 "변조됐다"는 오탐이 난다 |
 
-### ⚠ W1 수정이 만든 회귀와 그 교훈
+### W1 수정이 만든 회귀와 그 교훈
 
 `from backend.db import DB_PATH` 로 받으면 **모듈 로드 시점 값이 고정**된다.
 회귀가 `backend.db.DB_PATH` 를 임시 DB 로 갈아끼워도 서비스는 계속 실 DB 를 봐서
@@ -1507,7 +1507,7 @@ writer 락을 잡으면 `busy_timeout` 만료가 산발적으로 난다. **경�
 
 ---
 
-## 🔴 Stage 6 착수 전 필수 (reviewer 지정)
+## Stage 6 착수 전 필수 (reviewer 지정)
 
 1. **`asset_tools_contract.py` 를 7종으로 확장** — 현재 5종이다. **확장하지 않으면 MQ-612 DoD 가 거짓 통과**한다
 2. **MCP verdict ↔ REST verdict 직접 대조 회귀 1건 추가** — 지금은 각자 파일 경로와 간접 대조만 한다
@@ -1521,7 +1521,7 @@ writer 락을 잡으면 `busy_timeout` 만료가 산발적으로 난다. **경�
    `part_class_not_set` · `part_class_invalid` · `no_host_asset` · `rule_catalog_not_loaded`
 6. **MQ-609 판정 순서를 계약으로** — 코드는 "순서가 계약"이라 주장하는데 `04_MCP_TOOLS` 는 다른 순서를 나열 중
 
-## 🔴 Sprint 7 서명 착수 선행 조건 (번들이 실제로 무엇을 보장하는가)
+## Sprint 7 서명 착수 선행 조건 (번들이 실제로 무엇을 보장하는가)
 
 reviewer 가 **판정 원천 이원화**로 어긋날 수 있는 조건 **5개**를 특정했다:
 ① 파일 수정 후 미재시드 ② 룰 파일 신규 추가(파일은 glob 즉시 반영, DB 는 재시드 전까지 미반영)
@@ -1574,7 +1574,7 @@ EXT 규칙을 **도구별로 게이트**(규칙 12↔`check_disposal_blockers`, 
 **코드와 46개 단언으로 대조**했고, 그중 **시드 9자산 × 3모드 전수**로
 **`CLEAR` 는 `SCRAP`·`TRANSFER` 에서만 나오고 `SALE` 은 0건**(D78 부수 확정)임을 실증했다.
 
-### ⭐ reviewer 가 찾은 가장 큰 공백 — `full` 프로파일 회귀가 0건이었다
+### reviewer 가 찾은 가장 큰 공백 — `full` 프로파일 회귀가 0건이었다
 
 `sp2_mcp_roundtrip:59`·`mcp_client_contract:84` 가 둘 다 `EXPECTED_TOOLS <= names` **부분집합** 비교라
 **core 에서도 full 에서도 통과**했다. 확장 등록 블록 전체(import 7 + 데코레이터 7)와
@@ -1639,8 +1639,8 @@ D80 `required` 노출·타입 폭이 **수동 체크리스트에만 의존**하�
 
 ## Sprint 7 착수 전 필수
 
-1. 🔴 **`LAW_API_OC` 발급** — 없으면 계층 1 이 영구 `PENDING` 이고 **S10 이 성립하지 않는다**
-2. 🔴 **번들이 실제로 무엇을 보장하는가** — W5(파일/DB 혼합) · W6(룰 본문 미고정) · W7(CLEAR 근거 부재) ·
+1. **`LAW_API_OC` 발급** — 없으면 계층 1 이 영구 `PENDING` 이고 **S10 이 성립하지 않는다**
+2. **번들이 실제로 무엇을 보장하는가** — W5(파일/DB 혼합) · W6(룰 본문 미고정) · W7(CLEAR 근거 부재) ·
    계약 조항 미고정 · N1(정규화 해시) · N2(TOCTOU). 근본 해소는
    `engine.check_disposal_blockers(facts, *, laws=, rules=)` 주입점 + `facts` 반환
 3. **MCP↔REST 대조를 버킷·`law_ref_id` 집합까지 확장** — 지금은 `verdict` 만 본다.

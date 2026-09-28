@@ -2,7 +2,7 @@
 
 **계획 작성일**: 2026-09-24 · **마감**: 2026-09-28(월) 23:59 (NVIDIA 해커톤 제출) · **상태**: 계획 (코드 미착수)
 
-> ⚠ **범위 예외 선언** — 이 스프린트의 태스크는 원래 `docs/07_BACKLOG.md` 「2026-09-24 NVIDIA 해커톤 논의에서
+> **범위 예외 선언** — 이 스프린트의 태스크는 원래 `docs/07_BACKLOG.md` 「2026-09-24 NVIDIA 해커톤 논의에서
 > 나온 기능」 절에 있던 것이다. **사용자가 명시적으로 이번 스프린트 범위로 지정**했고 D144~D153 으로 설계 결정까지
 > 끝났으므로 「백로그 승격 금지」 규칙의 예외로 다룬다. 같은 절의 **NeMo Guardrails 입력 검사는 승격하지 않는다**(범위 밖).
 
@@ -29,7 +29,7 @@
 - **D156** 스테이징 → `error_codes`·`manual_chunks` **병합(승격) 규칙** — 같은 코드가 여러 구역·같은 구역 내 이름 반복(CE)일 때
 - **D157** 승인된 새 기종 안전 문구의 **런타임 원천** = `SAFETY_BASELINE`(정적, 우선) ∪ DB 승인분 — `/app` 읽기 전용이라 `prompts.py` 를 런타임에 고칠 수 없다(D147 의 「`SAFETY_BASELINE` 에 들어간다」를 구현 가능한 형태로 확정)
 
-> 🔴 **D154~D157 은 이 계획이 제안하는 결정이다 — 사용자 확인 전에는 Stage 2 에 착수하지 않는다**(수동 체크리스트 H0).
+> **D154~D157 은 이 계획이 제안하는 결정이다 — 사용자 확인 전에는 Stage 2 에 착수하지 않는다**(수동 체크리스트 H0).
 
 ---
 
@@ -187,7 +187,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   - `deploy/openshell/policy-nat.yaml` (신규) — `deploy/openshell/policy.yaml` 복제 + `network_policies` 에
     `host.openshell.internal:8765`(스파이크용) · `:8766`(본 운영) 의 `/mcp` POST·GET·DELETE 만, binary 는
     **실체 경로**(day1 §7 — `/usr/local/bin/python3.x`, 심링크 아님)
-    🔵 **구현 편차 (MQ-1901, 2026-09-25 리뷰 수용)**: 실제 `policy-nat.yaml` 은 가동 중인 8765 를 건드리지 않으려고
+    **구현 편차 (MQ-1901, 2026-09-25 리뷰 수용)**: 실제 `policy-nat.yaml` 은 가동 중인 8765 를 건드리지 않으려고
     스파이크 전용 **8775 만** 연다 — **MQ-1908 이 8766 을 추가해야 한다**
   - `docs/hackathon/day2.md` (수정) — `## 9. NAT 스파이크 결과` 절 추가
 - **인터페이스**: 없음(스파이크). 산출물은 **판정표 1개**: `ⓘ헤더 | ⓘⓘ샌드박스 추론 | ⓘⓘⓘ SKILL.md` 각각
@@ -299,7 +299,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   `{"status":"not_found","model":"HV600","code":<canonical>,"message":...}` (기존 분기 그대로 — 코드 추가 없음)
 - **핵심 로직**:
   1. 10곳 튜플에 `"HV600"` 를 **마지막에** 추가(순서가 프롬프트 문구 `' / '.join(MODELS)` 에 반영된다 — 기존 3종 순서 보존)
-  2. ⛔ `scripts/convert_ddl.py` 로 `postgres_schema.sql` 을 **재생성하지 않는다** — `seed.py SCHEMA` 에 `manual_chunks`(§24)가
+  2. `scripts/convert_ddl.py` 로 `postgres_schema.sql` 을 **재생성하지 않는다** — `seed.py SCHEMA` 에 `manual_chunks`(§24)가
      없어 재생성하면 그 테이블이 사라진다(실측: `seed.py` 에 `manual_chunks` 문자열 0건). 두 파일을 손으로 같은 값으로 고친다
   3. `spikes/model_enum_contract.py` 검사 (격리 스키마, `clone_data=True`):
      - ① **enum 전수**: 위 10개 파일을 AST 로 읽어 `MODELS`/`VALID_MODELS`/`_VALID_MODELS` 튜플 리터럴을 찾고 전부
@@ -359,7 +359,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
      숫자가 없으면 `null` — 숫자를 추정하지 않는다
   7. 공백 정규화한 `quote_en` 이 같으면 한 건으로 합치고 첫 페이지를 `page`, 나머지를 `also_pages` 로(`deduped` 에 센다)
   8. 후보 0건이면 종료코드 1(양성 축 — 0건은 「안전 문구 없음」이 아니라 추출기 사망)
-- 🔵 **구현 편차 (2026-09-25, Stage 1 리뷰 수용)**: ③ 의 블록 경계에 `CAUTION`·`NOTICE`·단독 `Note:`·`Table `·`Figure `
+- **구현 편차 (2026-09-25, Stage 1 리뷰 수용)**: ③ 의 블록 경계에 `CAUTION`·`NOTICE`·단독 `Note:`·`Table `·`Figure `
   줄을 **조용한 종료자**(새 후보를 만들지 않음)로 추가했다(`STOP_RE`). 신호어로만 자르면 p.91 방전 대기 WARNING 이 퓨즈 정격표 2개를
   삼켜 614→1,500자로 부풀고, p.7/19/23/28/39 동일 DANGER 문장의 중복 제거가 실패했다. 신호어 블록을 버리지는 않으므로
   「과잉 포함」 원칙과 충돌하지 않는다. 잔여 위험: 경고 본문 중간에 `Note:`·`Table` 줄이 있으면 `quote_en` 이 잘린다, 반대로
@@ -605,7 +605,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   class A2APolicyBlockedError(A2AClientError):
       """샌드박스 정책상 외부 발신이 불가해 **시도하지 않았다** (D149). 네트워크·차단기 무관."""
   ```
-  ⚠ `A2AUpstreamUnavailableError` 의 하위 타입으로 두지 **않는다** — 기존 `except A2AUpstreamUnavailableError` 가 잡으면 「상대 불가」(502)로 오기록된다.
+  `A2AUpstreamUnavailableError` 의 하위 타입으로 두지 **않는다** — 기존 `except A2AUpstreamUnavailableError` 가 잡으면 「상대 불가」(502)로 오기록된다.
   라우터 응답: HTTP **503**, `detail={"reason":"policy_blocked","message":"샌드박스 정책상 외부 A2A 발신이 차단돼 시도하지 않았습니다 (D149)"}`, `Retry-After` 없음.
   trace `status="policy_blocked"`, `response_payload={"error": <메시지>}`
 - **핵심 로직**:
@@ -691,7 +691,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   - `POST /promote` body `{model: str, code: str, primary_row_id: int, rows: [{row_id: int, norm_id: int}], acknowledged_flags: list[str] = []}`
     → 201 `{promo_id, model, code, error_code: {code, display_code, error_name, severity, causes, actions, manual_page, actions_source}, chunk_ids: [...]}`
   - `POST /rows/{row_id}/reject` body `{note: str}` → 200 `{row_id, state:"rejected"}`
-  - 🔵 **(2026-09-25 추가 — 온보딩 뱃지)** `GET /status?model=` (읽기 전용, 역할 무관) → `{model, state}` —
+  - **(2026-09-25 추가 — 온보딩 뱃지)** `GET /status?model=` (읽기 전용, 역할 무관) → `{model, state}` —
     `state`: `"none"`(배치 0 — iG5A·S100 등 기존 기종, 뱃지 없음) · `"onboarding"`(배치 ≥1, 승격 코드 0) ·
     `"safety_pending"`(승격 코드 ≥1, `safety_source.resolve(model)` 이 `None`) · `"ready"`(승격 ≥1 + `resolve` 가 값).
     판정은 MQ-1910 `resolve()` 를 **그대로 호출**한다(D157 fail-closed 판정을 두 벌로 만들지 않는다 — resolve 가 없으면
@@ -769,7 +769,7 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
      0행·2행 이상·DB 예외(테이블 없음 포함) → None + `logger.warning`(2행 이상은 데이터 오류로 명시)
   2. `loop.py`: `_TurnState` 에 `self._safety` 캐시(턴당 1회 조회). `safety_page()` 는 `entry.page` 반환(None 이면 None). 블록 발행부의
      `prompts.SAFETY_BASELINE["title"]`/`["text"]` 를 `entry.title`/`entry.text` 로. **억제 분기(`:433-436`)·트리거 조건은 한 글자도 바꾸지 않는다**
-     - ⚠ **구현 편차 (2026-09-25, 리뷰 수용)**: 캐시는 「턴당 1회」가 아니라 **모델별 1회 조회**다 — 빈 모델(`None`)은
+     - **구현 편차 (2026-09-25, 리뷰 수용)**: 캐시는 「턴당 1회」가 아니라 **모델별 1회 조회**다 — 빈 모델(`None`)은
        캐시하지 않는다(도구 호출로 모델이 관측되기 전의 `None` 을 턴 끝까지 붙들지 않기 위해, `onboarding_safety_gate ⓖ`)
   3. `build.py`: 기존 정적 안전 절 뒤에 「온보딩 승인 기종」 절 — `resolve("HV600")` 결과가 있으면 문구·근거 페이지·승인일, 없으면
      「HV600: 승인된 안전 문구 없음 — 위험 작업 절차를 안내하지 않는다(D147)」. DB 를 못 읽으면 **실패 종료**(조용히 「없음」으로 쓰지 않는다 — 부재가 사실인지 알 수 없다).
@@ -802,11 +802,11 @@ Stage 5 (선택) ── MQ-1914 사업장→구역→설비 계층 + 평면도 S
   `frontend/lib/api.ts`(수정 — 온보딩 API 클라이언트 함수) · `spikes/ui_honesty_contract.py`(수정 — `lib/onboarding.ts` 를 제약 게이트에 등재, `lib/a2a.ts` C9·C10 선례)
 - **인터페이스**: `lib/onboarding.ts` — `groupStatusView(group): {label, tone}` · `flagLabel(flag): string` · `confidenceTone(c): "ok"|"warn"` ·
   **`onboardingBadgeView(state): {label, tone} | null`**(`none` → `null` = 뱃지 없음) (상태 문자열 직접 비교는 여기만 — D87)
-- 🔵 **기종 온보딩 뱃지 (2026-09-25 사용자 결정 — 권장안 A)**: `OnboardingBadge` 가 MQ-1909 `GET /api/onboarding/status?model=` 를 읽어
+- **기종 온보딩 뱃지 (2026-09-25 사용자 결정 — 권장안 A)**: `OnboardingBadge` 가 MQ-1909 `GET /api/onboarding/status?model=` 를 읽어
   「온보딩 중」(중립) / 「안전 문구 대기」 / 「진단 가능」(ok 톤)을 그린다. 붙는 곳: ⓐ `/manager/onboarding` 기종 헤더 카드 ⓑ `EquipmentCard`.
-  ⚠ **HV600 설비 행은 MQ-1914(Stage 5, 선택) 전까지 0건**이라 ⓑ 는 데모에 안 보인다 — **데모 화면의 뱃지는 ⓐ 가 담당**하고,
+  **HV600 설비 행은 MQ-1914(Stage 5, 선택) 전까지 0건**이라 ⓑ 는 데모에 안 보인다 — **데모 화면의 뱃지는 ⓐ 가 담당**하고,
   ⓑ 는 배선만 해 두고 iG5A·S100 에서 `none` → 뱃지 없음(기존 화면 무변화)을 회귀로 확인한다
-- 🔵 **A2A 상태 라벨 (2026-09-25 Stage 2 브라우저 검증 반영 — 사용자 결정)**: `/manager/a2a` 이력 화면에 `policy_blocked` 가
+- **A2A 상태 라벨 (2026-09-25 Stage 2 브라우저 검증 반영 — 사용자 결정)**: `/manager/a2a` 이력 화면에 `policy_blocked` 가
   원문 그대로, `unknown` 톤으로 나온다 — `lib/a2a.ts` 의 `a2aStatusTone`·상태 라벨이 `ok|timeout|unavailable|error` 4종만 안다.
   `policy_blocked`(D149 — 「샌드박스 정책 차단」, 재시도해도 안 풀림) · `circuit_open`(D136 — 「차단기 열림」)을 라벨·톤에 추가하고
   주석의 status 어휘도 갱신. 데모 ⑥(MQ-1912) 이 이 화면을 쓴다. `ui_honesty_contract` C9·C10(`lib/a2a.ts` 게이트) 건수 변화 실측
@@ -874,7 +874,7 @@ MQ-1902 가 `TODO_직접할일.md` 에 같은 목록을 옮긴다.
 | H1 | Stage 1 중 | NAT 스파이크 중 `sudo`·게이트웨이 복구(day2 §5)가 필요하면 수행 | MQ-1901 L0 |
 | H2 | Stage 3 끝 | HV600 **정규화 검수** — 최소 데모 코드(`GF`·`OC`·`OV`·`UV1`·`OH`·`CPF06`·`EF1`·`CE`) 전 구역 행을 원문과 대조, `low` 행 우선 | 승격 |
 | H3 | H2 뒤 | **승격 클릭**(화면 또는 curl, manager) — `flags` 확인 체크 포함 | 데모 ④ |
-| **H4** | Stage 3 끝 | **HV600 안전 문구 승인** — 원문 인용·페이지 대조, 한국어 문안 직접 작성. ⚠ 대기 시간이 원문에 숫자로 없고 「경고 라벨 표시 시간」만 있으면 **숫자를 넣지 않는다**(API 가 거부). ⚠ safety-guardrail 규칙 3 의 「10분 이상」은 iG5A·S100 확정값이다 — HV600 원문 값이 그와 다르면 **스킬 문구의 적용 범위를 기종별로 개정할지 사람이 결정**(Claude 가 스킬을 고치지 않는다) | 데모 ⑤ 승인 후 경로 |
+| **H4** | Stage 3 끝 | **HV600 안전 문구 승인** — 원문 인용·페이지 대조, 한국어 문안 직접 작성. 대기 시간이 원문에 숫자로 없고 「경고 라벨 표시 시간」만 있으면 **숫자를 넣지 않는다**(API 가 거부). safety-guardrail 규칙 3 의 「10분 이상」은 iG5A·S100 확정값이다 — HV600 원문 값이 그와 다르면 **스킬 문구의 적용 범위를 기종별로 개정할지 사람이 결정**(Claude 가 스킬을 고치지 않는다) | 데모 ⑤ 승인 후 경로 |
 | H5 | **두 번**(2026-09-25 사용자 결정 ㉠): ⓐ H3 **전** — 현재 판 설치 후 데모 ①(GF 승격 전 not_found) 녹화 ⓑ H3·H4 **뒤** — 재생성·재설치 후 ④⑤ 녹화 | `deploy/nemoclaw/workspace/build.py` 재생성본을 샌드박스 `maintq-agent` 에 재설치 | OpenClaw HV600 안전 · 데모 ① |
 | H6 | Stage 4 | SkillSpector 결과(신규 스킬·수정 스킬) 수용 판정 | 제출물 |
 | H7 | Stage 4 | 데모 녹화(과부하 O1 대비 — 라이브 금지 권장) | 제출 |
@@ -971,7 +971,7 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
   `mcp_server/server.py`(프로필 `onboarding`) · `mcp_server/onboarding_guard.py` · `mcp_server/onboarding_load.py` · `mcp_server/tools/` 신규 3종 ·
   `mcp_server/test_onboarding_guard.py`(33) · `spikes/onboarding_contract.py`(9)
 - 공유 DB 에 HV600 batch_id=1 적재 — 249행(Fault 127·Minor 77·Parameter 13·Auto-Tuning 22·Backup 10) · 안전 후보 28
-- ⚠ **`data/seed.py` 재실행은 온보딩 적재분을 지운다** — 재시드했다면 즉시
+- **`data/seed.py` 재실행은 온보딩 적재분을 지운다** — 재시드했다면 즉시
   `uv run python -m mcp_server.onboarding_load --codes data/extracted/hv600_code_candidates.json --safety data/extracted/hv600_safety_candidates.json`(멱등)
 - 명세 이탈: 온보딩 등록 블록을 full 블록 **앞**에 둠(`prompt_rules ㉔` 문자열 슬라이스) · `onboarding_load --model` 기본값 HV600 ·
   신원 해석은 `server.py` 래퍼(`create_po_draft` 선례, 노출 스키마는 04 §24 와 동일)
@@ -991,11 +991,11 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 #### 회귀
 - seed 43 · error_codes 70 · 테이블 30 · pytest **403**(138 · A2A 168 · 서비스 20 · `mcp_server/` 77) ·
   spikes 38종(35 + model_enum 10 · onboarding 9 · onboarding_rag 6) 전부 기준값 일치, `law_fetch ⓚ` 기존 오탐 1건 · ruff·tsc 통과
-- ⚠ `mcp_server/test_onboarding_guard.py` 는 `mcp_server/tools/` 밖이라 CLAUDE.md 의 기존 커맨드(`pytest mcp_server/tools/`)로 안 잡힌다 → **MQ-1913 이 `mcp_server/` 전체로 갱신**
+- `mcp_server/test_onboarding_guard.py` 는 `mcp_server/tools/` 밖이라 CLAUDE.md 의 기존 커맨드(`pytest mcp_server/tools/`)로 안 잡힌다 → **MQ-1913 이 `mcp_server/` 전체로 갱신**
 
 ### Stage 3 완료 (2026-09-25)
 **커밋**: 이 기록과 같은 커밋 — `[M4] feat(onboarding): Sprint 19 Stage 3 — …`
-⚠ 서브에이전트 Sonnet 5 주간 한도(9/27 04:00 KST 리셋)에 걸려 1차 에이전트 3개가 중단 → Opus 로 재기동해 이어받았다.
+서브에이전트 Sonnet 5 주간 한도(9/27 04:00 KST 리셋)에 걸려 1차 에이전트 3개가 중단 → Opus 로 재기동해 이어받았다.
 
 #### MQ-1908 (실행 레벨: 실데이터 **L0** · 주입 회귀 L1)
 - `onboarding/nat/{workflow.yml,glossary.json,build_prompt.py,run_normalize.py,run_injection_check.py,README.md}` · `maintq_nat/guarded_stage.py` · `fixtures/injection_candidates.json` ·
@@ -1038,7 +1038,7 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 #### MQ-1912
 - `skills/maintq-diagnose/SKILL.md`(HV600 — 승격 전 not_found→흐름 D, 승인분만 안전 문구) · `evals.json` +2 · `docs/hackathon/day2.md` §10 데모 시나리오(미실행 단계는 미실행으로)
 - SkillSpector `maintq-diagnose` 0점 유지
-- ⚠ **DoD 이탈(의도)**: `build.py` 재생성·`--check` 0 은 **H5 로 이월** — 현재 `stale=['AGENTS.md']`(Stage 3 적용 범위 문장 변경)
+- **DoD 이탈(의도)**: `build.py` 재생성·`--check` 0 은 **H5 로 이월** — 현재 `stale=['AGENTS.md']`(Stage 3 적용 범위 문장 변경)
 - 사용자 결정(2026-09-25): 녹화 순서 ㉠(H5 두 번) · 데모 ⑥(A2A policy_blocked) 제외 — A2A 는 이 레포에서 더 확장하지 않고, 외부 연동이 필요하면 카카오톡 알림(MCP)(07_BACKLOG)
 #### MQ-1913
 - `CLAUDE.md`(pytest 406 · spikes 40종/1,348 · 라우트 26 · `mcp_server/` 커맨드 · D1~D157 · seed 함정 2) · `docs/README.md` · `docs/10_DECISIONS.md`(D153 주석) · `docs/07_BACKLOG.md` ·
@@ -1063,12 +1063,12 @@ S = 신규 파일 1~2 또는 기존 파일 소폭, 회귀 ≤10건 · M = 파일
 - 부수: HV600 실제 승격 후 격리 복제로 깨진 스파이크 3종 결정화(`pg_isolation.reset_onboarding_to_pre_promotion` 옵트인 · `lookup ⑭` 시드 3기종 한정 + 70행 정확)
 - 회귀: spikes **41종 / 1,377**(law_fetch ⓚ 기존 오탐 1) · pytest 406 · ui_honesty 360 · 라우트 27 · ruff·tsc
 - 브라우저: 평면도(라이트·다크, 외부 요청 0) · HV600 점 → 콘솔 선택 · 웹 콘솔 HV600 「GF 떴어」 → lookup ok(p.108) + **승인 안전 블록(5분, p.29)** ✅
-  ⚠ 발견 2건(후속): ① 답변 **본문**이 「10분 이상」을 쓴다 — `prompts.py` 규칙 10 이 기종 무관 10분을 지시(안전 블록은 5분) ② HV600 절차 질의는 RAG 가 고장표(pp.107~119)뿐이라 반복 검색 → 루프 가드가 「답변합니다」 하고 **답 없이 종료**(`loop.py:549-555`)
+  발견 2건(후속): ① 답변 **본문**이 「10분 이상」을 쓴다 — `prompts.py` 규칙 10 이 기종 무관 10분을 지시(안전 블록은 5분) ② HV600 절차 질의는 RAG 가 고장표(pp.107~119)뿐이라 반복 검색 → 루프 가드가 「답변합니다」 하고 **답 없이 종료**(`loop.py:549-555`)
 
 #### Stage 5 후속 (2026-09-25) — 웹 콘솔 HV600 채팅 결함 2건 수정 (사용자 승인)
 - ① `backend/agent/prompts.py` 규칙 10·안전 절: 「10분 이상」 을 iG5A·S100 한정, 온보딩 기종은 시스템 블록 승인 수치를 따르고 본문에 다른 대기 시간 금지
   (HV600 프롬프트 「10분」 0회 — `prompt_rules ㉕`). HV600 에는 `QUALIFIED_WORKER_NOTE` 미탑재 — 근거가 iG5A·S100 이라서(사용자 결정 (가))
 - ② `backend/agent/loop.py`: 반복 가드·도구 호출 상한 시 도구 없이 LLM 1회 더 → 실제 최종 답(09_RUNTIME:69). `agent_loop_contract` 37→40, 뮤턴트 실증
 - 브라우저 재검증: HV600 GF → 본문 「10분」 0회·블록 5분 p.29 ✅ · HV600 냉각팬 절차 → 「근거 확인 못 함 → 제조사 문의」 최종 답 ✅ · iG5A 대조는 LLM 과부하로 미확인(스파이크 ⑥ 바이트 동일로 대체)
-- ⚠ D88: 시스템 프롬프트가 모든 기종에서 바뀌어 **이전 eval 결과·LLM 카세트와 비교 불가**(재평가 필요 시 새 기준선)
+- D88: 시스템 프롬프트가 모든 기종에서 바뀌어 **이전 eval 결과·LLM 카세트와 비교 불가**(재평가 필요 시 새 기준선)
 - 남은 문구 불일치(경미): 답 본문이 「안전 경고는 근거가 없어 드릴 수 없다」 고 쓰는데 바로 위에 승인 SAFETY 블록이 붙는다 — 모델이 블록 부착을 모름(백로그)

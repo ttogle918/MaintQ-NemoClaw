@@ -2,9 +2,9 @@
 
 생성: 2026-08-16 · **기계 생성 파일** — 손으로 표를 고치지 말고 `data/extracted/error_codes_actions.candidate.json` 을 바꾼 뒤 생성 스크립트를 다시 돌릴 것.
 
-입력: `data/extracted/error_codes_actions.candidate.json` (`_status`: '초안 — 사람 검수 대기 (D99). ⛔ 이 파일은 DB 에 적재되지 않는다') — **읽기 전용**. 이 문서는 정본을 쓰지 않는다 (D99).
+입력: `data/extracted/error_codes_actions.candidate.json` (`_status`: '초안 — 사람 검수 대기 (D99). 이 파일은 DB 에 적재되지 않는다') — **읽기 전용**. 이 문서는 정본을 쓰지 않는다 (D99).
 
-⚠ **명세 문서(`docs/sprints/sprint-9.md`)는 후보 10건을 기대했으나 실측은 다르다** — `entries` **3건**(iG5A `RERR`·`ETB` 2건 + S100 `FANW` 1건) · `_pending_review` **35건**. 이 문서는 실측값을 그대로 쓴다.
+**명세 문서(`docs/sprints/sprint-9.md`)는 후보 10건을 기대했으나 실측은 다르다** — `entries` **3건**(iG5A `RERR`·`ETB` 2건 + S100 `FANW` 1건) · `_pending_review` **35건**. 이 문서는 실측값을 그대로 쓴다.
 
 ## 표 1 — 코드별 대조표 (`entries`)
 
@@ -18,7 +18,7 @@
 
 행 수 = 3 (후보 `entries` 수와 정확히 일치 — 기계 생성 증명).
 
-## 표 2 — 🔴 안전 문구 별도 절
+## 표 2 — 안전 문구 별도 절
 
 후보 조치문 중 활선·방전·대기시간·감전·고전압 키워드가 걸린 항목만 골라낸다. *"매뉴얼 명시값 '10분 이상'과 어긋나는 표기가 있는가"* 를 검수자가 한 화면에서 볼 수 있어야 한다 (`docs/00_MVP_SCOPE.md §5` · `manual_eda.md:76`). 이 절은 후보 파일에 이미 있는 원문만 옮긴다 — 새 안전 문구를 생성하지 않는다 (절대규칙 3).
 

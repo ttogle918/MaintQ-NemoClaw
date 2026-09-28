@@ -1,6 +1,6 @@
 # 자산 생애주기 — 처분 · 법정 조건 · 근거 3계층
 
-> ⚠️ **순서 주의.** 범위에는 포함되지만(D67), `00_MVP_SCOPE`의 기능 6종과 완료 기준 5개가 먼저다.
+> **순서 주의.** 범위에는 포함되지만(D67), `00_MVP_SCOPE`의 기능 6종과 완료 기준 5개가 먼저다.
 > S1~S4 관통이 끝난 뒤에 착수하는 것을 권장한다 — 이유는 §8.
 
 **한 줄:** 기능 1~6번이 *무엇을 할지 판단한다*였다면, 7~12번은 **그 판단이 왜 그런지 증명하고 책임을 사람에게 귀속시킨다.**
@@ -159,7 +159,7 @@ Sprint 7 서명 큐는 **`requires_signature == true`** 로 필터한다.
 
 ## 3. 룰 5종
 
-> 🔄 **D77·D78 정합 반영분.** `required_facts` 는 **트리거·경계가 실제로 읽는 필드만** 담는다.
+> **D77·D78 정합 반영분.** `required_facts` 는 **트리거·경계가 실제로 읽는 필드만** 담는다.
 > 정합 전에는 5종 중 3종이 자기 트리거와 어긋나 있었고, 그 결과 처분 판정 5종 중
 > `CONDITIONAL`·`CLEAR` 가 **어떤 시드로도 도달 불가**였다. 아래 `rule_version` 은 그 개정의 흔적이다.
 
@@ -254,11 +254,11 @@ D62 가 지키려던 것은 *실제로 모르는 사실*이지 **애초에 알 �
 **쓰기 도구는 이제 2종이고, 승인 큐는 공유한다** — `GET /api/approvals` 가 `kind`(`po`|`disposal`|`repair`)로
 발주서·처분서·수리 증빙을 한 큐에 담는다 (D85, `06 §2.7`). `repair` 는 현재 항상 0건(Sprint 8).
 
-> ⚠ *"확장 도구에는 쓰기가 하나도 없다"* 는 이 문서의 옛 서술은 **거짓이 됐다.** 유지된 것은
+> *"확장 도구에는 쓰기가 하나도 없다"* 는 이 문서의 옛 서술은 **거짓이 됐다.** 유지된 것은
 > **UPDATE/DELETE 권한이 없다**는 사실이며(TEMP TRIGGER), 바뀐 것은 "쓰기가 없다"가 아니라
 > **"쓰기가 draft 로 한정된다"** 이다. `build_evidence_bundle` 은 지금도 아무것도 쓰지 않는다.
 
-### 🔴 데모·수동 체크리스트 재현 파라미터 — **`disposal_date` 없이는 재현되지 않는다**
+### 데모·수동 체크리스트 재현 파라미터 — **`disposal_date` 없이는 재현되지 않는다**
 
 verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다**(`TAX-CREDIT-2Y` 가
 `months_since_acquisition` 을 읽고, 날짜가 없으면 D62 대로 **오늘로 대체하지 않고** 사실 부족으로 남긴다).
@@ -270,16 +270,16 @@ verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다
 | `AST-L3-CONV` | SALE | `2026-09-01` | `BLOCKED` (blockers **1건**) | 세액공제 2년이 이미 지나 `TAX-CREDIT-2Y` 가 해제된다 |
 | `AST-L3-CONV` | SALE | *(미입력)* | `BLOCKED` (blockers 1 · insufficient 1) | 날짜 부족이 `insufficient` 로 정직하게 남는다 |
 | `AST-L4-WRAP` | SALE | **`2008-04-01`** | **`HOLD`** | 체크리스트 ⓑ("전문가 검토")는 **이 날짜에서만** 나온다 — 경계 구간 `review_band` |
-| `AST-L4-WRAP` | SALE | `2026-09-01` | `CONDITIONAL` | ⚠ **HOLD 가 아니다.** 이 날짜로 시연하면 ⓑ 가 재현되지 않는다 |
+| `AST-L4-WRAP` | SALE | `2026-09-01` | `CONDITIONAL` | **HOLD 가 아니다.** 이 날짜로 시연하면 ⓑ 가 재현되지 않는다 |
 | `AST-L4-DUST` | SALE | `2026-09-01` | `INSUFFICIENT_FACTS` | ⓒ — `tax_credit_applied` 가 NULL(모름) |
 | `AST-L3-LIFT` | SCRAP | `2026-09-01` | `CLEAR` | ⓓ — **`CLEAR` 는 SCRAP·TRANSFER 에서만** 나온다 (D78 부수 확정) |
 
-> ⚠⚠ **`acquired_at` 은 시드 실행 연도 기준 상대값이다.** `data/seed.py:1119` 가
+> **`acquired_at` 은 시드 실행 연도 기준 상대값이다.** `data/seed.py:1119` 가
 > `date(today.year - age_years, month, day)` 로 만든다 — **다른 해에 재시드하면 위 날짜의 판정이
 > 달라진다.** 위 표는 **2026년에 시드한 DB** 기준이며(`AST-L3-CONV` = `2020-02-10`,
 > `AST-L4-WRAP` = `2006-06-01`), 재현이 안 되면 먼저 `SELECT asset_id, acquired_at FROM assets` 로
 > 실제 취득일을 확인하고 경계(24개월 · `review_band [22,26]`)를 다시 계산할 것.
-> ⛔ 재현이 안 된다고 룰이나 시드를 고치지 말 것 — **날짜 의존성 자체가 D62 가 만든 설계**다.
+> 재현이 안 된다고 룰이나 시드를 고치지 말 것 — **날짜 의존성 자체가 D62 가 만든 설계**다.
 
 ### `check_disposal_blockers` 출력
 
@@ -323,7 +323,7 @@ verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다
 > **실 DB 정상값은 `COMPLETE`** 이며 disclaimer 에 `_LAW_PENDING_NOTE` 접미사가 붙지 않는다.
 > 근거: `../data/analysis/law_fetch.md`
 >
-> ⚠ **이 경로가 죽은 것은 아니다** — 새 조문을 등록했는데 아직 안 받았을 때, 개정으로
+> **이 경로가 죽은 것은 아니다** — 새 조문을 등록했는데 아직 안 받았을 때, 개정으로
 > `pending_revisions` 가 열렸을 때 다시 발화한다. 회귀 `law_fetch_contract` 가 합성 응답으로 덮는다.
 > `LAW_TEXT_PENDING` 경로는 **새 조문 등록 직후·개정 대기·정체성 대조 실패** 때 다시 발화한다.
 
@@ -351,14 +351,14 @@ verdict 는 `disposal_mode` 뿐 아니라 **`disposal_date` 에 따라 갈린다
 
 1. 자산 화면에서 처분 사전판정 (`POST /api/assets/{id}/disposal/precheck` — 무저장, D71)
 2. **"이 자산의 처분서 초안" 버튼 → `/technician?prefill=…` 로 이동**해 채팅 컴포저에 문장을 채운다.
-   ⛔ **자동 전송하지 않는다** — 사람이 무엇을 요청하는지 보고 눌러야 한다
+   **자동 전송하지 않는다** — 사람이 무엇을 요청하는지 보고 눌러야 한다
 3. 에이전트가 `generate_disposal_document` 호출 → 내부에서 `build_evidence_bundle`(5키·해시) →
    `decisions` 에 **`state='draft'` INSERT** (D10·D81)
 4. **자산 화면의 "이 자산의 처분서 초안" 목록에서 `POST /api/decisions/{id}/submit`** → `pending`
 5. 통합 승인 큐 `GET /api/approvals?kind=disposal` 에 표시 (D85)
 6. 팀장이 검토 → `POST /api/decisions/{id}/sign` → **번들 재산출·해시 대조(D84)** → `signed`
 
-> **⚠ 요청은 prefill(채팅), 제출은 자산 화면이다.**
+> **요청은 prefill(채팅), 제출은 자산 화면이다.**
 > `generate_disposal_document` 는 **에이전트만** 부를 수 있어(D15·D10) 화면 버튼이 도구를 직접 못 부른다.
 > 그리고 **`decision_card` block 은 만들지 않았다** — block 은 `safety`·`po_card`·`citation` **3종 고정**이
 > 계약이다(D14·D22). 4번째 타입을 늘리는 것은 계약 변경이므로, `draft → pending` 구간을
@@ -421,7 +421,7 @@ equipment 확장 — `asset_id` 1개뿐 (nullable FK)
   residual_curve  연차 버킷별 잔가율 (목업, D65·D74) — `12 §4`
 ```
 
-> 🔄 **당초 "equipment 확장"이라 썼던 것을 D68 이 바로잡았다.**
+> **당초 "equipment 확장"이라 썼던 것을 D68 이 바로잡았다.**
 > 처분·취득·자산가치의 대상은 인버터가 아니라 **인버터가 구동하는 호스트 설비**다 — 실측(중진공
 > 중고설비 16,011건 중 인버터 **4건** / 공작기계 7,048건). `§1` 이 처분 서사의 근거로 든
 > "수명 20~30년 · 신품 납기 수개월~1년"도 공작기계 특성이지 인버터가 아니다.
@@ -445,7 +445,7 @@ equipment 확장 — `asset_id` 1개뿐 (nullable FK)
 `required_facts=[]` 로 비우는 안을 버린 이유: 키 부재를 "미부보"로 읽게 되어 "모른다"와 "없다"가 다시 섞인다.
 이건 D77 ⓐ(`LIEN-CONSENT` 가 `has_lien` 불리언을 따로 둔 것)의 **거울상**이다.
 
-`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. **파일이 정본이고 SQLite 는 조회용 사본**이다 (D60) — 판정(`verdict`·인용)은 파일에서, 적재 게이트와 `fetch_status` 조회는 DB 사본에서 온다. 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. ⚠ **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
+`law_refs`·`rules`를 **파일로 두고 git에 커밋**하는 이유: 개정 이력이 커밋 로그로 남고 누가 언제 바꿨는지 자동 추적된다. 별도 이력 관리 코드가 필요 없다. **파일이 정본이고 SQLite 는 조회용 사본**이다 (D60) — 판정(`verdict`·인용)은 파일에서, 적재 게이트와 `fetch_status` 조회는 DB 사본에서 온다. 두 사본이 어긋나면 `data/seed.py` 자가검증 **⑬** 이 잡는다. **`rules` 계층에는 대조 검사가 없다** — 검사 ⑭ 는 `len(rule_rows) == 5` 하드코딩 + 근거 무결성만 보므로 **룰 파일이 6개가 돼도 조용히 통과**한다(⑬ 이 `law_refs` 에서 막으려던 바로 그 시나리오다). D106 · `data/extracted/README.md §3④` 참조. D19가 매뉴얼 원본을 manifest로 관리한 것과 같은 태도다.
 
 `decisions.reviewed_by`는 `users` FK (D41), ID 저장 (D36), 시각은 UTC (D39).
 
@@ -474,19 +474,19 @@ F1이 가장 크고 나머지는 그 위에 얇게 얹힌다. **F1만 해도 "�
 > `precheck → 도구 draft → submit → /api/approvals 노출 → 상세 → sign → state='signed'` 를 관통하고,
 > `spikes/disposal_sign_contract.py`(26건)가 **9자산 × 3모드 27조합 전수**에서
 > *BLOCKING 우회 0건 · 서명 없는 확정 0건* 을 4층 각각 독립으로 확인한다.
-> ⚠ 남은 것: **처분 승인서·진술보장서 문안 사람 검수**(법적 효력이 있는 문서 — 안전 문구 D2 와 같은 성격).
+> 남은 것: **처분 승인서·진술보장서 문안 사람 검수**(법적 효력이 있는 문서 — 안전 문구 D2 와 같은 성격).
 > ✅ **2026-08-13 사람 검수 완료** — 출력에 `template_review_notice`(검수 완료 · D90)가 붙는다.
 
 ### 법령 수집 체크리스트 (실제 상태 — Sprint 7 MQ-701 실수집 이후)
 
 - [x] law.go.kr OPEN API 이용 **신청·발급 완료** → `.env` 의 **`LAW_API_OC`**
-  ⚠ 변수명에 "KEY" 가 들어가지 않는 이유 — 인증값은 API 키가 아니라 **신청 이메일 ID 앞부분**이다.
+  변수명에 "KEY" 가 들어가지 않는 이유 — 인증값은 API 키가 아니라 **신청 이메일 ID 앞부분**이다.
   구 변수명 폴백은 `data/rules/fetch_laws.py:41` **한 곳뿐**이며 문서·설정에는 남기지 않는다.
   값이 비어 있으면 법제처가 `필수입력요소 검증에 실패` 를 **HTTP 200 으로** 돌려준다 —
-  `_get_json()` 이 `result` 키를 직접 보고 닫는 이유다. ⛔ **값 자체는 저장소 어디에도 적지 않는다**
+  `_get_json()` 이 `result` 키를 직접 보고 닫는 이유다. **값 자체는 저장소 어디에도 적지 않는다**
 - [x] **수집기(`fetch_from_api`) 완료 — Sprint 7 Stage 1.** 확정 형식은
   `MST` 조회(`display=100`·`search=1`·법령명 완전일치) → `JO` **6자리**(조4+가지2) → 조문번호·제목 대조.
-  ⛔ **추측한 URL 파라미터 형식을 코드에 박지 않았다** — 위 값은 전부 실호출로 확인했다
+  **추측한 URL 파라미터 형식을 코드에 박지 않았다** — 위 값은 전부 실호출로 확인했다
   (`data/analysis/law_fetch.md §1`). `조문내용` 이 제목 한 줄뿐인 조문이 있어 `조문내용+항+호+목` 을
   **평탄화**해야 한다는 것도 실측으로 드러났다(§2)
 - [x] **적용기(`apply_fetch`)는 완료** — 수집기(실호출)와 적용기(파일 조작)를 분리했으므로
@@ -590,7 +590,7 @@ risk_profile       건물 단위 속성. 시드 4행
 | `detect_law_revision` | 읽기 | 해시 비교 + 영향 룰 역추적. **`fetch_laws.py` 의 `check_revisions()` 가 이미 하는 일**을 도구로 노출하는 것이라 새로 만들 로직이 거의 없다 |
 | `assess_risk_grade` | 읽기 | 위험 프로파일 → 등급 + 변동 판정 |
 
-> ⚠ **셋 다 v2 였다 — Sprint 7 에서 제외를 확정했었다** (`07_BACKLOG`), 하지만 **D102(2026-08-18)가
+> **셋 다 v2 였다 — Sprint 7 에서 제외를 확정했었다** (`07_BACKLOG`), 하지만 **D102(2026-08-18)가
 > `track_deadlines`·`assess_risk_grade` 2종을 본 범위로 편입했다.** `detect_law_revision` 과 그
 > 시나리오 S17 만 **v2 제외가 그대로 유지**된다 — 이건 별개 결정(`02_SCENARIOS.md:83`)이라 D102 가
 > 다시 열지 않는다.

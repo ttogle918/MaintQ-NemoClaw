@@ -1,6 +1,6 @@
 # Sprint 7 — S9→S10 관통 · S18 UI 정직성 · 3·4차 평가
 
-> ℹ️ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
+> ℹ 시나리오 번호 정정(2026-08-18, Sprint 12, P33) — 이 문서의 S19 표기는 계획 당시 번호다. 이후 S29로 정정됐다. 본문은 수립 당시 그대로 보존한다.
 
 **수립**: 2026-08-09 · **부제**: 설비를 팔 때와 살 때를 실제로 동작하는 수준까지
 
@@ -14,7 +14,7 @@
 
 ---
 
-## ⚠ 읽는 순서 — 이 문서의 우선순위
+## 읽는 순서 — 이 문서의 우선순위
 
 > **§개정 사항이 §태스크별 상세 명세보다 우선한다.**
 > 명세는 PM 1차안이고, 개정은 tool-builder 가 **실호출·실측으로 검증한 뒤** 고친 것이다.
@@ -36,7 +36,7 @@
 | **프론트** | ❌ Sprint 6 은 의도적으로 **프론트 0** — 승인 큐 공유가 통째로 남았다 |
 | **서명 경로** | ❌ 없음 → *"서명 없는 확정 0건"* 을 아직 증명할 수 없다 |
 
-## 🔴 `LAW_API_OC` 발급·검증 완료 — 계획의 최대 변수가 풀렸다
+## `LAW_API_OC` 발급·검증 완료 — 계획의 최대 변수가 풀렸다
 
 ```
 GET lawSearch.do?OC=<9자>&target=law&type=JSON&query=조세특례제한법  →  200 · totalCnt 3 · MST 280409
@@ -45,7 +45,7 @@ GET lawSearch.do?OC=<9자>&target=law&type=JSON&query=조세특례제한법  →
 tool-builder 실호출 전수 결과: **7/7 조문 본문 도달 · 5/7 즉시 적용 · 2/7 정체성 대조에 걸림**.
 이로써 `build_evidence_bundle` 이 **항상 `law_text_unavailable` 로 거부되던 게 풀리고 S10 이 실데이터로 관통 가능**해졌다.
 
-### 🚨 실측이 잡은 함정 — `조문내용` 은 본문이 아니라 제목이다
+### 실측이 잡은 함정 — `조문내용` 은 본문이 아니라 제목이다
 
 ```
 조문내용          = '제32조(세금계산서 등)'              ← 15자, 이게 전부
@@ -94,7 +94,7 @@ MST  = ?OC=..&target=law&type=JSON&query=..&display=100&search=1
 | `create_repair_record`(S19) | ❌ S8 | 지시에 없다. **`repair_records` 12건은 이미 시드돼 `get_maintenance_metrics` 가 소비 중** — S10 증빙 패키지는 **읽기**만 필요하고 그건 오늘 동작한다. 단 **큐는 3종을 전제로 설계**(`kind` enum 에 `repair` 포함, 항상 0건) → S8 이 계약 변경 없이 추가된다. **"3종으로 설계하고 2종을 구현한다"** |
 | `flags` 발생·해소 | ❌ S8 | 요청 밖. `flags` 0행으로도 S9·S10 이 완결된다 |
 | 증빙 패키지 해시 고정 | ❌ S8 | S7 은 **"고정되지 않는다"를 명시**하는 선까지(D86) |
-| S17 · `detect_law_revision` | ❌ v2 | 사용자 명시 제외. ⚠ `check_revisions()` 는 이미 존재하고 MQ-701 이 `fetch_from_api` 를 채우면 **자동으로 살아난다 — 도구로 노출하지 않을 뿐**이다(MQ-712 가 문서에 명시) |
+| S17 · `detect_law_revision` | ❌ v2 | 사용자 명시 제외. `check_revisions()` 는 이미 존재하고 MQ-701 이 `fetch_from_api` 를 채우면 **자동으로 살아난다 — 도구로 노출하지 않을 뿐**이다(MQ-712 가 문서에 명시) |
 
 ---
 
@@ -128,7 +128,7 @@ MQ-703 ────────────────────────�
   **서명을 얹기 전에 끝나야 한다** — 번들이 무엇을 고정하는지 모르는 채 해시에 사람 서명을 붙이면 그 서명이 무의미하다
 - **Stage 3 3병렬** — 706=`mcp_server/` / 707=`backend/{services,routers}`+`main.py`+`seed.py` /
   707b=`data/ownership.py`+`verify_ownership.py`+`services/ownership.py`+`routers/disposal.py`.
-  ⚠ **707b 는 `main.py` 를 건드리지 않는다** — `disposal.py` 라우터가 이미 `prefix="/api/assets"` 다
+  **707b 는 `main.py` 를 건드리지 않는다** — `disposal.py` 라우터가 이미 `prefix="/api/assets"` 다
 - **Stage 4 단독** — *"두 개의 0건"* 은 요청의 헤드라인이고 **도구(706)와 API(707) 양쪽을 동시에 관통해야만**
   증명된다. 어느 한쪽에 붙이면 **자기 코드를 자기가 검증**하는 구조가 된다
   (Sprint 6 Stage 4 에서 전용 회귀가 없어 블로커가 Stage 6 까지 살아남을 뻔한 것과 같은 실패를 미리 막는다)
@@ -136,7 +136,7 @@ MQ-703 ────────────────────────�
   **한 덩어리**다. `poId`→`id`+`kind` 전환은 이 파일들을 **원자적으로** 바꿔야 하므로 병렬 불가
 - **Stage 6 3병렬** — 709a 가 `lib/api.ts` 에 **신규 fetcher 전부를 한 번에** 넣고 닫으므로,
   Stage 6 의 세 태스크는 `api.ts` 를 **읽기만** 하고 각자 신규 컴포넌트·라우트만 만든다.
-  ⚠ **710 은 711 의 `AssetHeader` 를 import 하지 않는다**(같은 스테이지 의존 금지) — 자체 최소 헤더를 만든다
+  **710 은 711 의 `AssetHeader` 를 import 하지 않는다**(같은 스테이지 의존 금지) — 자체 최소 헤더를 만든다
 
 ### 공유 파일 단일 소유자 격리
 
@@ -155,7 +155,7 @@ MQ-703 ────────────────────────�
 
 ---
 
-# 🔄 개정 사항 (tool-builder 실측 평가 반영) — **명세보다 우선**
+# 개정 사항 (tool-builder 실측 평가 반영) — **명세보다 우선**
 
 tool-builder 평가: *"구조는 건전하다. 스테이지 분할 근거, 단일 소유자 격리, 뮤턴트 선행 확인,
 4층 방어 설계는 모두 타당하고 실측과 대조해 오류가 거의 없다(414건 정확 일치, DDL·트리거·프론트 인용 전부 일치)."*
@@ -163,14 +163,14 @@ tool-builder 평가: *"구조는 건전하다. 스테이지 분할 근거, 단�
 
 ## MQ-701 — 전면 개정
 
-1. **`text` 는 `조문내용 + 항내용 + 호내용 + 목내용` 평탄화.** ⛔ `조문내용` 단독 금지(위 §함정)
+1. **`text` 는 `조문내용 + 항내용 + 호내용 + 목내용` 평탄화.** `조문내용` 단독 금지(위 §함정)
 2. `조문여부 == '조문'` 인 단위만 선택 — `'전문'`(절 제목)은 버린다.
    **`KR-OSHA-93`·`KR-STTC-24` 는 2건이 반환된다**
 3. `조문시행일자` 는 `YYYYMMDD` → `effective_from` 은 `YYYY-MM-DD` 로 **변환**
 4. `promulgation_no` 는 조문 단위가 아니라 응답 `기본정보` 에 있다
-5. **⚠ JSON 을 채운 뒤 반드시 `uv run python data/seed.py --with-error-codes` 재실행** —
+5. **JSON 을 채운 뒤 반드시 `uv run python data/seed.py --with-error-codes` 재실행** —
    `law_refs` 는 **DB 사본**이고(D60) 도구·REST 는 DB 를 본다. 재시드 없이는 파일만 바뀐다
-6. ⛔ **정체성 불일치 자동 정정 금지** — `apply_fetch` 가 파일을 손대지 않고 중단하는 것이 정상이다
+6. **정체성 불일치 자동 정정 금지** — `apply_fetch` 가 파일을 손대지 않고 중단하는 것이 정상이다
 7. **DoD 변경**: 결과표에 `FETCHED 6 / MISMATCH 1 / FAILED 0`(146 정정 반영) ·
    **`FETCHED` 전 건에서 `len(text) > len(조문내용)`** ∧ **항 ≥1 인 조문은 `항내용` 첫 40자가 `text` 에 포함** ·
    재시드 후 `SELECT count(*) FROM law_refs WHERE fetch_status='FETCHED'` → **6** ·
@@ -199,7 +199,7 @@ tool-builder 평가: *"구조는 건전하다. 스테이지 분할 근거, 단�
   if completeness == "LAW_TEXT_PENDING":
       disclaimer += _LAW_PENDING_NOTE
   ```
-  > ⛔ **드리프트 검사에서 `disclaimer` 를 MCP 도구 출력 기준으로 단언하지 말 것.**
+  > **드리프트 검사에서 `disclaimer` 를 MCP 도구 출력 기준으로 단언하지 말 것.**
   > **MQ-701 이 조문을 채우는 순간 접미사가 사라져 값이 바뀐다.** `message` 를 대조에서 뺀 것과 같은 이유.
   > **`engine.DISCLAIMER` 와 REST 응답값을 직접 비교하고 MCP 출력은 쓰지 않는다.**
 
@@ -275,7 +275,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - `backend/services/ownership.py` 는 `import data.ownership as _own` **모듈 참조**
   (Sprint 5 W1 의 `DB_PATH` 로드시점 고정 사고 회피). 커넥션은 **`mode=ro` URI**
 - **HTTP 매핑**: `ok`→200 / `not_found`(`unknown_asset`·`unknown_equipment`·`no_host_asset`)→**404** /
-  `error`→**500**. ⛔ **`PARTIAL` 을 409 로 만들지 말 것** — 실사 판정은 "지금 상태로는 불가"가 아니라
+  `error`→**500**. **`PARTIAL` 을 409 로 만들지 말 것** — 실사 판정은 "지금 상태로는 불가"가 아니라
   **정상 결과**다. 409 로 주면 D71 이 처분 판정에 부여한 의미가 흐려진다
 - `no_host_asset` 은 404 이되 본문에 사유를 싣는다 — **"문제 없음"이 아니다**
 - **DoD**: ① **이관 동치 증명** — 이관 전 9자산 출력을 덤프해 두고 이관 후와
@@ -321,7 +321,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **선행**: MQ-709a **+ MQ-707b**(엔드포인트 제공자)
 - **검증 3층 → 2층**: L1 순수 함수 9건 · L2 소스 정적 4건 = **13건**.
   **L3(실 데이터 렌더) 삭제** — 서버 기동·자산 순회는 이 태스크의 검증 단위를 넘는다
-- ⛔ **초록 위장 금지**: spike 출력 말미에
+- **초록 위장 금지**: spike 출력 말미에
   **"L3(실 데이터 렌더)은 이 스위트가 검증하지 않는다 — 수동 체크리스트가 유일한 확인 수단이다"** 출력
 - **제약 추가**: `lib/ownership.ts` 는 **React 를 import 하지 않는다** +
   **`@/` 경로 별칭도 쓰지 않는다**(`tsconfig.json` 에 `paths` 별칭이 있어 별칭을 쓰면 단독 `tsc` 가 깨진다).
@@ -338,13 +338,13 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   신규 스위트 **6종** 반영
 - **MQ-713**: 부품 특정은 **"미달"이 아니라 "판정 불가(`related_parts` 사람 승인 전, D12)"** 로
   **별도 행에 분리 기재**. 미달과 판정 불가를 한 칸에 쓰면 튜닝의 성패가 흐려진다.
-  ⛔ **`SAFETY_BASELINE` 문구는 수정하지 않고 보고만 한다**(사람 승인 대상)
+  **`SAFETY_BASELINE` 문구는 수정하지 않고 보고만 한다**(사람 승인 대상)
 
 ---
 
 # 태스크별 상세 명세 (PM 1차안)
 
-> ⚠ **위 §개정 사항과 충돌하면 개정이 우선한다.**
+> **위 §개정 사항과 충돌하면 개정이 우선한다.**
 
 # 태스크별 상세 구현 명세
 
@@ -354,7 +354,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S10 (근거 번들 → 서명). S9 의 인용 품질 향상은 부수
 - **변경 파일**: `data/rules/fetch_laws.py`(수정) · `data/rules/laws/*.json`(데이터 갱신, 커밋) · `spikes/law_fetch_contract.py`(수정) · `spikes/asset_tools_contract.py`(수정) · `data/analysis/law_fetch.md`(신규)
-- **⛔ 금지**: `engine.py`·`seed.py`·`build_evidence_bundle.py` 접근
+- **금지**: `engine.py`·`seed.py`·`build_evidence_bundle.py` 접근
 
 - **인터페이스**
   ```python
@@ -370,7 +370,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   ```
 
 - **핵심 로직 (순서를 지킬 것 — 코드 주석 `fetch_laws.py:70-73` 이 정한 순서다)**
-  1. **키 재확인이 첫 단계다.** `lawSearch.do?OC=<값>&target=law&type=JSON&query=조세특례제한법` 을 호출해 `totalCnt > 0` 을 확인. ⚠ **키가 비어도 HTTP 200 이 온다** — 본문 `{"result":"필수입력요소 검증에 실패..."}` 를 반드시 검사할 것. 이 검사 없이 `json.loads` 성공을 성공으로 읽으면 조용히 넘어간다.
+  1. **키 재확인이 첫 단계다.** `lawSearch.do?OC=<값>&target=law&type=JSON&query=조세특례제한법` 을 호출해 `totalCnt > 0` 을 확인. **키가 비어도 HTTP 200 이 온다** — 본문 `{"result":"필수입력요소 검증에 실패..."}` 를 반드시 검사할 것. 이 검사 없이 `json.loads` 성공을 성공으로 읽으면 조용히 넘어간다.
   2. `resolve_mst(law_name)` — 법령명 exact match 로 `MST` 확보. **동명이 여러 건이면 예외**(자동 선택 금지 — D50 태도). 7건의 `law_name` 은 5종(`조세특례제한법` 2건 공유·`부가가치세법`·`산업안전보건법`·`상법`·`민법`·`법인세법 시행령`).
   3. `lawService.do?OC=..&target=law&MST=..&type=JSON&JO=..` 로 조문 단위 조회. **`JO` 형식을 추측해서 박지 말 것** — 실호출로 확정하고, 확정된 형식과 그 근거(실제 요청 URL·응답 발췌)를 `data/analysis/law_fetch.md` 에 남긴다. 형식이 확인되기 전에는 `_jo_param` 을 구현하지 않는다.
   4. 응답을 `apply_fetch` 가 먹는 dict 로 정규화. **`article`·`title` 매핑을 빠뜨리지 말 것** — 법제처 필드명은 `조문번호`·`조문제목` 이고, 빠뜨리면 D75 의 정체성 게이트가 `LawMismatchError` 로 **정상 중단**시킨다(그게 설계된 동작이다).
@@ -419,7 +419,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S9·S10 (판정 원천 일원화 — 서명의 전제)
 - **변경 파일**: `data/rules/engine.py` · `data/rules/test_rules.py` · `backend/services/disposal.py` · `spikes/disposal_api_contract.py` · `spikes/rules_db_load.py`
-- **⛔ 금지**: `mcp_server/**` 접근 (MQ-705·706 소유)
+- **금지**: `mcp_server/**` 접근 (MQ-705·706 소유)
 
 - **인터페이스**
   ```python
@@ -446,7 +446,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   2. `facts_used` 는 **입력 `facts` 의 얕은 사본**을 그대로 싣는다. 재조립·필터 금지 — 재조립하면 "판정이 본 사실"과 "번들에 실린 사실"이 다시 갈린다.
   3. `laws_used` 는 **평가된 전 룰의 `law_refs` 합집합**을 정렬해 싣는다. 발화한 룰만 세면 CLEAR 자산에서 빈 목록이 되어 W7 이 그대로 남는다.
   4. **W2 해소**: `backend/services/disposal.py:289-294` 의 문자열 복제를 제거하고 `engine.NOT_CONSIDERED`·`engine.DISCLAIMER` 를 import. `import data.rules.engine as _engine` 형태로 **모듈 참조**할 것 — `from … import DISCLAIMER` 는 로드 시점에 값을 고정한다(Sprint 5 W1 의 `DB_PATH` 사고와 같은 유형).
-  5. **MCP↔REST 대조 확장**(Sprint 6 이월 #3): `spikes/rules_db_load.py` 의 대조를 `verdict` 단독 → **`verdict` + 4버킷 각각의 `rule_id` 집합 + `disposal_type` + `law_refs` 집합**으로 확장. ⛔ `message` 는 **넣지 말 것**(자유 문장이라 취성).
+  5. **MCP↔REST 대조 확장**(Sprint 6 이월 #3): `spikes/rules_db_load.py` 의 대조를 `verdict` 단독 → **`verdict` + 4버킷 각각의 `rule_id` 집합 + `disposal_type` + `law_refs` 집합**으로 확장. `message` 는 **넣지 말 것**(자유 문장이라 취성).
   6. `laws_all_fetched()` 헬퍼는 **엔진에 두되** MQ-701 은 쓰지 않는다(같은 스테이지 의존 금지). Stage 2 이후 소비자가 쓴다.
 
 - **엣지 케이스**
@@ -473,7 +473,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S1~S4 (완료 기준 5지표)
 - **변경 파일**: `eval/run_eval.py` · `eval/results/<타임스탬프>.{json,md}`(신규 산출) · `data/analysis/eval_gap_3rd.md`(신규) · `spikes/eval_score_contract.py`
-- **⛔ 금지**: `backend/**`·`mcp_server/**` 코드 수정 — **이 태스크는 측정만 한다.** 고치고 싶은 것을 발견하면 `eval_gap_3rd.md` 에 적고 MQ-713 으로 넘긴다
+- **금지**: `backend/**`·`mcp_server/**` 코드 수정 — **이 태스크는 측정만 한다.** 고치고 싶은 것을 발견하면 `eval_gap_3rd.md` 에 적고 MQ-713 으로 넘긴다
 
 - **인터페이스**
   ```python
@@ -496,7 +496,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      - **실패 문항의 군집 분석.** 2차 실측: T13·T14·T15(S2 3문항)가 **부품·인용·안전 3지표를 동시에** 떨어뜨린다. 안전 추가 실패는 T06·T09·T11·T16. → 원인이 3개가 아니라 **1~2개일 가능성**을 먼저 검증할 것
      - 문항별 `traces` 원본 확인 — `GET /api/chat/{sid}/trace` 로 **도구가 실제로 무엇을 반환했는지** 대조. `tool_payload` 컬럼(D76-2)이 있으면 그것을 쓴다
      - **MQ-713 이 실행할 후보 수정 목록** — 각 항목에 "어느 지표를 몇 % 움직일 것으로 보는가"가 아니라 **"어느 문항이 왜 실패했는가"** 를 적는다. 근거 없는 개선폭 추정 금지
-  6. ⚠ **부품 특정 정확률은 `related_parts` 사람 최종 승인 전이라 "실적"으로 인용할 수 없다**(D12). 결과 MD 머리말의 기존 경고 문구를 유지·갱신한다.
+  6. **부품 특정 정확률은 `related_parts` 사람 최종 승인 전이라 "실적"으로 인용할 수 없다**(D12). 결과 MD 머리말의 기존 경고 문구를 유지·갱신한다.
 
 - **엣지 케이스**
   | 상황 | 동작 |
@@ -541,7 +541,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **변경 파일**: `mcp_server/tools/build_evidence_bundle.py` · `spikes/asset_tools_contract.py` · `spikes/bundle_integrity.py`(신규)
 - **선행**: MQ-701(조문 원문) · MQ-702(주입점·`facts_used`)
 
-> ### 🔴 Stage 1 인계 — 번들은 **엔진을 직접 호출**해야 한다 (반드시 읽을 것)
+> ### Stage 1 인계 — 번들은 **엔진을 직접 호출**해야 한다 (반드시 읽을 것)
 >
 > `build_evidence_bundle.py:81` 은 현재 **MCP 도구**를 부른다:
 > `from .check_disposal_blockers import check_disposal_blockers as _judge`.
@@ -586,7 +586,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   ```
 
 - **핵심 로직**
-  1. **W5 — 원천 일원화.** DB 에서 `laws` 를 **한 번** 로드하고(`engine.load_laws_from_db(con)`), 그것을 `engine.check_disposal_blockers(facts, laws=laws, rules=rules)` 에 **주입**한다. 인용 집합·`text_hash`·`effective_from` 이 **같은 객체**에서 나온다. ⛔ 파일 로더와 DB 로더를 한 호출 안에서 섞지 말 것.
+  1. **W5 — 원천 일원화.** DB 에서 `laws` 를 **한 번** 로드하고(`engine.load_laws_from_db(con)`), 그것을 `engine.check_disposal_blockers(facts, laws=laws, rules=rules)` 에 **주입**한다. 인용 집합·`text_hash`·`effective_from` 이 **같은 객체**에서 나온다. 파일 로더와 DB 로더를 한 호출 안에서 섞지 말 것.
   2. **W6 — `rule_hash`.** 룰 본문의 정준 직렬화 해시:
      ```python
      RULE_HASH_FIELDS = ("rule_id","rule_version","label","category","disposal_type",
@@ -597,7 +597,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      ```
      `authored_by`·`reviewed_at`·`revision_note` 는 **제외**한다(메타데이터라 판정에 무관 — 넣으면 주석 수정이 "변조"로 보인다). 제외 목록을 코드 주석에 근거와 함께 남긴다.
   3. **W7 — `evaluated[]`.** `laws_used`·평가된 전 룰을 `rule_id` 정렬로 싣는다. **CLEAR 자산도 비지 않는다.** 이게 W7 의 유일한 해소다.
-  4. **계약 근거.** `contract_refs` 를 `contracts[]` 로 싣되 `text_hash: null`·`hash_fixed: false`. ⛔ **`law_text_unavailable` 검사 대상에 넣지 말 것** — 넣으면 `LIEN-CONSENT` 자산 번들이 구조적으로 영원히 불가능해진다(`04 §14` 이미 명시).
+  4. **계약 근거.** `contract_refs` 를 `contracts[]` 로 싣되 `text_hash: null`·`hash_fixed: false`. **`law_text_unavailable` 검사 대상에 넣지 말 것** — 넣으면 `LIEN-CONSENT` 자산 번들이 구조적으로 영원히 불가능해진다(`04 §14` 이미 명시).
   5. **N1 — 해시 의미 명시.** `hash_spec` 필드를 **번들 밖**에 둔다(안에 넣으면 스펙 문자열 변경이 해시를 흔든다). `disclaimer` 에 *"변조 없음의 기준은 바이트 동일이 아니라 NFKC + 공백 정규화 후 동일이다"* 를 명시.
   6. **N2 — 자산 수정 감지.** 판정 **전**과 번들 조립 **후** 자산 행을 두 번 읽고 `engine.text_hash(canonical_json(build_facts(row)))` 를 비교. 불일치 → `status:"error"`, `reason:"asset_modified"`. 기존 `asset_disappeared` 는 그대로 유지.
   7. **`bundle_hash` 산출 규약은 그대로**(`04 §14`): `sort_keys=True`·`separators=(",",":")`·`ensure_ascii=False`·`engine.text_hash()` 재구현 금지. **리스트 4종은 명시적으로 정렬**: `laws`→`law_ref_id`, `rules`·`evaluated`→`(rule_id, rule_version)`, `contracts`→`contract_ref`.
@@ -630,7 +630,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S10
 - **변경 파일**: `mcp_server/tools/generate_disposal_document.py`(신규) · `mcp_server/db.py`(수정) · `mcp_server/server.py`(수정) · `backend/agent/prompts.py`(수정) · `spikes/prompt_rules.py`(수정) · `spikes/tools_profile_contract.py`(수정) · `spikes/write_tool_contract.py`(수정)
-- **⛔ 금지**: `backend/services|routers/**`·`data/seed.py` 접근 (MQ-707 소유)
+- **금지**: `backend/services|routers/**`·`data/seed.py` 접근 (MQ-707 소유)
 
 - **인터페이스**
   ```python
@@ -689,9 +689,9 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      BEGIN SELECT raise(ABORT, 'MCP 도구는 decisions 를 수정할 수 없습니다 (D10)'); END;
      CREATE TEMP TRIGGER IF NOT EXISTS mcp_no_decision_delete …
      ```
-     ⛔ `draft_writer` 를 재사용해 `decisions` 를 쓰지 말 것 — 그러면 `po_drafts` 전용 트리거만 걸린 커넥션으로 `decisions` 를 만지게 된다.
+     `draft_writer` 를 재사용해 `decisions` 를 쓰지 말 것 — 그러면 `po_drafts` 전용 트리거만 걸린 커넥션으로 `decisions` 를 만지게 된다.
   4. **문서 렌더는 미리보기만**(D86). `documents_preview` 는 번들에서 조립한 문안이며 **DB 에 저장하지 않는다**. 정식 렌더는 `GET /api/decisions/{id}` 가 한다.
-  5. **문안 템플릿은 `unreviewed_template_notice` 를 강제한다.** 진술보장서는 법적 효력이 있는 문서다 — 안전 문구(D2·safety-guardrail)와 같은 성격으로 **사람 검수 전이라는 사실을 출력에 싣는다.** ⛔ LLM 이 문안을 생성하게 하지 말 것: 템플릿은 코드 상수이고 **번들의 값만 치환**한다.
+  5. **문안 템플릿은 `unreviewed_template_notice` 를 강제한다.** 진술보장서는 법적 효력이 있는 문서다 — 안전 문구(D2·safety-guardrail)와 같은 성격으로 **사람 검수 전이라는 사실을 출력에 싣는다.** LLM 이 문안을 생성하게 하지 말 것: 템플릿은 코드 상수이고 **번들의 값만 치환**한다.
   6. `server.py` 등록: `full` 블록 안. `reason` 은 **기본값 없음**(D80). `_DISPOSAL_MODE_FIELD`·`_DISPOSAL_DATE_FIELD` 재사용.
   7. `prompts.py` EXT 규칙 신설(기존 11 → 12): *"`generate_disposal_document` 는 초안만 만든다. 사용자에게 '처분이 완료됐다'고 말하지 말 것. `override` 는 네 권한이 아니다."* **도구별 게이트**(MQ-612 선례)로 붙여 `core` 프로파일에서 규칙이 새지 않게 한다.
 
@@ -721,7 +721,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S10 (계층 3 확정)
 - **변경 파일**: `backend/services/decisions.py`(신규) · `backend/routers/decisions.py`(신규) · `backend/services/approvals.py`(신규) · `backend/routers/approvals.py`(신규) · `backend/main.py`(수정) · `data/seed.py`(수정) · `spikes/api_contract.py`(수정) · `spikes/approvals_contract.py`(신규)
-- **⛔ 금지**: `mcp_server/**`·`backend/services/po.py` 의 기존 함수 시그니처 변경
+- **금지**: `mcp_server/**`·`backend/services/po.py` 의 기존 함수 시그니처 변경
 
 - **인터페이스**
   ```
@@ -759,7 +759,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
             OR verdict_at_signing IN ('CONDITIONAL','CLEAR'))
      ```
      이 두 CHECK 가 핵심이다 — **코드 버그나 미래의 잘못된 UPDATE 로도 뚫을 수 없다.** D10 이 도구에 UPDATE 권한을 아예 안 준 것, D63 이 사유 없는 override 를 CHECK 로 막은 것과 같은 태도.
-     ⚠ 두 번째 CHECK 의 verdict 목록은 `engine.VERDICTS` 와 어긋날 수 있다 → `seed.py` 가 DDL 생성 후 `set(engine.VERDICTS) - {'CONDITIONAL','CLEAR'} == set(BLOCKING_VERDICTS)` 를 **자가검증 ⑲** 로 확인한다.
+     두 번째 CHECK 의 verdict 목록은 `engine.VERDICTS` 와 어긋날 수 있다 → `seed.py` 가 DDL 생성 후 `set(engine.VERDICTS) - {'CONDITIONAL','CLEAR'} == set(BLOCKING_VERDICTS)` 를 **자가검증 ⑲** 로 확인한다.
   2. **`sign()` 순서 — 순서가 계약이다**
      ```
      ① 행 조회 · 없으면 KeyError → 404
@@ -768,7 +768,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
         - disposal_mode·disposal_date 를 저장된 facts 에서 꺼낸다 (별도 컬럼 불필요 — 실측 확인:
           build_facts 가 facts["disposal_mode"]·["disposal_date"] 를 넣는다)
         - 재산출 해시 != 저장된 bundle_hash → EvidenceChanged → 409
-        - ⛔ backend 는 MCP 도구를 부르지 않는다. data.rules.engine 을 직접 쓴다 (D73)
+        - backend 는 MCP 도구를 부르지 않는다. data.rules.engine 을 직접 쓴다 (D73)
      ④ 재산출 verdict ∈ BLOCKING_VERDICTS 이고 override != True → OverrideRequired → 409
      ⑤ override == True 이고 override_reason 공백 → OverrideReasonRequired → 422
      ⑥ UPDATE: state='signed', signed_at=UTC now, reviewed_by=X-User,
@@ -792,15 +792,15 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
        } ] }
      ```
      - `kind` enum 은 `("po","disposal","repair")` — **`repair` 는 Sprint 7 미구현이라 항상 0건**. enum 에 미리 넣는 이유는 Sprint 8 이 계약 변경 없이 추가되게 하기 위함이며, **그 사실을 응답 스키마 주석과 `06 §2.6` 에 명시**한다.
-     - ⛔ `state` 를 공통 어휘로 정규화하지 말 것. `approved` 와 `signed` 는 다른 사건이다.
+     - `state` 를 공통 어휘로 정규화하지 말 것. `approved` 와 `signed` 는 다른 사건이다.
      - **`/api/po` 응답 형태·경로 무변경**(D85). `spikes/api_contract.py` 28건이 그대로 통과해야 한다.
   4. **문서 렌더** (D86, `render_documents`) — 저장하지 않고 `GET /api/decisions/{id}` 응답 조립 시점에 계산:
      - **처분 승인서**: 자산·처분방식·일자 · verdict · blockers/preconditions 목록 · **인용 조문 각주**(`bundle.laws[].law_ref_id` → `law_refs` 테이블의 `law_name 제N조(제목)`)
      - **진술보장서**: 룰별 진술 항목 + `contracts[]` 의 `hash_fixed:false` 표시
-     - **증빙 패키지(축소판)**: 정비 이력 요약(`repair_records` 중 `signed_at IS NOT NULL` 만 — `12 §11` 가드레일) + 보전지표(`get_maintenance_metrics` 와 **같은 산식**을 backend 가 재구현하지 말고… ⚠ 도구는 `mcp_server` 소유라 import 불가(D15). **`repair_records` 집계 SQL 을 backend 에 두되 산식이 `12 §2`·D70 과 같음을 주석·회귀로 대조**한다)
-     - ⚠ **감가상각 명세는 만들지 않는다** — `assets` 에 상각 스케줄 원천이 없다. `12 §8` 4종 중 3종만 제공하고 **빠진 1종을 응답 필드로 밝힌다**(`missing_sections: ["감가상각 명세 — 상각 스케줄 원천 없음"]`). 지어내지 않는다(D65 태도).
+     - **증빙 패키지(축소판)**: 정비 이력 요약(`repair_records` 중 `signed_at IS NOT NULL` 만 — `12 §11` 가드레일) + 보전지표(`get_maintenance_metrics` 와 **같은 산식**을 backend 가 재구현하지 말고… 도구는 `mcp_server` 소유라 import 불가(D15). **`repair_records` 집계 SQL 을 backend 에 두되 산식이 `12 §2`·D70 과 같음을 주석·회귀로 대조**한다)
+     - **감가상각 명세는 만들지 않는다** — `assets` 에 상각 스케줄 원천이 없다. `12 §8` 4종 중 3종만 제공하고 **빠진 1종을 응답 필드로 밝힌다**(`missing_sections: ["감가상각 명세 — 상각 스케줄 원천 없음"]`). 지어내지 않는다(D65 태도).
      - 응답에 **`hash_fixed: false` 와 "이 증빙 패키지는 서명 해시로 고정되지 않는다"** 를 강제(D86).
-  5. **역할 게이트**: `submit`=technician / `sign`·`reject`=manager. `backend/deps.require()` 재사용. **양방향 403**(manager 가 submit → 403). ⚠ `precheck` 에는 여전히 게이트를 두지 않는다(D71) — 읽기 판정과 확정 경로를 섞지 않는다.
+  5. **역할 게이트**: `submit`=technician / `sign`·`reject`=manager. `backend/deps.require()` 재사용. **양방향 403**(manager 가 submit → 403). `precheck` 에는 여전히 게이트를 두지 않는다(D71) — 읽기 판정과 확정 경로를 섞지 않는다.
   6. `backend/main.py` 에 `include_router(decisions.router)`·`include_router(approvals.router)` 2줄 추가.
 
 - **엣지 케이스**
@@ -833,7 +833,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **복무 시나리오**: S9 · S10 (사용자 요청 1번의 **증명**)
 - **변경 파일**: `spikes/disposal_sign_contract.py`(신규) · `spikes/s10_smoke.py`(신규)
 - **선행**: MQ-706 · MQ-707
-- **⛔ 금지**: **제품 코드 수정 금지.** 이 태스크에서 결함이 나오면 **회귀를 완화하지 말고** 결함으로 보고한다(Sprint 6 의 "완화가 아니라 테스트를 강하게" 원칙)
+- **금지**: **제품 코드 수정 금지.** 이 태스크에서 결함이 나오면 **회귀를 완화하지 말고** 결함으로 보고한다(Sprint 6 의 "완화가 아니라 테스트를 강하게" 원칙)
 
 - **핵심 로직 — `disposal_sign_contract.py` (전수 · 다층)**
   1. **전수 매트릭스.** 시드 9자산 × 3모드 = 27조합을 `check_disposal_blockers` 로 판정하고 verdict 별로 분류한다. `BLOCKING_VERDICTS` 조합 **전부**에 대해:
@@ -885,7 +885,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S10 (팀장 서명) · 기존 S1~S3(발주 승인) 무회귀
 - **변경 파일**: `frontend/lib/api.ts` · `lib/types.ts` · `lib/mappers.tsx` · `lib/queueState.ts`(신규) · `components/screens/ApprovalQueueScreen.tsx` · `components/queue/QueueList.tsx` · `components/queue/PoDetail.tsx` · `components/queue/DecisionDetail.tsx`(신규) · `components/queue/DecisionBar.tsx` · `components/queue/SignBar.tsx`(신규) · `components/queue/EvidenceCard.tsx` · `app/(console)/manager/page.tsx` · `app/(console)/manager/decision/[decisionId]/page.tsx`(신규) · `lib/mock/queue.tsx`
-- **⛔ 금지**: `components/asset/**`·`lib/ownership.ts` 접근 (Stage 6 소유)
+- **금지**: `components/asset/**`·`lib/ownership.ts` 접근 (Stage 6 소유)
 
 - **인터페이스**
   ```ts
@@ -922,7 +922,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   2. `QueueList` 의 링크를 `/manager/po/${poId}` → **`entry.detailHref`** 로. `kind` 배지를 항목에 추가.
   3. 상세는 `kind` 로 분기: `po` → 기존 `PoDetail`(**계약 무변경**), `disposal` → 신규 `DecisionDetail`.
   4. **`DecisionDetail`** 구성:
-     - verdict 배너 — `BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS` 는 **경고 톤 + 해소 경로 목록**. ⛔ 절대 성공 톤 금지(D87)
+     - verdict 배너 — `BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS` 는 **경고 톤 + 해소 경로 목록**. 절대 성공 톤 금지(D87)
      - blockers·preconditions·holds·insufficient 4버킷 + **인용 조문 칩**(매뉴얼 인용 칩 `CitationChip` 과 시각적으로 구분 — 근거의 성격이 다르다)
      - 승인서·진술보장서 미리보기
      - 증빙 패키지 + **`missing_sections` 를 반드시 렌더**(빠진 절을 숨기면 D65 태도가 무너진다)
@@ -930,7 +930,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      - `bundle_hash` 모노스페이스 표시
   5. **`SignBar`**:
      - `requiresOverride === false` → "서명하고 확정" 버튼
-     - `requiresOverride === true` → 버튼이 **비활성**이고, `override` 체크박스 + **사유 textarea 를 채워야만** 활성화. 사유 없이 제출 자체가 불가능한 UI. ⛔ 자동 체크·기본 사유 문구 금지
+     - `requiresOverride === true` → 버튼이 **비활성**이고, `override` 체크박스 + **사유 textarea 를 채워야만** 활성화. 사유 없이 제출 자체가 불가능한 UI. 자동 체크·기본 사유 문구 금지
      - override 활성 시 경고 배너: *"판정을 뚫고 확정합니다. 사유와 서명자가 기록됩니다."*
      - 409 `evidence_changed` 응답 → **"근거가 변경되었습니다. 다시 검토해야 합니다."** + 재조회 버튼. 무시하고 재시도하는 경로를 만들지 말 것
   6. 에러 표시는 기존 `extractDetail` 재사용 — 403/409/422 를 구분해 보여주는 현행 동작 유지(D38 요점).
@@ -959,7 +959,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S18 (사용자 요청 2번)
 - **변경 파일**: `frontend/lib/ownership.ts`(신규) · `components/asset/VerificationMatrix.tsx`(신규) · `components/asset/ResidualRiskCard.tsx`(신규) · `app/(console)/technician/asset/[assetId]/ownership/page.tsx`(신규) · `spikes/ui_honesty_contract.py`(신규) · `frontend/lib/__checks__/ui_honesty.ts`(신규)
-- **⛔ 금지**: `lib/api.ts`·`lib/types.ts`·`components/queue/**` 접근 (MQ-709 소유)
+- **금지**: `lib/api.ts`·`lib/types.ts`·`components/queue/**` 접근 (MQ-709 소유)
 
 - **인터페이스 — 순수 함수 계층 (React 무의존)**
   ```ts
@@ -994,7 +994,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      - 카테고리 수 ≠ 9 이면 위반
   3. **컴포넌트는 판단하지 않는다.** `VerificationMatrix.tsx` 는 `row.badge`·`row.tone` 을 **그대로** 렌더한다. 자체 조건 분기·색 상수 금지.
   4. `PARTIAL` 배너는 **화면 최상단**에 warn 톤으로, `verdict` 와 `unverified.length` 를 함께 표시. `residual_risk`·`mitigation` 은 `ResidualRiskCard` 로 항상 표시(비어 있으면 "산출 없음"이라고 밝힌다).
-  5. 요약 지표는 **"N/M 확인됨" 형태로만** 표시한다. ⛔ **퍼센트 진행바 금지** — 82% 진행바는 "거의 다 됐다"로 읽히는데 `PARTIAL` 의 의미는 정반대다. 이 판단을 코드 주석에 근거와 함께 남긴다.
+  5. 요약 지표는 **"N/M 확인됨" 형태로만** 표시한다. **퍼센트 진행바 금지** — 82% 진행바는 "거의 다 됐다"로 읽히는데 `PARTIAL` 의 의미는 정반대다. 이 판단을 코드 주석에 근거와 함께 남긴다.
 
 - **검증 방법 (사용자 질문 5 — 이게 핵심)**
 
@@ -1018,7 +1018,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **엣지 케이스**
   | 상황 | 동작 |
   |---|---|
-  | `no_host_asset`(INV-L1-01) | "호스트 자산 없음 — 판정 대상이 아닙니다" 안내. ⛔ **"문제 없음"으로 렌더 금지** |
+  | `no_host_asset`(INV-L1-01) | "호스트 자산 없음 — 판정 대상이 아닙니다" 안내. **"문제 없음"으로 렌더 금지** |
   | 도구가 `internal_error` | 오류 배너. **빈 매트릭스를 "확인 결과 없음"으로 렌더 금지** |
   | 백엔드 미기동 | 목업 폴백 + 경고 배너(화면 B 선례) |
   | `verdict` 가 미지 문자열 | `warn` 톤 + 원문 표시 |
@@ -1037,23 +1037,23 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 
 - **복무 시나리오**: S9 · S10
 - **변경 파일**: `frontend/components/asset/DisposalPanel.tsx`(신규) · `components/asset/AssetHeader.tsx`(신규) · `components/asset/FindingList.tsx`(신규) · `app/(console)/technician/asset/page.tsx`(신규, 자산 목록) · `app/(console)/technician/asset/[assetId]/disposal/page.tsx`(신규)
-- **⛔ 금지**: `lib/api.ts`·`lib/queueState.ts`·`lib/ownership.ts`·`components/queue/**`·`components/asset/VerificationMatrix.tsx` 접근
+- **금지**: `lib/api.ts`·`lib/queueState.ts`·`lib/ownership.ts`·`components/queue/**`·`components/asset/VerificationMatrix.tsx` 접근
 
 - **핵심 로직**
   1. **자산 목록** — `getAssets` 로 9자산 + `equipment_count`. 라인 필터. `asset_id` NULL 인 인버터는 여기 안 나온다(자산이 아니므로).
   2. **처분 사전판정 패널**
      - `disposal_mode` 3지 선택(`SALE`/`SCRAP`/`TRANSFER`) + `disposal_date` 입력
-     - ⚠ **`disposal_date` 를 오늘로 자동 채우지 말 것** — `build_facts` 가 "모르는 날짜를 오늘로 대체하지 않는" 이유가 그대로 UI 에 적용된다(D62). 비어 있으면 "미입력 시 세액공제 조항이 사실 부족으로 남습니다" 안내만 띄운다
+     - **`disposal_date` 를 오늘로 자동 채우지 말 것** — `build_facts` 가 "모르는 날짜를 오늘로 대체하지 않는" 이유가 그대로 UI 에 적용된다(D62). 비어 있으면 "미입력 시 세액공제 조항이 사실 부족으로 남습니다" 안내만 띄운다
      - `precheckDisposal` 호출. **200 과 409 를 같은 화면으로 렌더**한다(`06 §2.5` — 409 본문이 200 과 같은 형태인 이유가 정확히 이것)
      - verdict 배너 + 4버킷(`FindingList`) + `citations` 조문 칩 + `resolve_options` + `missing_facts` + `not_considered`·`disclaimer`
      - **`evidence_completeness: LAW_TEXT_PENDING` 을 화면에 표시**한다. 숨기면 근거 상태를 사용자가 모른다
   3. **"처분서 초안 요청" 액션** — 채팅으로 자연어 요청을 보내는 대신 **명시적 버튼**. D29 가 "이력 기록은 명시적 액션"이라 한 것과 같은 태도.
-     ⚠ 이 버튼이 호출하는 것은 **MCP 도구가 아니라 `/api/chat` 도 아니다.** 도구는 에이전트만 부른다(D15·D10). 화면 버튼은 `POST /api/chat` 으로 "이 자산의 처분서 초안을 만들어 줘" 를 보내 **에이전트가 도구를 부르게** 하거나, 사람 전용 경로가 필요하다.
+     이 버튼이 호출하는 것은 **MCP 도구가 아니라 `/api/chat` 도 아니다.** 도구는 에이전트만 부른다(D15·D10). 화면 버튼은 `POST /api/chat` 으로 "이 자산의 처분서 초안을 만들어 줘" 를 보내 **에이전트가 도구를 부르게** 하거나, 사람 전용 경로가 필요하다.
      → **결정 필요 지점.** 두 안:
        - (가) 채팅 경유 — 에이전트 오케스트레이션 서사에 부합하고 신규 API 0. 단 SSE 스트림을 이 화면이 소비해야 해서 화면이 무거워진다
        - (나) `POST /api/decisions`(사람 전용 draft 생성) 신설 — 화면은 단순해지지만 **쓰기 경로가 2개**가 되어 `generate_disposal_document` 의 존재 이유가 흐려진다
      → **(가)를 권고한다.** 근거: 이 프로젝트의 주제가 도구 오케스트레이션이고(CLAUDE.md), 승인 큐 진입은 D18 대로 채팅 밖에서 일어나므로 "요청은 에이전트, 결재는 큐"라는 기존 분업이 그대로 유지된다. **구현**: 버튼 → `/technician?prefill=…&equipment=…` 로 이동해 채팅 컴포저에 문장을 채워 넣고 **전송은 사용자가** 누른다(자동 전송 금지 — 사람이 무엇을 요청하는지 보고 눌러야 한다). 이 안이면 신규 API 0, 신규 SSE 소비 0.
-     ⚠ 이 선택은 **MQ-712 가 `06_REPO_API` 에 기록**해야 한다.
+     이 선택은 **MQ-712 가 `06_REPO_API` 에 기록**해야 한다.
   4. **관통 배선 확인 링크**: 초안 생성 후 채팅의 결과 카드에서 `/manager/decision/{id}` 로 이동 가능해야 한다(MQ-709 가 만든 라우트).
 
 - **엣지 케이스**
@@ -1078,7 +1078,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **복무 시나리오**: 전체 (문서가 코드와 어긋나면 다음 스프린트가 잘못된 전제로 출발한다)
 - **변경 파일**: `docs/10_DECISIONS.md` · `04_MCP_TOOLS.md` · **`05_DB_SCHEMA.md`** · `06_REPO_API.md` · `11_ASSET_LIFECYCLE.md` · `12_MAINT_VALUE.md` · `00_MVP_SCOPE.md` · `07_BACKLOG.md` · `03_WIREFRAME.html` · `README.md` · `CLAUDE.md`
 
-> **🔴 Stage 3 인계 — `05_DB_SCHEMA.md` 를 범위에 추가했다** (reviewer W-9).
+> **Stage 3 인계 — `05_DB_SCHEMA.md` 를 범위에 추가했다** (reviewer W-9).
 > §14 가 *"MCP 도구는 이 테이블에 손대지 않는다"* 라고 **거짓을 말하고 있었다** — D81 착지로
 > `generate_disposal_document` 가 `decisions` 에 draft 를 INSERT 한다. Stage 3 에서 그 문장과
 > 경고 블록만 급히 고쳤고, **DDL 본문 갱신은 남아 있다**: 컬럼 5개(`reason`·`requested_by`·
@@ -1091,7 +1091,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
   4. `11_ASSET_LIFECYCLE` — §5 표에서 `generate_disposal_document` **"미구현" 해제**. §8 F3 완료 표시. **§8 법령 수집 체크리스트를 MQ-701 실측으로 갱신**(몇 건이 실제로 수집됐는지). §2 계층 3 예시를 실제 번들 5키로 교체
   5. `12_MAINT_VALUE` — §8 증빙 패키지에 **"4종 중 3종 제공, 감가상각 명세는 원천 없음"** 명시. §10 표에서 `create_repair_record` 를 **Sprint 8** 로 정정
   6. `00_MVP_SCOPE` — 확장 기능 9(부분)·11(계층 3 완료)·12 상태 갱신. 인프라 절 "확장 7종" → **8종**. 테이블 수 재확인
-  7. `07_BACKLOG` — **P24 완료 표시**. P25(S19)를 Sprint 8 로 명시. **⛔ P1~P23·P26~P29 승격 금지**
+  7. `07_BACKLOG` — **P24 완료 표시**. P25(S19)를 Sprint 8 로 명시. **P1~P23·P26~P29 승격 금지**
   8. `03_WIREFRAME.html` — 화면 B 에 처분서 카드·서명 바, 신규 자산 화면 2종 반영
   9. `CLAUDE.md` — 회귀 스위트 목록에 신규 5종 추가(`bundle_integrity`·`disposal_sign_contract`·`s10_smoke`·`approvals_contract`·`ui_honesty_contract`). **절대 규칙 1번에 `decisions` 추가**: *"MCP 도구는 `po_drafts`·`decisions` 에 draft INSERT 만 가능"*
   10. `README` — 도구 수·회귀 건수·D 범위를 **러너 출력 실측치**로
@@ -1101,12 +1101,12 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 > ### Stage 2 인계 — `04 §14` 에 반드시 반영할 것
 >
 > 1. **번들 3키 → 5키 (D83)** — `laws` · `rules`(**`rule_hash` 추가**) · **`evaluated`** · **`contracts`** · `facts`.
->    §14 코드블록 위에 Stage 2 가 붙여 둔 `⚠⚠ 아래 예시는 낡았다` 경고를 **지우고** 실제 스키마로 교체한다.
+>    §14 코드블록 위에 Stage 2 가 붙여 둔 `아래 예시는 낡았다` 경고를 **지우고** 실제 스키마로 교체한다.
 > 2. **`hash_spec` 필드** — 번들 **밖**(N1). 안에 넣으면 스펙 문자열 수정이 과거 서명을 전부 깬다.
 > 3. **`asset_modified` reason 신설** (N2 — 판정 전후 자산 행 재읽기).
 > 4. **`contracts[]` 는 `law_text_unavailable` 검사 대상이 아니다** — 넣으면 `LIEN-CONSENT` 자산 번들이
 >    구조적으로 영원히 불가능해진다. 이 경계를 문서에 남긴다.
-> 5. **🔴 실패 어휘 불일치 해소** — 엔진이 던지는 `KeyError`/`TypeError`/`ValueError` 를
+> 5. **실패 어휘 불일치 해소** — 엔진이 던지는 `KeyError`/`TypeError`/`ValueError` 를
 >    **`§8`(`check_disposal_blockers`)은 `engine_error`, `§14`(`build_evidence_bundle`)는 `internal_error`** 로 낸다.
 >    같은 실패가 도구마다 다른 이름인데, 이건 §14 가 스스로 경고해 둔 바로 그 상태다.
 >    MQ-705 가 MCP 도구 경유를 끊으면서 생겼다. **어느 쪽으로 통일할지 정하고 문서·코드를 함께 고쳐라.**
@@ -1126,7 +1126,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 - **복무 시나리오**: S1~S4 (완료 기준 5지표)
 - **변경 파일**: `backend/agent/prompts.py` · `backend/agent/loop.py` · `eval/results/*`(신규) · `data/analysis/eval_gap_4th.md`(신규)
 - **선행**: MQ-703(원인 분석)
-- **⛔ 금지**: `eval/testset.json` 수정(사람 승인 완료본 — 고치면 3차와 비교 불가) · `eval/score.py` 판정 완화 · `MAINTQ_TOOLS_PROFILE=full` 로 평가
+- **금지**: `eval/testset.json` 수정(사람 승인 완료본 — 고치면 3차와 비교 불가) · `eval/score.py` 판정 완화 · `MAINTQ_TOOLS_PROFILE=full` 로 평가
 
 - **핵심 로직**
   1. **MQ-703 의 `eval_gap_3rd.md` 후보 목록에서만 고른다.** 새 가설을 즉석에서 만들지 않는다.
@@ -1137,7 +1137,7 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
      - 부품 특정은 D66(`parts` 필드)·D76(구조 보존)이 **이미 판정 소스를 바꿨다**. 3차 수치를 먼저 보고 판단 — 3차에서 이미 올랐으면 추가 수정 불필요
   4. **안전 문구 자체는 건드리지 않는다.** `SAFETY_BASELINE` 은 사람 승인 대상이다(`TODO_직접할일.md`). 고칠 수 있는 것은 **발행 조건**(트리거·시점)뿐이며, 문구 변경이 필요하다고 판단되면 **수정하지 말고 사람 승인 항목으로 보고**한다.
   5. 4차 실행 → `eval_gap_4th.md` 에 3차 대비 증감 + **어떤 수정이 어느 문항을 어떻게 바꿨는지 문항 단위로** 기록.
-  6. **5차는 조건부다**: 4차에서 남은 실패가 **단일 원인 군집**으로 특정되고 그 수정이 프롬프트·루프 범위 안이면 1회 더. 그렇지 않으면 **Sprint 8 로 이월하고 이유를 적는다.** ⛔ 목표 미달을 숨기거나 판정을 완화하지 말 것.
+  6. **5차는 조건부다**: 4차에서 남은 실패가 **단일 원인 군집**으로 특정되고 그 수정이 프롬프트·루프 범위 안이면 1회 더. 그렇지 않으면 **Sprint 8 로 이월하고 이유를 적는다.** 목표 미달을 숨기거나 판정을 완화하지 말 것.
 
 - **엣지 케이스**
   | 상황 | 동작 |
@@ -1176,15 +1176,15 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 |---|---|---|
 | 부품 특정 ≥90% | 26.7%(2차) | **"미달"이 아니라 "판정 불가"로 분리 기재** — `related_parts` 사람 승인 전이라 D12 상 어떤 수치도 실적이 아니다. 3·4차 수치는 **참고치**로만 싣고 승인 여부를 함께 표기 |
 | 인용률 100% | 83.3% | Stage 1 MQ-703 측정(core 고정, D88) → 원인 분석 → Stage 7 MQ-713 튜닝 + 4차. 실패 3건이 **전부 S2(T13~T15)** 라 단일 원인 군집 가능성을 먼저 검증 |
-| 안전 경고 누락 0 | 61.1% | 동일 경로. ⛔ **문구는 사람 승인 대상이라 건드리지 않고 발행 조건만** 조정 |
+| 안전 경고 누락 0 | 61.1% | 동일 경로. **문구는 사람 승인 대상이라 건드리지 않고 발행 조건만** 조정 |
 | 미지 코드 환각률 0% | PASS | 유지 확인. 확장 도구는 `core` 에 안 보이므로 영향 없음 |
-| 권한 위반 403 100% | PASS | `/api/po` 형태 **불변**(D85)으로 기존 판정 경로 보존 + **신규 403 경로 2건**(`decisions.submit`·`sign`). ⚠ `precheck`·`ownership` 에는 **403 을 만들지 않는다**(D71) |
+| 권한 위반 403 100% | PASS | `/api/po` 형태 **불변**(D85)으로 기존 판정 경로 보존 + **신규 403 경로 2건**(`decisions.submit`·`sign`). `precheck`·`ownership` 에는 **403 을 만들지 않는다**(D71) |
 
 ### 정직한 판정
 
 - **이건 기능 구현이 아니라 측정 → 원인 분석 → 튜닝 루프다.** 그래서 Stage 1(측정)과 Stage 7(튜닝)을 갈랐다 — 붙이면 튜닝이 추측이 된다
 - **계획하는 반복은 2회**(3차 기준선 + 4차 검증). 조건부 5차 1회
-- ⚠ **수렴을 약속하지 않는다.** 2차 실측이 보여 주는 것은 실패의 **군집**이지 원인이 아니다.
+- **수렴을 약속하지 않는다.** 2차 실측이 보여 주는 것은 실패의 **군집**이지 원인이 아니다.
   **3회 안에 5지표 전부 통과한다는 근거는 지금 없다** — 있다고 쓰면 그게 근거 없는 추정이다
 - **D69 기준선은 Sprint 7 종료 시점에도 유효하다** — 확장 도구를 1종 더 얹지만 `full` 에서만 등록되고 평가는 `core` 로 돈다
 
@@ -1197,11 +1197,11 @@ GET /api/assets/{asset_id}/ownership     # 역할 게이트 없음 (D71 과 같�
 | **spikes + seed** | **414**(spikes 396/21스위트 + seed 18) | law_fetch +8 · disposal_api +2 · rules_db_load +4 · eval_score +2 · bundle_integrity **+14** · write_tool +8 · approvals **+18** · **ownership_api +10** · disposal_sign **+22** · s10_smoke **+12** · ui_honesty **+13** · seed **+3** = **+116** | **≈530 / 27스위트** |
 | **pytest**(별도 기준) | 41 | test_rules +5 | **46** |
 
-⚠ **위 숫자는 목표가 아니다.** 건수는 **러너 출력이 기준**이며 **직전 실행보다 줄었다면 테스트가 사라진 것**으로 판정한다.
+**위 숫자는 목표가 아니다.** 건수는 **러너 출력이 기준**이며 **직전 실행보다 줄었다면 테스트가 사라진 것**으로 판정한다.
 
 **공통 회귀 명령**
 ```
-uv run python data/seed.py --with-error-codes          # ⛔ --today 금지
+uv run python data/seed.py --with-error-codes          # --today 금지
 uv run --with pytest python -m pytest data/rules/test_rules.py -q
 uv run python spikes/<각 스위트>.py                     # 21 + 신규 6
 uv run ruff check data backend mcp_server spikes eval
@@ -1219,18 +1219,18 @@ cd frontend && npx tsc --noEmit && npm run build        # Stage 5 이후
 - **`LAW_API_OC`** — 발급·실호출 검증 완료(7/7 조문 본문 도달)
 - **`KR-STTC-146` title 정정** — 2026-08-09 승인. `세액공제액의 추징` → **`감면세액의 추징`** 적용 완료
 
-## 🔴 스프린트 중 — 우선순위 순
+## 스프린트 중 — 우선순위 순
 
 | 항목 | 언제 | 막히는 것 |
 |---|---|---|
 | **`related_parts` 사람 최종 승인** | MQ-713 전 | 부품 특정 정확률이 **"판정 불가"** 로 남는다(D12). 완료 기준 5지표 중 1개가 구조적으로 확정되지 않는다 |
-| **처분 승인서·진술보장서 문안 검수** ⭐신규 | MQ-706 후 · 데모 전 | **법적 효력이 있는 문서**다. 안전 문구(D2)와 같은 성격 — 승인 전까지 출력에 `unreviewed_template_notice` 가 붙는다 |
+| **처분 승인서·진술보장서 문안 검수** 신규 | MQ-706 후 · 데모 전 | **법적 효력이 있는 문서**다. 안전 문구(D2)와 같은 성격 — 승인 전까지 출력에 `unreviewed_template_notice` 가 붙는다 |
 | **`SAFETY_BASELINE` 문안 검수** | MQ-713 중 | 발행 조건 조정만으로 안전 경고 100% 가 안 되면 문구를 손대야 하는데 그건 사람 승인 대상. **MQ-713 은 수정하지 않고 보고만 한다** |
 | **`N = 8` 기준내용연수 대조** | MQ-701 직후 | 잔가곡선 전체. **`LAW_API_OC` 가 생겼으므로 별표5·6 을 함께 수집 시도 가능** — 값 채택은 사람 판단 |
 | **`KR-CITA-ENF-31` title 정정** | 여유 있을 때 | `즉시상각의제` vs `즉시상각의 의제`(공백). `classify_expenditure` 전용이라 **S10 무영향** |
 | `RESIDUAL_AT_LIFE_END = 0.50` 동의 · `parts.part_class` 40종 감수 | Sprint 8 전 | `assess_repair_value` 3지 판단 |
 
-## 🟢 기존 이월
+## 기존 이월
 
 시드 부품명·가격 감수 · `data/raw/IE5_..._200617 (1).pdf` 중복 삭제 ·
 `data/maintq.db.before-reseed-20260808` 정리 · 데모 영상 · README GIF·평가 결과표
@@ -1263,7 +1263,7 @@ cd frontend && npx tsc --noEmit && npm run build        # Stage 5 이후
 **회귀**: seed 18 · 스파이크 **409건/21스위트** · pytest 46 · ruff 통과 (직전 414 → **473**)
 
 **3차 평가 요지** — 부품 26.7→46.7% · 안전 61.1→72.2% · 인용 83.3% 제자리 · 환각 0% · 시퀀스 100%.
-⚠ **증감표만 보면 틀린다**: 순증 3건이 전부 S2 이고 D66 이 판정 소스를 넓힌 결과다. S1 은 +3/−3 = 0.
+**증감표만 보면 틀린다**: 순증 3건이 전부 S2 이고 D66 이 판정 소스를 넓힌 결과다. S1 은 +3/−3 = 0.
 실패는 **한 뿌리** — 파이프라인 다음 단계를 밟지 않고 되물으며 턴을 끝낸다.
 
 ### Stage 2 완료 (2026-08-10)
@@ -1317,7 +1317,7 @@ reviewer 가 **같은 구조가 `db_concurrency` ⑩⑪ 에도 남아 있음**�
 |---|---|---|
 | **W-7** | `_locked_row` 가 실제로는 잠그지 않는다 (`BEGIN IMMEDIATE` 없음). 두 팀장 동시 서명 시 마지막 쓰기가 이긴다 | `services/po.py` 와 같은 선례. 헤드라인 두 문장은 무영향 — 모든 UPDATE 경로가 `signed_at`·`reviewed_by` 를 함께 쓰고 override 게이트는 요청마다 독립 통과 |
 | **W-10** | `render_documents` 가 버킷 분류의 **3번째 사본** (`engine` · `services/disposal.py` 에 이어) | D79 위반은 아니다(최상위 verdict 재계산 없음). 룰의 `disposal_type` 이 같은 버전 안에서 바뀔 때만 갈린다 |
-| — | 두 문서 렌더러(`documents_preview` vs `render_documents`)가 `AUTO_CLOSE` 룰에서 갈린다 | **룰 카탈로그에 `AUTO_CLOSE` 가 0건**이라 현재는 항상 일치. ⚠ 추가하는 순간 회귀가 필요하다 |
+| — | 두 문서 렌더러(`documents_preview` vs `render_documents`)가 `AUTO_CLOSE` 룰에서 갈린다 | **룰 카탈로그에 `AUTO_CLOSE` 가 0건**이라 현재는 항상 일치. 추가하는 순간 회귀가 필요하다 |
 
 ### Stage 4 완료 (2026-08-10)
 
@@ -1354,7 +1354,7 @@ reviewer 가 **같은 구조가 `db_concurrency` ⑩⑪ 에도 남아 있음**�
 
 지금은 엔진에서 독립 파생한 기대치를 들고, 제품 튜플과 어긋나면 그것부터 FAIL 시킨다.
 
-> ⚠ 남은 우회 여지 하나: `engine.VERDICTS` 에서 `HOLD` 를 지우면 제품 튜플과 기대치가
+> 남은 우회 여지 하나: `engine.VERDICTS` 에서 `HOLD` 를 지우면 제품 튜플과 기대치가
 > **같이** 줄어 공허해진다. 그 경로는 스파이크가 아니라 제품 두 장치가 막는다 —
 > `backend/services/decisions.py` 의 모듈 레벨 `assert` 와 `data/seed.py verify() ㉑`.
 > **`assert` 는 `python -O` 에서 사라진다.**
@@ -1387,14 +1387,14 @@ UI 는 자동 회귀가 얇아 `tsc` 가 통과해도 화면이 도는지는 모
 
 | 축 | 구현 |
 |---|---|
-| 모르는 `state`·`kind` | `⚠ 원문` + 전용 `unknown` 톤. **절대 초록(`ok`)으로 안 떨어진다** |
+| 모르는 `state`·`kind` | `원문` + 전용 `unknown` 톤. **절대 초록(`ok`)으로 안 떨어진다** |
 | `urgency: null` | `UrgencyBadge` 가 `return null` — `"일반"` 으로 채우면 처분서에 없는 긴급도가 생긴다 |
 | 모르는 `kind` | 목록에서 **지우지 않는다** — 지우면 "그런 승인 건이 없다"는 거짓말이 된다 |
 | `state` 정규화 | **없다.** 발주 `approved` 와 처분 `signed` 는 다른 사건이다 (D85·D63) |
 | 오렌지 규율 | `kind` 배지 중립 고정. 모르는 어휘는 오렌지를 빌리지 않고 `unknown` 톤 |
 | 목업 폴백 | 배너 유지 + **"백엔드는 살았는데 그 ID 가 없다"를 "목업 모드"와 구분** |
 
-#### 🔴 MQ-709b 인계 — `/manager/decision/[decisionId]/page.tsx` 스텁이 **이미 있다**
+#### MQ-709b 인계 — `/manager/decision/[decisionId]/page.tsx` 스텁이 **이미 있다**
 
 `detailHref()` 가 `disposal` 을 그 경로로 보내는데 Stage 5 빌드에 라우트가 없어 **누르면 404** 였다.
 목업에 처분서 2건이 있어 수동 확인에서 바로 부딪힌다. 같은 코드가
@@ -1410,7 +1410,7 @@ UI 는 자동 회귀가 얇아 `tsc` 가 통과해도 화면이 도는지는 모
 `precheckDisposal`·`getOwnership`. Stage 6 세 태스크(709b·710·711)는 `api.ts` 를 **읽기만** 한다.
 이번 스테이지에서 쓰이지 않는 코드가 일부 들어온 대가로 3병렬 충돌이 사라진다.
 
-#### ⚠ 실행 사고 2건 (작업 자체는 무영향)
+#### 실행 사고 2건 (작업 자체는 무영향)
 
 두 에이전트가 API 오류·세션 한도로 중단됐다(구현 에이전트는 "실 백엔드 응답 대조" 직전, reviewer 는 착수 직후).
 중단 지점부터 직접 이어받아 게이트(`tsc`·`build`·실 API 키집합 대조)와 설계 검토를 수행했다.
@@ -1457,12 +1457,12 @@ reviewer W1 이 드러낸 것: `DisposalPanel` 이 verdict 맵·성공색·`verd
 | W4 | "색을 아는 곳은 여기 하나뿐" 주석이 거짓(사본 3개) | ✅ 범위 정확히 명시 |
 | W6 | S18 화면이 **어디서도 링크되지 않음** | ✅ `AssetHeader.right` 에 진입 경로 |
 | W7 | `unverified` 키 부재를 `0` 으로 → "미확인 0건"이 PARTIAL 과 모순 | ✅ **"미상"** |
-| W5 | **L3(실 데이터 렌더) 부재** — 백엔드가 불변식을 깨는 응답을 내도 CI 가 모른다 | 🔜 Sprint 8 |
+| W5 | **L3(실 데이터 렌더) 부재** — 백엔드가 불변식을 깨는 응답을 내도 CI 가 모른다 | Sprint 8 |
 | W8 | 죽은 코드(`TONE_STYLE.muted` 등) | 🔜 |
 | W9 | `verdictView` 가 3개(→2개) | 🔜 |
-| W10 | 정비사 화면이 팀장 서명 화면으로 직접 링크 | 🔜 D4·D18 동선 재고 |
+| W10 | 정비사 화면이 팀장 서명 화면으로 직접 링크 | D4·D18 동선 재고 |
 
-#### ⚠ 회귀 러너 신뢰성 — 조치 필요
+#### 회귀 러너 신뢰성 — 조치 필요
 
 27스위트를 **연속 실행**하면 매번 **다른 스위트가 1건** 실패한다:
 ```
@@ -1471,7 +1471,7 @@ OSError: [WinError 10014] … socket.socketpair() → asyncio _make_self_pipe
 **Windows 소켓 고갈**이다 — 코드 결함이 아니고 개별 실행·재시도에서 전부 통과한다.
 관측: `ownership_api_contract`+`s4_smoke` → `s10_smoke` → `tools_profile_contract` → `disposal_sign_contract`.
 **서브프로세스를 띄우는 스위트가 늘수록 잦아진다.** 러너 차원의 조치(재시도·간격)가 필요하다.
-⛔ 이걸 모른 채 "전부 통과"라고 적으면 **거짓 보고**가 된다.
+이걸 모른 채 "전부 통과"라고 적으면 **거짓 보고**가 된다.
 
 ### Stage 7 — 진행 중 (2026-08-11 시점)
 
@@ -1491,10 +1491,10 @@ pytest **46건** · ruff 통과. 직전 593 → **603**(`agent_loop_contract` 29
 1. ~~**후보 3 미구현**~~ → ✅ **2026-08-11 완료** (`--repeat N`, 아래 절 참조)
 2. **후보 2 진단** — 계측이 들어갔으므로 1회 실행하면 `.traces.jsonl` 에서 `search_inventory` 호출 유무 ·
    `input.part_no` 유무로 §3-A 두 기전(턴 조기 종료 vs 조회 인자)을 가를 수 있다. **후보 5 는 이 결과에 종속**
-3. **후보 4·5** — 프롬프트(S2 `rag_search_manual` 유도 · 파이프라인 완주). ⛔ `SAFETY_BASELINE` 문구는
+3. **후보 4·5** — 프롬프트(S2 `rag_search_manual` 유도 · 파이프라인 완주). `SAFETY_BASELINE` 문구는
    수정하지 않고 사람 승인 항목으로 보고
 4. **4차 실행 → `data/analysis/eval_gap_4th.md`** — 3차 대비 문항 단위 증감 + 수정↔문항 대응표
-5. ⛔ 부품 특정 지표는 `related_parts` 사람 최종 승인 전이라 **"미달"이 아니라 "판정 불가"**(D12)
+5. 부품 특정 지표는 `related_parts` 사람 최종 승인 전이라 **"미달"이 아니라 "판정 불가"**(D12)
 
 #### MQ-713b ③ — `--repeat N` 반복 실행·흔들림(flip) 계측 (2026-08-11)
 
@@ -1505,7 +1505,7 @@ pytest **46건** · ruff 통과. 직전 593 → **603**(`agent_loop_contract` 29
 | 무엇 | 어떻게 |
 |---|---|
 | `--repeat N` | 같은 testset 을 N 회차. **회차마다 DB 사본·서버·포트를 새로 만든다** — 공유하면 1회차가 쌓은 `po_drafts`·`traces` 를 2회차가 보게 되어 요동이 아니라 **누적 상태**를 재게 된다 |
-| 흔들림 판정 | 문항×지표를 `안정 통과` / `안정 실패` / **`흔들림`** / `판정 불가(측정 <2회)` 로 가른다. ⛔ **튜닝의 성패는 `안정 실패` → `안정 통과` 로 넘어간 칸으로만 판정한다** |
+| 흔들림 판정 | 문항×지표를 `안정 통과` / `안정 실패` / **`흔들림`** / `판정 불가(측정 <2회)` 로 가른다. **튜닝의 성패는 `안정 실패` → `안정 통과` 로 넘어간 칸으로만 판정한다** |
 | 분모 규칙 | `aggregate()` 와 **같은 근거** — 실행 실패·재생 오염(D55)·`applicable=False` 는 `None`(측정 안 됨)이지 실패가 아니다. fail 로 접으면 흔들림이 부풀려진다 |
 | 환각 축 정규화 | `hallucinated=True` 가 나쁨이므로 `passed = not hallucinated` 로 뒤집어 담는다 — 같은 표에서 지표마다 방향이 다르면 읽을 수 없다 |
 | 산출물 | N>1 이면 `{stamp}.r{k}.traces.jsonl`·`.r{k}.server.log`, `.json`/`.md` 는 합산 1벌(+`rounds[]`·`flip`). **N==1 이면 파일 이름이 3차까지와 완전히 같다** |
@@ -1513,7 +1513,7 @@ pytest **46건** · ruff 통과. 직전 593 → **603**(`agent_loop_contract` 29
 | 403 합산 | **전 회차 통과일 때만 통과.** 다수결로 접으면 "3회 중 1회 뚫렸다"가 PASS 로 보고된다 |
 | D88 가드 | **회차마다** 다시 검사한다 — 1회차만 보면 2회차가 다른 env 로 떠도 통과한다 |
 
-⛔ **1회차 실행에서 "흔들림 0건"이라고 쓰지 않는다.** 회차가 1이면 뒤집힘은 정의되지 않으므로
+**1회차 실행에서 "흔들림 0건"이라고 쓰지 않는다.** 회차가 1이면 뒤집힘은 정의되지 않으므로
 `measurable:false` + MD 는 **"측정 불가"**. 잘림 계측이 `measured` 와 "0건"을 가른 것과 같은 규칙이다.
 
 **부수 변경** — 고정 포트(`PORT = 8091`)를 없애고 **회차마다 `_free_port()`**. `taskkill` 직후 같은
@@ -1526,7 +1526,7 @@ docstring 이 기록한 그 자리).
 **spikes 603 → 610건.** `--dry-run --repeat 3` 에서 600회 추정 출력 · `--repeat 0` 거부 확인
 (둘 다 **LLM 호출 0회**).
 
-⚠ **아직 실호출로 회차 루프를 돌려 보지 않았다** — 다음은 `--limit`(소액) 스모크로 회차 산출물
+**아직 실호출로 회차 루프를 돌려 보지 않았다** — 다음은 `--limit`(소액) 스모크로 회차 산출물
 분리(`.r1`/`.r2`)를 확인한 뒤 본 실행이다.
 
 #### MQ-713b ② — 진단 실행 실패 · 후보 2 부분 확정 (2026-08-11)
@@ -1544,16 +1544,16 @@ docstring 이 기록한 그 자리).
 | ~10:47 | 문항 루프 종료 → `check_permission_403` 의 `GET /api/po` 가 `httpx.ReadTimeout` |
 | — | 그 예외가 `main` 까지 올라가 **`.json`·`.md` 가 하나도 안 만들어졌다** |
 
-> ⚠ **중간 진단을 한 번 틀렸다.** "T12 에서 멈췄고 `ITEM_TIMEOUT_S` 가 안 먹었다"고 읽었으나,
+> **중간 진단을 한 번 틀렸다.** "T12 에서 멈췄고 `ITEM_TIMEOUT_S` 가 안 먹었다"고 읽었으나,
 > 9문항 × 180초 = 27분이 10:20→10:47 과 정확히 맞는다 — **문항 타임아웃은 정상 동작했다.**
 > DB 쓰기가 끊긴 것은 그 문항들이 도구를 못 불러 trace 행 자체가 없었기 때문이다.
 
-**🔴 잡힌 결함 — 부가 점검 하나가 완주한 문항 결과를 통째로 버렸다**
+**잡힌 결함 — 부가 점검 하나가 완주한 문항 결과를 통째로 버렸다**
 
 `_run_all` 은 문항별 예외를 잡는데 **`check_permission_403` 에는 같은 보호가 없었다.**
 20문항을 다 돌린 뒤의 부가 점검 한 줄 때문에 리포트가 0건 생성됐다.
 → `_run_stage` 가 예외를 삼키고 `(False, "점검 실패 — ReadTimeout")` 로 내려보낸다.
-⛔ `"N/A"`(pending 없음)로 접지 않는다 — **점검을 못 한 것과 점검할 게 없는 것은 다르다.**
+`"N/A"`(pending 없음)로 접지 않는다 — **점검을 못 한 것과 점검할 게 없는 것은 다르다.**
 `spikes/eval_score_contract.py` ㉙ 이 죽은 포트로 `_run_stage` 를 불러 잠근다(→ **34건**, spikes **611**).
 
 **T12 이후가 왜 도구를 못 불렀는지는 확정하지 못했다.** `{stamp}.server.log` 가 같은 예외로
@@ -1578,11 +1578,11 @@ docstring 이 기록한 그 자리).
 *"재고를 확인해 볼까요?"*(되묻기) · *"재고를 확인해 보겠습니다."*(선언만).
 `[LLM_END]` 12건 전부 `reason=STOP` — **잘림이 아니라 모델이 스스로 끝낸다**(계측 ③의 답).
 
-⚠ **T12~T20 은 미측정이다.** 특히 **S2 3문항(T13~T15)** 이 여기 들어 있어
+**T12~T20 은 미측정이다.** 특히 **S2 3문항(T13~T15)** 이 여기 들어 있어
 **후보 4(S2 에 `rag_search_manual` 요구)의 근거는 아직 없다.** 후보 5 만 적용하고
 후보 4 는 다음 실행의 데이터를 보고 판단한다 — 지금 함께 걸면 효과 분리가 불가능하다.
 
-#### 🔴 MQ-713b — 평가 정지 결함: 근본 원인 확정 · 수정 (2026-08-12)
+#### MQ-713b — 평가 정지 결함: 근본 원인 확정 · 수정 (2026-08-12)
 
 **증상.** 4차 평가에서 문항 10~11개 이후 전부 타임아웃. 두 차례(08-11·08-12) 재현.
 
@@ -1617,7 +1617,7 @@ emit (logging/__init__.py:1154)  ← MainThread(이벤트 루프)가 여기서 �
 | 4차 (`[LLM_END]` 추가 후) | 20 | **10** | 4,053바이트에서 정지 |
 | 5차 (**수정 후**) | 20 | **0** | 파일로 직접 기록 |
 
-⛔ **진단하려고 넣은 로그가 진단 대상을 망가뜨렸다.** 오늘 `[CHAT_IN]` 을 더하자 멎는 지점이
+**진단하려고 넣은 로그가 진단 대상을 망가뜨렸다.** 오늘 `[CHAT_IN]` 을 더하자 멎는 지점이
 T11 → T09 로 당겨진 것도 같은 이유다.
 
 **수정.** 로그를 줄이는 건 해법이 아니다(한 줄만 늘어도 재발) — **파이프를 없애고 stderr 를
@@ -1637,7 +1637,7 @@ T11 → T09 로 당겨진 것도 같은 이유다.
 | 환각 | 0/2 = 0% | 0/2 = 0% | ±0 (PASS) |
 | 권한 403 | PASS | PASS | ±0 |
 
-⚠ **이 증감을 후보 5 의 효과로 확정하지 않는다.** `eval_gap_3rd.md §4` 실측 — 코드 무변경
+**이 증감을 후보 5 의 효과로 확정하지 않는다.** `eval_gap_3rd.md §4` 실측 — 코드 무변경
 상태에서 2·3차 사이에 **7문항이 뒤집혔다**. 단일 실행은 개선과 요동을 구분하지 못한다.
 **판정은 `--repeat 3` 으로 한다** (그러라고 만든 계측이다). 남은 것: 4차 평가 정식 측정.
 
@@ -1656,7 +1656,7 @@ T11 → T09 로 당겨진 것도 같은 이유다.
 | **4차 (수정 후, 3회차 합산)** | **42.2%** | **79.6%** | **74.1%** |
 | 회차별 part | 40.0 / 46.7 / 40.0 | | |
 
-⛔ **5차 단일 실행의 66.7% 는 세 회차 범위(40.0~46.7%) 밖의 이상치였다.**
+**5차 단일 실행의 66.7% 는 세 회차 범위(40.0~46.7%) 밖의 이상치였다.**
 직전 보고의 *"부품 +20.0pt · 안전 +11.1pt"* 는 개선이 아니라 **요동이다.**
 "나빠졌다"고도 하지 않는다 — 3차의 46.7% 가 이번 범위 안에 들어와 **애초에 분해능이 없었다.**
 엄밀한 판정에는 수정 전 프롬프트의 3회차 기준선(60문항 추가)이 필요하다.
@@ -1679,10 +1679,10 @@ T11 → T09 로 당겨진 것도 같은 이유다.
 이건 요동이 아니라 **재현되는 실패**이므로 다음 수정 대상이 하나로 좁혀졌다.
 
 **완료 기준 5지표 현재값**: 환각 **0%** ✅ · 시퀀스 **100%** ✅ · 403 **PASS** ✅ ·
-인용 79.6% ❌ · 안전 74.1% ❌ · 부품 42.2% ⚠ **판정 불가**(`related_parts` 사람 승인 전, D12)
+인용 79.6% ❌ · 안전 74.1% ❌ · 부품 42.2% **판정 불가**(`related_parts` 사람 승인 전, D12)
 
 **남은 것과 다음 시도**: `data/analysis/eval_gap_4th.md` §5.
-⚠ 3차 후보 4(*S2 에서 `rag_search_manual` 유도*)는 **아직 근거가 없다** — T13~T15 의 회차별
+3차 후보 4(*S2 에서 `rag_search_manual` 유도*)는 **아직 근거가 없다** — T13~T15 의 회차별
 trace 대조에서 근거를 얻은 뒤 적용한다. 지금 적용하면 근거 없는 추측 수정이다.
 
 ### Stage 7 완료 — MQ-713 종료 (2026-08-12)
@@ -1700,14 +1700,14 @@ trace 대조에서 근거를 얻은 뒤 적용한다. 지금 적용하면 근거
 **안정 실패 칸**: part 5 → 5 · citation **3 → 0** · safety **3 → 1**
 **합산**: citation 79.6 → **92.6%** · safety 74.1 → **81.5%** · 환각 0% · 시퀀스 100% · 403 PASS
 
-⚠ **완료 기준 5지표는 여전히 미달이다.** 인용 92.6%(목표 100%) · 안전 81.5%(목표 100%) ·
+**완료 기준 5지표는 여전히 미달이다.** 인용 92.6%(목표 100%) · 안전 81.5%(목표 100%) ·
 부품은 `related_parts` 사람 승인 전이라 **판정 불가**(D12). 감추지 않고 그대로 기록한다.
 
 **남은 것과 다음 축** — 상세는 `data/analysis/eval_gap_4th.md §부록`
 1. citation 남은 실패는 전부 **흔들림 칸**이라 프롬프트로 더 밀면 요동에 묻힌다
 2. safety 안정 실패 1건(T15)은 **반복 조회 루프 가드**가 원인 — 프롬프트(A′)로는 안 바뀌었다.
    다음은 **루프 축**(가드가 끊는 대신 다음 단계 유도)
-3. 🔴 `related_parts` 사람 최종 승인 — 이게 없으면 부품 지표는 구조적으로 계속 판정 불가
+3. `related_parts` 사람 최종 승인 — 이게 없으면 부품 지표는 구조적으로 계속 판정 불가
 
 **패턴**: 프롬프트 축 2/3 실패 · 코드 축 2/2 성공. A·C 는 기전이 눈에 보였고(A: RAG 호출
 0/9→4/9 와 citation 통과가 1:1 / C: 회귀 0건), A′·B 는 같은 서명으로 실패했다

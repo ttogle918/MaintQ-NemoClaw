@@ -114,9 +114,9 @@ Sprint 9(수리 증빙, P25)·Sprint 10(근거 번들·지출 분류 화면 + �
 
 이 스프린트에 앞서 다음 문서가 이미 갱신됐다:
 - `docs/10_DECISIONS.md` — **D102** 신설
-- `docs/00_MVP_SCOPE.md` — "추가 기능" 표에 항목 **13**(기한 추적)·**14**(실사 보존·위험 프로파일) 신설, 🟡 Sprint 11 착수 예정
+- `docs/00_MVP_SCOPE.md` — "추가 기능" 표에 항목 **13**(기한 추적)·**14**(실사 보존·위험 프로파일) 신설, Sprint 11 착수 예정
 - `docs/11_ASSET_LIFECYCLE.md §10-3·§10-5` — v2 제외 문구를 D102 편입 반영으로 정정
-- `docs/07_BACKLOG.md` — P36 행을 🟡 Sprint 11 예정으로 갱신
+- `docs/07_BACKLOG.md` — P36 행을 Sprint 11 예정으로 갱신
 
 ## 1. 이번 스프린트가 편입하는 것 / 안 하는 것
 
@@ -491,7 +491,7 @@ def risk_grade(*, building_id=None, asset_id=None, db_path=None) -> dict: ...
 ### MQ-1106 — 회귀 스위트 신설 + 프로파일 카운트 갱신 + 범위 문서 마감
 - **복무 시나리오**: S9 · S18
 - **변경 파일**: `spikes/deadline_risk_contract.py`(신규, **30번째**) · `spikes/tools_profile_contract.py`(수정,
-  9→11·16→18) · `docs/00_MVP_SCOPE.md`(수정, 항목 13·14 🟡→✅, **95행** 확장 도구 개수 표기를
+  9→11·16→18) · `docs/00_MVP_SCOPE.md`(수정, 항목 13·14 →✅, **95행** 확장 도구 개수 표기를
   9(§8~§16)에서 11(§8~§18)로, 테이블 개수 19개→23개) · `docs/07_BACKLOG.md`(수정, P36 "✅ 완료(Sprint 11)") ·
   `docs/README.md`(수정, **11행**·**59행**의 확장 도구 개수 표기를 9에서 11로, 도구명 나열에 신규 2종 추가) ·
   `CLAUDE.md`(수정, **14행**·**43행**의 확장 도구 개수 표기를 9(§8~§16)에서 11(§8~§18)로)

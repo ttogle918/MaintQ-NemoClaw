@@ -7,7 +7,7 @@
 `POST /api/po/{po_id}/finance-approve|reject` · doc3(자금집행요청서) 렌더 · `/manager/finance`.
 회귀: `api_contract` 41→52건 · pytest `data/test_expenditure_limits.py` 16건 신설
 
-> ⚠ 이 스프린트 착수 직전, 사용자가 CLAUDE.md 회귀 기준선(spikes 33종 + seed + pytest)을
+> 이 스프린트 착수 직전, 사용자가 CLAUDE.md 회귀 기준선(spikes 33종 + seed + pytest)을
 > 별도 터미널에서 갱신 중이다. 아래 DoD 는 **절대 건수를 못박지 않는다** — "회귀 스위트 전건
 > PASS, 새 회귀 0건" 식으로만 적는다. 실행 시점에 실측 건수를 스스로 확인할 것.
 
@@ -193,7 +193,7 @@ Stage 4 (화면, 4태스크 병렬)
     state, requested_by, decided_by, decision_note, session_id, decided_at, finance_decided_by,
     finance_decision_note, finance_decided_at)` — 19개 컬럼. `INSERT INTO po_drafts (...)`문의
     컬럼 목록·플레이스홀더(`?` 19개)도 함께 갱신.
-    ⚠ `with_codes=False`일 때 `model`·`error_code`를 비우는 기존 로직
+    `with_codes=False`일 때 `model`·`error_code`를 비우는 기존 로직
     (`rows = [r[:4] + (None, None) + r[6:] for r in rows]`)은 튜플 길이가 늘어나도 그대로
     동작한다(슬라이스 기반이라 뒤쪽 필드 개수와 무관) — 수정 불필요, 그대로 둘 것.
 - **핵심 로직**:
@@ -324,7 +324,7 @@ Stage 4 (화면, 4태스크 병렬)
   테스트는 최소 다음을 포함: budget_check 경계(정확히 5,000,000원 → ok, +1원 → not ok),
   daily_limit_check 경계, fds_verdict 정확히 0.5 비율 → "정상" / 0.5 초과 → "주의",
   sod_check 3인 상이 → ok / 2인 중복(예: requested_by==decided_by) → not ok.
-  ⚠ 이 신규 테스트 파일은 CLAUDE.md "회귀 스위트" 절의 pytest 커맨드 목록(현재 "3파일 합산")에
+  이 신규 테스트 파일은 CLAUDE.md "회귀 스위트" 절의 pytest 커맨드 목록(현재 "3파일 합산")에
   아직 반영돼 있지 않다 — 이 태스크의 DoD 에는 포함하지 않지만, `/done` 세션 마무리 시점에
   CLAUDE.md 갱신이 필요함을 커밋 메시지나 세션 로그에 남길 것.
 
@@ -697,7 +697,7 @@ Stage 4 (화면, 4태스크 병렬)
      ```
      `_row_to_po()`에 `d["finance_decided_by_name"] = d.get("finance_decided_by_name") or
      d.get("finance_decided_by") or ""` 한 줄 추가(기존 `decided_by_name` 처리와 같은 패턴).
-     ⚠ 이 변경으로 `list_pos()`·`get_po()` 응답에 `finance_decided_by_name`이라는 **새
+     이 변경으로 `list_pos()`·`get_po()` 응답에 `finance_decided_by_name`이라는 **새
      최상위 키 하나**가 실제로 추가된다(이건 `documents_preview` 안이 아니라 평평한 필드다,
      기존 `decided_by_name`과 대칭이므로 자연스러운 계약 확장) — MQ-1710 이 `PO_LIST_ITEM_KEYS`
      에 이 키를 추가해야 한다는 뜻, MQ-1708 자신의 DoD 범위는 아님(다음 스테이지 몫).
@@ -743,7 +743,7 @@ Stage 4 (화면, 4태스크 병렬)
          "fund_execution": fund_execution,
      }
      ```
-     ⚠ **`today_total` 쿼리는 반드시 `AND po_id != ?`로 자기 자신을 제외한다** — 그렇지 않으면
+     **`today_total` 쿼리는 반드시 `AND po_id != ?`로 자기 자신을 제외한다** — 그렇지 않으면
      이미 `finance_approved`로 확정된 발주를 다시 조회할 때(예: 승인 직후 화면 재조회) 자기
      금액이 "오늘 누적"에 중복 산입돼 한도 판정이 왜곡된다. 스펙 §5 원문 SQL 에는 이 조건이
      없었으나, 이 자기중복 버그를 막기 위해 이 프로젝트에서 추가한 것 — 반드시 포함할 것.
@@ -1130,7 +1130,7 @@ Stage 4 (화면, 4태스크 병렬)
        rejected: { text: "✕ rejected", tone: "danger" },
      },
      ```
-     ⚠ **`approved` 항목의 텍스트를 바꾸는 것은 기존 계약을 건드리는 것**이다 — 처분·수리
+     **`approved` 항목의 텍스트를 바꾸는 것은 기존 계약을 건드리는 것**이다 — 처분·수리
      등 다른 곳에서 `stateView("po","approved")`를 다른 의미로 참조하는 곳이 있는지 실행 전
      `grep -rn 'stateView(' frontend/`로 확인할 것. 바꾸는 근거: 새 상태 머신에서 `approved`
      는 이제 "재무 승인 대기"를 겸하므로(스펙 §2), 기존 "✓ approved"(승인 완료로 오인되는
@@ -1149,7 +1149,7 @@ Stage 4 (화면, 4태스크 병렬)
        bad.length === 0 && known.tone === "ok" && known.known, ...);
      ```
      위 6번에서 `po.approved`의 `tone`을 `"ok"`→`"info"`로 바꾸면(본안·축소 대안 둘 다 `tone`은
-     `"info"`로 바뀐다 — 위 ⚠ 참고) 이 대조군이 `known.tone === "ok"`에서 즉시 깨진다. 대조군을
+     `"info"`로 바뀐다 — 위 참고) 이 대조군이 `known.tone === "ok"`에서 즉시 깨진다. 대조군을
      `stateView("po", "finance_approved")`(이번에 신설하는 `{ tone: "ok" }` 항목 — 새 상태
      머신에서 실제로 "확정 완료"를 뜻하는 값)로 교체할 것:
      ```ts
@@ -1235,7 +1235,7 @@ Stage 4 (화면, 4태스크 병렬)
      `state`가 `draft`/`rejected`/`finance_approved`/`finance_rejected`일 때는 두 액션바
      모두 렌더하지 않는다(종결 상태 — 액션 없음, 기존 배지(`StateBadge`)로 이미 상태가
      표시됨).
-     ⚠ `entry.state === "approved"` 를 직접 문자열 비교하지 말고 반드시
+     `entry.state === "approved"` 를 직접 문자열 비교하지 말고 반드시
      `isApprovedState()`를 쓸 것(D87 — MQ-1712 가 이 헬퍼를 정의해 뒀다).
   3. `documents_preview` 블록(현재 54~67번째 줄)에 세 번째 `<DocumentPreview>` 추가:
      ```tsx
@@ -1317,7 +1317,7 @@ Stage 4 (화면, 4태스크 병렬)
      setFinancePending(financeApproved);   // 신규 state
      setRecent(done);
      ```
-     ⚠ `approved`(기존, "최근 처리" 4건 슬라이스용)와 `financeApproved`(신규, "재무 승인
+     `approved`(기존, "최근 처리" 4건 슬라이스용)와 `financeApproved`(신규, "재무 승인
      대기" 섹션 전용, kind="po" 로 좁힘)는 **같은 데이터를 두 번 조회하는 것처럼 보이지만
      역할이 다르다** — 하나는 "최근 처리 완료" 목록(4건 제한, po/disposal/repair 섞임),
      하나는 "지금 재무가 처리해야 할 것"(제한 없음, po 전용). 합치지 말 것 — 합치면
@@ -1452,7 +1452,7 @@ Stage 4 (화면, 4태스크 병렬)
 
 ### 추가로 발견한 문제 (플랜에 없던 것)
 
-**🔴 MQ-1712 — `ui_honesty_contract`의 하드코딩된 대조군(control probe)이 깨진다.**
+**MQ-1712 — `ui_honesty_contract`의 하드코딩된 대조군(control probe)이 깨진다.**
 `frontend/lib/queueState.ts`의 현재 `STATE_LABEL.po.approved`는 `{ text: "✓ approved", tone:
 "ok" }`이다(38~59번째 줄 실측). `frontend/lib/__checks__/ui_honesty.ts:326`은 바로 이 값을
 "알려진 정상값(대조군)"으로 하드코딩해 쓰고 있다:
@@ -1486,7 +1486,7 @@ finance_approved", tone: "ok" }` 항목 — 새 상태 머신에서 실제로 "�
 대조군으로 적합)로 교체한다. MQ-1712의 "변경 파일" 목록에
 `frontend/lib/__checks__/ui_honesty.ts`를 추가할 것.
 
-**🟡 MQ-1701/D119 — D108이 이미 명시적으로 기각했던 대안을 다시 채택한다(절차는 준수).**
+**MQ-1701/D119 — D108이 이미 명시적으로 기각했던 대안을 다시 채택한다(절차는 준수).**
 `docs/10_DECISIONS.md` D108 본문을 직접 대조한 결과, D108은 "department를 승인 판정에
 넣는" 안(대안 ⓑ, "대상 제한")을 **이미 검토 후 명시적으로 기각**했고, 그 이유를 "승인
 판정에 department가 들어가는 순간 '부서는 권한이 아니다'가 깨진다"고 적어 뒀다. 그리고
@@ -1506,7 +1506,7 @@ Stage 1 착수 직전에 사용자에게 "D108이 이 정확한 시나리오에 
 논리를 담고 있어 사용자 의도와 일치할 가능성이 높다) — 다만 이 대조가 이번 평가에서 처음
 드러난 것이라 명시적으로 기록해 둔다.
 
-**🟢 MQ-1713 — `FinanceDecisionBar.tsx`도 `ui_honesty_contract`의 L2 자동 스캔 밖(경미,
+**MQ-1713 — `FinanceDecisionBar.tsx`도 `ui_honesty_contract`의 L2 자동 스캔 밖(경미,
 선택 사항).** `spikes/ui_honesty_contract.py`의 `L2_GLOBS`는 `components/queue/Decision*.tsx`
 패턴만 잡는다 — 신설되는 `FinanceDecisionBar.tsx`는 이 접두어와 안 맞아 자동 스캔에
 안 잡힌다(플랜이 이미 인지한 `PoDetail.tsx`의 동일한 사각지대와 같은 종류). 과거
@@ -1530,20 +1530,20 @@ kind?)` 시그니처 확인, `load()`/`decide()`/`found` 계산의 줄번호 전
 
 | 스테이지 | TASK | 리스크 | 제안 |
 |---|---|---|---|
-| 1 | MQ-1701 | 🟡 중 — D119가 D108 ⓔ가 이미 명시적으로 기각한 대안("department가 승인 판정에 들어간다")을 다시 채택. D108은 이 정확한 미래 시나리오에 대해 "role 확장"을 답으로 못박아 뒀다 | 절차(D 문서 선등재)는 이미 충족됨. Stage 1 착수 전 사용자에게 "D108이 이 시나리오를 이미 다르게 정해 뒀다"는 사실을 한 번 더 확인받을 것을 권고(계획을 막을 사유는 아님) |
-| 1 | MQ-1702 | 🟢 낮음 — 모든 줄번호·슬라이싱 로직·CHECK 위치 실측 일치 | 그대로 진행 |
-| 1 | MQ-1703 | 🟢 낮음 — 신규 순수함수, 충돌 없음 | 그대로 진행 |
-| 1 | MQ-1704 | 🟢 낮음 — `now_utc_sql` 선례·순환 임포트 없음을 `uv run`으로 직접 검증 완료 | 그대로 진행 |
-| 2 | MQ-1705 | 🟢 낮음 — `_transition()` 패턴·D38 403/409 순서 로직이 기존 코드와 정확히 일치 | 그대로 진행 |
-| 2 | MQ-1706 | 🟢 낮음 — 상수 위치·`PO_LIST_ITEM_KEYS` 실측 일치, 오늘 세션이 이미 드리프트 해소 | 그대로 진행. `run()`과 `run_print_page_checks()`가 원문자 번호를 독립적으로 재사용한다는 점만 실행 시점에 재확인(플랜이 이미 지시한 절차로 충분) |
-| 2 | MQ-1707 | 🟢 낮음 — `conftest.py` 픽스처 동작(clone_data=False·department 미충전) 실측 일치 | 그대로 진행 |
-| 3 | MQ-1708 | 🟢 낮음 — `_PO_SELECT`·`_row_to_po`·`list_a2a_history` 시그니처·`suppliers.account_number/bank_code` 전부 실측 일치 | 그대로 진행 |
-| 3 | MQ-1709 | 🟢 낮음 — 모든 헬퍼·줄번호 참조가 실제 코드와 일치 | 그대로 진행 |
-| 3 | MQ-1710 | 🟢 낮음 — MQ-1706과의 순서 조율 지시가 구체적이고 실행 가능 | 그대로 진행 |
-| 4 | MQ-1711 | 🟢 낮음 — `role.ts` 실측 일치 | 그대로 진행 |
-| 4 | MQ-1712 | 🔴 높음 — `STATE_LABEL.po.approved.tone`을 "ok"→"info"로 바꾸면 `frontend/lib/__checks__/ui_honesty.ts:326`의 하드코딩된 대조군 단언이 깨진다(공식 회귀 `ui_honesty_contract` L1 15건 중 1건). 본안·대안 둘 다 이 문제를 못 피한다 | **태스크 명세 수정 필요**: `ui_honesty.ts:326`의 대조군을 `stateView("po","finance_approved")`(플랜이 신설하는 tone:"ok" 상태)로 교체하는 항목을 MQ-1712에 추가하고 "변경 파일"에 이 파일을 등재할 것 |
-| 4 | MQ-1713 | 🟢 낮음(선택 사항 1건) — `PoDetail.tsx`/`FinanceDecisionBar.tsx` 줄번호·L2 스캔 대상 여부 실측 일치 | `FinanceDecisionBar.tsx`도 `L2_EXTRA` 미등재 상태(D87 감시망 밖) — 기능 결함 아님, 후속 판단 사항으로 기록 |
-| 4 | MQ-1714 | 🟢 낮음 — `getApprovals` 시그니처·`load()`/`decide()`/`found` 로직 실측 일치 | 그대로 진행 |
+| 1 | MQ-1701 | 중 — D119가 D108 ⓔ가 이미 명시적으로 기각한 대안("department가 승인 판정에 들어간다")을 다시 채택. D108은 이 정확한 미래 시나리오에 대해 "role 확장"을 답으로 못박아 뒀다 | 절차(D 문서 선등재)는 이미 충족됨. Stage 1 착수 전 사용자에게 "D108이 이 시나리오를 이미 다르게 정해 뒀다"는 사실을 한 번 더 확인받을 것을 권고(계획을 막을 사유는 아님) |
+| 1 | MQ-1702 | 낮음 — 모든 줄번호·슬라이싱 로직·CHECK 위치 실측 일치 | 그대로 진행 |
+| 1 | MQ-1703 | 낮음 — 신규 순수함수, 충돌 없음 | 그대로 진행 |
+| 1 | MQ-1704 | 낮음 — `now_utc_sql` 선례·순환 임포트 없음을 `uv run`으로 직접 검증 완료 | 그대로 진행 |
+| 2 | MQ-1705 | 낮음 — `_transition()` 패턴·D38 403/409 순서 로직이 기존 코드와 정확히 일치 | 그대로 진행 |
+| 2 | MQ-1706 | 낮음 — 상수 위치·`PO_LIST_ITEM_KEYS` 실측 일치, 오늘 세션이 이미 드리프트 해소 | 그대로 진행. `run()`과 `run_print_page_checks()`가 원문자 번호를 독립적으로 재사용한다는 점만 실행 시점에 재확인(플랜이 이미 지시한 절차로 충분) |
+| 2 | MQ-1707 | 낮음 — `conftest.py` 픽스처 동작(clone_data=False·department 미충전) 실측 일치 | 그대로 진행 |
+| 3 | MQ-1708 | 낮음 — `_PO_SELECT`·`_row_to_po`·`list_a2a_history` 시그니처·`suppliers.account_number/bank_code` 전부 실측 일치 | 그대로 진행 |
+| 3 | MQ-1709 | 낮음 — 모든 헬퍼·줄번호 참조가 실제 코드와 일치 | 그대로 진행 |
+| 3 | MQ-1710 | 낮음 — MQ-1706과의 순서 조율 지시가 구체적이고 실행 가능 | 그대로 진행 |
+| 4 | MQ-1711 | 낮음 — `role.ts` 실측 일치 | 그대로 진행 |
+| 4 | MQ-1712 | 높음 — `STATE_LABEL.po.approved.tone`을 "ok"→"info"로 바꾸면 `frontend/lib/__checks__/ui_honesty.ts:326`의 하드코딩된 대조군 단언이 깨진다(공식 회귀 `ui_honesty_contract` L1 15건 중 1건). 본안·대안 둘 다 이 문제를 못 피한다 | **태스크 명세 수정 필요**: `ui_honesty.ts:326`의 대조군을 `stateView("po","finance_approved")`(플랜이 신설하는 tone:"ok" 상태)로 교체하는 항목을 MQ-1712에 추가하고 "변경 파일"에 이 파일을 등재할 것 |
+| 4 | MQ-1713 | 낮음(선택 사항 1건) — `PoDetail.tsx`/`FinanceDecisionBar.tsx` 줄번호·L2 스캔 대상 여부 실측 일치 | `FinanceDecisionBar.tsx`도 `L2_EXTRA` 미등재 상태(D87 감시망 밖) — 기능 결함 아님, 후속 판단 사항으로 기록 |
+| 4 | MQ-1714 | 낮음 — `getApprovals` 시그니처·`load()`/`decide()`/`found` 로직 실측 일치 | 그대로 진행 |
 
 ### 평가 결론
 - 계획 수정 필요: **Y**(소규모) — MQ-1712에 `ui_honesty.ts:326` 대조군 교체 항목 1개 추가가
@@ -1560,16 +1560,16 @@ kind?)` 시그니처 확인, `load()`/`decide()`/`found` 계산의 줄번호 전
 
 **확정일**: 2026-08-24 · **확정자**: 사용자(본인 확인)
 
-- **MQ-1712 수정 반영 완료** — 위 🔴 발견에 따라 "변경 파일"에
+- **MQ-1712 수정 반영 완료** — 위 발견에 따라 "변경 파일"에
   `frontend/lib/__checks__/ui_honesty.ts` 추가, "핵심 로직" 7-b(`ui_honesty.ts:326`의 대조군을
   `stateView("po","approved")` → `stateView("po","finance_approved")`로 교체) 신설, DoD에
-  `spikes/ui_honesty_contract.py` 전건 PASS 조건 추가. 이걸로 🔴 항목 해소.
+  `spikes/ui_honesty_contract.py` 전건 PASS 조건 추가. 이걸로 항목 해소.
 - **MQ-1701/D119 범위 재확인 완료** — 사용자에게 "department가 승인 판정에 들어가는 것"을
   D119(finance-approve/finance-reject 2종, department=='finance' 체크)로 한정할지, 기존
   일반 `approve()`/`reject()`(팀장 승인)까지 확장할지 물었다. **답: D119 그대로(추가 확장
   없음)** — 계획 수정 불필요, MQ-1701~1714 어느 것도 변경하지 않는다. D108과의 관계(이전에
   기각된 경로의 재채택)는 위 평가가 기록한 그대로 사용자 승인하에 진행한다.
-- **🟢 MQ-1713(`FinanceDecisionBar.tsx`의 `ui_honesty_contract` L2 사각지대)** — 경미·선택
+- **MQ-1713(`FinanceDecisionBar.tsx`의 `ui_honesty_contract` L2 사각지대)** — 경미·선택
   사항으로 남겨 둔다. 이번 스프린트 DoD에 넣지 않음(기능 결함 아니고 회귀도 안 깨짐) — Stage 4
   리뷰 시점에 `L2_EXTRA` 등재 여부를 판단한다.
 

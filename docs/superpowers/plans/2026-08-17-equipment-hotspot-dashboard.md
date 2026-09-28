@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 독립된 신규 화면 `/technician/equipment-status`(목록→드릴다운)에서 9개 설비 자산을 매뉴얼 도면 위에 냉각팬·키패드·제어보드 3개 하이라이트로 보여준다. 색은 우선순위 규칙(🔴 이상탐지 > 🔵 최근수리 > 🟠 곧점검)으로 기존 진단·수리 이력 + 신규 생애주기 mock 데이터에서 유도한다. 하이라이트 클릭 시 매뉴얼 근접 이미지(냉각팬) 또는 CSS 확대(키패드·제어보드)로 드릴다운하고, 기존 진단 텍스트(`causes`/`actions`)·수리 서명 정보를 재사용해 보여준다.
+**Goal:** 독립된 신규 화면 `/technician/equipment-status`(목록→드릴다운)에서 9개 설비 자산을 매뉴얼 도면 위에 냉각팬·키패드·제어보드 3개 하이라이트로 보여준다. 색은 우선순위 규칙(이상탐지 > 최근수리 > 곧점검)으로 기존 진단·수리 이력 + 신규 생애주기 mock 데이터에서 유도한다. 하이라이트 클릭 시 매뉴얼 근접 이미지(냉각팬) 또는 CSS 확대(키패드·제어보드)로 드릴다운하고, 기존 진단 텍스트(`causes`/`actions`)·수리 서명 정보를 재사용해 보여준다.
 
 **Architecture:** 색 판정 로직(여러 테이블 조인)은 `data/hotspot_status.py`(공유 데이터 계층, D73)에 두고 새 REST 엔드포인트 `GET /api/assets/{asset_id}/hotspot-status`가 위임한다(`data/maint_value.py` 선례와 동일 패턴). 하이라이트 좌표·이미지 경로는 DB가 아니라 프론트 정적 상수(`frontend/lib/hotspots.ts`)로 관리한다(실물 도면과 1:1 좌표라 DB화할 이유가 없음, 스펙 §4-3). `part_lifecycle_mock`은 읽기 전용 신규 시드 테이블 — 쓰기 도구 신설 없음(D10과 무관).
 
@@ -70,7 +70,7 @@ Expected: `done` 출력, 3개 PNG 파일 생성. 파일을 열어 육안으로 �
  * DB 가 아니라 정적 상수다 — 실물 도면과 1:1 매칭이라 좌표가 바뀔 이유가 없다.
  * 좌표는 크롭된 이미지(`frontend/public/manuals/*.png`) 기준 %(좌상단 원점)다.
  *
- * ⚠ 라이선스: LS ELECTRIC 매뉴얼 도면 원본. 비상업적 학습·포트폴리오 목적으로만 사용 —
+ * 라이선스: LS ELECTRIC 매뉴얼 도면 원본. 비상업적 학습·포트폴리오 목적으로만 사용 —
  *   화면에 `citation` 을 항상 표시할 것(spec §4-2, 사용자 승인 완료).
  */
 
@@ -162,7 +162,7 @@ EOF
 
 ```sql
 -- §19 part_lifecycle_mock — 생애주기 경고(D) 목업 (Sprint 10 브레인스토밍).
--- ⛔ 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
+-- 실 텔레메트리·정비 이력에서 유도하지 않는다 — 사용자가 명시적으로 "새 가짜 필드,
 --    부품별 다음 점검일 직접 부여"를 선택했다. 화면에 mock 고지 필수(D65).
 CREATE TABLE part_lifecycle_mock (
   equipment_id TEXT NOT NULL REFERENCES equipment,
@@ -312,7 +312,7 @@ EOF
 # -*- coding: utf-8 -*-
 """설비 하이라이트 색 판정 — 공유 데이터 계층 (D101·D73, spec §4-5·§4-6).
 
-색 우선순위(부품 단위): 🔴 이상탐지 > 🔵 최근 수리 > 🟠 곧 점검 > 없음.
+색 우선순위(부품 단위): 이상탐지 > 최근 수리 > 곧 점검 > 없음.
 "이상탐지"는 새 탐지 로직(센서·임계치)이 아니라 기존 `error_history`+`error_codes.related_parts`+
 `repair_records` 를 재해석하는 것뿐이다 — 이 프로젝트에 실시간 텔레메트리가 없다(spec §4-5).
 
@@ -692,7 +692,7 @@ EOF
 ```tsx
 /* -------------------------------------------------------------------------- */
 /* 설비 하이라이트 색 어휘 (Sprint 10 브레인스토밍 C, spec §4-5) —              */
-/* EquipmentHotspotDiagram 전용. ⛔ 이 절 밖(컴포넌트 파일)에 "red"|"blue"|      */
+/* EquipmentHotspotDiagram 전용. 이 절 밖(컴포넌트 파일)에 "red"|"blue"|      */
 /* "orange" 문자열 비교나 색 토큰이 있으면 안 된다 (D87, ui_honesty_contract L2). */
 
 export type HotspotColor = "red" | "blue" | "orange";
@@ -971,7 +971,7 @@ function DetailPanel({
                 "font:11px/1.6 'Pretendard';color:var(--orange-tx)"
             )}
           >
-            ⚠ 매뉴얼에 정확한 라벨이 없어 대략적인 영역입니다 — 실제 부품 위치와 다를 수 있습니다.
+            매뉴얼에 정확한 라벨이 없어 대략적인 영역입니다 — 실제 부품 위치와 다를 수 있습니다.
           </div>
         )}
 
@@ -1061,7 +1061,7 @@ function DetailBody({
           <div>다음 점검 예정일: {basis.next_maintenance_due}</div>
         )}
         <span style={sx("font:10.5px 'Pretendard';color:var(--dim2)")}>
-          ⚠ 생애주기 mock 데이터입니다 — 실제 정비 이력에서 유도한 값이 아닙니다.
+          생애주기 mock 데이터입니다 — 실제 정비 이력에서 유도한 값이 아닙니다.
         </span>
       </div>
     );
@@ -1140,7 +1140,7 @@ import { sx } from "@/lib/sx";
  * `/technician/equipment-status` — 설비 하이라이트 대시보드 목록 (Sprint 10 브레인스토밍 C).
  *
  * 독립된 신규 화면이다(`asset` 목록과 별개, spec §4-1 "독립된 새 대시보드 화면"). 자산마다
- * `hotspot-status`를 조회해 배지(🔴N 🟠N 🔵N)를 붙인다 — 9개뿐이라 병렬 호출로 충분하다.
+ * `hotspot-status`를 조회해 배지(N N N)를 붙인다 — 9개뿐이라 병렬 호출로 충분하다.
  */
 export default function EquipmentStatusListPage() {
   const [assets, setAssets] = useState<ApiAsset[] | null>(null);
@@ -1178,7 +1178,7 @@ export default function EquipmentStatusListPage() {
 
   return (
     <ScreenStack>
-      {error && <StatusBanner tone="error">⚠ {error}</StatusBanner>}
+      {error && <StatusBanner tone="error">{error}</StatusBanner>}
       <ConsoleFrame>
         <ConsoleHeader>
           <Logo />
@@ -1246,9 +1246,9 @@ function EquipmentRow({
         <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>상태 미상</span>
       ) : (
         <div style={sx("display:flex;gap:8px")}>
-          {counts.red > 0 && <Badge color="var(--error-tx)">🔴 {counts.red}</Badge>}
-          {counts.orange > 0 && <Badge color="var(--orange-tx)">🟠 {counts.orange}</Badge>}
-          {counts.blue > 0 && <Badge color="var(--blue-tx)">🔵 {counts.blue}</Badge>}
+          {counts.red > 0 && <Badge color="var(--error-tx)">{counts.red}</Badge>}
+          {counts.orange > 0 && <Badge color="var(--orange-tx)">{counts.orange}</Badge>}
+          {counts.blue > 0 && <Badge color="var(--blue-tx)">{counts.blue}</Badge>}
           {counts.red + counts.orange + counts.blue === 0 && (
             <span style={sx("font:11px 'Pretendard';color:var(--dim2)")}>정상</span>
           )}
@@ -1281,7 +1281,7 @@ git commit -m "$(cat <<'EOF'
 [M3] /technician/equipment-status 목록 화면 신설 (spec §4-1 ①)
 
 독립된 신규 화면 — 자산 목록(asset)과 별개. 9개 설비 각각 hotspot-status 병렬 조회
-후 🔴🟠🔵 배지로 요약.
+후 배지로 요약.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1356,7 +1356,7 @@ export default function EquipmentStatusDetailPage({
   if (error) {
     return (
       <ScreenStack>
-        <StatusBanner tone="error">⚠ {error}</StatusBanner>
+        <StatusBanner tone="error">{error}</StatusBanner>
         <Link
           href="/technician/equipment-status"
           style={sx("font:12px 'Pretendard';color:var(--blue-tx);text-decoration:none")}
@@ -1469,7 +1469,7 @@ Expected: seed 통과(검증 표에 ㉛ PASS 포함), pytest 46건, spikes 전�
 - [ ] **Step 2: 브라우저 수동 확인**
 
 `data/seed.py` 재시드 후 백엔드(`uv run uvicorn backend.main:app --port 8021`)와 프론트(`NEXT_PUBLIC_API_BASE=http://localhost:8021 npm run dev`)를 띄우고:
-- `/technician/equipment-status` — 9개 설비가 나열되고 일부에 🔴/🟠/🔵 배지가 보이는지
+- `/technician/equipment-status` — 9개 설비가 나열되고 일부에 //배지가 보이는지
 - 배지가 있는 설비 클릭 → 상세 화면에서 도면 위 원형 하이라이트가 배지 색과 일치하는지
 - 하이라이트 원 클릭 → 냉각팬이면 실제 근접 이미지(그림 1-4)로, 키패드/제어보드면 CSS 확대로 전환되는지
 - 확대 패널에 진단 원인/조치문 또는 수리 서명 정보 또는 다음 점검일이 색에 맞게 뜨는지

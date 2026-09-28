@@ -13,12 +13,12 @@
 ## Global Constraints
 
 - **기본 꺼짐.** `MAINTQ_LLM_CACHE` 가 정확히 `"on"`(대소문자 무시, 앞뒤 공백 제거) 일 때만 동작한다. 그 밖의 값·빈 값·미설정은 전부 꺼짐 (D40 태도 · D56 선례)
-- **네트워크 코드 0.** `llm_cache.py` 는 HTTP 클라이언트를 임포트하지 않는다. ⛔ 그 라이브러리 **이름을 주석·독스트링에도 적지 않는다** — 부분문자열 스캐너가 주석만 보고 FAIL 한 전례가 있다(`spikes/law_fetch_contract.py ⓓ-2` 가 `sha256` 으로 같은 함정을 기록)
-- **캐시 디렉터리는 git 미추적.** `data/cache/` 를 `.gitignore` 에 넣는다. ⛔ `data/external/store.py`(D103)를 재사용하지 않는다 — 그건 git 추적·append-only 외부 원본용이라 성격이 정반대다
+- **네트워크 코드 0.** `llm_cache.py` 는 HTTP 클라이언트를 임포트하지 않는다. 그 라이브러리 **이름을 주석·독스트링에도 적지 않는다** — 부분문자열 스캐너가 주석만 보고 FAIL 한 전례가 있다(`spikes/law_fetch_contract.py ⓓ-2` 가 `sha256` 으로 같은 함정을 기록)
+- **캐시 디렉터리는 git 미추적.** `data/cache/` 를 `.gitignore` 에 넣는다. `data/external/store.py`(D103)를 재사용하지 않는다 — 그건 git 추적·append-only 외부 원본용이라 성격이 정반대다
 - **시각은 UTC** (D39). 파일 계층이므로 `.isoformat()`(`+00:00`) 을 쓴다 — `...Z` 는 API 전송 규정이다
-- **line-length 100** (`pyproject.toml [tool.ruff]`). 정적 게이트는 `uv run ruff check` 다. ⛔ `ruff format` 은 돌리지 않는다(레포에 기존 드리프트가 있어 무관한 줄이 대량으로 섞인다)
+- **line-length 100** (`pyproject.toml [tool.ruff]`). 정적 게이트는 `uv run ruff check` 다. `ruff format` 은 돌리지 않는다(레포에 기존 드리프트가 있어 무관한 줄이 대량으로 섞인다)
 - **커밋 메시지 꼬리**: 이 브랜치는 Sprint 13 작업과 섞여 있다. 카세트 커밋은 본문 마지막에 `카세트 / Task N` 을 넣어 `git log --grep=카세트` 로 갈라 읽을 수 있게 한다
-- **D 번호**: 스펙은 `D105` 를 예약했다. ⚠ 착수 시 `docs/10_DECISIONS.md` 의 실제 마지막 번호를 확인할 것 — 현재 `D103` 까지이고 `D104` 는 Sprint 13 Stage 2(MQ-1307)가 선점했다
+- **D 번호**: 스펙은 `D105` 를 예약했다. 착수 시 `docs/10_DECISIONS.md` 의 실제 마지막 번호를 확인할 것 — 현재 `D103` 까지이고 `D104` 는 Sprint 13 Stage 2(MQ-1307)가 선점했다
 
 ---
 
@@ -143,13 +143,13 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'backend.agent.llm_cach
 
 **이 모듈은 네트워크를 타지 않는다.** 실제 호출은 감싸인 `inner` 가 한다.
 
-⚠ **캐시 히트는 D55 재생이다.** `CachingClient.last_hit` 을 `run_turn` 이 읽어
+**캐시 히트는 D55 재생이다.** `CachingClient.last_hit` 을 `run_turn` 이 읽어
 `trace.replay = True` 로 켜고, 그러면 `eval/score.py:has_replay()` 가 그 세션을 지표
 분모에서 제외한다. **그 한 줄이 빠지면 히트가 지표에 조용히 섞인다** — 이 설계에서 가장
 빠뜨리기 쉬운 지점이라 회귀가 따로 그것만 본다.
 
 저장은 `data/cache/llm/<key>.json` 이고 **git 미추적**이다. 언제 지워도 된다.
-⛔ `data/external/store.py`(D103)를 쓰지 않는다 — 그건 git 추적·append-only 외부 원본용이라
+`data/external/store.py`(D103)를 쓰지 않는다 — 그건 git 추적·append-only 외부 원본용이라
 성격이 정반대다.
 """
 
@@ -356,7 +356,7 @@ Expected: FAIL — `AttributeError: module 'backend.agent.llm_cache' has no attr
 class CachingClient:
     """`LlmClient` 데코레이터 — 응답만 재생하고 도구 실행은 그대로 둔다.
 
-    ⚠ `last_hit` 은 `stream()` **호출 시점에** 확정된다(조회가 동기라서). `run_turn` 은
+    `last_hit` 은 `stream()` **호출 시점에** 확정된다(조회가 동기라서). `run_turn` 은
     델타 루프 첫 회차에서 이 값을 읽어 `trace.replay` 를 켠다 — `_safe_stream` 이
     async generator 라 `stream()` 이 첫 델타를 당길 때 비로소 호출되기 때문이다.
     """
@@ -487,7 +487,7 @@ MSG
 
 ---
 
-## Task 3: 🔴 D55 재생 표식 배선 — 가장 빠뜨리기 쉬운 한 줄
+## Task 3: D55 재생 표식 배선 — 가장 빠뜨리기 쉬운 한 줄
 
 **Files:**
 - Modify: `backend/agent/loop.py` (델타 루프 첫 회차)
@@ -551,7 +551,7 @@ Expected: FAIL — `AssertionError: run_turn 에 캐시 히트 → trace.replay 
 
 ```python
             # 캐시 히트면 이 턴을 D55 재생으로 표식한다 — `eval/score.has_replay()` 가
-            # 지표 분모에서 뺀다. ⚠ 이 세 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다.
+            # 지표 분모에서 뺀다. 이 세 줄이 빠지면 캐시 히트가 지표에 **조용히** 섞인다.
             # `_safe_stream` 이 async generator 라 `llm.stream()` 은 첫 델타를 당길 때
             # 호출된다 — 그래서 루프 밖이 아니라 **첫 회차 안**에서 읽는다.
             if not trace.replay and getattr(llm, "last_hit", False):
@@ -731,7 +731,7 @@ Run: `grep -n "add_argument\|def main\|argparse" eval/run_eval.py | head -20`
         action="store_true",
         help=(
             "LLM 응답 카세트를 켜고 실행한다 (D105). 채점·집계·배선을 고칠 때 빠르게 "
-            "돌리기 위한 모드다. ⛔ 캐시 히트 세션은 D55 표식이 붙어 지표 분모에서 "
+            "돌리기 위한 모드다. 캐시 히트 세션은 D55 표식이 붙어 지표 분모에서 "
             "제외되므로 이 모드의 수치를 실적으로 인용할 수 없다."
         ),
     )
@@ -744,7 +744,7 @@ Run: `grep -n "add_argument\|def main\|argparse" eval/run_eval.py | head -20`
         os.environ["MAINTQ_LLM_CACHE"] = "on"
         print(
             "[모드] 재생 — 카세트를 켰습니다. 캐시 히트 세션은 D55 표식이 붙어 "
-            "지표 분모에서 제외됩니다. ⛔ 이 실행의 수치를 실적으로 인용하지 마세요.",
+            "지표 분모에서 제외됩니다. 이 실행의 수치를 실적으로 인용하지 마세요.",
             file=sys.stderr,
         )
 ```
@@ -799,7 +799,7 @@ Expected: `| D103` (Sprint 13 Stage 2 가 끝났다면 `| D104`)
 
 - **결정**: LLM 응답 캐시(카세트)는 **기본 꺼짐**(`MAINTQ_LLM_CACHE=on` 옵트인)이고, **캐시 히트는 D55 재생으로 표식**해 지표 분모에서 제외한다. 저장은 `data/cache/llm/`(git 미추적).
 - **대안**: ⓐ 캐시 없음(현행) / ⓑ 평가 실행 전 캐시 삭제 / ⓒ 캐시 전용 새 표식 신설
-- **근거**: ⓑ 는 **깜빡하면 조용히 오염**되고 다른 용도의 캐시까지 지운다 — 실패가 침묵하는 설계다. ⓒ 는 `eval_replay_guard` 16건과 `has_replay()` 를 중복시키고 *"재생과 캐시가 무엇이 다른가"* 를 계속 설명해야 한다. D55 가 이미 *"부분 오염도 전체 배제"* 를 정해 뒀으므로 재사용이 자연스럽다. ⓐ 는 실 통증(스모크·평가·curl 이 매번 실 호출)을 방치한다. ⚠ **캐시 히트는 가짜 응답이 아니라 기록된 실제 응답**이다 — 그래도 표식하는 이유는 *"언제 만들어진 응답인지"* 가 지표의 전제이기 때문이다(그 사이 모델·프롬프트가 바뀌었을 수 있다). ⛔ `store.py`(D103)를 재사용하지 않는다 — 그건 git 추적·append-only 외부 원본용이라 성격이 정반대다.
+- **근거**: ⓑ 는 **깜빡하면 조용히 오염**되고 다른 용도의 캐시까지 지운다 — 실패가 침묵하는 설계다. ⓒ 는 `eval_replay_guard` 16건과 `has_replay()` 를 중복시키고 *"재생과 캐시가 무엇이 다른가"* 를 계속 설명해야 한다. D55 가 이미 *"부분 오염도 전체 배제"* 를 정해 뒀으므로 재사용이 자연스럽다. ⓐ 는 실 통증(스모크·평가·curl 이 매번 실 호출)을 방치한다. **캐시 히트는 가짜 응답이 아니라 기록된 실제 응답**이다 — 그래도 표식하는 이유는 *"언제 만들어진 응답인지"* 가 지표의 전제이기 때문이다(그 사이 모델·프롬프트가 바뀌었을 수 있다). `store.py`(D103)를 재사용하지 않는다 — 그건 git 추적·append-only 외부 원본용이라 성격이 정반대다.
 
 - [ ] **Step 3: 실측 — 이 스펙의 성공 판정**
 
@@ -815,7 +815,7 @@ MAINTQ_LLM_CACHE=on bash -c 'time uv run python -m eval.run_eval --replay' 2>&1 
 
 **두 실행의 초 단위 시간과 `stats_line()` 의 히트율을 기록한다.** 체감이 아니라 실측을 적는다.
 
-⚠ **히트율이 낮으면 그 사실을 그대로 적는다.** 다중 호출 턴은 이력에 `po_id`·타임스탬프가 섞여 미스가 날 수 있다(스펙 §6-1). 실익이 없으면 없다고 기록하고, 원인을 실측한 뒤 다음 작업으로 넘긴다 — 지금 추측으로 정규화하지 않는다.
+**히트율이 낮으면 그 사실을 그대로 적는다.** 다중 호출 턴은 이력에 `po_id`·타임스탬프가 섞여 미스가 날 수 있다(스펙 §6-1). 실익이 없으면 없다고 기록하고, 원인을 실측한 뒤 다음 작업으로 넘긴다 — 지금 추측으로 정규화하지 않는다.
 
 - [ ] **Step 4: `CLAUDE.md` 기준선을 갱신한다**
 
@@ -825,12 +825,12 @@ pytest 커맨드가 바뀐다. 회귀 절의 pytest 항목을 다음으로:
 uv run --with pytest python -m pytest data/rules/test_rules.py backend/agent/test_llm_cache.py -q
 ```
 
-건수도 실측으로 갱신한다(현재 46 → 46 + 카세트 12 = **58** 예상. ⚠ **러너 출력이 기준이다** — 예측과 다르면 실측을 적는다).
+건수도 실측으로 갱신한다(현재 46 → 46 + 카세트 12 = **58** 예상. **러너 출력이 기준이다** — 예측과 다르면 실측을 적는다).
 
 - [ ] **Step 5: 전수 회귀**
 
 Run: 30스위트 전수 실행
-Expected: **872건 · FAIL 0**. ⚠ Windows 소켓 고갈로 스위트 1건이 실패하면 **단독 재실행해 확인**하고 그 사실을 보고에 적는다(CLAUDE.md 규칙)
+Expected: **872건 · FAIL 0**. Windows 소켓 고갈로 스위트 1건이 실패하면 **단독 재실행해 확인**하고 그 사실을 보고에 적는다(CLAUDE.md 규칙)
 
 - [ ] **Step 6: 커밋**
 

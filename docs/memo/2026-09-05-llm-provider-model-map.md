@@ -1,6 +1,6 @@
 # LLM 제공자·모델 실측 지도
 
-**측정: 2026-09-05** · ⚠ 외부 서비스 카탈로그라 **빠르게 낡는다.** 아래 §5 의 커맨드로 다시 잴 것.
+**측정: 2026-09-05** · 외부 서비스 카탈로그라 **빠르게 낡는다.** 아래 §5 의 커맨드로 다시 잴 것.
 
 ---
 
@@ -41,12 +41,12 @@ NVIDIA 가 우리 기본 모델을 **이틀 전에 EOL** 시켰고, 폴백인 Op
 | `nemotron-3-ultra` | 550B | MoE | 262K | ✅ | 19.8s |
 | `nemotron-3-nano:30b` | 32B | nemotron-3-nano | 262K | ✅ | 21.6s |
 
-⛔ **구독 필요(402)** — 이름이 카탈로그에 보인다고 쓸 수 있는 게 아니다:
+**구독 필요(402)** — 이름이 카탈로그에 보인다고 쓸 수 있는 게 아니다:
 `qwen3.5:397b` · `kimi-k3` · `kimi-k2.6` · `kimi-k2.7-code` ·
 `glm-5.1` / `5.2` / `5.3` / `5.3-flash` · `deepseek-v4-pro` / `deepseek-v4-flash` ·
 `minimax-m2.7` / `m3` · `mistral-large-3:675b`
 
-> 📌 `GET /v1/models` 는 **인증 없이도 200** 이고 유료 모델까지 전부 나열한다.
+> `GET /v1/models` 는 **인증 없이도 200** 이고 유료 모델까지 전부 나열한다.
 > 목록에 있다 ≠ 쓸 수 있다. **호출해 봐야 안다.**
 
 ### NVIDIA NIM (`MAINTQ_LLM_PROVIDER=nvidia`)
@@ -57,7 +57,7 @@ NVIDIA 가 우리 기본 모델을 **이틀 전에 EOL** 시켰고, 폴백인 Op
 |---|---|
 | 있음 | `openai/gpt-oss-20b` · `moonshotai/kimi-k2.6` · `kimi-k3` · `nvidia/nemotron-3-*` · `google/gemma-*` · `mistralai/*` · `deepseek-ai/*` |
 | **없음** | **Qwen 계열 0건** · GLM 0건 · llama-4 0건 |
-| 🪦 EOL | `openai/gpt-oss-120b` (2026-09-03) — **Ollama Cloud 에는 아직 살아 있다** |
+| EOL | `openai/gpt-oss-120b` (2026-09-03) — **Ollama Cloud 에는 아직 살아 있다** |
 
 > 임베딩도 같은 카탈로그에서 고른다 — D117 이 `nvidia/nemotron-3-embed-1b` 를 쓴다.
 > 그때도 원래 Qwen 임베딩을 원했으나 **카탈로그에 0건**이라 대체했다. 같은 제약이 반복된다.
@@ -80,7 +80,7 @@ NVIDIA 가 우리 기본 모델을 **이틀 전에 EOL** 시켰고, 폴백인 Op
 
 ---
 
-## 2. 🔴 `.env` 의 유료 폴백 함정
+## 2. `.env` 의 유료 폴백 함정
 
 ```
 MAINTQ_LLM_PROVIDER=ollama
@@ -108,7 +108,7 @@ MAINTQ_LLM_FALLBACK_PROVIDER= MAINTQ_LLM_FALLBACK_MODEL= uv run python eval/run_
 빈 문자열이면 `get_client()` 가 `FallbackClient` 로 감싸지 않는다
 (`(os.environ.get(...) or "")` 라 빈 값 = 미설정). `load_dotenv(override=False)` 는
 **이미 있는 키를 덮지 않으므로** `.env` 값이 되살아나지 않는다 —
-⚠ `pop()` 으로 지우면 `.env` 가 다시 채운다. **비우되 지우지 말 것.**
+`pop()` 으로 지우면 `.env` 가 다시 채운다. **비우되 지우지 말 것.**
 
 확인 방법:
 ```bash
@@ -142,7 +142,7 @@ InsuQ 가 같은 `gpt-oss-120b` 를 이 이유로 기각했다(도구 없는 최
 > **`max_tokens=10` 을 reasoning 이 다 써서** 그런 것이었다. 토큰을 넉넉히 주면 정상이다.
 > 모델 탐침에서 `max_tokens` 를 짜게 주면 **멀쩡한 모델을 불량으로 오판**한다.
 
-⛔ `extra_body.chat_template_kwargs.thinking=false` 로 추론을 끄지 말 것 (D123) —
+`extra_body.chat_template_kwargs.thinking=false` 로 추론을 끄지 말 것 (D123) —
 A2A_Q 실측에서 nemotron 계열이 4/4 로 `finish_reason=tool_calls` + 빈 본문을 냈다.
 
 ---
@@ -162,7 +162,7 @@ A2A_Q 실측에서 nemotron 계열이 4/4 로 `finish_reason=tool_calls` + 빈 �
 *"후보를 늘어놓고 사용자에게 되묻는"* 경향 때문이었다 — 지표 이름이 "부품 **특정**"이라
 헤징이 감점된다. 자세한 것은 [agent-loop-observations](2026-09-05-agent-loop-observations.md).
 
-⚠ **각 1회 실행이라 순위를 결론으로 쓰면 안 된다.** 이 레포는 *"2·3차에서 판정이 뒤집힌
+**각 1회 실행이라 순위를 결론으로 쓰면 안 된다.** 이 레포는 *"2·3차에서 판정이 뒤집힌
 문항이 7개"* 였던 기록을 갖고 있다(`data/analysis/eval_gap_3rd.md §4`). `--repeat 3` 필요.
 
 ---

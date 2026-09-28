@@ -427,7 +427,7 @@ import { sx } from "@/lib/sx";
  * `CriticalityDrawer` 와 완전히 같은 오버레이 패턴 — `RepairValuePanel` 의 "재고 보기"
  * 칩을 눌렀을 때 옆에서 펼쳐진다. 라우트를 옮기지 않고 `open`/`onClose` 로만 제어된다.
  *
- * ⛔ 발주는 이 컴포넌트가 직접 만들지 않는다 — "발주하러 가기" 는 기존 채팅 prefill
+ * 발주는 이 컴포넌트가 직접 만들지 않는다 — "발주하러 가기" 는 기존 채팅 prefill
  *   경로(`/technician?prefill=...`)로 이동만 한다. `create_po_draft` 호출은 여전히
  *   에이전트가 채팅에서 한다(P39 완성 전까지의 의도적 설계 — docs/07_BACKLOG.md P39).
  */

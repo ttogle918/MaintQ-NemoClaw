@@ -40,20 +40,20 @@
 > (스파이크 L0 채택) · 스테이징 5테이블·전용 역할·`onboarding` 도구 프로필(쓰기 도구 4종째) · 에러코드 형식 확장 ·
 > 승격 병합 규칙 · 안전 문구 런타임 원천. model enum 4종(HV600 은 승격 전 `not_found`). 테이블 25→**30** ·
 > pytest **406** · spikes **40종**. 공유 DB 에 HV600 249행 적재·NAT 정규화 완료(high 248 · low 1).
-> ⛔ **데모 전 `data/seed.py` 재실행 금지**(H9 — LLM 정규화·승격·안전 승인이 복구되지 않는다).
+> **데모 전 `data/seed.py` 재실행 금지**(H9 — LLM 정규화·승격·안전 승인이 복구되지 않는다).
 > 사람 작업 H2~H5·H7 완료 — 8코드 승격(CE·GF·OC·OV·UV1·OH·CPF06·EF1) · 안전 문구 SC-14(p.29, **5분**) 승인 ·
-> OpenClaw 재설치 · 녹화. **남은 것**(2026-09-27): 데모 영상 링크 기입 · 스킬 카드 검토 · 레포 공개 — 제출 전 체크리스트 S2·S3·S5·S6. 목록은 `TODO_직접할일.md` 「Sprint 19」.
+> OpenClaw 재설치 · 녹화. **남은 것**(2026-09-27): 데모 영상 링크 기입 · 스킬 카드 검토 · 레포 공개 — 제출 전 체크리스트 S2·S3·S5·S6.
 
 > **2026-09-24 (NVIDIA 해커톤 Day 2, `docs/hackathon/day2.md`)** — 제출용 레포
 > **`ttogle918/MaintQ-NemoClaw`**(비공개 · Apache-2.0)로 옮겼다. 작업 위치도
 > **WSL Ubuntu `~/MaintQ-NVIDIA`** 로 바뀌었다(Claude Code 가 여기서 돈다).
-> 🔴 **커밋 해시가 전부 바뀌었다** — 이메일 치환 + D144 퍼지로 두 번 재작성했다.
+> **커밋 해시가 전부 바뀌었다** — 이메일 치환 + D144 퍼지로 두 번 재작성했다.
 > 문서가 인용하는 옛 해시는 조회되지 않는다(대조표는 `day2.md` §1).
 > 결정 **D144~D150**: 매뉴얼 추출물 비공개(형태는 `data/extracted/samples/`) ·
 > 새 기종 HV600 + 한국어 정규화 · enum 선등록 + DB 상태 게이트 · 안전 문구 스테이징 →
 > 사람 승인 · RAG 는 jsonl ∪ DB · 샌드박스 A2A `policy_blocked` ·
 > **MCP streamable-http 입구**(NemoClaw 가 stdio 를 안 받는다).
-> ⚠ **NemoClaw 설치는 기존 OpenShell 게이트웨이를 빼앗고 실행 중 샌드박스를 SIGKILL 한다** —
+> **NemoClaw 설치는 기존 OpenShell 게이트웨이를 빼앗고 실행 중 샌드박스를 SIGKILL 한다** —
 > 키 재입력 없는 복구 절차를 `day2.md` §5 에 런북으로 남겼다.
 
 
@@ -61,7 +61,7 @@
 > **하네스가 거짓 수치를 내고 있었음**을 발견해 고쳤다(**D131**·**D132**·**D133**) 그리고
 > S2 대체품 **진입** 경로가 프롬프트에 없던 것을 메웠다(**D134** — safety 83.3%→**94.4%**,
 > 두 실행 모두 회차 분산 0). **D130 수정이 실제로 먹혔음이 이번에 처음 확인**됐다(traces 0행 → 176·182행).
-> 🔴 다만 **`--repeat 3` 으로는 "안정 실패/통과" 분류가 서지 않는다**는 것이 드러나
+> 다만 **`--repeat 3` 으로는 "안정 실패/통과" 분류가 서지 않는다**는 것이 드러나
 > 이 세션에서 내린 `part` 관련 판정 여럿을 스스로 철회했다 — 노이즈 바닥은
 > `docs/memo/2026-09-05-agent-loop-observations.md §8`. **튜닝 전에 측정 예산부터 확보할 것.**
 > `docs/memo/` 를 신설해 이런 실측·관측을 모은다.
@@ -84,7 +84,7 @@ SSE `tool_result.a2a_chain_id`(D113)·`GET /api/a2a/history`(D114)·신규 MCP �
 (`search_insurance_clause`·`assess_equipment_loan`, `04_MCP_TOOLS §19·§20`)과 화면 4종(채팅
 A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이력 패널·통합 `/manager/a2a` 이력 페이지)으로
 메웠다.
-⛔ master 미병합 — 머지는 사람이 요청할 때만.**
+master 미병합 — 머지는 사람이 요청할 때만.**
 
 **2026-09-04 (스프린트 아님 · 백로그 항목)** — `feat/docx-render-and-facts-tool` 브랜치에서
 **「아이디어 주차장」의 ".docx/.pdf 파일 생성" 을 착수·완료**(D124·D125).
@@ -93,13 +93,13 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
 읽기 전용 MCP 도구 `get_document_facts` 1종 신설(01·02·05·06) — 확장 13→**14**, 총 20→**21**종.
 교정은 UPDATE 가 아니라 `create_po_draft` 새 draft INSERT 다(D10 무손상 — `write_tool_contract`
 **30건 그대로**가 그 증거).
-🔴 **작업 중 실제 결함 하나를 잡았다**: 01·02·03 은 문안 미검수 상태인데 템플릿에 고지 자리가
+**작업 중 실제 결함 하나를 잡았다**: 01·02·03 은 문안 미검수 상태인데 템플릿에 고지 자리가
 없어 **미리보기는 "미검수 초안" 이라 말하는데 docx 는 침묵**했다 — docx 생성이 붙으면서
 처음 발현. 세 템플릿에 고지 표를 넣고 회귀 `docx_contract C②` 로 고정했다.
 기준선: spikes **34스위트 / 1,183건**(신설 `docx_contract` 63) · pytest **128건**(7파일) ·
-프론트 무변경. ⛔ **PDF·프론트 다운로드 버튼은 미착수**(백로그에 근거와 함께 남김).
+프론트 무변경. **PDF·프론트 다운로드 버튼은 미착수**(백로그에 근거와 함께 남김).
 전문 [`sessions/2026-09-04.md`](sessions/2026-09-04.md).
-⛔ master 미병합 — 머지는 사람이 요청할 때만.
+master 미병합 — 머지는 사람이 요청할 때만.
 
 **2026-09-04~05 (스프린트 아님 · 코드 리뷰 발) — `fix/concurrency-d126` 브랜치, D126~D130.**
 "아키텍처 리뷰" 요청에서 출발해 **실측으로 확인한 버그 5건**을 고쳤다. 전부 공통점이 있다 —
@@ -110,10 +110,10 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
   (격리 스키마에서 재현, 승자가 실행마다 바뀜). `decisions`·`repairs` 의 헬퍼는 `_locked_row()`
   라는 **이름을 달고도 잠그지 않았다**. `data/txn.py`(`FOR UPDATE` · 자문 잠금 채번) 신설 +
   전이 골격을 `backend/services/state_machine.py` 로 공통화(수동 골격 8곳→0). 회귀 축 신설
-  (`db_concurrency` 7→10) — ⚠ 처음엔 스레드 경쟁으로 짰다가 **뮤턴트를 놓치는 것을 실측하고
+  (`db_concurrency` 7→10) — 처음엔 스레드 경쟁으로 짰다가 **뮤턴트를 놓치는 것을 실측하고
   폐기**, 잠금 대기시간 측정으로 재설계(0.82s vs 0.02s). 전문 [`14_CONCURRENCY.md`](14_CONCURRENCY.md)
 - **D127 커넥션 풀** — 커넥션 1개 여는 데 **~16ms**(핫 쿼리는 0.03~0.8ms). `list_pos` 3.1배 ·
-  `get_po` 1.8배. 🔴 지연보다 **안정성**이 컸다: 회귀 병렬 실행 중 TIME_WAIT 933개로 Docker
+  `get_po` 1.8배. 지연보다 **안정성**이 컸다: 회귀 병렬 실행 중 TIME_WAIT 933개로 Docker
   포트 프록시가 죽어 접속이 통째로 끊겼다. **격리 DSN 은 풀링하지 않는다**(회귀 격리 보호)
 - **D128 도구 직렬화는 유지** — 초기 진단이 절반 틀렸다. 워커만 병렬화하면 이득 0(루프가 이미
   순차)이고, 루프를 병렬화하면 `traces` 에 pair 키가 없어 **감사 화면이 조용히 거짓**이 된다
@@ -126,14 +126,14 @@ A2A 결과 카드·PO 상세 출금요청 패널·건물 위험등급 대출이�
   계산**했다(M4 헤드라인 지표가 이 위에 있었다) ㉢ `a2a_partner_tools_contract` 가 실행마다
   `public.traces` 에 6행 — CLAUDE.md 가 "기존 오염"으로 적고 원인을 다른 곳에서 찾던 것의
   **실제 출처**였다. 폴백은 명시적 실패로, eval 은 격리 스키마로 이관.
-  ⛔ **SQLite 자체는 남긴다** — 스파이크 20개가 픽스처 DB 로 쓴다(런타임 폴백만 버그)
+  **SQLite 자체는 남긴다** — 스파이크 20개가 픽스처 DB 로 쓴다(런타임 폴백만 버그)
 
 부수: `05_DB_SCHEMA §24 manual_chunks` 절 신설(D117 에서 빠져 있던 문서 구멍) ·
 `_CLONE_TABLES` 에 `manual_chunks` 추가 · CLAUDE.md 실측 정정 5건(A2A pytest 88→**107** ·
 pytest 15→**18파일 255건** · DB 테이블 24→**25**).
 기준선: spikes **34스위트 / 1,186건**(`db_concurrency` +3) · pytest **255건**(18파일) ·
 seed 41건 · 공유 `public.traces` 0→0.
-🔴 **작업 중 스스로 낸 사고 3건도 기록했다** — 환경 마비(TIME_WAIT) · 회귀 가드 오설계 ·
+**작업 중 스스로 낸 사고 3건도 기록했다** — 환경 마비(TIME_WAIT) · 회귀 가드 오설계 ·
 `isinstance` 일괄 치환으로 `seed.py` 파손. 마지막 하나는 전수 검증에서 `law_fetch_contract`
 28건이 죽어 있던 것으로 한 번 더 드러났다(**부분 검증의 한계** — D129 커밋 때 그 스파이크를
 안 돌렸다).
@@ -147,8 +147,8 @@ seed 41건 · 공유 `public.traces` 0→0.
 케이스 맵 주인공 `FAN-IG5-01`(iG5A 소용량 냉각팬)은 **제조사가 대리점 문의로 돌려 품번 자체가 비공개**다.
 결과를 **`parts.mfr_part_no`(nullable, D97)** 로 스키마에 고정했다 — **`NULL` = "미조사"가 아니라 "미공개"**.
 전문 [`../data/analysis/part_number_sources.md`](../data/analysis/part_number_sources.md).
-⛔ **부품 특정 지표는 안 움직였다** — 데이터가 세상에 없다는 것이 실증됐을 뿐이다.
-⚠ **수치 정정(2026-08-14)**: 이 줄은 오래 `42.2%` 로 적혀 있었는데 그건 **4차 기준선**(`20260812-021820`) 값이다.
+**부품 특정 지표는 안 움직였다** — 데이터가 세상에 없다는 것이 실증됐을 뿐이다.
+**수치 정정(2026-08-14)**: 이 줄은 오래 `42.2%` 로 적혀 있었는데 그건 **4차 기준선**(`20260812-021820`) 값이다.
 **현재 코드의 기준선은 `20260812-060312` 의 `40.0%`** 이고(마지막 실행 `075303` 은 MQ-714 가 들어간 상태이며 그 코드는 `ac7547f` 로 원복됐다),
 `eval_gap_4th.md:151` 이 `part 42.2 → 40.0%` 라고 적은 뒤 바로 다음 줄에 *"흔들림이 9~11칸으로 지배적이라 비율 비교가 성립하지 않는다"* 를 덧붙였다 —
 즉 **−2.2pt 는 개선도 회귀도 아니고 판정 불가**다.
@@ -156,11 +156,11 @@ seed 41건 · 공유 `public.traces` 0→0.
 | Sprint 8 (A2A 신원) 축 | 상태 |
 |---|---|
 | `partner_links` 테이블 (D91·D96) | ✅ 구현 — 판정(`link_state` 3상태)과 식별자(`external_ref`)를 **DDL CHECK 로 분리**. null-safe `IS` · `subject_ref NOT NULL`(회사 결 `''`) · `linked_at DATETIME`(UTC) |
-| 연결 전제 시드 (D92) | ✅ 5행 — `LINKED` 4 / **`NOT_LINKED` 대조군 `BLD-D`** 1. ⚠ **목업**(`PARTNER_LINKS_MOCK=True`) |
+| 연결 전제 시드 (D92) | ✅ 5행 — `LINKED` 4 / **`NOT_LINKED` 대조군 `BLD-D`** 1. **목업**(`PARTNER_LINKS_MOCK=True`) |
 | 증권 식별자 정본 (D95) | ✅ `assets.policy_id` 하나 — `partner_links` 복제 **0건**(seed ㉔ 음성 검사) |
-| 파트너 자격증명 (D93) | 🟡 **env 층만** — `.env.example` 4키(값 전부 빈칸) + `backend/a2a/credentials.py`. **토큰 캐시 미착수** · `mcp_server/**` 에서 안 보임(D15) |
-| `traces.request_chain_id` (D94-ⓐ) | 🟡 **컬럼만** — **쓰는 쪽이 없어 전 행 NULL 이 정상**. 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 명시 기록(D76-2 재발 방지) |
-| 나가는 A2A 요청 (호출부) | ⛔ **미착수** — `docs/A2A_CONTRACTS.md` 의 호출 목록 10종은 전부 미구현이다 |
+| 파트너 자격증명 (D93) | **env 층만** — `.env.example` 4키(값 전부 빈칸) + `backend/a2a/credentials.py`. **토큰 캐시 미착수** · `mcp_server/**` 에서 안 보임(D15) |
+| `traces.request_chain_id` (D94-ⓐ) | **컬럼만** — **쓰는 쪽이 없어 전 행 NULL 이 정상**. 스파이크 `⑪-b` 가 *"쓰는 코드 0건"* 을 명시 기록(D76-2 재발 방지) |
+| 나가는 A2A 요청 (호출부) | **미착수** — `docs/A2A_CONTRACTS.md` 의 호출 목록 10종은 전부 미구현이다 |
 
 | 축 | 상태 |
 |---|---|
@@ -169,14 +169,14 @@ seed 41건 · 공유 `public.traces` 0→0.
 | **쓰기 도구** | **3종** — `create_po_draft`(`po_drafts`) · `generate_disposal_document`(`decisions`) · `create_repair_record`(`repair_records`). 셋 다 **draft INSERT 만**, UPDATE 권한 없음 (D10·D81·D98) |
 | DB | 코어 11 + 확장 7 + A2A 1 + UI 목업 1 + F5·F6 4 = **테이블 24개**(실측 `data/seed.py`). `decisions` 에 컬럼 5개 + **CHECK 2종** 추가(MQ-707) · **`partner_links` 신설**(Sprint 8, D91·D96) · `traces.request_chain_id` 컬럼 신설(D94-ⓐ, **전 행 NULL 이 정상**) · **`part_lifecycle_mock` 신설**(Sprint 10, §19 — 설비 하이라이트 대시보드용 부품 생애주기 경고 목업) · **`deadlines`·`incidents`·`ownership_checks`·`risk_profile` 신설**(Sprint 11, §20~§23, F5·F6, D102) |
 | 룰 카탈로그 | 5종 전부 **트리거 정합**(D77·D78) — 판정 5종(`BLOCKED`/`HOLD`/`INSUFFICIENT_FACTS`/`CONDITIONAL`/`CLEAR`, D79)이 시드에서 전부 도달 가능 |
-| REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/repairs`(제출·서명·반려, D98)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. ⚠ `/api/po` 는 **형태 불변** |
+| REST | `GET /api/assets` · `/{id}` · `/{id}/ownership` · `POST /{id}/disposal/precheck`(무저장, D71) · **`/api/decisions`(제출·서명·반려)** · **`/api/repairs`(제출·서명·반려, D98)** · **`/api/approvals`(통합 큐, 읽기 전용 — D85)**. `/api/po` 는 **형태 불변** |
 | 프론트 | 라우트 **18개** (실측 `npx next build`, Sprint 12 이후 무변경) — 정비사 콘솔 · 자산 목록 · 처분 사전판정 · 실사 · 팀장 큐 · 처분서 상세/서명 · trace · 설비 하이라이트 대시보드 · 근거 번들/지출 분류 · 수리 증빙 상세 · 기한·위험등급 조회 |
 | 외부 응답 보관 | ✅ **`data/external/store.py`(D103)** — `data/raw/external/<source>/<key>.json` 에 git 추적 봉투(요청 파라미터·헤더·인증값 미저장, allowlist 강제). 소비자 2종: `fetch_laws` payload 소급 보관 · **Elice DocVision**(D105, 독립 2차 판독기, 정답지 아님) 캐시 |
-| 회귀 (실측 2026-08-20, IE5 검수 이월 항목 반영 후) | spikes **32스위트 / 976건**(`ie5_extract_contract` 에 A⑯·C⑪·C⑫·D④ 4건 추가, 972→976) · seed **36건**(`error_codes`=65 불변, `users` 자가검증에 ⑨-b 신설) · pytest **83건**(3파일 합산 — `data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 + `data/external/test_elice_docvision.py` 13) · ruff clean · `next build` 재실행 불필요(프론트 무변경, 18 라우트 유지) · `ui_honesty_contract` **253/253**(전 계약 PASS). ⚠ Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절), 이번 32스위트 전수 실행은 재시도 0회 |
+| 회귀 (실측 2026-08-20, IE5 검수 이월 항목 반영 후) | spikes **32스위트 / 976건**(`ie5_extract_contract` 에 A⑯·C⑪·C⑫·D④ 4건 추가, 972→976) · seed **36건**(`error_codes`=65 불변, `users` 자가검증에 ⑨-b 신설) · pytest **83건**(3파일 합산 — `data/rules/test_rules.py` 46 + `backend/agent/test_llm_cache.py` 24 + `data/external/test_elice_docvision.py` 13) · ruff clean · `next build` 재실행 불필요(프론트 무변경, 18 라우트 유지) · `ui_honesty_contract` **253/253**(전 계약 PASS). Windows 소켓 고갈로 연속 실행 시 1건이 산발 실패할 수 있다 — **재시도로 통과**(CLAUDE.md 회귀 절), 이번 32스위트 전수 실행은 재시도 0회 |
 | 잔가곡선 | **목업 정률 공식**으로 확정(D74) — 중진공 호가로는 감가를 식별할 수 없다는 한계 실증을 `data/analysis/residual_curve.md` 에 보존 |
 | 계층 1 (법령 원문) | ✅ **8/8 `FETCHED` 완성 (2026-08-13)** — 총 **8,197자** · 해시 전건 무결. 마지막 `PENDING` 이던 `KR-CITA-ENF-31` 은 등록 제목(`즉시상각의제` → `즉시상각의 의제`) 사람 승인 후 수집됐다. 수집기(`fetch_from_api`)·적용기(`apply_fetch`) 둘 다 완료(D75). 근거: `../data/analysis/law_fetch.md` |
 
-> **계층 1 — Sprint 7 MQ-701 시점의 기록** (⚠ **현재값 아님**. 현재는 위 표대로 **8/8 `FETCHED` 완성**,
+> **계층 1 — Sprint 7 MQ-701 시점의 기록** (**현재값 아님**. 현재는 위 표대로 **8/8 `FETCHED` 완성**,
 > `KR-CITA-ENF-31` 은 2026-08-13 사람 승인으로 해소됐다. 아래는 *그 미수집 경로가 어떻게 동작했는가* 의 기록이다)
 > — 당시 `KR-CITA-ENF-31` 만 `PENDING` 이었다.
 > 등록 제목(`즉시상각의제`)이 API 값(`즉시상각의 의제`)과 달라 `apply_fetch` 가 `LawMismatchError` 로
@@ -189,12 +189,12 @@ seed 41건 · 공유 `public.traces` 0→0.
 
 **다음 액션 (Sprint 13 완료 — P28 ⓐ·P31 닫힘, 2026-08-19)**
 
-> 📍 **지금**: 브랜치 `sprint-13-external-store`. Sprint 9(P25 수리 증빙) → 브랜치 내 후속 작업
+> **지금**: 브랜치 `sprint-13-external-store`. Sprint 9(P25 수리 증빙) → 브랜치 내 후속 작업
 > (재고 드로어·설비 하이라이트 대시보드) → Sprint 10(P37·P38 근거 번들·지출 분류 화면, 수리 증빙
 > 승인 큐 상세) → Sprint 11(P36 — D102 로 편입한 기한·사고·위험 감시 계층) → Sprint 12(S29 정정 ·
 > UI 노출) → **Sprint 13(P28 ⓐ·P31 — 외부 응답 원본 보관 + `actions` 결측 3자 대조)** 까지 전부 완료.
 > 계획은 `docs/sprints/sprint-9.md`~`sprint-13.md`, 세션 기록은 `docs/sessions/2026-08-18.md`.
-> ⛔ master 미머지 — 머지는 사람이 요청할 때만.
+> master 미머지 — 머지는 사람이 요청할 때만.
 >
 > ✅ **Sprint 13 이 5스테이지 전부 끝났다** — 설계 근거는
 > [`docs/superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md`](superpowers/specs/2026-08-19-actions-absence-verification-and-external-store-design.md)
@@ -205,16 +205,16 @@ seed 41건 · 공유 `public.traces` 0→0.
 > 번호가 밀림) · **D105**(Elice DocVision 도입, 정답지로 취급하지 않음). P39 는 여전히
 > 스코프아웃(브레인스토밍부터 다시).
 >
-> 🎯 **판독 결과(최종)** — `CONFIRMED_ABSENT` **24** · `DISAGREE` **6** · `STILL_AMBIGUOUS` **4** ·
+> **판독 결과(최종)** — `CONFIRMED_ABSENT` **24** · `DISAGREE` **6** · `STILL_AMBIGUOUS` **4** ·
 > `RECOVERABLE` **0** · `INCONCLUSIVE` **0**. `_pending_review`(MQ-911)의 *"매뉴얼에 원래 없음"*
 > 주장 28건 중 24건이 확정됐고, `extract_triage` 의 *"S100 25건은 파서 결함(`CELL_SPLIT`)"* 가설은
 > **기각**됐다 — 유료 OCR 로 데이터를 늘리려던 기대는 성립하지 않았다.
-> ⚠ 이 문단은 오래 *"`RECOVERABLE` 1(`iG5A NTC`) · D99 재승인 대기"* 로 적혀 있었으나 **낡은 값이다**
+> 이 문단은 오래 *"`RECOVERABLE` 1(`iG5A NTC`) · D99 재승인 대기"* 로 적혀 있었으나 **낡은 값이다**
 > (2026-08-29 실측 정정). 같은 날(2026-08-19) 후반부의 위임 검수에서 판정 매트릭스 갭이 드러나
 > `NTC` 는 `RECOVERABLE` → **`STILL_AMBIGUOUS`** 로 정정됐고(커밋 `8923866`·`bc76aef`),
 > `data/extracted/actions_absence_verification.json` 실측도 `RECOVERABLE` **0** 이다.
 > **34건 중 기계 판정 회수 가능은 0건** — 1,530원으로 산 것은 조치문이 아니라 34건 전부에 대한 확답이다.
-> 🔵 **다만 2026-08-29 사람이 그 반려를 뒤집어 `iG5A NTC` 1건을 승인·정본 병합했다**
+> **다만 2026-08-29 사람이 그 반려를 뒤집어 `iG5A NTC` 1건을 승인·정본 병합했다**
 > (`data/merge_approved_actions.py`, 비-actions 필드 70건 해시 대조 전건 일치 · `actions` 결측 34 → **33건**).
 > 기계 판정은 **고치지 않았다** — `actions_absence_verification.json` 은 여전히 `STILL_AMBIGUOUS` 이고
 > 귀속행(rowspan)은 0(미확인)이다. 사람이 기계를 덮었다는 사실과 그 근거의 한계는
@@ -224,8 +224,8 @@ seed 41건 · 공유 `public.traces` 0→0.
 2. ✅ ~~**사람** — 처분 승인서·진술보장서 **문안 검수**~~ — **2026-08-13 완료.** 19시나리오(판정 5종 전부) 렌더링본을 확인하고 **수정 없이 승인**. 출력 키가 `unreviewed_template_notice` → **`template_review_notice`** 로 바뀌었다 (**D90**) — 값이 "검수 완료"가 되는데 키에 `unreviewed` 가 남으면 자기모순이다
 3. ✅ ~~**사람** — `KR-CITA-ENF-31` 등록 제목 정정 승인~~ — **2026-08-13 완료.** 등록 `즉시상각의제` → API 값 `즉시상각의 의제`. **계층 1 이 8/8 `FETCHED` 로 완성됐다**
 4. ✅ ~~**사람** — `parts.part_class` 40종 감수~~ — **2026-08-13 완료.** 40종 전량 확인 후 **초안 그대로 승인**(변경 0건). `assess_repair_value` 3지 판단을 실적으로 인용할 수 있다 (`seed.py` 의 `PART_CLASS_REVIEWED = True`)
-5. ✅ ~~**사람** — 기준내용연수 `N` 법령 원문 대조~~ — **2026-08-13 완료.** 별표서식 API 로 **별표6** 실수집 대조 → 업종을 KSIC **`29`** 로 고정하고 **`N = 8 → 10`**(별표6 제5호) 정정 (**D89**). 3지 판정은 27조합 중 1건만 이동. ⚠ `RESIDUAL_AT_LIFE_END=0.50`·`FLOOR=0.10` 은 여전히 **가정**이다
-6. ~~**MQ-713/714** — 지표 튜닝~~ — **종료.** 코드 축(A·C) 채택 · 프롬프트 축(A′·B)과 루프 축(MQ-714) **전부 기각·원복**. 판정 규칙은 `--repeat 3` 의 `안정실패 → 안정통과` 승격 칸 수. ⛔ `MAINTQ_TOOLS_PROFILE=full` 로 평가하지 않는다 (D88 이 코드로 막는다)
+5. ✅ ~~**사람** — 기준내용연수 `N` 법령 원문 대조~~ — **2026-08-13 완료.** 별표서식 API 로 **별표6** 실수집 대조 → 업종을 KSIC **`29`** 로 고정하고 **`N = 8 → 10`**(별표6 제5호) 정정 (**D89**). 3지 판정은 27조합 중 1건만 이동. `RESIDUAL_AT_LIFE_END=0.50`·`FLOOR=0.10` 은 여전히 **가정**이다
+6. ~~**MQ-713/714** — 지표 튜닝~~ — **종료.** 코드 축(A·C) 채택 · 프롬프트 축(A′·B)과 루프 축(MQ-714) **전부 기각·원복**. 판정 규칙은 `--repeat 3` 의 `안정실패 → 안정통과` 승격 칸 수. `MAINTQ_TOOLS_PROFILE=full` 로 평가하지 않는다 (D88 이 코드로 막는다)
 7. ✅ ~~**Sprint 9** — `create_repair_record`(P25·S29)~~ — **완료.** 쓰기 도구(D98)·`/api/repairs` 제출·서명·반려(D85)까지 붙었고, `GET /api/approvals` 의 `kind: "repair"` 가 채워진다. 정본 병합(**MQ-919**, `actions` 결측 회수)도 **2026-08-17 사용자 최종 승인 완료** — 남은 항목 없음
 8. ✅ ~~**브랜치 후속** — 재고 드로어 + 설비 하이라이트 대시보드~~ — **완료.** 16태스크(subagent-driven-development). 최종 브랜치 리뷰에서 드러난 사전 존재 D87 위반 2건도 함께 해소
 9. ✅ ~~**Sprint 10** — 근거 번들·지출 분류 화면(P37) + 수리 증빙 승인 큐 상세(P38)~~ — **완료.** `/sprint 10` → `/stage 1~3` 전 스테이지 자동 파이프라인 통과. 브라우저 실사용 검증(Claude-in-Chrome) 중 발견한 실버그 1건(`RepairDetail` 상태 미갱신)도 같은 세션에서 수정
@@ -241,8 +241,8 @@ seed 41건 · 공유 `public.traces` 0→0.
     (`ui_honesty_contract` `L2_FILES_FLOOR` 32→36 실측 갱신, spikes 30스위트 871건) + 기준선·문서
     마감. 신규 D-결정 없음(카운트·노출 갱신만)
 12. **A2A 호출부는 QMesh 착수 후** — 나가는 요청·원문 보관(`tool_payload`)·토큰 캐시는 상대 서버가 서야 의미가 생긴다. 지금 만들면 검증할 상대가 없고, `request_chain_id` 를 쓰는 순간 스파이크 `⑪-b` 를 **뒤집어야 한다**(그게 정상 신호다)
-13. 🟡 **사람** — A2A 연결 승인·파트너 자격증명 **실값**은 미착수다. 시드는 목업 전제(`PARTNER_LINKS_MOCK=True`)이고 `.env` 4키는 비어 있다 → [../TODO_직접할일.md](../TODO_직접할일.md) `## Sprint 8 — A2A`
-14. 🟡 **사람** — 시스템 프롬프트 안전 문구 최종 검수(`SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE`) — 여전히 대기. 검수 전에도 런타임은 막지 않는다(게이트하면 안전 블록이 아예 안 나가 더 위험) → `TODO_직접할일.md` `## M2~M4 중`
+13. **사람** — A2A 연결 승인·파트너 자격증명 **실값**은 미착수다. 시드는 목업 전제(`PARTNER_LINKS_MOCK=True`)이고 `.env` 4키는 비어 있다
+14. **사람** — 시스템 프롬프트 안전 문구 최종 검수(`SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE`) — 여전히 대기. 검수 전에도 런타임은 막지 않는다(게이트하면 안전 블록이 아예 안 나가 더 위험)
 15. ✅ ~~**사람 협의**~~ — 완료. `S29`로 확정(2026-08-18), MaintQ 문서 전수 정정 완료(Sprint 12 MQ-1201)
 16. ✅ ~~**P30** — 부재 검사 liveness 앵커 2건~~ — **완료 (2026-08-19, `28c4f69`).** `agent_loop_contract ⑯ A7`
     에 양성 축 2개(앵커 3종 + 스캐너 생존), `ui_honesty_contract` 에 `IMPORT_SPEC` 오라클 메타검사 1건.
@@ -317,18 +317,14 @@ seed 41건 · 공유 `public.traces` 0→0.
 > 02 정비부품발주요청서 · 03 자금집행요청서(`data/doc_review.py` 의 `*_TEMPLATE_REVIEWED`
 > 3개가 전부 `False`). D124 로 **docx 가 실제 파일로 사람 손에 나가므로** 성격이 달라졌다 —
 > 다만 서류 안에 `※ 문서 문안은 미검수 초안이다` 가 찍혀 막히는 것은 없다.
-> ⚠ 이 3건이 안 세어진 이유는 `TODO_직접할일.md` 의 해당 절이 **체크박스 없이 산문으로만**
-> 적혀 있어 스캔에 안 잡혔기 때문이다(2026-09-16 체크박스 추가).
 > ㉯ **`partner_links` 표기** — 아래 ㉢ 참고(승인이 아니라 표기 정합이라 여기 안 세어졌었다).
 >
-> ⚠ **이 5건은 결재·안전 게이트만 센 값이다.** 「급하지 않음」으로 분류된 값 판단
+> **이 5건은 결재·안전 게이트만 센 값이다.** 「급하지 않음」으로 분류된 값 판단
 > (`RESIDUAL_AT_LIFE_END` 동의 · 시드 가격 감수 · IE5 안전지침 페이지 검증 등)은 별도이고,
-> 전체 목록은 `TODO_직접할일.md` 를 본다 — **여기 숫자만 보고 "다 끝났다"로 읽지 말 것.**
+> **여기 숫자만 보고 "다 끝났다"로 읽지 말 것.**
 >
 > **원래 세던 1건**: **안전 문구 검수**(14번, `SAFETY_BASELINE`·`QUALIFIED_WORKER_NOTE`).
-> 🔴 **이 건은 `TODO_직접할일.md` 쪽에서 한 번 «완료» 로 잘못 표기돼 있었다** —
-> `f808f39`(Sprint 12 번호 정정 커밋)이 무관한 변경에 끼워 체크를 뒤집었다. 2026-09-16 에
-> 되돌렸다. 코드가 반증한다: `prompts.py` 의 `approved_at` 은 여전히 기준값 승인일
+> **이 건은 한 번 «완료» 로 잘못 표기된 적이 있다.** 코드가 반증한다: `prompts.py` 의 `approved_at` 은 여전히 기준값 승인일
 > **`2026-07-18`** 이고 주석이 *"문안 전체 검수는 진행 중"* 이라고 적는다.
 > 나머지 3건은 이미 종결됐다(2026-08-29 실측 정정 — 이 줄은 오래 *"남은 4건"* 으로 낡아 있었다):
 > ㉠ **`iG5A NTC` D99 → 2026-08-29 사람 승인·정본 병합 완료.** 경과가 두 번 뒤집혔다:
@@ -343,10 +339,8 @@ seed 41건 · 공유 `public.traces` 0→0.
 > 남은 것은 승인이 아니라 표기다 — `data/seed.py` 의 `PARTNER_LINKS_MOCK` 은 아직 `True` 이고,
 > 시드 `partner_links` 5행이 실제 승인된 연결인지 확인된 뒤에 `False` 로 내린다.
 >
-> ⚠ **`N` 이 확정됐다고 잔가곡선이 실측이 된 것은 아니다** — `RESIDUAL_AT_LIFE_END=0.50`·
+> **`N` 이 확정됐다고 잔가곡선이 실측이 된 것은 아니다** — `RESIDUAL_AT_LIFE_END=0.50`·
 > `FLOOR=0.10` 은 근거 미확보 **가정**으로 남아 있고 D74·D65 의 추정치 고지는 유지된다.
-
-사람이 해야 할 일 전체는 [../TODO_직접할일.md](../TODO_직접할일.md).
 
 <details><summary>지난 이력</summary>
 

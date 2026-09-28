@@ -118,14 +118,14 @@ UI 를 고칠 때 깨면 안 되는 것들:
   `kind` 배지는 중립색 고정이고, *모르는 어휘* 배지는 오렌지를 빌려 쓰지 않고 전용 톤(`unknown`)을 쓴다
 - **승인 큐의 어휘를 정규화하지 않는다** (D85·D87) — 발주 `approved` 와 처분 `signed` 는 다른 사건이다.
   `state` 는 백엔드가 준 **원 어휘 그대로** 들고 다니고, 표시는 `lib/queueState.stateView(kind, state)`
-  한 곳이 정한다. **맵에 없는 값은 `⚠ 원문` + 점선 배지**이며 **절대 초록(`ok`)으로 떨어지지 않는다**
+  한 곳이 정한다. **맵에 없는 값은 `원문` + 점선 배지**이며 **절대 초록(`ok`)으로 떨어지지 않는다**
 - **없는 값을 채우지 않는다** — `urgency: null`(처분서)이면 배지를 만들지 않고,
   `verdict: null`(발주)이면 판정 영역을 렌더하지 않는다. `"normal"`·`false` 는 없는 사실을 만든다
 
 ## 백엔드 연동 TODO (M2, docs/06_REPO_API.md)
 
 - `ChatComposer` 전송 → `POST /api/chat` → `readSse()` 로 이벤트 4종 수신
-  - ⚠️ **`EventSource` 를 쓸 수 없다** — `/api/chat` 은 POST 이고 EventSource 는 GET 전용이며
+  - **`EventSource` 를 쓸 수 없다** — `/api/chat` 은 POST 이고 EventSource 는 GET 전용이며
     커스텀 헤더(`X-Role`·`X-User`)를 실을 수 없다. `fetch` + `ReadableStream` 으로 파싱한다
   - `block` 이벤트는 도착 즉시 `ChatItem[]` 에 push — token 사이에 끼어들어야 한다 (D22)
 - `TracePanel` ← `tool_call`·`tool_result` 실시간 렌더 (현재는 `lib/mock/trace.ts`)

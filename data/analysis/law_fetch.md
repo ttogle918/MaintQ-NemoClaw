@@ -3,7 +3,7 @@
 **작성**: 2026-08-09 · **대상**: `data/rules/laws/*.json` 7건 · **수집기**: `data/rules/fetch_laws.py`
 
 > 이 문서는 **실호출로 확인한 것만** 적는다. 추측한 파라미터·미검증 URL 은 싣지 않는다.
-> ⛔ 인증값(`LAW_API_OC`)은 여기에도, 로그에도, `source_url` 에도 남기지 않는다.
+> 인증값(`LAW_API_OC`)은 여기에도, 로그에도, `source_url` 에도 남기지 않는다.
 
 ---
 
@@ -66,7 +66,7 @@ OC 오값    → 200 {"result":"사용자 정보 검증에 실패하였습니다
 
 ---
 
-## 2. 🚨 `조문내용` 은 본문이 아니다 — 평탄화 전/후 대조
+## 2. `조문내용` 은 본문이 아니다 — 평탄화 전/후 대조
 
 법제처는 조문에 따라 `조문내용` 에 **본문 전체**를 담기도 하고 **제목 한 줄만** 담기도 한다.
 후자를 `text` 로 매핑하면 `apply_fetch` 의 비어있지 않음 검사(`fetch_laws.py` — `text.strip()`)를
@@ -215,7 +215,7 @@ DoD 가 잡으려던 것은 *"제목이 원문으로 실리는 것"* 이므로 �
 uv run python data/rules/fetch_laws.py --fetch-all     # 실호출. 결과표 + exit 0
 uv run python data/rules/fetch_laws.py --check         # 개정 감지(멱등: 전부 UNCHANGED)
 uv run python data/rules/fetch_laws.py --pending       # pending_revisions 열람
-uv run python data/seed.py --with-error-codes          # ⚠ JSON 을 채운 뒤 필수 (law_refs 는 DB 사본, D60)
+uv run python data/seed.py --with-error-codes          # JSON 을 채운 뒤 필수 (law_refs 는 DB 사본, D60)
 uv run python spikes/law_fetch_contract.py             # 28건 · 네트워크 미사용 (ⓚ OC 유출 검사 포함)
 uv run python spikes/asset_tools_contract.py           # 49건 · 기대값을 laws/*.json 에서 파생
 ```

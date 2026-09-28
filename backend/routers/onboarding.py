@@ -19,7 +19,7 @@
 - 쓰기 주체(`c.user_id`)가 `users` 에 없으면 400 — `reviewed_by`·`approved_by`·`promoted_by`
   는 `users` FK 라 감사 기록이 비지 않게 앞단에서 막는다.
 - 실패 본문은 `{"reason", "detail", ...extra}` (`routers/repairs.py::_conflict` 와 같은 모양).
-- ⛔ 승격 취소·승인 취소 API 는 없다(범위 밖 — `TODO_직접할일.md` H10, 06 §2.11).
+- ⛔ 승격 취소·승인 취소 API 는 없다(범위 밖 — 06 §2.11).
 """
 
 from __future__ import annotations

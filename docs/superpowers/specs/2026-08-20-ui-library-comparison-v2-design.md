@@ -35,7 +35,7 @@
 
 Next.js 라우트 그룹 `(console)` 은 URL 세그먼트로 나타나지 않으므로, `(console)` 안에 둬도 URL 은 `/v2/manager/po/[poId]` 가 된다 — **그러나 계획(writing-plans) 단계에서 이 결정을 뒤집었다.**
 
-🔴 **정정 (계획 단계, 2026-08-20)** — 실측하니 `app/(console)/layout.tsx` 가 이미 `/manager`·`/technician` 전체를 감싸는 **기존 AppBar + 테마 컨텍스트**를 갖고 있었다. Next.js 는 하위 라우트가 상위 레이아웃을 생략할 방법이 없다 — `app/(console)/v2/…` 에 두면 D87 글롭은 자동으로 걸리지만 **v2 화면 위에 v1 AppBar 가 강제로 씌워져** "라이브러리 기본 미관 비교"라는 목적과 어긋난다.
+**정정 (계획 단계, 2026-08-20)** — 실측하니 `app/(console)/layout.tsx` 가 이미 `/manager`·`/technician` 전체를 감싸는 **기존 AppBar + 테마 컨텍스트**를 갖고 있었다. Next.js 는 하위 라우트가 상위 레이아웃을 생략할 방법이 없다 — `app/(console)/v2/…` 에 두면 D87 글롭은 자동으로 걸리지만 **v2 화면 위에 v1 AppBar 가 강제로 씌워져** "라이브러리 기본 미관 비교"라는 목적과 어긋난다.
 
 **해결책**: `app/v2/…` (완전히 밖, `(console)` 형제 경로)로 두고, 대신 `spikes/ui_honesty_contract.py` 의 `L2_GLOBS` 에 **`"app/v2/**/*.tsx"` 를 새 글롭으로 추가**한다 — Sprint 10 이 `app/(console)/**` 를 세 번째 글롭으로 더한 것과 같은 방식(스파이크 상단 주석 선례). 결과는 동일(D87 자동 적용)하면서 레이아웃은 완전히 격리되고, URL 도 그대로다. 사용자 확인 완료.
 
@@ -83,7 +83,7 @@ DecisionBarV2        (MUI Button)            ↔ components/queue/DecisionBar.ts
 
 `tailwind.config.js` 의 `content` 를 `app/v2/**/*.{ts,tsx}` (+ `components/v2/**/*.{ts,tsx}`)로 좁혀 유틸리티 클래스 생성이 나머지 앱 파일을 스캔하지 않게 한다.
 
-🔴 **리스크 — Tailwind `@tailwind base`(preflight) 전역 유출.** Tailwind 의 리셋 CSS 는 스코프 개념이 없어, 잘못 임포트하면 버튼·폼 기본 스타일이 앱 전체에서 깨질 수 있다. 대응:
+**리스크 — Tailwind `@tailwind base`(preflight) 전역 유출.** Tailwind 의 리셋 CSS 는 스코프 개념이 없어, 잘못 임포트하면 버튼·폼 기본 스타일이 앱 전체에서 깨질 수 있다. 대응:
 - Tailwind 스타일시트는 **`v2/layout.tsx` 에서만 임포트**한다(전역 `app/globals.css`·루트 `layout.tsx` 에는 손대지 않는다)
 - Next.js 는 non-root 레이아웃에서 임포트한 CSS 를 그 라우트 번들에 스코프하지만, **실측으로 확인이 필요하다** — Stage 2 착수 시 v1 화면(`/manager`·`/technician` 등) 스크린샷을 Stage 1 완료 시점과 대조해 리셋 유출이 없는지 확인한다. 유출되면 Tailwind 를 CSS Modules 처럼 클래스 프리픽스로 격리하거나 `important` 스코프 셀렉터(`important: '#v2-root'`) 로 우회한다
 
