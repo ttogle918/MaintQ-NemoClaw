@@ -192,6 +192,9 @@ npm --prefix frontend run dev
 
 MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `uv run python mcp_server/server.py`
 
+> OpenShell·NemoClaw(OpenClaw)·NAT 는 해커톤 미션 재현용 별도 구성이며, 위 빠른 시작에는 필요 없다 —
+> 생략해도 된다. 상세는 [docs/hackathon/SUBMISSION.md](docs/hackathon/SUBMISSION.md) §5.
+
 ## 시나리오 (도구 오케스트레이션 패턴 4종)
 
 | # | 시나리오 | 증명하는 패턴 |
