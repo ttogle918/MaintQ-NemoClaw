@@ -7,6 +7,62 @@
 
 > 설비 진단부터 부품 발주까지 — 제조 현장 AI 보전 에이전트
 
+## 해커톤: 해결한 문제와 NVIDIA 기술
+
+**문제.** 새 기종이 들어오면 매뉴얼은 대개 영문 PDF 한 권뿐이다. AI 번역·진단을 그대로 믿으면 두 가지 사고가 난다.
+틀린 고장 정의나 비슷한 코드를 추측해 엉뚱한 조치를 하거나, 방전 대기 시간 같은 안전 수치를 기존 기종 값으로 안내해 감전 위험을 만드는 것이다.
+**해법.** AI 는 빠르게 초안을 만들고, 틀릴 수 있는 에이전트는 샌드박스·DB 권한·사람의 승인으로 통제한다.
+
+| 단계 | 누가 | 무엇을 |
+|---|---|---|
+| 추출 | 결정적 코드(LLM 없음) | 영문 PDF 고장 표에서 코드·페이지·원문 추출 |
+| 한국어 정규화 | NeMo Agent Toolkit + Nemotron, OpenShell 샌드박스 안 | 행마다 한국어 초안을 **스테이징 테이블에만** 기록(HV600 249행 전량). 매뉴얼 속 주입 의심 문장은 서버가 판정해 신뢰도를 낮춘다 |
+| 검수·승격·안전 승인 | **사람**(팀장) | 원문과 대조해 코드 단위로 승격, 안전 문구는 원문 페이지를 보고 직접 승인. 원문에 없는 숫자는 API 가 거부 |
+| 진단 | NemoClaw/OpenClaw + 제품 스킬 | 승격된 코드만 진단. 같은 질문 "HV600에서 GF 떴어" 가 승격 전엔 추측 없는 A/S 안내, 승격 후엔 정의·원인·조치 + 사람이 승인한 안전 문구 |
+
+| NVIDIA 기술 | 쓰임 |
+|---|---|
+| Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) | 진단·온보딩 추론 모델 |
+| NIM 호스팅 엔드포인트(build.nvidia.com) | 샌드박스 안에서는 OpenShell 게이트웨이(`inference.local`) 경유로만 호출. API 키는 게이트웨이에만 있다 |
+| Nemotron 임베딩 (`nvidia/nemotron-3-embed-1b`) | 매뉴얼 검색 색인 |
+| NeMo Agent Toolkit | 온보딩 에이전트 런타임(`tool_calling_agent` + MCP client + 가드 함수) |
+| OpenShell | 샌드박스 3개(웹 콘솔·온보딩·진단), egress 허용 목록, 실행 파일·경로 단위 허용, 파일시스템 격리 |
+| NemoClaw / OpenClaw | 현장 진단 에이전트 |
+| Agent Skills(SKILL.md) | 제품 스킬 2종 작성 — `skills/maintq-diagnose`(OpenClaw 진단) · `skills/maintq-manual-onboarding`(정규화 규칙). build.nvidia.com 카탈로그 스킬 2종(`skill-card-generator` · `nemoclaw-user-guide`) 설치 |
+| SkillSpector | 스킬 공급망 게이트 — 카탈로그 스킬도 **설치 전** 스캔하고, 우리 스킬은 발견 사항을 고치거나 사람이 수용 판정(결과는 SUBMISSION §3.8) |
+
+**전체 스택**: Python 3.13 · FastAPI · FastMCP(도구 22종 + 온보딩 3종, stdio·streamable-http) · PostgreSQL + pgvector · Next.js · SSE · Docker · WSL2.
+기술별 근거 파일, 채점 기준 매핑, 보안 장치의 실측 결과는 [docs/hackathon/SUBMISSION.md](docs/hackathon/SUBMISSION.md) §2~§3.
+
+## 빠른 시작 (로컬 설치)
+
+요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/), Docker(로컬 Postgres 컨테이너 — Sprint 16 D116 이후 필수), Node.js(프론트)
+
+```bash
+git clone https://github.com/ttogle918/MaintQ-NemoClaw.git && cd MaintQ-NemoClaw
+docker compose up -d postgres        # 로컬 Postgres(pgvector/pgvector:pg15, 포트 5434) 기동
+uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
+cp .env.example .env                 # DATABASE_URL(기본값이 위 컨테이너를 가리킴)과 아래 3개를 입력:
+                                      #   MAINTQ_LLM_PROVIDER=nvidia
+                                      #   MAINTQ_LLM_MODEL=nvidia/nemotron-3-super-120b-a12b
+                                      #   NVIDIA_API_KEY=<build.nvidia.com 키>  (임베딩도 같은 키 — 없으면
+                                      #   매뉴얼 검색이 키워드 전용으로 동작, D117)
+
+uv run python data/seed.py --with-error-codes   # 목업 DB 생성 (시드 케이스 맵 7종 + error_codes)
+
+# 터미널 1 — FastAPI 백엔드 (MCP 서버는 lifespan이 자동 기동, D42)
+uv run uvicorn backend.main:app --reload --port 8003
+
+# 터미널 2 — 프론트 (localhost:3003)
+npm --prefix frontend install
+npm --prefix frontend run dev
+```
+
+MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `uv run python mcp_server/server.py`
+
+> OpenShell·NemoClaw(OpenClaw)·NAT 는 해커톤 미션 재현용 별도 구성이며, 위 빠른 시작에는 필요 없다 —
+> 생략해도 된다. 상세는 [docs/hackathon/SUBMISSION.md](docs/hackathon/SUBMISSION.md) §5.
+
 ## 배포판에서 바로 해 보기
 
 | | |
@@ -153,10 +209,10 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
 (도식 원본: `docs/06_REPO_API.md` §0)
 
 - MCP 서버·백엔드 프로세스 분리 (D15) → 목업 DB를 실제 ERP로 교체 시 MCP 서버만 갈아끼우면 됨. 단, 개발/데모 시에는 백엔드 `lifespan`이 MCP 서버를 서브프로세스로 **자동 기동**한다(D42) — 별도 터미널로 띄울 필요 없음
-- MCP 도구 **코어 7종 + 확장 14종 = 21종**. 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
+- MCP 도구 **코어 7종 + 확장 15종 = 22종**(+ 온보딩 프로필 3종). 확장분은 `MAINTQ_TOOLS_PROFILE=full` 일 때만 등록된다(**D69** —
   기본 `core`. 도구를 늘린 채 평가를 돌리면 "수정 효과 vs 도구 증가 효과"를 분리할 수 없다.
   **D88** 이 이 기준선을 코드로 잠갔다 — `run_eval.py` 가 `/health` 실측으로 `core` 가 아니면 종료한다)
-  확장 14종: `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
+  확장 15종: `get_document_facts`(읽기 전용, D125) `assess_used_equipment_loan` `check_disposal_blockers` `verify_ownership` `classify_part_criticality`
   `get_maintenance_metrics` `classify_expenditure` `assess_repair_value` `build_evidence_bundle`
   `generate_disposal_document` `create_repair_record`(Sprint 9, D98)
   `track_deadlines` `assess_risk_grade`(Sprint 11, D102)
@@ -167,33 +223,6 @@ PDF 매뉴얼 뒤지기(10~30분) → 고참 정비사 경험에 의존한 진�
   가능하고 UPDATE 권한이 없다. 승인/반려/서명/승격은 사람 전용 API
   (`backend/routers/po.py` · `backend/routers/decisions.py` · `backend/routers/repairs.py` ·
   `backend/routers/onboarding.py`)만 한다 (D10·D81·D98·D154)
-
-## 빠른 시작
-
-요구사항: Python 3.11+ (개발 고정 버전은 3.13 — `.python-version`), [uv](https://docs.astral.sh/uv/), Docker(로컬 Postgres 컨테이너 — Sprint 16 D116 이후 필수), Node.js(프론트)
-
-```bash
-git clone https://github.com/ttogle918/MaintQ-NemoClaw.git && cd MaintQ-NemoClaw
-docker compose up -d postgres        # 로컬 Postgres(pgvector/pgvector:pg15, 포트 5434) 기동
-uv sync                              # .venv 생성 + uv.lock 기준 의존성 설치
-cp .env.example .env                 # DATABASE_URL(기본값이 위 컨테이너를 가리킴)·GEMINI_API_KEY·
-                                      # MAINTQ_LLM_MODEL 입력 (기본 제공자: gemini). NVIDIA_API_KEY는
-                                      # 선택 — 없으면 매뉴얼 검색이 키워드 전용으로 동작(D117)
-
-uv run python data/seed.py --with-error-codes   # 목업 DB 생성 (시드 케이스 맵 7종 + error_codes)
-
-# 터미널 1 — FastAPI 백엔드 (MCP 서버는 lifespan이 자동 기동, D42)
-uv run uvicorn backend.main:app --reload --port 8003
-
-# 터미널 2 — 프론트 (localhost:3003)
-npm --prefix frontend install
-npm --prefix frontend run dev
-```
-
-MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `uv run python mcp_server/server.py`
-
-> OpenShell·NemoClaw(OpenClaw)·NAT 는 해커톤 미션 재현용 별도 구성이며, 위 빠른 시작에는 필요 없다 —
-> 생략해도 된다. 상세는 [docs/hackathon/SUBMISSION.md](docs/hackathon/SUBMISSION.md) §5.
 
 ## 시나리오 (도구 오케스트레이션 패턴 4종)
 
@@ -207,6 +236,8 @@ MCP 도구만 단독으로 점검하려면(디버깅용, 평소엔 불필요): `
 ## 평가
 
 에러코드 20개 테스트셋 자동 실행 (`eval/run_eval.py`) — 지표 판정 방법 상세는 `docs/06_REPO_API.md` §3 참조.
+
+> **Nemotron 으로는 아직 재측정하지 않았다.** 아래 수치는 모두 이전 모델(gemini · gpt-oss) 기준이고, 이후 시스템 프롬프트가 바뀌어 직접 비교할 수 없다([SUBMISSION §6](docs/hackathon/SUBMISSION.md)).
 
 > **지표는 모델에 크게 좌우된다 — 조건을 밝히지 않은 수치는 비교하지 말 것.** 아래 두 측정은
 > **모델이 다르므로 대면 비교가 성립하지 않는다**(`gemini-2.5-flash` vs `gpt-oss:120b`).
@@ -351,7 +382,7 @@ uv run python eval/run_eval.py --yes --repeat 3    # 실행 (실비용 발생)
 
 ## 상태
 
-M1~M3 완료 · M4(평가 파이프라인·데모·문서 정리) 진행 중 — **Sprint 18 까지 완료**되고, 발표·데모 촬영과
-**평가 축 재정립(D135)** 까지 마쳤다. 남은 것은 오특정 감소(프롬프트 과제)·20문항 전체 재측정,
-그리고 사람 승인 대기 2건(안전 문구 검수 · `partner_links` 확인)이다.
+M1~M3 완료 · M4(평가·데모·문서 정리) 마무리 — **Sprint 19(해커톤: 새 기종 온보딩)까지 완료**됐다. HV600 249행 정규화 ·
+8코드 승격 · p.29 안전 문구 1건 승인 · 승격 전/후 진단 데모 녹화까지 마쳤다. 남은 것은 Nemotron 기준 평가 재측정과
+알려진 한계(승격 취소 API 없음 등)이며, 목록은 [SUBMISSION §6](docs/hackathon/SUBMISSION.md) 에 있다.
 상세 진행 상태는 [docs/README.md](docs/README.md) 참조
