@@ -371,10 +371,10 @@
   <div class="note-strip" style="border-left-color:var(--good);background:var(--good-soft)">
     <b>2026-09-18 ~ 09-28 — NVIDIA 해커톤: 「에이전트는 초안까지, 결정은 사람」을 샌드박스 안에서 증명했습니다.</b>
     미션은 <i>Securing Agents with NemoClaw and OpenShell</i>. 제출용 레포를 <code class="inline">ttogle918/MaintQ-NemoClaw</code>
-    (Apache-2.0, 현재 비공개)로 옮겼고, 결정 <b>D143~D158</b>(16건)이 더해졌습니다. 핵심 시나리오는 하나입니다 —
+    (Apache-2.0)로 옮겼고, 결정 <b>D143~D159</b>(17건)이 더해졌습니다. 핵심 시나리오는 하나입니다 —
     같은 질문 <i>"HV600에서 GF 떴어"</i>가 승격 전에는 <b>「매뉴얼에서 확인되지 않는 코드 → A/S 안내」</b>(유사 코드 추측 0),
     사람이 검수·승격·안전 문구 승인을 마친 뒤에는 <b>「정의·원인·조치 + 사람이 승인한 안전 문구(최소 5분, 근거 p.29)」</b>로 바뀝니다.
-    <b>마감은 2026-09-28 23:59</b>이고 남은 것은 전부 사람 몫입니다(아래 「해커톤 제출 전 남은 일」).
+    <b>마감은 2026-09-28 23:59</b>였고 제출을 마쳤습니다. 마감 당일에는 <b>공개 배포</b>(Netlify + Cloud Run + Supabase, <code class="inline">D159</code>)를 더했습니다 — 아래 Sprint 19 카드와 README 「배포판에서 바로 해 보기」.
   </div>
 
   <!-- ============ 해커톤 · Sprint 19 ============ -->
@@ -393,6 +393,12 @@
         <div class="card-head"><h3>MCP streamable-http 입구 + 요청자 신원 헤더</h3><span class="chip done">완료</span></div>
         <p class="desc">NemoClaw 가 stdio MCP 를 받지 않아 같은 FastMCP 인스턴스에 두 번째 입구 <code class="inline">mcp_server/http_entry.py</code> 를 더했습니다(stdio 유지, D150). OpenClaw 는 <code class="inline">host.openshell.internal:8765</code> 의 <code class="inline">/mcp</code> 만, 실행 파일 <code class="inline">node</code> 만 허용하는 커스텀 egress 프리셋으로 붙습니다(D151 — 같은 주소를 <code class="inline">curl</code> 로 부르면 거부). 발주 초안의 요청자는 LLM 파라미터가 아니라 <code class="inline">X-User</code> 헤더에서 서버가 읽습니다(D152).</p>
         <div class="meta"><span class="tag">D150·D151·D152</span><span class="tag">mcp_http_contract 17건</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>공개 배포 — Netlify + Cloud Run + Supabase, 데모 토큰 게이트</h3><span class="chip done">완료</span></div>
+        <p class="desc">심사자가 설치 없이 열어 보도록 2026-09-28 에 올렸습니다. 프론트는 Netlify, 백엔드(FastAPI + MCP 자식 프로세스)는 GCP Cloud Run(asia-northeast3), DB 는 Supabase(Postgres + pgvector) — 로컬 DB 를 <code class="inline">pg_dump</code> 로 통째 이관했습니다(재시드는 HV600 승격·정규화를 복구하지 못함). 공개 URL 에서 누구나 발주를 승인하지 못하게 백엔드 앞에 <b>공유 토큰 게이트</b>(<code class="inline">X-Demo-Token</code>, 불일치 401)를 세웠고, 인증이 아니라 <code class="inline">X-Role</code>/<code class="inline">X-User</code> 시뮬레이션은 그대로입니다. <b>OpenShell 샌드박스 · NemoClaw 진단 · NAT 온보딩은 배포판에 없습니다</b>(로컬 게이트웨이 전제) — 재현은 SUBMISSION §5. 배포 직후 Netlify 하이드레이션 실패와 공유 링크 토큰 미저장을 고쳤습니다.</p>
+        <div class="meta"><span class="tag">D159</span><span class="tag">backend/demo_gate.py</span><span class="tag">deploy/cloudrun/</span><span class="tag">docs/13_DEPLOYMENT.md</span><span class="tag">da16a3c · 582ab79</span></div>
       </div>
 
       <div class="card">
@@ -449,33 +455,33 @@
     </div>
     <p class="sec-note" style="margin-top:10px">출처 <code class="inline">SUBMISSION.md</code> §4 · 세션 로그 2026-09-28. 되돌릴 수 없는 버튼(승격·안전 승인·재무 승인)은 녹화 중 누르지 않고 끝난 상태만 보입니다. 파트너(FinAllQ) 출금 요청 성공 장면은 없습니다(파트너를 띄우지 않아 403 까지). 장면 6 은 첫 테이크에 안전 가드 치환 문장이 섞여 재녹화했습니다(아래 「알려진 문제점」).</p>
 
-    <div class="sec-head" style="margin-top:28px"><h2>해커톤 제출 전 남은 일</h2><span class="count">마감 2026-09-28 23:59 · 전부 사람 몫</span></div>
+    <div class="sec-head" style="margin-top:28px"><h2>해커톤 제출 마감 항목</h2><span class="count">마감 2026-09-28 23:59 · 제출 완료(2026-10-03 확인)</span></div>
     <div class="issue">
-      <span class="sev warn">사람</span>
+      <span class="sev info">제출</span>
       <div>
-        <h4>S2 — 데모 영상 편집 · 링크 기입</h4>
+        <h4>S2 — 데모 영상 편집 · 링크 기입 <small>(제출 완료)</small></h4>
         <p><code class="inline">SUBMISSION.md</code> §4 「(링크: 사람이 기입)」과 <code class="inline">docs/memo/2026-09-25-hv600-onboarding-demo.md</code> §1 「영상 파일 위치」.</p>
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">사람</span>
+      <span class="sev info">제출</span>
       <div>
-        <h4>S3 — 스킬 카드 검토</h4>
+        <h4>S3 — 스킬 카드 <small>(제출 완료)</small></h4>
         <p><code class="inline">skills/maintq-manual-onboarding/skill-card.md</code> 초안은 Claude 가 2026-09-27 작성 — Use Case 문구 · <code class="inline">Requires API Key</code> · 버전 SHA 를 사람이 확인합니다.</p>
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">사람</span>
+      <span class="sev info">제출</span>
       <div>
-        <h4>S5 — 레포 공개</h4>
-        <p>공개 전 점검은 완료(2026-09-27) — LICENSE Apache-2.0 · 추적 <code class="inline">.env</code> 는 example 2개뿐 · 매뉴얼 원본 미추적 · <code class="inline">.env</code> 실값 히스토리 유출 0 · 커밋 이메일 전부 noreply. <b>공개 클릭만 남았습니다.</b></p>
+        <h4>S5 — 레포 공개 <small>(공개 상태는 확인 필요)</small></h4>
+        <p>공개 전 점검은 완료(2026-09-27) — LICENSE Apache-2.0 · 추적 <code class="inline">.env</code> 는 example 2개뿐 · 매뉴얼 원본 미추적 · <code class="inline">.env</code> 실값 히스토리 유출 0 · 커밋 이메일 전부 noreply. <b>제출 시점의 공개 여부는 이 문서가 확인하지 못했습니다 — GitHub 설정에서 확인하세요.</b></p>
       </div>
     </div>
     <div class="issue">
-      <span class="sev warn">사람</span>
+      <span class="sev info">제출</span>
       <div>
-        <h4>S6 — <code class="inline">SUBMISSION.md</code> 최종 읽기</h4>
-        <p>수치(spikes 41/1,387 · pytest 406 · seed 44 · 라우트 27 · D1~D158)는 2026-09-27 전수 실측으로 일치 확인. 사람의 최종 읽기가 남았습니다.</p>
+        <h4>S6 — <code class="inline">SUBMISSION.md</code> 최종 읽기 <small>(제출 완료)</small></h4>
+        <p>수치(spikes 41/1,387 · pytest 412 · seed 44 · 라우트 27 · D1~D159)는 2026-09-27 전수 실측으로 일치 확인(pytest 412는 2026-10-03 재실측). 제출본으로 사용됐습니다.</p>
         <div class="fix"><b>완료된 것 —</b> S1(H6 SkillSpector HIGH 1 수용, 2026-09-27) · S4(OpenClaw 워크스페이스·스킬 재설치, 2026-09-27). ⛔ 상시: <b>데모 전 <code class="inline">data/seed.py</code> 재실행 금지</b>(H9 — LLM 정규화·승격·안전 승인이 복구되지 않음).</div>
       </div>
     </div>
@@ -484,7 +490,7 @@
   <!-- ============ 구현 완료 ============ -->
   <section>
     <div class="sec-head"><h2>구현 완료된 기능</h2><span class="count">코어 9종 + 확장 8종</span></div>
-    <p class="sec-note">회귀 <b>spikes 41스위트 / 1,387건</b> · seed <b>44</b> · pytest <b>406</b>(23파일 합산) — <code class="inline">CLAUDE.md</code> 2026-09-25 실측, <code class="inline">law_fetch_contract ⓚ</code> 기존 오탐 1건 외 FAIL 0 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
+    <p class="sec-note">회귀 <b>spikes 41스위트 / 1,387건</b> · seed <b>44</b> · pytest <b>412</b>(24파일 합산, 2026-10-03 실측) — 나머지는 <code class="inline">CLAUDE.md</code> 2026-09-25 실측, <code class="inline">law_fetch_contract ⓚ</code> 기존 오탐 1건 외 FAIL 0 + 정적 검사 3종(ruff·tsc·next build)이 전부 통과하는 상태의 기능들입니다. "완료"는 코드·회귀가 끝났다는 뜻이고, 데이터 검수(사람 승인)까지 끝났는지는 별도로 표시했습니다.</p>
 
     <div class="grid cols-2">
       <div class="card">
@@ -1172,9 +1178,9 @@
       <span style="font-size:12.5px">✅ <b>2026-09-16 — 남은 사람 승인 4건이 하루에 전부 닫혔습니다</b>: 안전 문구 문안 검수(<code class="inline">SAFETY_BASELINE.text_reviewed_at</code> 신설 — <code class="inline">approved_at</code> 2026-07-18 은 <b>기준값</b> 승인일이라 합치지 않고 나란히 둡니다) · 결재 문서 문안 3종(01·02·03) · <code class="inline">partner_links</code> 연결 승인 확인.<br>🔴 그 과정에서 <b>안전 문구 체크가 「완료」로 잘못 서 있던 것</b>을 발견했습니다 — 무관한 커밋(Sprint 12 시나리오 번호 정정)이 체크박스만 뒤집었고 승인 기록은 없었습니다. <b>코드가 반증했습니다.</b><br>🟡 남은 대기는 <b>S14 척도 — 상대(InsuQ) 구현 승인</b> 1건입니다.<br>
       ✅ 해제됨: <b>related_parts 최종 승인(08-12)</b> · <b>처분 문서 문안 검수(08-13, D90)</b> · <b><code class="inline">parts.part_class</code> 40종 감수(08-13)</b> · <b><code class="inline">KR-CITA-ENF-31</code> 제목 정정(08-13 — 계층 1 8/8)</b> · <b><code class="inline">actions</code> 결측 회수분 정본 병합(08-17, MQ-919)</b> · <b>P36 F5·F6 감시 계층 편입·완료(08-18, D102)</b> · <b>시나리오 번호 정정 완료 → S29(P33, 08-18)</b> · <b>Elice 실호출 1,530원 승인·집행 완료(08-19)</b> · <b><code class="inline">DISAGREE</code> 6건 확인 완료 — 조치 불필요(08-19)</b> · <b><code class="inline">iG5A NTC</code> D99 승인·정본 병합(08-29)</b> · <b>A2A 파트너 자격증명 실값 확보(D120 — Bearer 스킴 교체)</b></span></div>
     <div class="figs">
-      <div><b>1,837</b>회귀 단언 — 41스위트 1,387 + pytest 406 + seed 44 (CLAUDE.md 실측 2026-09-25)</div>
+      <div><b>1,843</b>회귀 단언 — 41스위트 1,387 + pytest 412 + seed 44 (pytest 2026-10-03 · 나머지 CLAUDE.md 2026-09-25 실측)</div>
       <div><b>33</b>DB 테이블 (Sprint 18 까지 25 + 온보딩 5 + 사업장 3)</div>
-      <div><b>158</b>설계 결정 D1~D158</div>
+      <div><b>159</b>설계 결정 D1~D159</div>
       <div><b>22 + 3</b>MCP 도구 (코어 7 + 확장 15 · 온보딩 프로필 3)</div>
       <div><b>27</b>화면 라우트 (next build)</div>
     </div>
